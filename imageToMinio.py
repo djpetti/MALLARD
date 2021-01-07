@@ -1,20 +1,19 @@
 from minio import Minio
-from minio.error import (ResponseError, BucketAlreadyExists)
+from minio.error import InvalidResponseError
 import os
+
 
 def getMinioClient(access, secret):
     return Minio(
-            'localhost:9000',
-            access_key=access,
-            secret_key=secret,
-            secure=False
+        "localhost:9000", access_key=access, secret_key=secret, secure=False
     )
+
 
 def insertImage():
 
     if True:
-        minioClient = getMinioClient('testaccess', 'testsecret')
-        print('--Connected to Minio--')
+        minioClient = getMinioClient("testaccess", "testsecret")
+        print("--Connected to Minio--")
 
         pathName = input("Enter Directory Path (start and end with slashes): ")
 
@@ -22,7 +21,7 @@ def insertImage():
             entries = os.scandir(pathName)
         except OSError as error:
             print(error)
-            exit('exiting...')
+            exit("exiting...")
 
         extension = input("Specify file extension (include period): ")
 
@@ -32,10 +31,10 @@ def insertImage():
             size = list()
 
             bucketName = input("Choose a name for your Bucket: ")
-            if (not minioClient.bucket_exists(bucketName)):
+            if not minioClient.bucket_exists(bucketName):
                 try:
                     minioClient.make_bucket(bucketName)
-                except ResponseError as identifier:
+                except InvalidResponseError as identifier:
                     print("bucket name already exists.")
                     raise
 
@@ -43,19 +42,19 @@ def insertImage():
                 filePath = pathName + entry.name
                 if filePath.endswith(extension):
                     try:
-                        with open(filePath,'rb') as testfile:
+                        with open(filePath, "rb") as testfile:
                             statdata = os.stat(filePath)
                             minioClient.put_object(
                                 bucketName,
                                 entry.name,
                                 testfile,
-                                statdata.st_size
+                                statdata.st_size,
                             )
                         path.append(entry.name)
                         bucket.append(bucketName)
                         size.append(statdata.st_size)
 
-                    except ResponseError as identifier:
+                    except InvalidResponseError as identifier:
                         raise
     if not path:
         print("no images were found in the specified directory")

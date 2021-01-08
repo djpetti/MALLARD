@@ -1,0 +1,38 @@
+version: '3.7'
+
+services:
+
+  # MinIO server instance
+  object_store:
+    image: minio/minio:RELEASE.2021-01-05T05-22-38Z
+    volumes:
+      - data:/data
+    ports:
+      - "9000:9000"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      MINIO_ACCESS_KEY: testaccess
+      MINIO_SECRET_KEY: testsecret
+    command: server /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MySQL server instance
+  db:
+    image: mysql
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql_password
+      MYSQL_USER: newuser
+      MYSQL_PASSWORD: newpassword
+      MYSQL_DATABASE: images
+
+volumes:
+  data:

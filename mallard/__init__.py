@@ -1,0 +1,3 @@
+"""
+Top-level MALLARD package.
+"""

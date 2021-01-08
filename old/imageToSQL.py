@@ -1,19 +1,17 @@
 from datetime import datetime
+
 import mysql.connector
 
 
 def sqlConnect(name, bucket, size):
-    try:
-        cnx = mysql.connector.connect(
-            user="newuser",
-            password="newpassword",
-            host="localhost",
-            database="images",
-        )
-        if cnx.is_connected():
-            print("--Connected to mysql--")
-    except:
-        print("Unable to connect to mysql")
+    cnx = mysql.connector.connect(
+        user="newuser",
+        password="newpassword",
+        host="localhost",
+        database="images",
+    )
+    if cnx.is_connected():
+        print("--Connected to mysql--")
 
     cnxcursor = cnx.cursor()
 
@@ -75,9 +73,9 @@ def addRows(cnx, cnxcursor, rows):
         cnxcursor.executemany(sql, rows)
         cnx.commit()
         print(len(rows), "rows added to mysql")
-    except:
+    except Exception as error:
         cnx.rollback()
-        print("Unable to insert data")
+        raise error
 
 
 def printRows(cnx, cnxcursor):

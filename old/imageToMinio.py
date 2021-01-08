@@ -1,6 +1,7 @@
+import os
+
 from minio import Minio
 from minio.error import InvalidResponseError
-import os
 
 
 def getMinioClient(access, secret):
@@ -36,7 +37,7 @@ def insertImage():
                     minioClient.make_bucket(bucketName)
                 except InvalidResponseError as identifier:
                     print("bucket name already exists.")
-                    raise
+                    raise identifier
 
             for entry in entries:
                 filePath = pathName + entry.name
@@ -55,7 +56,7 @@ def insertImage():
                         size.append(statdata.st_size)
 
                     except InvalidResponseError as identifier:
-                        raise
+                        raise identifier
     if not path:
         print("no images were found in the specified directory")
         exit()

@@ -28,7 +28,7 @@ out/
 # JIRA plugin
 atlassian-ide-plugin.xml
 
-# C extensions
+# C formats
 *.so
 
 ### Python template

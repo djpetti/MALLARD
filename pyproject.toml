@@ -6,10 +6,13 @@ authors = ["Daniel Petti <djpetti@gmail.com>", "Justin Hong <wjtw9802@gmail.com>
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "~3.8"
+python = "~3.9"
 minio = "^7.0.1"
 mysql-connector = "^2.2.9"
 pydantic = "^1.7.3"
+fastapi = "^0.63.0"
+uvicorn = {extras = ["standard"], version = "^0.13.3"}
+python-multipart = "^0.0.5"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"

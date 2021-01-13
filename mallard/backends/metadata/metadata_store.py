@@ -5,7 +5,7 @@ Common interface for all metadata storage backends.
 
 import abc
 
-from .rows import Row
+from .models import Metadata
 
 
 class MetadataStore(abc.ABC):
@@ -14,7 +14,7 @@ class MetadataStore(abc.ABC):
     """
 
     @abc.abstractmethod
-    def add(self, *, object_id: str, metadata: Row) -> None:
+    def add(self, *, object_id: str, metadata: Metadata) -> None:
         """
         Adds metadata for an object to the store.
 
@@ -26,7 +26,7 @@ class MetadataStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def get(self, object_id: str) -> Row:
+    def get(self, object_id: str) -> Metadata:
         """
         Gets the associated metadata for a particular object.
 

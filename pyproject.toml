@@ -25,6 +25,7 @@ pytest_cov = "^2.10.1"
 pytest_black = "^0.3.11"
 pytest_flake8 = "^1.0.6"
 faker = "^5.6.0"
+pytest-asyncio = "^0.14.0"
 
 [tool.black]
 line-length = 79

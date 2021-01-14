@@ -9,9 +9,10 @@ from faker import Faker
 from fastapi import APIRouter, Depends, File, UploadFile
 from starlette.responses import StreamingResponse
 
-from ..backends.metadata.models import UavImageMetadata
-from .images_models import CreateResponse, Query, QueryResponse
-from .tests.faker_providers import ImageProvider
+from mallard.backends.metadata.models import UavImageMetadata
+from mallard.routers.images.tests.faker_providers import ImageProvider
+
+from .models import CreateResponse, Query, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 

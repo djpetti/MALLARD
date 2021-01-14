@@ -10,7 +10,7 @@ from faker import Faker
 from faker.providers import BaseProvider
 from PIL import Image
 
-from ..images_models import CreateResponse, QueryResponse
+from mallard.routers.images.models import CreateResponse, QueryResponse
 
 
 class ImageProvider(BaseProvider):

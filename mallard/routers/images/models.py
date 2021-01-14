@@ -12,7 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel, validator
 from pydantic.generics import GenericModel
 
-from ..backends.metadata.models import GeoPoint
+from mallard.backends.metadata.models import GeoPoint
 
 
 class CreateResponse(BaseModel):

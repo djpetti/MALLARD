@@ -24,7 +24,7 @@ from .models import CreateResponse, QueryResponse
 router = APIRouter(prefix="/images", tags=["images"])
 
 
-async def _use_bucket(backends: BackendManager = Depends()) -> str:
+async def use_bucket(backends: BackendManager = Depends()) -> str:
     """
     Returns:
         The bucket to use for saving new images. It will create it if it
@@ -40,7 +40,7 @@ async def _use_bucket(backends: BackendManager = Depends()) -> str:
     return bucket_name
 
 
-def _user_timezone(tz: float = Query(..., ge=-24, le=24)) -> timezone:
+def user_timezone(tz: float = Query(..., ge=-24, le=24)) -> timezone:
     """
     Adds the user's current timezone offset as a query parameter so we can
     show correct timings.
@@ -58,7 +58,7 @@ def _user_timezone(tz: float = Query(..., ge=-24, le=24)) -> timezone:
 def filled_uav_metadata(
     metadata: UavImageMetadata = Depends(UavImageMetadata.as_form),
     image_data: UploadFile = File(...),
-    user_timezone: timezone = Depends(_user_timezone),
+    local_tz: timezone = Depends(user_timezone),
 ) -> UavImageMetadata:
     """
     Intercepts requests containing UAV image metadata and fills in any missing
@@ -67,13 +67,13 @@ def filled_uav_metadata(
     Args:
         metadata: The metadata sent in the request.
         image_data: The raw image data.
-        user_timezone: The local user's timezone offset from GMT.
+        local_tz: The local user's timezone offset from GMT.
 
     Returns:
         A copy of the metadata with missing fields filled.
 
     """
-    return fill_metadata(metadata, local_tz=user_timezone, image=image_data)
+    return fill_metadata(metadata, local_tz=local_tz, image=image_data)
 
 
 @router.post(
@@ -85,7 +85,7 @@ async def create_uav_image(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
     image_data: UploadFile = File(...),
     backends: BackendManager = Depends(),
-    use_bucket: str = Depends(_use_bucket),
+    bucket: str = Depends(use_bucket),
 ) -> CreateResponse:
     """
     Uploads a new image captured from a UAV.
@@ -94,7 +94,7 @@ async def create_uav_image(
         metadata: The image-specific metadata.
         image_data: The actual image file to upload.
         backends: Used to access storage backends.
-        use_bucket: The bucket to use for new images.
+        bucket: The bucket to use for new images.
 
     Returns:
         A `CreateResponse` object for this image.
@@ -102,10 +102,8 @@ async def create_uav_image(
     """
     # Create the image in the object store.
     unique_name = uuid.uuid4().hex
-    object_id = ObjectRef(bucket=use_bucket, name=unique_name)
-    logger.info(
-        "Creating a new image {} in bucket {}.", unique_name, use_bucket
-    )
+    object_id = ObjectRef(bucket=bucket, name=unique_name)
+    logger.info("Creating a new image {} in bucket {}.", unique_name, bucket)
     object_task = asyncio.create_task(
         backends.object_store.create_object(object_id, data=image_data)
     )

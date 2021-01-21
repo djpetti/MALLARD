@@ -4,6 +4,7 @@ Unit tests for the `endpoints` class.
 
 
 import unittest.mock as mock
+from datetime import timedelta, timezone
 from typing import AsyncIterable, Type
 
 import pytest
@@ -142,7 +143,7 @@ async def test_create_uav_image(
         metadata=create_uav_params.mock_metadata,
         image_data=create_uav_params.mock_file,
         backends=config.mock_manager,
-        use_bucket=create_uav_params.bucket_id,
+        bucket=create_uav_params.bucket_id,
     )
 
     # Assert.
@@ -191,7 +192,7 @@ async def test_create_uav_image_write_failure(
             metadata=create_uav_params.mock_metadata,
             image_data=create_uav_params.mock_file,
             backends=config.mock_manager,
-            use_bucket=create_uav_params.bucket_id,
+            bucket=create_uav_params.bucket_id,
         )
 
     # Assert
@@ -396,3 +397,95 @@ async def test_query_images(
     assert len(response.image_ids) <= results_per_page
     assert response.page_num == page_num
     assert response.is_last_page == is_last
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exists", (True, False), ids=("existing", "new"))
+async def test_use_bucket(
+    config: ConfigForTests, mocker: MockFixture, faker: Faker, exists: bool
+) -> None:
+    """
+    Tests that the `use_bucket` dependency function works.
+
+    Args:
+        config: The configuration to use for testing.
+        mocker: The fixture to use for mocking.
+        faker: The fixture to use for generating fake data.
+        exists: Whether we want to simulate the bucket already existing or not.
+
+    """
+    # Arrange.
+    # Make it produce a consistent date.
+    mock_date_class = mocker.patch(endpoints.__name__ + ".date")
+    fake_date = faker.date()
+    mock_date_class.today.return_value.isoformat.return_value = fake_date
+
+    config.mock_manager.object_store.bucket_exists.return_value = False
+    if exists:
+        # Make it look like the bucket already exists.
+        config.mock_manager.object_store.bucket_exists.return_value = True
+
+    # Act.
+    got_bucket = await endpoints.use_bucket(config.mock_manager)
+
+    # Assert.
+    # It should have produced a good name.
+    assert fake_date in got_bucket
+
+    # It should have created the bucket only if necessary.
+    config.mock_manager.object_store.bucket_exists.assert_called_once_with(
+        got_bucket
+    )
+    if not exists:
+        config.mock_manager.object_store.create_bucket.assert_called_once_with(
+            got_bucket
+        )
+    else:
+        config.mock_manager.object_store.create_bucket.assert_not_called()
+
+
+def test_user_timezone(faker: Faker) -> None:
+    """
+    Tests that the `user_timezone` dependency function works.
+
+    Args:
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    offset = faker.random_int(min=-24, max=24)
+
+    # Act.
+    got_timezone = endpoints.user_timezone(offset)
+
+    # Assert.
+    assert got_timezone.utcoffset(None) == timedelta(hours=offset)
+
+
+def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
+    """
+    Tests that the `filled_uav_metadata` dependency function works.
+
+    Args:
+        mocker: The fixture to use for mocking.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    mock_metadata = mocker.create_autospec(UavImageMetadata, instance=True)
+    mock_image_data = faker.upload_file()
+    mock_timezone = mocker.create_autospec(timezone, instance=True)
+
+    # Mock the underlying function that it calls.
+    mock_fill_metadata = mocker.patch(endpoints.__name__ + ".fill_metadata")
+
+    # Act.
+    got_metadata = endpoints.filled_uav_metadata(
+        metadata=mock_metadata,
+        image_data=mock_image_data,
+        local_tz=mock_timezone,
+    )
+
+    # Assert.
+    mock_fill_metadata.assert_called_once()
+    assert got_metadata == mock_fill_metadata.return_value

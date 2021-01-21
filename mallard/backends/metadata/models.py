@@ -43,7 +43,9 @@ class GeoPoint(BaseModel):
     longitude_deg: Optional[float] = None
 
     @validator("latitude_deg")
-    def lat_in_range(cls, latitude: Optional[float]) -> Optional[float]:
+    def lat_in_range(
+        cls, latitude: Optional[float]
+    ) -> Optional[float]:  # pragma: no cover
         """
         Ensures that latitude values are within valid ranges.
 
@@ -60,7 +62,9 @@ class GeoPoint(BaseModel):
         return latitude
 
     @validator("longitude_deg")
-    def lon_in_range(cls, longitude: Optional[float]) -> Optional[float]:
+    def lon_in_range(
+        cls, longitude: Optional[float]
+    ) -> Optional[float]:  # pragma: no cover
         """
         Ensures that latitude values are within valid ranges.
 
@@ -243,7 +247,7 @@ class ImageQuery(BaseModel):
         @validator("max_value")
         def min_value_less_than_max(
             cls, max_value: RangeType, values: Dict[str, RangeType]
-        ) -> RangeType:
+        ) -> RangeType:  # pragma: no cover
             """
             Checks that the low end of the range is not larger than the high
             end.

@@ -4,30 +4,53 @@ Common interface for all object storage backends.
 
 
 import abc
-from io import BufferedIOBase
+from io import BytesIO
 from typing import Iterable, Union
 
+from fastapi import UploadFile
 
-class ObjectStore(abc.ABC):
+from ..injectable import Injectable
+from .models import ObjectRef
+
+
+class BucketOperationError(Exception):
+    """
+    General exception triggered when an operation on a bucket fails.
+    """
+
+
+class ObjectOperationError(Exception):
+    """
+    General exception triggered when an operation on an object fails.
+    """
+
+
+class ObjectStore(Injectable):
     """
     Common interface for all object storage backends.
     """
 
     @abc.abstractmethod
-    def create_bucket(self, name: str) -> None:
+    async def create_bucket(self, name: str) -> None:
         """
         Creates a new bucket in the object store.
 
         Args:
             name: The name of the bucket.
 
+        Raises:
+            `BucketOperationError` on failure.
+
         """
 
     @abc.abstractmethod
-    def bucket_exists(self, name: str) -> bool:
+    async def bucket_exists(self, name: str) -> bool:
         """
         Args:
             name: The name of the bucket.
+
+        Raises:
+            `BucketOperationError` on failure.
 
         Returns:
             True iff the bucket exists.
@@ -35,9 +58,13 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def delete_bucket(self, name: str) -> None:
+    async def delete_bucket(self, name: str) -> None:
         """
         Deletes an existing bucket.
+
+        Raises:
+            `KeyError` if the bucket doesn't exist, or `BucketOperationError`
+            for other failures.
 
         Args:
             name: The name of the bucket to delete.
@@ -45,12 +72,16 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def list_bucket_contents(self, name: str) -> Iterable[str]:
+    async def list_bucket_contents(self, name: str) -> Iterable[str]:
         """
         Lists the contents of a bucket.
 
         Args:
             name: The name of the bucket to list the contents of.
+
+        Raises:
+            `KeyError` if the bucket doesn't exist, or`BucketOperationError`
+            for other failures.
 
         Returns:
             An iterator containing the unique IDs of every object in the bucket.
@@ -58,20 +89,19 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def create_object(
-        self,
-        *,
-        bucket: str,
-        object_name: str,
-        data: Union[bytes, BufferedIOBase]
+    async def create_object(
+        self, object_id: ObjectRef, *, data: Union[bytes, BytesIO, UploadFile]
     ) -> str:
         """
         Creates a new object.
 
         Args:
-            bucket: The name of the bucket to add the object to.
-            object_name: The name of the object to add.
+            object_id: The identifier of the object being created.
             data: The raw data contained in the object.
+
+        Raises:
+            `KeyError` if the object (or bucket) doesn't exist,
+            or `ObjectOperationError` for other failures.
 
         Returns:
             The unique ID of the object.
@@ -79,11 +109,13 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def object_exists(self, *, bucket: str, object_name: str) -> bool:
+    async def object_exists(self, object_id: ObjectRef) -> bool:
         """
         Args:
-            bucket: The name of the bucket.
-            object_name: The name of the object.
+            object_id: The identifier of the object being created.
+
+        Raises:
+            `ObjectOperationError` on failure.
 
         Returns:
             True iff an object with that name exists in that bucket. Note that
@@ -92,24 +124,30 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def delete_object(self, *, bucket: str, object_name: str) -> None:
+    async def delete_object(self, object_id: ObjectRef) -> None:
         """
         Deletes an existing object from the object store.
 
         Args:
-            bucket: The name of the bucket that the object is in.
-            object_name: The name of the object.
+            object_id: The identifier of the object being created.
+
+        Raises:
+            `KeyError` if the object (or bucket) doesn't exist,
+            or `ObjectOperationError` for other failures.
 
         """
 
     @abc.abstractmethod
-    def get_object(self, *, bucket: str, object_name: str) -> BufferedIOBase:
+    async def get_object(self, object_id: ObjectRef) -> BytesIO:
         """
         Gets an existing object from the object store.
 
         Args:
-            bucket: The name of the bucket.
-            object_name: The name of the object to get.
+            object_id: The identifier of the object being created.
+
+        Raises:
+            `KeyError` if the object (or bucket) doesn't exist,
+            or `ObjectOperationError` for other failures.
 
         Returns:
             A stream of binary data that contains the object data.
@@ -117,13 +155,16 @@ class ObjectStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    def get_object_url(self, *, bucket: str, object_name: str) -> str:
+    async def get_object_url(self, object_id: ObjectRef) -> str:
         """
         Gets a unique URL that can be used to download an object.
 
         Args:
-            bucket: The name of the bucket.
-            object_name: The name of the object to get.
+            object_id: The identifier of the object being created.
+
+        Raises:
+            `KeyError` if the object (or bucket) doesn't exist,
+            or `ObjectOperationError` for other failures.
 
         Returns:
             A URL corresponding to the object.

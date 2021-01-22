@@ -4,6 +4,7 @@ Tests for the `backend_manager` module.
 
 
 import unittest.mock as mock
+from typing import Type
 
 import pytest
 from confuse import ConfigTypeError
@@ -32,16 +33,21 @@ class TestBackendManager:
             mock_import_module: The mocked `import_module` function.
             mock_config: The mocked `ConfigView` instance.
             mock_issubclass: Mocked `issubclass` function.
+            mock_object_store_class: The mocked `ObjectStore` subclass to use.
+            mock_metadata_store_class: The mocked `MetadataStore` subclass to
+                use.
         """
 
         manager: backend_manager.BackendManager
         mock_import_module: mock.Mock
         mock_config: ConfigViewMock
         mock_issubclass: mock.Mock
+        mock_object_store_class: mock.Mock
+        mock_metadata_store_class: mock.Mock
 
     @classmethod
     @pytest.fixture
-    def config(cls, mocker: MockFixture) -> ConfigForTests:
+    async def config(cls, mocker: MockFixture) -> ConfigForTests:
         """
         Generates standard configuration for most tests.
 
@@ -64,16 +70,39 @@ class TestBackendManager:
         # Default to making this check always pass.
         mock_issubclass.return_value = True
 
-        manager = backend_manager.BackendManager()
+        # Set the correct configuration.
+        mock_object_view = mock_config["backends"]["object_store"]
+        mock_metadata_view = mock_config["backends"]["metadata_store"]
+        mock_object_view[
+            "type"
+        ].as_str.return_value = "test_store.TestObjectStore"
+        mock_metadata_view[
+            "type"
+        ].as_str.return_value = "test_store.TestMetadataStore"
 
-        return cls.ConfigForTests(
-            manager=manager,
-            mock_import_module=mock_import_module,
-            mock_config=mock_config,
-            mock_issubclass=mock_issubclass,
+        # Create the fake store classes and enclosing module.
+        mock_object_store_class = mocker.create_autospec(ObjectStore)
+        mock_metadata_store_class = mocker.create_autospec(MetadataStore)
+        mock_module = mocker.Mock(
+            spec_set=["TestObjectStore", "TestMetadataStore"]
         )
+        mock_module.TestObjectStore = mock_object_store_class
+        mock_module.TestMetadataStore = mock_metadata_store_class
+        # Make it look like we can import this.
+        mock_import_module.return_value = mock_module
 
-    def test_object_store(
+        async with backend_manager.BackendManager.create() as manager:
+            yield cls.ConfigForTests(
+                manager=manager,
+                mock_import_module=mock_import_module,
+                mock_config=mock_config,
+                mock_issubclass=mock_issubclass,
+                mock_object_store_class=mock_object_store_class,
+                mock_metadata_store_class=mock_metadata_store_class,
+            )
+
+    @pytest.mark.asyncio
+    async def test_object_store(
         self, config: ConfigForTests, mocker: MockFixture
     ) -> None:
         """
@@ -85,29 +114,21 @@ class TestBackendManager:
 
         """
         # Arrange.
-        # Set the correct configuration.
-        mock_store_view = config.mock_config["backends"]["object_store"]
-        mock_store_view["type"].as_str.return_value = "test_store.TestStore"
-
-        # Create the fake store class and enclosing module.
-        mock_store_class = mocker.create_autospec(ObjectStore)
-        mock_module = mocker.Mock(spec_set=["TestStore"])
-        mock_module.TestStore = mock_store_class
-        # Make it look like we can import this.
-        config.mock_import_module.return_value = mock_module
-
         # Act.
         object_store = config.manager.object_store
 
         # Assert.
         # It should have used the fake ObjectStore class.
-        mock_store_class.from_config.assert_called_once_with(
-            mock_store_view["config"]
+        config.mock_object_store_class.from_config.assert_called_once_with(
+            config.mock_config["backends"]["object_store"]["config"]
         )
-        assert object_store == mock_store_class.from_config.return_value
+        assert (
+            object_store
+            == config.mock_object_store_class.from_config.return_value.__aenter__.return_value
+        )
 
         # It should have imported the class.
-        config.mock_import_module.assert_called_once_with("test_store")
+        config.mock_import_module.assert_any_call("test_store")
 
     def test_metadata_store(
         self, config: ConfigForTests, mocker: MockFixture
@@ -121,31 +142,26 @@ class TestBackendManager:
 
         """
         # Arrange.
-        # Set the correct configuration.
-        mock_store_view = config.mock_config["backends"]["metadata_store"]
-        mock_store_view["type"].as_str.return_value = "test_store.TestStore"
-
-        # Create the fake store class and enclosing module.
-        mock_store_class = mocker.create_autospec(MetadataStore)
-        mock_module = mocker.Mock(spec_set=["TestStore"])
-        mock_module.TestStore = mock_store_class
-        # Make it look like we can import this.
-        config.mock_import_module.return_value = mock_module
-
         # Act.
         metadata_store = config.manager.metadata_store
 
         # Assert.
         # It should have used the fake ObjectStore class.
-        mock_store_class.from_config.assert_called_once_with(
-            mock_store_view["config"]
+        config.mock_metadata_store_class.from_config.assert_called_once_with(
+            config.mock_config["backends"]["metadata_store"]["config"]
         )
-        assert metadata_store == mock_store_class.from_config.return_value
+        assert (
+            metadata_store
+            == config.mock_metadata_store_class.from_config.return_value.__aenter__.return_value
+        )
 
         # It should have imported the class.
-        config.mock_import_module.assert_called_once_with("test_store")
+        config.mock_import_module.assert_any_call("test_store")
 
-    def test_load_invalid_type_spec(self, config: ConfigForTests) -> None:
+    @pytest.mark.asyncio
+    async def test_load_invalid_type_spec(
+        self, config: ConfigForTests
+    ) -> None:
         """
         Tests that loading a backend fails if the type spec is invalid.
 
@@ -160,10 +176,11 @@ class TestBackendManager:
 
         # Act and assert.
         with pytest.raises(ConfigTypeError, match="config is not valid"):
-            # The fancy lambda-ing is so we can test reading a property.
-            (lambda: config.manager.object_store)()
+            async with backend_manager.BackendManager.create():
+                pass
 
-    def test_load_missing_class(
+    @pytest.mark.asyncio
+    async def test_load_missing_class(
         self, config: ConfigForTests, mocker: MockFixture
     ) -> None:
         """
@@ -185,10 +202,11 @@ class TestBackendManager:
 
         # Act and assert.
         with pytest.raises(ConfigTypeError, match="does not exist"):
-            # The fancy lambda-ing is so we can test reading a property.
-            (lambda: config.manager.object_store)()
+            async with backend_manager.BackendManager.create():
+                pass
 
-    def test_load_failed_type_check(
+    @pytest.mark.asyncio
+    async def test_load_failed_type_check(
         self, config: ConfigForTests, mocker: MockFixture
     ) -> None:
         """
@@ -219,5 +237,18 @@ class TestBackendManager:
 
         # Act and assert.
         with pytest.raises(ConfigTypeError, match="Expected a subclass"):
-            # The fancy lambda-ing is so we can test reading a property.
-            (lambda: config.manager.object_store)()
+            async with backend_manager.BackendManager.create():
+                pass
+
+    @pytest.mark.asyncio
+    async def test_depend(self, config: ConfigForTests) -> None:
+        """
+        Tests that the `depend` method works.
+
+        Args:
+            config: The configuration to use for testing.
+
+        """
+        # Act and assert.
+        async for manager in backend_manager.BackendManager.depend():
+            assert isinstance(manager, backend_manager.BackendManager)

@@ -4,7 +4,8 @@ Superclass for injectable dependencies.
 
 
 import abc
-from typing import TypeVar
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, TypeVar
 
 from confuse import ConfigView
 
@@ -18,14 +19,18 @@ class Injectable(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def from_config(cls: ClassType, config: ConfigView) -> ClassType:
+    @asynccontextmanager
+    async def from_config(
+        cls: ClassType, config: ConfigView
+    ) -> AsyncIterator[ClassType]:
         """
-        Creates a new instance based on the provided configuration.
+        Context manager that creates a new instance based on the provided
+        configuration. Cleanup of connections, etc. should be performed on exit.
 
         Args:
             config: The configuration to use to initialize the class.
 
-        Returns:
+        Yields:
             The new instance that it created.
 
         """

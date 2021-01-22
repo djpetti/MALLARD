@@ -24,7 +24,9 @@ from .models import CreateResponse, QueryResponse
 router = APIRouter(prefix="/images", tags=["images"])
 
 
-async def use_bucket(backends: BackendManager = Depends()) -> str:
+async def use_bucket(
+    backends: BackendManager = Depends(BackendManager.depend),
+) -> str:
     """
     Returns:
         The bucket to use for saving new images. It will create it if it
@@ -84,7 +86,7 @@ def filled_uav_metadata(
 async def create_uav_image(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
     image_data: UploadFile = File(...),
-    backends: BackendManager = Depends(),
+    backends: BackendManager = Depends(BackendManager.depend),
     bucket: str = Depends(use_bucket),
 ) -> CreateResponse:
     """
@@ -130,7 +132,9 @@ async def create_uav_image(
 
 @router.delete("/delete/{bucket}/{name}")
 async def delete_image(
-    bucket: str, name: str, backends: BackendManager = Depends()
+    bucket: str,
+    name: str,
+    backends: BackendManager = Depends(BackendManager.depend),
 ) -> None:
     """
     Deletes an existing image from the server.
@@ -162,7 +166,9 @@ async def delete_image(
 
 @router.get("/{bucket}/{name}")
 async def get_image(
-    bucket: str, name: str, backends: BackendManager = Depends()
+    bucket: str,
+    name: str,
+    backends: BackendManager = Depends(BackendManager.depend),
 ) -> StreamingResponse:
     """
     Gets the contents of a specific image.
@@ -195,7 +201,7 @@ async def query_images(
     query: ImageQuery,
     results_per_page: int = Query(50, gt=0),
     page_num: int = Query(1, gt=0),
-    backends: BackendManager = Depends(),
+    backends: BackendManager = Depends(BackendManager.depend),
 ) -> QueryResponse:
     """
     Performs a query for images that meet certain criteria.

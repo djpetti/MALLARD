@@ -5,7 +5,7 @@ Common interface for all object storage backends.
 
 import abc
 from io import BytesIO
-from typing import Iterable, Union
+from typing import AsyncIterable, Union
 
 from fastapi import UploadFile
 
@@ -72,7 +72,7 @@ class ObjectStore(Injectable):
         """
 
     @abc.abstractmethod
-    async def list_bucket_contents(self, name: str) -> Iterable[str]:
+    async def list_bucket_contents(self, name: str) -> AsyncIterable[str]:
         """
         Lists the contents of a bucket.
 
@@ -91,7 +91,7 @@ class ObjectStore(Injectable):
     @abc.abstractmethod
     async def create_object(
         self, object_id: ObjectRef, *, data: Union[bytes, BytesIO, UploadFile]
-    ) -> str:
+    ) -> None:
         """
         Creates a new object.
 
@@ -100,7 +100,7 @@ class ObjectStore(Injectable):
             data: The raw data contained in the object.
 
         Raises:
-            `KeyError` if the object (or bucket) doesn't exist,
+            `KeyError` if the bucket doesn't exist,
             or `ObjectOperationError` for other failures.
 
         Returns:
@@ -151,22 +151,5 @@ class ObjectStore(Injectable):
 
         Returns:
             A stream of binary data that contains the object data.
-
-        """
-
-    @abc.abstractmethod
-    async def get_object_url(self, object_id: ObjectRef) -> str:
-        """
-        Gets a unique URL that can be used to download an object.
-
-        Args:
-            object_id: The identifier of the object being created.
-
-        Raises:
-            `KeyError` if the object (or bucket) doesn't exist,
-            or `ObjectOperationError` for other failures.
-
-        Returns:
-            A URL corresponding to the object.
 
         """

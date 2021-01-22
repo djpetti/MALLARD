@@ -36,9 +36,17 @@ class FastApiProvider(BaseProvider):
         """
         file_name = self.__faker.file_name(category=category)
 
+        upload_file = mock.create_autospec(
+            UploadFile, instance=True, filename=file_name
+        )
+
+        # Make it look like the file contains some data.
+        file_data = self.__faker.binary(length=64)
+        upload_file.read.side_effect = (file_data, b"")
+
         # Mock the underlying file handle.
         mock_file = mock.create_autospec(SpooledTemporaryFile, instance=True)
+        mock_file.read.return_value = file_data
+        upload_file.file = mock_file
 
-        return mock.create_autospec(
-            UploadFile, instance=True, filename=file_name, file=mock_file
-        )
+        return upload_file

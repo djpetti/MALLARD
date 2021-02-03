@@ -39,33 +39,6 @@ class ConfigForTests:
     mock_filled_metadata: mock.Mock
 
 
-def _flatten_model(model: BaseModel) -> Dict[str, Any]:
-    """
-    Flattens a model into a single dictionary that can be used for form
-    parameters. It assumes there are no duplicate keys at any level.
-
-    Args:
-        model: The model to flatten.
-
-    Returns:
-        The flattened model as a dictionary.
-
-    """
-
-    def _flatten_dict(input_dict: dict) -> dict:
-        flat = {}
-        for param, value in input_dict.items():
-            if type(value) is dict:
-                value = _flatten_dict(value)
-                flat.update(value)
-            else:
-                flat[param] = value
-
-        return flat
-
-    return _flatten_dict(model.dict())
-
-
 @pytest.fixture
 def app() -> FastAPI:
     """
@@ -147,7 +120,7 @@ def config(mocker: MockFixture, app: FastAPI) -> ConfigForTests:
 #     # Act.
 #     response = config.client.post(
 #         "/images/create_uav",
-#         data=_flatten_model(metadata),
+#         data=flatten_model(metadata),
 #         files=files,
 #         params={"tz": 0},
 #     )

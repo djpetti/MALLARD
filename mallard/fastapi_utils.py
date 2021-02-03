@@ -4,7 +4,7 @@ Miscellaneous helper functions for FastAPI.
 
 
 import inspect
-from typing import Any, Type
+from typing import Any, Callable, Dict, Type
 
 from fastapi import Depends, Form
 from pydantic import BaseModel
@@ -88,3 +88,55 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
     _as_form.__signature__ = sig
     setattr(cls, "as_form", _as_form)
     return cls
+
+
+def _key_prefix(parent: str, child: str) -> str:
+    """
+    A default key combination function that prefixes the child key with the
+    parent one.
+
+    Args:
+        parent: The parent key.
+        child: The child key.
+
+    Returns:
+        The combined keys.
+
+    """
+    return f"{parent}{child}"
+
+
+def flatten_dict(
+    nested: Dict[str, Any],
+    combine_keys: Callable[[str, str], str] = _key_prefix,
+) -> Dict[str, Any]:
+    """
+    Flattens a nested dictionary into a single dictionary.
+
+    Args:
+        nested: The dictionary to flatten.
+        combine_keys: Function to use to combine keys from nested
+            dictionaries with their parent keys in order to ensure that all
+            keys in the flattened dictionary are unique.
+
+    Returns:
+        The flattened model as a dictionary.
+
+    """
+
+    def _flatten_dict(input_dict: dict, prefix: str) -> dict:
+        flat = {}
+        for param, value in input_dict.items():
+            # Use the prefixed key.
+            prefixed_key = combine_keys(prefix, param)
+
+            if type(value) is dict:
+                value = _flatten_dict(value, prefixed_key)
+                flat.update(value)
+
+            else:
+                flat[prefixed_key] = value
+
+        return flat
+
+    return _flatten_dict(nested, "")

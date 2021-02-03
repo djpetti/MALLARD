@@ -6,16 +6,23 @@ API endpoints for managing image data.
 import asyncio
 import uuid
 from datetime import date, timedelta, timezone
-from typing import cast
+from typing import List, cast
 
-import aioitertools
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from loguru import logger
 from starlette.responses import StreamingResponse
 
 from ...backends import BackendManager
 from ...backends.metadata import ImageMetadataStore, MetadataOperationError
-from ...backends.metadata.models import ImageQuery, UavImageMetadata
+from ...backends.metadata.models import ImageQuery, Ordering, UavImageMetadata
 from ...backends.objects import ObjectOperationError
 from ...backends.objects.models import ObjectRef
 from .image_metadata import fill_metadata
@@ -199,6 +206,7 @@ async def get_image(
 @router.post("/query")
 async def query_images(
     query: ImageQuery,
+    orderings: List[Ordering] = Body([]),
     results_per_page: int = Query(50, gt=0),
     page_num: int = Query(1, gt=0),
     backends: BackendManager = Depends(BackendManager.depend),
@@ -208,6 +216,9 @@ async def query_images(
 
     Args:
         query: Specifies the query to perform.
+        orderings: Specifies a specific ordering for the final results. It
+            will first sort by the first ordering specified, then the
+            second, etc.
         results_per_page: The maximum number of results to include in a
             single response.
         page_num: If there are multiple pages of results, this can be used to
@@ -223,12 +234,15 @@ async def query_images(
     metadata = cast(ImageMetadataStore, backends.metadata_store)
 
     skip_first = (page_num - 1) * results_per_page
-    results = await metadata.query(query, skip_first=skip_first)
+    results = await metadata.query(
+        query,
+        skip_first=skip_first,
+        max_num_results=results_per_page,
+        orderings=orderings,
+    )
 
-    # Limit the query results to one page.
-    page_results = aioitertools.islice(results, results_per_page)
     # Get all the results.
-    image_ids = [r async for r in page_results]
+    image_ids = [r async for r in results]
     logger.debug("Query produced {} results.", len(image_ids))
     # This logic can result in the final page being empty, which is a
     # deliberate design decision.

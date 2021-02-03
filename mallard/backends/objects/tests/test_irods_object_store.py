@@ -3,6 +3,7 @@ Tests for the `irods_object_store` module.
 """
 
 
+import enum
 import io
 from pathlib import Path
 from typing import Type, Union
@@ -11,13 +12,18 @@ import pytest
 from faker import Faker
 from fastapi import UploadFile
 from irods.data_object import DataObject
-from irods.exception import CollectionDoesNotExist, DataObjectDoesNotExist
+from irods.exception import (
+    OVERWRITE_WITHOUT_FORCE_FLAG,
+    CollectionDoesNotExist,
+    DataObjectDoesNotExist,
+)
 from irods.manager.collection_manager import CollectionManager
 from irods.manager.data_object_manager import DataObjectManager
 from irods.session import iRODSSession
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+from mallard.backends import irods_store
 from mallard.backends.objects import irods_object_store
 from mallard.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
@@ -233,17 +239,44 @@ class TestIrodsObjectStore:
             async for _ in config.store.list_bucket_contents("test_bucket"):
                 pass
 
+    @enum.unique
+    class CreateFileCondition(enum.IntEnum):
+        """
+        Specifies the circumstances under which we will test file creation.
+        """
+
+        NEW_FILE = enum.auto()
+        """
+        File does not exist yet.
+        """
+        OVERWRITE = enum.auto()
+        """
+        File exists, and we should overwrite.
+        """
+        OVERWRITE_RACE = enum.auto()
+        """
+        It looks like the file does not exist initially, it got created
+        concurrently.
+        """
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "data_type",
         (bytes, io.BytesIO, UploadFile),
         ids=("bytes", "bytes_io", "upload_file"),
     )
+    @pytest.mark.parametrize(
+        "file_condition",
+        CreateFileCondition,
+        ids=[e.name for e in CreateFileCondition],
+    )
     async def test_create_object(
         self,
         config: ConfigForTests,
         faker: Faker,
+        mocker: MockFixture,
         data_type: Type[Union[bytes, io.BytesIO, UploadFile]],
+        file_condition: CreateFileCondition,
     ) -> None:
         """
         Tests that `create_object` works.
@@ -251,22 +284,51 @@ class TestIrodsObjectStore:
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
+            mocker: The fixture to use for mocking.
             data_type: The type of data to try testing with.
+            file_condition: Indicates whether there is any pre-existing file,
+                and if so, what condition it's in.
 
         """
         # Arrange.
+        if file_condition == self.CreateFileCondition.NEW_FILE:
+            # It will try to get the object before creating, so make sure it
+            # looks like the object initially doesn't exist.
+            config.mock_session.data_objects.get.side_effect = (
+                DataObjectDoesNotExist
+            )
+        elif file_condition == self.CreateFileCondition.OVERWRITE_RACE:
+            # In this case, we want to first get operation to fail but the
+            # second to succeed.
+            config.mock_session.data_objects.get.side_effect = (
+                DataObjectDoesNotExist,
+                mocker.DEFAULT,
+            )
+            # We also want the create operation to fail.
+            config.mock_session.data_objects.create.side_effect = (
+                OVERWRITE_WITHOUT_FORCE_FLAG
+            )
+
         # Factories for creating test data.
+        test_bytes = faker.binary(length=64)
         data_factories = {
-            bytes: lambda: faker.binary(length=64),
-            io.BytesIO: lambda: io.BytesIO(faker.binary(length=64)),
-            UploadFile: lambda: faker.upload_file(),
+            bytes: lambda: test_bytes,
+            io.BytesIO: lambda: io.BytesIO(test_bytes),
+            UploadFile: lambda: faker.upload_file(contents=test_bytes),
         }
         test_data = data_factories[data_type]()
 
         # Create a fake file handle to use as the destination for the copy.
         irods_file = io.BytesIO()
-        mock_data_object = config.mock_session.data_objects.create.return_value
-        mock_data_object.open.return_value = irods_file
+        if file_condition == self.CreateFileCondition.NEW_FILE:
+            mock_data_object = (
+                config.mock_session.data_objects.create.return_value
+            )
+        else:
+            mock_data_object = (
+                config.mock_session.data_objects.get.return_value
+            )
+        mock_data_object.open.return_value.__enter__.return_value = irods_file
 
         # Make it look like the bucket exists.
         config.mock_session.collections.exists.return_value = True
@@ -281,9 +343,24 @@ class TestIrodsObjectStore:
         expected_path = (
             config.root_collection / object_id.bucket / object_id.name
         )
-        config.mock_session.data_objects.create.assert_called_once_with(
-            expected_path.as_posix()
-        )
+
+        if file_condition in {
+            self.CreateFileCondition.NEW_FILE,
+            self.CreateFileCondition.OVERWRITE_RACE,
+        }:
+            # It should have tried to create the file.
+            config.mock_session.data_objects.create.assert_called_once_with(
+                expected_path.as_posix()
+            )
+        if file_condition == self.CreateFileCondition.OVERWRITE_RACE:
+            # It should have gotten the file twice.
+            config.mock_session.data_objects.get.assert_has_calls(
+                [mocker.call(expected_path.as_posix())] * 2
+            )
+
+        # It should have copied the data.
+        mock_data_object.open.assert_called_once()
+        assert irods_file.getvalue() == test_bytes
 
     @pytest.mark.asyncio
     async def test_create_object_nonexistent_bucket(
@@ -421,8 +498,13 @@ class TestIrodsObjectStore:
         assert got_data == mock_object.open.return_value
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exception",
+        [DataObjectDoesNotExist, CollectionDoesNotExist],
+        ids=["missing_object", "missing_collection"],
+    )
     async def test_get_object_nonexistent(
-        self, config: ConfigForTests, faker: Faker
+        self, config: ConfigForTests, faker: Faker, exception: Type[Exception]
     ) -> None:
         """
         Tests tht `get_object` handles it when the object does not exist.
@@ -430,13 +512,12 @@ class TestIrodsObjectStore:
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
+            exception: Specific exception type to raise internally.
 
         """
         # Arrange.
         # Make it look like the requested object does not exist.
-        config.mock_session.data_objects.get.side_effect = (
-            DataObjectDoesNotExist
-        )
+        config.mock_session.data_objects.get.side_effect = exception
 
         # Act and assert.
         with pytest.raises(KeyError, match="does not exist"):
@@ -460,7 +541,7 @@ class TestIrodsObjectStore:
 
         # Mock the iRODSSession class.
         mock_session_class = mocker.patch(
-            irods_object_store.__name__ + ".iRODSSession"
+            irods_store.__name__ + ".iRODSSession"
         )
 
         # Act.

@@ -210,6 +210,9 @@ def fill_metadata(
 
     exif = ExifReader(image, local_tz=local_tz)
 
+    # Reset the image file after reading the EXIF data.
+    image.file.seek(0)
+
     capture_date = metadata.capture_date
     if capture_date is None:
         capture_date = exif.capture_datetime.date()

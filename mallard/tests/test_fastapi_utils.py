@@ -5,6 +5,7 @@ Tests for the `fastapi_utils` module.
 
 import inspect
 import unittest.mock as mock
+from typing import Any, Dict
 
 import pytest
 from pydantic import BaseModel
@@ -171,3 +172,38 @@ async def test_as_form_defaults(config: ConfigForTests) -> None:
     model = await decorated_class.as_form(no_default=42)
     assert model.no_default == 42
     assert model.has_default == "default"
+
+
+@pytest.mark.parametrize(
+    ("nested", "expected_flat"),
+    [
+        ({}, {}),
+        ({"foo": 1, "bar": 2}, {"foo": 1, "bar": 2}),
+        ({"foo": {"bar": 1, "baz": 2}}, {"foobar": 1, "foobaz": 2}),
+        (
+            {"foo": {"bar": "hello", "baz": {"foo": 2}}, "bar": None},
+            {"foobar": "hello", "foobazfoo": 2, "bar": None},
+        ),
+        (
+            {"foo": [1, 2, 3], "bar": "hello"},
+            {"foo": [1, 2, 3], "bar": "hello"},
+        ),
+    ],
+    ids={"empty", "not_nested", "one_level", "two_levels", "with_list"},
+)
+def test_flatten_dict(
+    nested: Dict[str, Any], expected_flat: Dict[str, Any]
+) -> None:
+    """
+    Tests that `flatten_dict` works.
+
+    Args:
+        nested: The input nested dict.
+        expected_flat: The expected flattened result.
+
+    """
+    # Act.
+    got_flat = fastapi_utils.flatten_dict(nested)
+
+    # Assert.
+    assert got_flat == expected_flat

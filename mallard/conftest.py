@@ -6,6 +6,7 @@ Testing configuration file.
 import pytest
 from faker import Faker
 
+from .backends.metadata.tests.faker_providers import MetadataProvider
 from .routers.images.tests.faker_providers import ExifProvider, ImageProvider
 from .tests.faker_providers import FastApiProvider
 
@@ -36,3 +37,4 @@ def add_custom_faker_providers(faker: Faker) -> None:
     faker.add_provider(ImageProvider)
     faker.add_provider(ExifProvider)
     faker.add_provider(FastApiProvider)
+    faker.add_provider(MetadataProvider)

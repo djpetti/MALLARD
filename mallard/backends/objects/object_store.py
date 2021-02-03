@@ -99,6 +99,11 @@ class ObjectStore(Injectable):
             object_id: The identifier of the object being created.
             data: The raw data contained in the object.
 
+        Notes:
+            Depending on the exact semantics of the backend, this might
+            overwrite an existing file. If you care about that, it's good
+            practice to check with `exists()` first.
+
         Raises:
             `KeyError` if the bucket doesn't exist,
             or `ObjectOperationError` for other failures.

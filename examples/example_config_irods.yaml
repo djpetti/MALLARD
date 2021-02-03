@@ -1,0 +1,30 @@
+# Example config file for MALLARD. The real config file is located in
+# `~/.config/mallard/config.yaml`.
+
+# Common iRODS configuration.
+_irods_config: &irods_config
+  # Hostname.
+  host: localhost
+  # Database port.
+  port: 1247
+  # iRODS username.
+  user: rods
+  # iRODS password.
+  password: password
+  # iRODS zone.
+  zone: tempZone
+  # Root collection where we will locate all our data.
+  root_collection: /tempZone/mallard/
+
+backends:
+  # Configuration for the object store backend.
+  object_store:
+    type: mallard.backends.objects.irods_object_store.IrodsObjectStore
+    config:
+      << : *irods_config
+
+  # Configuration for the metadata store backend.
+  metadata_store:
+    type: mallard.backends.metadata.irods_image_metadata_store.IrodsImageMetadataStore
+    config:
+      << : *irods_config

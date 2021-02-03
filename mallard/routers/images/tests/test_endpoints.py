@@ -368,12 +368,12 @@ async def test_query_images(
     # Generate a fake query.
     mock_query = mocker.create_autospec(ImageQuery, instance=True)
 
-    # Generate some reasonable query parameter values.
-
     # Fake the query results.
     async def query_results() -> AsyncIterable:
         # Simulate the query skipping the first N results.
         num_results = total_results - (page_num - 1) * results_per_page
+        # Simulate the query limiting to the page size.
+        num_results = min(num_results, results_per_page)
         for _ in range(num_results):
             yield faker.object_ref()
 
@@ -382,6 +382,7 @@ async def test_query_images(
     # Act.
     response = await endpoints.query_images(
         query=mock_query,
+        orderings=[],
         results_per_page=results_per_page,
         page_num=page_num,
         backends=config.mock_manager,
@@ -390,7 +391,10 @@ async def test_query_images(
     # Assert.
     # It should have queried the backend.
     config.mock_manager.metadata_store.query.assert_called_once_with(
-        mock_query, skip_first=(page_num - 1) * results_per_page
+        mock_query,
+        skip_first=(page_num - 1) * results_per_page,
+        max_num_results=results_per_page,
+        orderings=[],
     )
 
     # It should have gotten the number of images that it asked for.

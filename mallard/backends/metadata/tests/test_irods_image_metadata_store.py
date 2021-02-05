@@ -153,6 +153,10 @@ class TestIrodsImageMetadataStore:
         )
         mock_to_irods_string.side_effect = lambda x: x
 
+        # Mock out the retry decorator so it does nothing.
+        mock_retry = mocker.patch(irods_metadata_store.__name__ + ".retry")
+        mock_retry.side_effect = lambda x: x
+
         root_path = Path(faker.file_path(depth=2)).parent
 
         store = class_specific_config.subclass(

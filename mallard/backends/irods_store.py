@@ -4,6 +4,7 @@ Base class containing methods for interacting with iRODS at a low level.
 
 
 import asyncio
+import functools
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, TypeVar
@@ -12,14 +13,31 @@ from confuse import ConfigView
 from irods.data_object import iRODSDataObject
 from irods.exception import (
     OVERWRITE_WITHOUT_FORCE_FLAG,
+    SYS_INTERNAL_NULL_INPUT_ERR,
     CollectionDoesNotExist,
     DataObjectDoesNotExist,
 )
 from irods.session import iRODSSession
 from loguru import logger
+from tenacity import (
+    after_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from .async_db_mixin import AsyncDbMixin
 from .objects.models import ObjectRef
+
+_RETRY_ARGS = dict(
+    stop=stop_after_attempt(20),
+    wait=wait_random_exponential(1, max=30),
+    after=after_log(logger, "DEBUG"),
+)
+"""
+Common arguments to use for `retry` decorator.
+"""
 
 
 class IrodsStore(AsyncDbMixin):
@@ -156,6 +174,18 @@ class IrodsStore(AsyncDbMixin):
             The retrieved data object.
 
         """
+
+        @retry(
+            retry=retry_if_exception_type(SYS_INTERNAL_NULL_INPUT_ERR),
+            **_RETRY_ARGS,
+        )
+        async def _create_object(path: Path) -> iRODSDataObject:
+            # Enable retrying this because it sometimes fails if someone else is
+            # trying to create the same object concurrently.
+            return await self._async_db_op(
+                self._session.data_objects.create, path.as_posix()
+            )
+
         try:
             return await self._get_object(object_id)
         except KeyError:
@@ -163,16 +193,14 @@ class IrodsStore(AsyncDbMixin):
             try:
                 object_path = self._object_path(object_id)
                 logger.debug("Creating a new object at {}.", object_path)
-                return await self._async_db_op(
-                    self._session.data_objects.create, object_path.as_posix()
-                )
+                return await _create_object(object_path)
             except OVERWRITE_WITHOUT_FORCE_FLAG:
                 # Somewhere in the interim, the object was created,
                 # so getting it is the correct action. This should be a
                 # relatively rare race condition that only occurs if two
                 # clients are trying to get the same object concurrently.
                 logger.debug(
-                    "Creating {} failed do to new object, getting " "it.",
+                    "Creating {} failed due to new object, getting " "it.",
                     object_id,
                 )
                 return await self._get_object(object_id)

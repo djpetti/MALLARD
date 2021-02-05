@@ -8,8 +8,15 @@ import asyncio
 import enum
 from typing import Dict, Type, TypeVar
 
-from irods.meta import AVUOperation, iRODSMeta
+from irods.exception import CAT_UNKNOWN_FILE, CUT_ACTION_PROCESSED_ERR
 from loguru import logger
+from tenacity import (
+    after_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from ...fastapi_utils import flatten_dict
 from ..irods_store import IrodsStore
@@ -17,6 +24,15 @@ from ..objects.models import ObjectRef
 from .irods_metadata_helpers import to_irods_string
 from .metadata_store import MetadataStore
 from .models import Metadata
+
+_RETRY_ARGS = dict(
+    stop=stop_after_attempt(20),
+    wait=wait_random_exponential(1, max=30),
+    after=after_log(logger, "DEBUG"),
+)
+"""
+Common arguments to use for `retry` decorator.
+"""
 
 
 class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
@@ -128,6 +144,14 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
         )
         await asyncio.gather(*avu_operations)
 
+    # These exceptions can sometimes happen if the object was deleted
+    # concurrently.
+    @retry(
+        retry=retry_if_exception_type(
+            (CAT_UNKNOWN_FILE, CUT_ACTION_PROCESSED_ERR)
+        ),
+        **_RETRY_ARGS,
+    )
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
@@ -143,7 +167,7 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
             return
 
         avu_operations = [
-            self._async_db_op(data_object.metadata.remove(a))
+            self._async_db_op(data_object.metadata.remove, a)
             for a in data_object.metadata.items()
         ]
         await asyncio.gather(*avu_operations)

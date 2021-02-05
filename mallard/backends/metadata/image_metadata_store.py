@@ -37,7 +37,11 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
             max_num_results: The maximum number of results that this query is
                 allowed to produce.
 
-        Returns:
+        Yields:
             The IDs of all the matching objects.
 
         """
+        # There's a subtle typing issue here where if we don't have a yield,
+        # Python interprets this as a coroutine that returns an AsyncIterator
+        # instead of an async generator.
+        yield

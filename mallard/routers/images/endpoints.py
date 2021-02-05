@@ -246,7 +246,7 @@ async def get_image(
 
 @router.post("/query")
 async def query_images(
-    query: ImageQuery,
+    query: ImageQuery = ImageQuery(),
     orderings: List[Ordering] = Body([]),
     results_per_page: int = Query(50, gt=0),
     page_num: int = Query(1, gt=0),
@@ -275,7 +275,7 @@ async def query_images(
     metadata = cast(ImageMetadataStore, backends.metadata_store)
 
     skip_first = (page_num - 1) * results_per_page
-    results = await metadata.query(
+    results = metadata.query(
         query,
         skip_first=skip_first,
         max_num_results=results_per_page,

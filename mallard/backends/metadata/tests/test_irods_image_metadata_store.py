@@ -408,8 +408,14 @@ class TestIrodsImageMetadataStore:
         # It should have converted to an async iterator.
         config.mock_make_async_iter.assert_called_once_with(mock_query)
 
+        # It should have added an initial filter to limit data to this
+        # application.
+        args, _ = mock_query.filter.call_args_list[0]
+        assert len(args) == 1
+        assert args[0].query_key == Collection.name
+
         # It should have added filters to the query.
-        for call in mock_query.filter.call_args_list:
+        for call in mock_query.filter.call_args_list[1:]:
             args, _ = call
             name_criterion, value_criterion = args
 
@@ -442,5 +448,5 @@ class TestIrodsImageMetadataStore:
 
         # It should have built the query.
         config.mock_session.query.assert_called_once()
-        # It should not have added any filters.
-        config.mock_session.query.return_value.filter.assert_not_called()
+        # It should have added only the filter for MALLARD data.
+        config.mock_session.query.return_value.filter.assert_called_once()

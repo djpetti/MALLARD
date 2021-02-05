@@ -193,6 +193,10 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
     ) -> AsyncIterable[ObjectRef]:
         # Translate this into an actual SQL query.
         sql_query = self._session.query(DataObject.name, Collection.name)
+        # Initially filter on the root collection to exclude results that
+        # aren't relevant to the application.
+        root_pattern = f"{self._root_path.as_posix()}%"
+        sql_query = sql_query.filter(Like(Collection.name, root_pattern))
         sql_query = self.__build_query(query, "", sql_query)
 
         # Apply the limit and offset.

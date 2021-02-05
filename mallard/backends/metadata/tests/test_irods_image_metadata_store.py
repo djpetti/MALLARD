@@ -59,7 +59,6 @@ class TestIrodsImageMetadataStore:
             store: The `IrodsImageMetadataStore` under test.
             mock_session: The mocked `iRODSSession`.
             mock_to_irods_string: The mocked `to_irods_string` function.
-            mock_from_irods_string: The mocked `from_irods_string` function.
             mock_make_async_iter: The mocked `make_async_iter` function.
 
             root_collection: The root collection path that we use for the store.
@@ -70,7 +69,6 @@ class TestIrodsImageMetadataStore:
         store: irods_image_metadata_store.IrodsImageMetadataStore
         mock_session: iRODSSession
         mock_to_irods_string: mock.Mock
-        mock_from_irods_string: mock.Mock
         mock_make_async_iter: mock.Mock
 
         root_collection: Path
@@ -153,11 +151,7 @@ class TestIrodsImageMetadataStore:
         mock_to_irods_string = mocker.patch(
             irods_metadata_store.__name__ + ".to_irods_string"
         )
-        mock_from_irods_string = mocker.patch(
-            irods_metadata_store.__name__ + ".from_irods_string"
-        )
         mock_to_irods_string.side_effect = lambda x: x
-        mock_from_irods_string.side_effect = lambda x: x
 
         root_path = Path(faker.file_path(depth=2)).parent
 
@@ -179,7 +173,6 @@ class TestIrodsImageMetadataStore:
             mock_session=mock_session,
             root_collection=root_path,
             mock_to_irods_string=mock_to_irods_string,
-            mock_from_irods_string=mock_from_irods_string,
             mock_make_async_iter=mock_make_async_iter,
             metadata=metadata,
         )
@@ -228,13 +221,11 @@ class TestIrodsImageMetadataStore:
             )
 
         # It should have applied the metadata.
-        mock_data_object.metadata.apply_atomic_operations.assert_called_once()
-        (
-            avu_operations,
-            _,
-        ) = mock_data_object.metadata.apply_atomic_operations.call_args
-        for operation in avu_operations:
-            assert operation.operation == "add"
+        mock_data_object.metadata.add.assert_called()
+        # One of them should contain the full JSON data.
+        mock_data_object.metadata.add.assert_any_call(
+            "json", config.metadata.json()
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -263,6 +254,8 @@ class TestIrodsImageMetadataStore:
         # Create a fake object to delete.
         object_id = faker.object_ref()
 
+        mock_metadata_items = []
+        mock_data_object = None
         if not object_exists:
             # Make it look like the object does not exist.
             config.mock_session.data_objects.get.side_effect = (
@@ -288,13 +281,9 @@ class TestIrodsImageMetadataStore:
 
         if object_exists:
             # It should have deleted the metadata.
-            mock_data_object.metadata.apply_atomic_operations.assert_called_once()
-            (
-                avu_operations,
-                _,
-            ) = mock_data_object.metadata.apply_atomic_operations.call_args
-            for operation in avu_operations:
-                assert operation.operation == "remove"
+            mock_data_object.metadata.remove.assert_has_calls(
+                [mocker.call(i) for i in mock_metadata_items]
+            )
 
     @pytest.mark.asyncio
     async def test_get(self, config: ConfigForTests, faker: Faker) -> None:

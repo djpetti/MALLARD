@@ -4,6 +4,7 @@ A `MetadataStore` that uses the iRODS metadata feature as a backend.
 
 
 import abc
+import asyncio
 import enum
 from typing import Dict, Type, TypeVar
 
@@ -13,7 +14,7 @@ from loguru import logger
 from ...fastapi_utils import flatten_dict
 from ..irods_store import IrodsStore
 from ..objects.models import ObjectRef
-from .irods_metadata_helpers import from_irods_string, to_irods_string
+from .irods_metadata_helpers import to_irods_string
 from .metadata_store import MetadataStore
 from .models import Metadata
 
@@ -109,22 +110,23 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
         metadata_dict = self.__flatten_metadata(metadata)
         logger.debug("Using raw metadata for {}: {}", object_id, metadata_dict)
 
+        # TODO (danielp): Atomic metadata operations are only supported by
+        #  relatively new versions of iRODS (>=4.2). Therefore, I'm not going
+        #  to use them for now.
         # Add these as metadata to the iRODS object.
         avu_operations = [
-            AVUOperation(operation="add", avu=iRODSMeta(k, v))
+            self._async_db_op(data_object.metadata.add, k, v)
             for k, v in metadata_dict.items()
         ]
         # Add an additional operation to add the full metadata in JSON form.
         # This is useful for accessing the full metadata, whereas the
         # per-field values are useful for querying.
         avu_operations.append(
-            AVUOperation(
-                operation="add", avu=iRODSMeta("json", metadata.json())
+            self._async_db_op(
+                data_object.metadata.add, "json", metadata.json()
             )
         )
-        await self._async_db_op(
-            data_object.metadata.apply_atomic_operations, *avu_operations
-        )
+        await asyncio.gather(*avu_operations)
 
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
@@ -141,9 +143,7 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
             return
 
         avu_operations = [
-            AVUOperation(operation="remove", avu=a)
+            self._async_db_op(data_object.metadata.remove(a))
             for a in data_object.metadata.items()
         ]
-        await self._async_db_op(
-            data_object.metadata.apply_atomic_operations, *avu_operations
-        )
+        await asyncio.gather(*avu_operations)

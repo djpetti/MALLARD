@@ -4,6 +4,7 @@ Helper functions for extracting metadata from images.
 
 
 import enum
+import imghdr
 from datetime import datetime, timezone, tzinfo
 from functools import cached_property
 from typing import Optional, TypeVar
@@ -12,7 +13,13 @@ import exifread
 from fastapi import UploadFile
 from loguru import logger
 
-from ...backends.metadata.models import GeoPoint, ImageMetadata
+from ...backends.metadata.models import GeoPoint, ImageFormat, ImageMetadata
+
+
+class InvalidImageError(Exception):
+    """
+    Raised when an image is invalid.
+    """
 
 
 class ExifReader:
@@ -188,6 +195,42 @@ class ExifReader:
 MetadataType = TypeVar("MetadataType", bound=ImageMetadata)
 
 
+def _check_format(metadata: MetadataType, *, image: UploadFile) -> ImageFormat:
+    """
+    Checks the format of an image.
+
+    Args:
+        metadata: The metadata specified by the user.
+        image: The image.
+
+    Returns:
+        The format that it deduced for the image.
+
+    Raises:
+        `InvalidImageError` if either the format could not be deduced, or the
+        user supplied an expected format that does not match the actual format.
+
+    """
+    format_str = imghdr.what(image.file)
+    logger.debug("Got format for image {}: '{}'", image.filename, format_str)
+
+    # Reset the image file after reading data.
+    image.file.seek(0)
+
+    try:
+        image_format = ImageFormat(format_str)
+    except ValueError:
+        raise InvalidImageError(f"Image has unknown format '{format_str}'.")
+
+    if metadata.format is not None and image_format != metadata.format:
+        raise InvalidImageError(
+            f"Image has format {image_format}, but expected format"
+            f" {metadata.format}."
+        )
+
+    return image_format
+
+
 def fill_metadata(
     metadata: MetadataType, *, image: UploadFile, local_tz: tzinfo
 ) -> MetadataType:
@@ -224,7 +267,11 @@ def fill_metadata(
         location = exif.location
 
     update_fields = dict(
-        name=name, capture_date=capture_date, camera=camera, location=location
+        name=name,
+        capture_date=capture_date,
+        camera=camera,
+        location=location,
+        format=_check_format(metadata, image=image),
     )
     logger.debug("Updating metadata with fields {}.", update_fields)
     return metadata.copy(update=update_fields)

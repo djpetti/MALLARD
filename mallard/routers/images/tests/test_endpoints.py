@@ -22,6 +22,7 @@ from mallard.backends.metadata.models import ImageQuery, UavImageMetadata
 from mallard.backends.objects import ObjectOperationError, ObjectStore
 from mallard.backends.objects.models import ObjectRef
 from mallard.routers.images import endpoints
+from mallard.routers.images.image_metadata import InvalidImageError
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
@@ -274,6 +275,10 @@ async def test_get_image(config: ConfigForTests, faker: Faker) -> None:
 
     """
     # Arrange.
+    # Make it look like we have a valid image format.
+    metadata = faker.image_metadata()
+    config.mock_manager.metadata_store.get.return_value = metadata
+
     # Generate fake bucket and image names.
     bucket = faker.pystr()
     image_name = faker.pystr()
@@ -292,7 +297,9 @@ async def test_get_image(config: ConfigForTests, faker: Faker) -> None:
     image_stream = config.mock_manager.object_store.get_object.return_value
 
     # It should have used a StreamingResponse object.
-    config.mock_streaming_response_class.assert_called_once_with(image_stream)
+    config.mock_streaming_response_class.assert_called_once_with(
+        image_stream, media_type=mock.ANY
+    )
     assert response == config.mock_streaming_response_class.return_value
 
 
@@ -493,3 +500,32 @@ def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
     # Assert.
     mock_fill_metadata.assert_called_once()
     assert got_metadata == mock_fill_metadata.return_value
+
+
+def test_filled_uav_metadata_invalid(
+    mocker: MockFixture, faker: Faker
+) -> None:
+    """
+    Tests that `filled_uav_metadata` works when the image is invalid.
+
+    Args:
+        mocker: The fixture to use for mocking.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    mock_metadata = mocker.create_autospec(UavImageMetadata, instance=True)
+    mock_image_data = faker.upload_file()
+    mock_timezone = mocker.create_autospec(timezone, instance=True)
+
+    # Mock the underlying function that it calls.
+    mock_fill_metadata = mocker.patch(endpoints.__name__ + ".fill_metadata")
+    mock_fill_metadata.side_effect = InvalidImageError
+
+    # Act and assert.
+    with pytest.raises(HTTPException):
+        endpoints.filled_uav_metadata(
+            metadata=mock_metadata,
+            image_data=mock_image_data,
+            local_tz=mock_timezone,
+        )

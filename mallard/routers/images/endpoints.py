@@ -22,13 +22,30 @@ from starlette.responses import StreamingResponse
 
 from ...backends import BackendManager
 from ...backends.metadata import ImageMetadataStore, MetadataOperationError
-from ...backends.metadata.models import ImageQuery, Ordering, UavImageMetadata
+from ...backends.metadata.models import (
+    ImageFormat,
+    ImageQuery,
+    Ordering,
+    UavImageMetadata,
+)
 from ...backends.objects import ObjectOperationError
 from ...backends.objects.models import ObjectRef
-from .image_metadata import fill_metadata
+from .image_metadata import InvalidImageError, fill_metadata
 from .models import CreateResponse, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
+
+
+_IMAGE_FORMAT_TO_MIME_TYPES = {
+    ImageFormat.GIF: "image/gif",
+    ImageFormat.TIFF: "image/tiff",
+    ImageFormat.JPEG: "image/jpeg",
+    ImageFormat.BMP: "image/bmp",
+    ImageFormat.PNG: "image/png",
+}
+"""
+Maps image formats to corresponding MIME types.
+"""
 
 
 async def use_bucket(
@@ -81,8 +98,18 @@ def filled_uav_metadata(
     Returns:
         A copy of the metadata with missing fields filled.
 
+    Raises:
+        `HTTPException` if auto-filling the metadata failed.
+
     """
-    return fill_metadata(metadata, local_tz=local_tz, image=image_data)
+    try:
+        return fill_metadata(metadata, local_tz=local_tz, image=image_data)
+    except InvalidImageError:
+        raise HTTPException(
+            status_code=415,
+            detail="The uploaded image has an invalid format, or does not "
+            "match the specified format.",
+        )
 
 
 @router.post(
@@ -192,15 +219,29 @@ async def get_image(
     logger.debug("Getting image {} in bucket {}.", name, bucket)
     object_id = ObjectRef(bucket=bucket, name=name)
 
+    object_task = asyncio.create_task(
+        backends.object_store.get_object(object_id)
+    )
+    metadata_task = asyncio.create_task(backends.metadata_store.get(object_id))
+
     try:
-        image_stream = await backends.object_store.get_object(object_id)
+        image_stream, metadata = await asyncio.gather(
+            object_task, metadata_task
+        )
     except KeyError:
+        # Cancel anything that's still pending to avoid extraneous work.
+        object_task.cancel()
+        metadata_task.cancel()
+
         # The image doesn't exist.
         raise HTTPException(
             status_code=404, detail="Requested image could not be found."
         )
 
-    return StreamingResponse(image_stream)
+    # Determine the proper MIME type to use.
+    mime_type = _IMAGE_FORMAT_TO_MIME_TYPES[metadata.format]
+
+    return StreamingResponse(image_stream, media_type=mime_type)
 
 
 @router.post("/query")

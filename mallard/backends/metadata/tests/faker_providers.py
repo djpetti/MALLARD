@@ -12,6 +12,7 @@ from faker.providers import BaseProvider
 
 from mallard.backends.metadata.models import (
     GeoPoint,
+    ImageFormat,
     ImageMetadata,
     ImageQuery,
     PlatformType,
@@ -54,6 +55,7 @@ class MetadataProvider(BaseProvider):
         """
         return dict(
             name=self.__faker.file_name(category="image"),
+            format=self.__random_enum(ImageFormat),
             platform_type=self.__random_enum(PlatformType),
             notes=self.__faker.sentence(),
             session_number=self.random_int(),
@@ -150,11 +152,11 @@ class MetadataProvider(BaseProvider):
 
         min_altitude = self.__faker.pyfloat(min_value=0.0, max_value=400.0)
         max_altitude = self.__faker.pyfloat(
-            min_value=ceil(min_altitude), max_value=400.0
+            min_value=ceil(min_altitude), max_value=401.0
         )
 
         min_gsd = self.__faker.pyfloat(min_value=0.0, max_value=10.0)
-        max_gsd = self.__faker.pyfloat(min_value=ceil(min_gsd), max_value=10.0)
+        max_gsd = self.__faker.pyfloat(min_value=ceil(min_gsd), max_value=11.0)
 
         south_west = self.geo_point(allow_none=False)
         north_east = self.geo_point(

@@ -13,17 +13,17 @@ from mallard.backends.objects.models import ObjectRef
 
 async def main():
     with iRODSSession(
-        host="localhost",
+        host="data.cyverse.org",
         port=1247,
-        user="rods",
+        user="djpetti",
         password="password",
-        zone="tempZone",
+        zone="iplant",
     ) as session:
         object_store = IrodsObjectStore(
-            session=session, root_collection=Path("/tempZone/mallard/")
+            session=session, root_collection=Path("/iplant/home/djpetti/")
         )
         meta_store = IrodsImageMetadataStore(
-            session=session, root_collection=Path("/tempZone/mallard/")
+            session=session, root_collection=Path("/iplant/home/djpetti/")
         )
 
         # Create the bucket.

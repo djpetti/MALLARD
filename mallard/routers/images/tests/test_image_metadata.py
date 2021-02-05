@@ -3,6 +3,7 @@ Tests for the `image_metadata` module.
 """
 
 
+import enum
 import unittest.mock as mock
 from datetime import date, datetime, timezone, tzinfo
 from typing import Dict
@@ -15,7 +16,11 @@ from fastapi import UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends.metadata.models import GeoPoint, ImageMetadata
+from mallard.backends.metadata.models import (
+    GeoPoint,
+    ImageFormat,
+    ImageMetadata,
+)
 from mallard.routers.images import image_metadata
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -374,6 +379,64 @@ class TestExifReader:
         assert got_location.latitude_deg is None
 
 
+@dataclass(frozen=True, config=ArbitraryTypesConfig)
+class FillMetadataConfig:
+    """
+    Common configuration for tests of the `fill_metadata` function.
+
+    Attributes:
+        mock_reader_class: The mocked `ExifReader` class.
+        mock_what: The mocked `imghdr.what` function.
+        mock_upload_file: The mocked `UploadFile` to use for testing.
+
+        image_format: The image format that `imghdr.what` will be set to return.
+    """
+
+    mock_reader_class: mock.Mock
+    mock_what: mock.Mock
+    mock_upload_file: UploadFile
+
+    image_format: ImageFormat
+
+
+@pytest.fixture
+def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
+    """
+    Generates common configuration for tests of the `fill_metadata` function.
+
+    Args:
+        mocker: The fixture to use for mocking.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Mock out the ExifReader class.
+    mock_reader_class = mocker.patch(image_metadata.__name__ + ".ExifReader")
+    # Mock out the imghdr functions.
+    mock_what = mocker.patch("imghdr.what")
+
+    # Make the fake ExifReader provide some reasonable results.
+    mock_reader = mock_reader_class.return_value
+    mock_reader.capture_datetime = faker.date_time()
+    mock_reader.camera = faker.word()
+    mock_reader.location = GeoPoint(
+        latitude_deg=faker.latitude(), longitude_deg=faker.longitude()
+    )
+
+    # Choose a reasonable image format.
+    image_format = faker.random_element([f for f in ImageFormat])
+    mock_what.return_value = image_format.value
+
+    # Create a fake UploadFile.
+    mock_upload_file = faker.upload_file()
+
+    return FillMetadataConfig(
+        mock_reader_class=mock_reader_class,
+        mock_what=mock_what,
+        mock_upload_file=mock_upload_file,
+        image_format=image_format,
+    )
+
+
 @pytest.mark.parametrize(
     "metadata",
     (
@@ -388,8 +451,7 @@ class TestExifReader:
     ids=("empty_metadata", "populated_metadata"),
 )
 def test_fill_metadata(
-    mocker: MockFixture,
-    faker: Faker,
+    fill_meta_config: FillMetadataConfig,
     metadata: ImageMetadata,
     local_tz: timezone,
 ) -> None:
@@ -397,30 +459,14 @@ def test_fill_metadata(
     Tests that `fill_metadata` works.
 
     Args:
-        mocker: The fixture to use for mocking.
-        faker: The fixture to use for generating fake data.
+        fill_meta_config: The configuration to use for testing.
         metadata: The initial metadata to provider.
         local_tz: The local timezone to use.
 
     """
-    # Arrange.
-    # Mock out the ExifReader class.
-    mock_reader_class = mocker.patch(image_metadata.__name__ + ".ExifReader")
-
-    # Make the fake ExifReader provide some reasonable results.
-    mock_reader = mock_reader_class.return_value
-    mock_reader.capture_datetime = faker.date_time()
-    mock_reader.camera = faker.word()
-    mock_reader.location = GeoPoint(
-        latitude_deg=faker.latitude(), longitude_deg=faker.longitude()
-    )
-
-    # Create a fake UploadFile.
-    mock_upload_file = faker.upload_file()
-
     # Act.
     got_metadata = image_metadata.fill_metadata(
-        metadata, image=mock_upload_file, local_tz=local_tz
+        metadata, image=fill_meta_config.mock_upload_file, local_tz=local_tz
     )
 
     # Assert.
@@ -430,3 +476,69 @@ def test_fill_metadata(
     assert got_metadata.camera is not None
     assert got_metadata.location.latitude_deg is not None
     assert got_metadata.location.longitude_deg is not None
+    # The format should have been correctly deduced.
+    assert got_metadata.format == fill_meta_config.image_format
+
+
+@enum.unique
+class FormatError(enum.IntEnum):
+    """
+    Represents the possible types of image format errors that we can encounter.
+    """
+
+    INDETERMINATE_FORMAT = enum.auto()
+    """
+    Image format could not be determined.
+    """
+    UNKNOWN_FORMAT = enum.auto()
+    """
+    Image format is not acceptable.
+    """
+    UNEXPECTED_FORMAT = enum.auto()
+    """
+    Image format was valid, but not what we expected.
+    """
+
+
+@pytest.mark.parametrize(
+    "format_error", FormatError, ids=(e.name for e in FormatError)
+)
+def test_fill_metadata_invalid_format(
+    fill_meta_config: FillMetadataConfig,
+    local_tz: timezone,
+    format_error: FormatError,
+) -> None:
+    """
+    Tests that `fill_metadata` behaves properly when the image format is
+    invalid.
+
+    Args:
+        fill_meta_config: The configuration to use for testing.
+        local_tz: The local timezone to use.
+        format_error: The specific error condition to simulate.
+
+    """
+    # Arrange.
+    expected_error = "unknown format"
+    expected_format = fill_meta_config.image_format
+    if format_error == FormatError.INDETERMINATE_FORMAT:
+        # Make it look like the format could not be determined.
+        fill_meta_config.mock_what.return_value = None
+    elif format_error == FormatError.UNKNOWN_FORMAT:
+        # Make it look like the format is not valid.
+        fill_meta_config.mock_what.return_value = "invalid_format"
+    elif format_error == FormatError.UNEXPECTED_FORMAT:
+        # Make it look like this format was not what we expected.
+        acceptable_values = {f for f in ImageFormat}
+        acceptable_values.remove(fill_meta_config.image_format)
+        expected_format = acceptable_values.pop()
+
+        expected_error = "expected format"
+
+    # Act and assert.
+    with pytest.raises(image_metadata.InvalidImageError, match=expected_error):
+        image_metadata.fill_metadata(
+            ImageMetadata(format=expected_format),
+            image=fill_meta_config.mock_upload_file,
+            local_tz=local_tz,
+        )

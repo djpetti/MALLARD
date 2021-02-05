@@ -98,6 +98,22 @@ class PlatformType(str, enum.Enum):
     """
 
 
+@enum.unique
+class ImageFormat(str, enum.Enum):
+    """
+    Enumeration of various images formats that are allowed.
+
+    The values of the enumeration must correspond to the strings returned by
+    `imghdr.what()`.
+    """
+
+    GIF = "gif"
+    TIFF = "tiff"
+    JPEG = "jpeg"
+    BMP = "bmp"
+    PNG = "png"
+
+
 @as_form
 class ImageMetadata(Metadata):
     """
@@ -106,11 +122,14 @@ class ImageMetadata(Metadata):
     Attributes:
         name: A human-readable name for the image. If not provided, it will be
             inferred from the image filename.
+        format: The format that the image is in. This will be deduced
+            automatically, but an expected format can be provided by the user
+            for verification.
         platform_type: The type of platform that these data were collected from.
         notes: Arbitrary full-text notes for this image.
 
         session_number: An optional session number that can be used to
-            distinguish images in the same session.
+            group images in the same session.
         sequence_number: An optional sequence number that can be used to
             define ordering of images within the same session.
 
@@ -127,6 +146,7 @@ class ImageMetadata(Metadata):
     """
 
     name: Optional[str] = None
+    format: Optional[ImageFormat] = None
     platform_type: PlatformType = PlatformType.GROUND
     notes: str = ""
 

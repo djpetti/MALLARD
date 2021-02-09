@@ -3,9 +3,9 @@ An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
 """
 
 
-import enum
 from datetime import date, datetime, time
 from functools import singledispatchmethod
+from pathlib import Path
 from typing import Any, AsyncIterable, Iterable
 
 from irods.column import Between, Criterion, Like
@@ -207,8 +207,12 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         # Get the results asynchronously.
         query_results = make_async_iter(sql_query)
         async for result in query_results:
+            # Remove the root path from the bucket.
+            bucket = Path(result[Collection.name])
+            bucket = bucket.relative_to(self._root_path)
+
             yield ObjectRef(
-                bucket=result[Collection.name],
+                bucket=bucket.as_posix(),
                 name=result[DataObject.name],
             )
 

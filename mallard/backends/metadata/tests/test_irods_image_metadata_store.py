@@ -364,8 +364,10 @@ class TestIrodsImageMetadataStore:
         query = faker.image_query()
 
         # Make it return some reasonable-looking data.
+        fake_bucket = faker.word()
+        fake_bucket_path = config.root_collection / fake_bucket
         result1, result2 = [
-            {Collection.name: faker.word(), DataObject.name: faker.word()}
+            {Collection.name: fake_bucket_path, DataObject.name: faker.word()}
             for _ in range(2)
         ]
 
@@ -397,8 +399,8 @@ class TestIrodsImageMetadataStore:
         # Assert.
         # It should have gotten the expected results.
         for got_result, result in zip(got_results, (result1, result2)):
-            assert got_result.bucket in result.values()
-            assert got_result.name in result.values()
+            assert fake_bucket == got_result.bucket
+            assert result[DataObject.name] == got_result.name
 
         # It should have built the query.
         config.mock_session.query.assert_called_once()

@@ -44,4 +44,4 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
         # There's a subtle typing issue here where if we don't have a yield,
         # Python interprets this as a coroutine that returns an AsyncIterator
         # instead of an async generator.
-        yield
+        yield  # pragma: no cover

@@ -12,7 +12,7 @@ from irods.column import Between, Criterion, Like
 from irods.models import Collection, DataObject, DataObjectMeta
 from irods.query import Query
 
-from mallard.async_utils import make_async_iter
+from mallard.gateway.async_utils import make_async_iter
 
 from ..objects.models import ObjectRef
 from .image_metadata_store import ImageMetadataStore

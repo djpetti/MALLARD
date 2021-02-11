@@ -4,22 +4,17 @@ Integration tests for the `endpoints` module.
 
 
 import unittest.mock as mock
-from functools import singledispatch
-from typing import Any, Dict
 
 import pytest
-from faker import Faker
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends import BackendManager
-from mallard.backends.metadata import MetadataStore
-from mallard.backends.metadata.models import UavImageMetadata
-from mallard.backends.objects import ObjectStore
-from mallard.routers.images import filled_uav_metadata, router
+from mallard.gateway.backends import BackendManager
+from mallard.gateway.backends.metadata import MetadataStore
+from mallard.gateway.backends.objects import ObjectStore
+from mallard.gateway.routers.images import filled_uav_metadata, router
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

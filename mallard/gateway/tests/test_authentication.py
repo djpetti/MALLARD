@@ -11,9 +11,9 @@ from fastapi import HTTPException
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard import authentication
 from mallard.type_helpers import ArbitraryTypesConfig
 
+from .. import authentication
 from ..config_view_mock import ConfigViewMock
 
 

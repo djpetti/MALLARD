@@ -13,16 +13,18 @@ from fastapi import HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends import BackendManager
-from mallard.backends.metadata import (
+from mallard.gateway.backends import BackendManager
+from mallard.gateway.backends.metadata import (
     ImageMetadataStore,
     MetadataOperationError,
 )
-from mallard.backends.metadata.models import ImageQuery, UavImageMetadata
-from mallard.backends.objects import ObjectOperationError, ObjectStore
-from mallard.backends.objects.models import ObjectRef
-from mallard.routers.images import endpoints
-from mallard.routers.images.image_metadata import InvalidImageError
+from mallard.gateway.backends.metadata.models import (
+    ImageQuery,
+    UavImageMetadata,
+)
+from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
+from mallard.gateway.backends.objects.models import ObjectRef
+from mallard.gateway.routers.images import InvalidImageError, endpoints
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

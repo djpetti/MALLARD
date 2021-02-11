@@ -17,11 +17,11 @@ from irods.session import iRODSSession
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends.metadata import (
+from mallard.gateway.backends.metadata import (
     irods_image_metadata_store,
     irods_metadata_store,
 )
-from mallard.backends.metadata.models import (
+from mallard.gateway.backends.metadata.models import (
     ImageMetadata,
     ImageQuery,
     UavImageMetadata,

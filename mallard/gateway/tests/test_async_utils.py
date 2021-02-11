@@ -9,7 +9,7 @@ from typing import Iterable
 
 import pytest
 
-from mallard import async_utils
+from mallard.gateway import async_utils
 
 
 @enum.unique

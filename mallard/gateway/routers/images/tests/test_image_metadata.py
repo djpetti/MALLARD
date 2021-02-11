@@ -16,12 +16,12 @@ from fastapi import UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends.metadata.models import (
+from mallard.gateway.backends.metadata.models import (
     GeoPoint,
     ImageFormat,
     ImageMetadata,
 )
-from mallard.routers.images import image_metadata
+from mallard.gateway.routers.images import image_metadata
 from mallard.type_helpers import ArbitraryTypesConfig
 
 ExifTag = image_metadata.ExifReader.ExifTag

@@ -4,17 +4,16 @@ Tests for the `backend_manager` module.
 
 
 import unittest.mock as mock
-from typing import Type
 
 import pytest
 from confuse import ConfigTypeError
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.backends import backend_manager
-from mallard.backends.metadata import MetadataStore
-from mallard.backends.objects import ObjectStore
-from mallard.config_view_mock import ConfigViewMock
+from mallard.gateway.backends import backend_manager
+from mallard.gateway.backends.metadata import MetadataStore
+from mallard.gateway.backends.objects import ObjectStore
+from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard import fastapi_utils
+from mallard.gateway import fastapi_utils
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

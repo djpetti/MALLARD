@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from mallard.backends.metadata import irods_metadata_helpers
+from mallard.gateway.backends.metadata import irods_metadata_helpers
 
 
 @pytest.mark.parametrize(

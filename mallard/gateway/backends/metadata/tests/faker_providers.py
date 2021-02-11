@@ -10,7 +10,7 @@ from typing import Any, Dict, Type
 from faker import Faker
 from faker.providers import BaseProvider
 
-from mallard.backends.metadata.models import (
+from mallard.gateway.backends.metadata.models import (
     GeoPoint,
     ImageFormat,
     ImageMetadata,

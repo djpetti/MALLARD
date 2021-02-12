@@ -1,0 +1,5 @@
+runtime: python39
+
+service: default
+entrypoint: gunicorn -w 1 -k uvicorn.workers.UvicornWorker mallard.edge.main:app
+instance_class: F1

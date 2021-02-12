@@ -1,5 +1,5 @@
 """
-Main entry point for API.
+Main entry point for API gateway.
 """
 
 

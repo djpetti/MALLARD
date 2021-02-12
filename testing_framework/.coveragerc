@@ -12,9 +12,9 @@ omit =
     # Exclude testing utilities.
     */faker_providers.py
     # Exclude files containing only global state.
-    mallard/config.py
-    mallard/authentication.py
-    mallard/aiohttp_session.py
+    mallard/gateway/config.py
+    mallard/gateway/authentication.py
+    mallard/gateway/aiohttp_session.py
 
 [report]
 # Regexes for lines to exclude from consideration

@@ -38,3 +38,4 @@ examples/
 # All JS stuff that's not actual bundled code.
 mallard/edge/frontend/*
 !mallard/edge/frontend/bundled/
+!mallard/edge/frontend/css/

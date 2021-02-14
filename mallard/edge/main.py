@@ -23,3 +23,7 @@ app.include_router(root.router)
 js_dir = _PACKAGE_DIR / "frontend" / "bundled"
 logger.debug("Using JS static directory: {}", js_dir)
 app.mount("/static/js", StaticFiles(directory=js_dir.as_posix()))
+
+css_dir = _PACKAGE_DIR / "frontend" / "css"
+logger.debug("Using CSS static directory: {}", css_dir)
+app.mount("/static/css", StaticFiles(directory=css_dir.as_posix()))

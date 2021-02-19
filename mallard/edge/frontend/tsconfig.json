@@ -8,6 +8,7 @@
     "outDir": "./build",
     "experimentalDecorators": true,
     "moduleResolution": "Node",
+    "strictNullChecks": true,
     "plugins": [
       {
         "name": "ts-lit-plugin",

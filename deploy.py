@@ -134,7 +134,12 @@ def _build_frontend() -> None:
     with _working_dir(_EDGE_ROOT / "frontend"):
         npm_path = _find_tool("npm")
 
-        # Lint, build and bundle.
+        # Generate the API client.
+        subprocess.run([npm_path.as_posix(), "run", "api"], check=True)
+        subprocess.run([npm_path.as_posix(), "install"], check=True)
+
+        # Format, lint, build and bundle.
+        subprocess.run([npm_path.as_posix(), "run", "format"], check=True)
         subprocess.run([npm_path.as_posix(), "run", "lint"], check=True)
         subprocess.run([npm_path.as_posix(), "run", "build"], check=True)
         subprocess.run([npm_path.as_posix(), "run", "bundle"], check=True)

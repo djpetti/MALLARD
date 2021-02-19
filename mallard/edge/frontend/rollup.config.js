@@ -1,5 +1,8 @@
 import {terser} from "rollup-plugin-terser";
 import resolve from '@rollup/plugin-node-resolve';
+import commonjs from "@rollup/plugin-commonjs";
+import json from "@rollup/plugin-json";
+import nodePolyfills from 'rollup-plugin-node-polyfills';
 
 export default {
     input: 'build/index.js',
@@ -29,5 +32,5 @@ export default {
             console.error(`(!) ${warning.message}`);
         }
     },
-    plugins: [resolve()],
+    plugins: [commonjs(), nodePolyfills(), resolve(), json()],
 };

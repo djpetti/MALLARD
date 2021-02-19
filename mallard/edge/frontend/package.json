@@ -10,7 +10,8 @@
     "lint:eslint": "eslint 'src/**/*.ts'",
     "lint:lit-analyzer": "lit-analyzer",
     "format": "prettier src/**/*.ts --write",
-    "bundle": "rollup -c"
+    "bundle": "rollup -c",
+    "api": "rm -rf gen/api && openapi-generator-cli generate -i http://127.0.0.1:8000/openapi.json --generator-name typescript-axios -o gen/api --config api.json && cd gen/api && npm install && npm run build"
   },
   "repository": {
     "type": "git",
@@ -28,6 +29,9 @@
   },
   "homepage": "https://github.com/UGA-BSAIL/MALLARD#readme",
   "devDependencies": {
+    "@openapitools/openapi-generator-cli": "^2.1.23",
+    "@rollup/plugin-commonjs": "^17.1.0",
+    "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^11.1.1",
     "@tsconfig/recommended": "^1.0.1",
     "@typescript-eslint/eslint-plugin": "^4.15.0",
@@ -38,12 +42,15 @@
     "lit-analyzer": "^1.2.1",
     "prettier": "^2.2.1",
     "rollup": "^2.38.5",
+    "rollup-plugin-node-polyfills": "^0.2.1",
     "rollup-plugin-terser": "^7.0.2",
     "ts-lit-plugin": "^1.2.1",
     "typescript": "^4.1.5"
   },
   "dependencies": {
     "@material/mwc-top-app-bar": "^0.20.0",
-    "@material/mwc-top-app-bar-fixed": "^0.20.0"
+    "@material/mwc-top-app-bar-fixed": "^0.20.0",
+    "@reduxjs/toolkit": "^1.5.0",
+    "typescript-axios": "file:gen/api"
   }
 }

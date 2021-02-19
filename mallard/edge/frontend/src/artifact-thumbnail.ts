@@ -1,6 +1,6 @@
-import {LitElement, customElement, css, html} from 'lit-element';
+import { LitElement, customElement, css, html } from "lit-element";
 
-@customElement('artifact-thumbnail')
+@customElement("artifact-thumbnail")
 /**
  * Thumbnail representation of an uploaded artifact.
  */
@@ -12,7 +12,7 @@ export class ArtifactThumbnail extends LitElement {
       margin: 0.5rem;
       background-color: var(--theme-gray);
       min-width: 133px;
-      min-height: 100px;
+      min-height: 80px;
     }
   `;
 
@@ -20,6 +20,6 @@ export class ArtifactThumbnail extends LitElement {
    * @inheritDoc
    */
   protected render() {
-    return html`<div></div>`;
+    return html`<div><slot></slot></div>`;
   }
 }

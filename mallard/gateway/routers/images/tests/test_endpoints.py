@@ -4,6 +4,7 @@ Unit tests for the `endpoints` class.
 
 
 import unittest.mock as mock
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta, timezone
 from typing import AsyncIterable, Type
 
@@ -131,7 +132,9 @@ def create_uav_params(
 
 @pytest.mark.asyncio
 async def test_create_uav_image(
-    config: ConfigForTests, create_uav_params: CreateUavParams
+    config: ConfigForTests,
+    create_uav_params: CreateUavParams,
+    mocker: MockFixture,
 ) -> None:
     """
     Tests that `create_uav_image` works.
@@ -139,8 +142,19 @@ async def test_create_uav_image(
     Args:
         config: The configuration to use for testing.
         create_uav_params: Common parameters for testing this endpoint.
+        mocker: The fixture to use for mocking.
 
     """
+    # Arrange.
+    # Mock out the PIL Image class.
+    mock_image_class = mocker.patch(endpoints.__name__ + ".Image")
+
+    # Turn the process pool into a thread pool to make testing easier.
+    mock_get_process_pool = mocker.patch(
+        endpoints.__name__ + ".get_process_pool"
+    )
+    mock_get_process_pool.side_effect = ThreadPoolExecutor
+
     # Act.
     response = await endpoints.create_uav_image(
         metadata=create_uav_params.mock_metadata,
@@ -156,12 +170,20 @@ async def test_create_uav_image(
     assert got_image_id.name == create_uav_params.mock_uuid.return_value.hex
 
     # It should have updated the databases.
-    config.mock_manager.object_store.create_object.assert_called_once_with(
+    assert config.mock_manager.object_store.create_object.call_count == 2
+    config.mock_manager.object_store.create_object.assert_any_call(
         got_image_id, data=create_uav_params.mock_file
     )
     config.mock_manager.metadata_store.add.assert_called_once_with(
         object_id=got_image_id, metadata=create_uav_params.mock_metadata
     )
+
+    # It should have created the thumbnail.
+    create_uav_params.mock_file.read.assert_called_once_with()
+    mock_image_class.open.assert_called_once()
+    mock_image = mock_image_class.open.return_value
+    mock_image.thumbnail.assert_called_once()
+    mock_image.save.assert_called_once_with(mock.ANY, format="jpeg")
 
 
 @pytest.mark.asyncio
@@ -203,7 +225,8 @@ async def test_create_uav_image_write_failure(
     if exception is ObjectOperationError:
         config.mock_manager.metadata_store.delete.assert_called_once()
     else:
-        config.mock_manager.object_store.delete_object.assert_called_once()
+        # It should have deleted both the object and its thumbnail.
+        assert config.mock_manager.object_store.delete_object.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -329,6 +352,71 @@ async def test_get_image_nonexistent(
     # Act and assert.
     with pytest.raises(HTTPException):
         await endpoints.get_image(
+            bucket=bucket, name=image_name, backends=config.mock_manager
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_thumbnail(config: ConfigForTests, faker: Faker) -> None:
+    """
+    Tests that the `get_thumbnail` endpoint works.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    # Generate fake bucket and image names.
+    bucket = faker.pystr()
+    image_name = faker.pystr()
+
+    # Act.
+    response = await endpoints.get_thumbnail(
+        bucket=bucket, name=image_name, backends=config.mock_manager
+    )
+
+    # Assert.
+    # It should have gotten the thumbnail.
+    config.mock_manager.object_store.get_object.assert_called_once()
+    args, _ = config.mock_manager.object_store.get_object.call_args
+    thumbnail_id = args[0]
+    assert thumbnail_id.bucket == bucket
+    # The name for this object should be distinct from that of the raw image.
+    assert thumbnail_id.name != image_name
+    image_stream = config.mock_manager.object_store.get_object.return_value
+
+    # It should have used a StreamingResponse object.
+    config.mock_streaming_response_class.assert_called_once_with(
+        image_stream, media_type="image/jpeg"
+    )
+    assert response == config.mock_streaming_response_class.return_value
+
+
+@pytest.mark.asyncio
+async def test_get_thumbnail_nonexistent(
+    config: ConfigForTests, faker: Faker
+) -> None:
+    """
+    Tests that the `get_thumbnail` endpoint handles the case where the image
+    does not exist.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    # Generate fake bucket and image names.
+    bucket = faker.pystr()
+    image_name = faker.pystr()
+
+    # Make it look like the image doesn't exist.
+    config.mock_manager.object_store.get_object.side_effect = KeyError
+
+    # Act and assert.
+    with pytest.raises(HTTPException):
+        await endpoints.get_thumbnail(
             bucket=bucket, name=image_name, backends=config.mock_manager
         )
 

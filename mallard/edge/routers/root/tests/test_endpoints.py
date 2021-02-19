@@ -19,4 +19,4 @@ async def test_get_index() -> None:
 
     # Assert.
     # It should have made the response.
-    assert "Hello World!" in got_response
+    assert "</html>" in got_response

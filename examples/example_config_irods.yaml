@@ -19,13 +19,13 @@ _irods_config: &irods_config
 backends:
   # Configuration for the object store backend.
   object_store:
-    type: mallard.backends.objects.irods_object_store.IrodsObjectStore
+    type: mallard.gateway.backends.objects.irods_object_store.IrodsObjectStore
     config:
       << : *irods_config
 
   # Configuration for the metadata store backend.
   metadata_store:
-    type: mallard.backends.metadata.irods_image_metadata_store.IrodsImageMetadataStore
+    type: mallard.gateway.backends.metadata.irods_image_metadata_store.IrodsImageMetadataStore
     config:
       << : *irods_config
 

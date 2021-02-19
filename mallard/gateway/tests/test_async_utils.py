@@ -12,6 +12,24 @@ import pytest
 from mallard.gateway import async_utils
 
 
+def test_get_process_pool() -> None:
+    """
+    Tests that `get_process_pool` works.
+
+    """
+    # Arrange.
+    # Make sure the cache is cleared.
+    async_utils.get_process_pool.cache_clear()
+
+    # Act.
+    first_pool = async_utils.get_process_pool()
+    second_pool = async_utils.get_process_pool()
+
+    # Assert.
+    # It should have memoized.
+    assert first_pool == second_pool
+
+
 @enum.unique
 class ConditionForTest(enum.IntEnum):
     """

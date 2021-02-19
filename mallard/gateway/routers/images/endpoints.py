@@ -4,6 +4,7 @@ API endpoints for managing image data.
 
 
 import asyncio
+import io
 import uuid
 from datetime import date, timedelta, timezone
 from typing import List, cast
@@ -18,8 +19,10 @@ from fastapi import (
     UploadFile,
 )
 from loguru import logger
+from PIL import Image
 from starlette.responses import StreamingResponse
 
+from ...async_utils import get_process_pool
 from ...backends import BackendManager
 from ...backends.metadata import ImageMetadataStore, MetadataOperationError
 from ...backends.metadata.models import (
@@ -46,6 +49,68 @@ _IMAGE_FORMAT_TO_MIME_TYPES = {
 """
 Maps image formats to corresponding MIME types.
 """
+
+_THUMBNAIL_SIZE = (128, 128)
+"""
+Max size in pixels of generated thumbnails.
+"""
+
+
+def _thumbnail_id(object_id: ObjectRef) -> ObjectRef:
+    """
+    Transforms an object ID to the ID for the corresponding thumbnail.
+
+    Args:
+        object_id: The object ID.
+
+    Returns:
+        The ID for the corresponding thumbnail.
+
+    """
+    thumbnail_name = f"{object_id.name}.thumbnail"
+    return ObjectRef(bucket=object_id.bucket, name=thumbnail_name)
+
+
+def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
+    """
+    Non-async version of `_create_thumbnail`. This is meant to be run in
+    a separate process so as not to block the event loop.
+
+    Args:
+        image: The image data to create a thumbnail for.
+
+    Returns:
+        The thumbnail that it created.
+
+    """
+    pil_image = Image.open(io.BytesIO(image))
+    pil_image.thumbnail(_THUMBNAIL_SIZE)
+
+    # Save result as a JPEG.
+    thumbnail = io.BytesIO()
+    pil_image.save(thumbnail, format="jpeg")
+    thumbnail.seek(0)
+
+    return thumbnail
+
+
+async def _create_thumbnail(image: UploadFile) -> io.BytesIO:
+    """
+    Generates a thumbnail from an input image.
+
+    Args:
+        image: The image to generate the thumbnail from.
+
+    Returns:
+        The generated thumbnail.
+
+    """
+    # Run in a separate process so we don't block the event loop.
+    logger.debug("Creating thumbnail for image.")
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        get_process_pool(), _create_thumbnail_sync, await image.read()
+    )
 
 
 async def use_bucket(
@@ -148,13 +213,26 @@ async def create_uav_image(
     metadata_task = asyncio.create_task(
         backends.metadata_store.add(object_id=object_id, metadata=metadata)
     )
+
+    # Create and save the thumbnail.
+    thumbnail_object_id = _thumbnail_id(object_id)
+
+    async def _create_and_save_thumbnail() -> None:
+        thumbnail = await _create_thumbnail(image_data)
+        await backends.object_store.create_object(
+            thumbnail_object_id, data=thumbnail
+        )
+
+    thumbnail_task = asyncio.create_task(_create_and_save_thumbnail())
+
     try:
-        await asyncio.gather(object_task, metadata_task)
+        await asyncio.gather(object_task, metadata_task, thumbnail_task)
     except MetadataOperationError as error:
         # If one operation fails, it would be best to try and roll back the
         # other.
         logger.info("Rolling back object creation {} upon error.", object_id)
         await backends.object_store.delete_object(object_id)
+        await backends.object_store.delete_object(thumbnail_object_id)
         raise error
     except ObjectOperationError as error:
         logger.info("Rolling back metadata add for {} upon error.", object_id)
@@ -242,6 +320,42 @@ async def get_image(
     mime_type = _IMAGE_FORMAT_TO_MIME_TYPES[metadata.format]
 
     return StreamingResponse(image_stream, media_type=mime_type)
+
+
+@router.get("/thumbnail/{bucket}/{name}")
+async def get_thumbnail(
+    bucket: str,
+    name: str,
+    backends: BackendManager = Depends(BackendManager.depend),
+) -> StreamingResponse:
+    """
+    Gets the thumbnail for a specific image.
+
+    Args:
+        bucket: The bucket that the image is in.
+        name: The name of the image.
+        backends: Used to access storage backends.
+
+    Returns:
+        The binary contents of the thumbnail.
+
+    """
+    logger.debug("Getting thumbnail for image {} in bucket {}.", name, bucket)
+    object_id = ObjectRef(bucket=bucket, name=name)
+
+    thumbnail_object_id = _thumbnail_id(object_id)
+    try:
+        image_stream = await backends.object_store.get_object(
+            thumbnail_object_id
+        )
+    except KeyError:
+        # The thumbnail doesn't exist.
+        raise HTTPException(
+            status_code=404,
+            detail="Requested image thumbnail could not be found.",
+        )
+
+    return StreamingResponse(image_stream, media_type="image/jpeg")
 
 
 @router.post("/query")

@@ -5,9 +5,18 @@ Utilities for asynchronous code.
 
 import asyncio
 from concurrent import futures
+from functools import cache
 from typing import AsyncIterable, Iterable, TypeVar
 
+from loguru import logger
+
 IterType = TypeVar("IterType")
+
+
+@cache
+def get_process_pool() -> futures.ProcessPoolExecutor:
+    logger.debug("Creating process pool.")
+    return futures.ProcessPoolExecutor()
 
 
 async def make_async_iter(

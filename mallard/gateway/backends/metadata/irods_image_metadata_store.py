@@ -181,6 +181,27 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
 
         return query
 
+    def __make_default_query(self) -> Query:
+        """
+        Creates the default query, which selects all items that we have
+        access to.
+
+        Returns:
+            The query that it created.
+
+        """
+        sql_query = self._session.query(DataObject.name, Collection.name)
+
+        # Initially filter on the root collection to exclude results that
+        # aren't relevant to the application.
+        root_pattern = f"{self._root_path.as_posix()}%"
+        sql_query = sql_query.filter(Like(Collection.name, root_pattern))
+
+        # Also filter out thumbnails.
+        return sql_query.filter(
+            Criterion("not like", DataObject.name, "%.thumbnail")
+        )
+
     async def get(self, object_id: ObjectRef) -> ImageMetadata:
         return await self._get(object_id, parse_as=ImageMetadata)
 
@@ -192,11 +213,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         max_num_results: int = 500,
     ) -> AsyncIterable[ObjectRef]:
         # Translate this into an actual SQL query.
-        sql_query = self._session.query(DataObject.name, Collection.name)
-        # Initially filter on the root collection to exclude results that
-        # aren't relevant to the application.
-        root_pattern = f"{self._root_path.as_posix()}%"
-        sql_query = sql_query.filter(Like(Collection.name, root_pattern))
+        sql_query = self.__make_default_query()
         sql_query = self.__build_query(query, "", sql_query)
 
         # Apply the limit and offset.

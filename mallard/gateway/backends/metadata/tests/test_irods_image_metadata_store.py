@@ -416,8 +416,13 @@ class TestIrodsImageMetadataStore:
         assert len(args) == 1
         assert args[0].query_key == Collection.name
 
+        # It should have added another initial filter to exclude thumbnails.
+        args, _ = mock_query.filter.call_args_list[1]
+        assert len(args) == 1
+        assert args[0].query_key == DataObject.name
+
         # It should have added filters to the query.
-        for call in mock_query.filter.call_args_list[1:]:
+        for call in mock_query.filter.call_args_list[2:]:
             args, _ = call
             name_criterion, value_criterion = args
 

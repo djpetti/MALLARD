@@ -1,5 +1,6 @@
 import { LitElement, customElement, css, html, property } from "lit-element";
 import "@material/mwc-top-app-bar";
+import "./artifact-thumbnail";
 
 @customElement("thumbnail-grid-section")
 /**
@@ -38,13 +39,21 @@ export class ThumbnailGridSection extends LitElement {
   sectionHeader: string = "Section Header";
 
   /**
+   * The unique IDs of the artifacts whose thumbnails are displayed in this component.
+   */
+  @property({ type: Array })
+  displayedArtifacts: string[] = [];
+
+  /**
    * @inheritDoc
    */
   protected render() {
     return html`
       <div class="section_divider">${this.sectionHeader}</div>
       <div id="section_contents">
-        <slot></slot>
+        ${this.displayedArtifacts.map(
+          (i) => html`<artifact-thumbnail .imageId=${i}></artifact-thumbnail>`
+        )}
       </div>
     `;
   }

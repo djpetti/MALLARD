@@ -1,5 +1,4 @@
-import { ThunkAction } from "redux-thunk";
-import { Action } from "redux";
+import { Dictionary, EntityId } from "@reduxjs/toolkit";
 
 /**
  * Represents the state of a long-running request.
@@ -9,24 +8,6 @@ export enum RequestState {
   LOADING = "loading",
   SUCCEEDED = "succeeded",
   FAILED = "failed",
-}
-
-/**
- * Represents the action for starting a new query.
- */
-export interface StartQueryAction {
-  type: string;
-  /** The query that we are currently processing. */
-  payload: ImageQuery;
-}
-
-/**
- * Represents an action for updating the state with query results.
- */
-export interface UpdateQueryResultsAction {
-  type: string;
-  /** The results from the query. */
-  payload: QueryResult;
 }
 
 /**
@@ -58,19 +39,47 @@ export interface QueryResult {
   /** The image IDs that were returned by this query. */
   imageIds: ArtifactId[];
   /** The most recent page number that we have queried. */
-  pageNum: Number;
+  pageNum: number;
   /** Whether this is the last page of query results. */
   isLastPage: boolean;
 }
 
 /**
+ * Generic interface for a normalized table.
+ */
+interface NormalizedState<EntityType> {
+  /** The sorted IDs in the table. */
+  ids: EntityId[];
+  /** The actual table data, mapping IDs to EntityTypes. */
+  entities: Dictionary<EntityType>;
+}
+
+/**
+ * The loading status of the thumbnail images.
+ */
+export enum ThumbnailStatus {
+  /** Thumbnail is loading. */
+  LOADING,
+  /** Thumbnail is loaded and displayed. */
+  VISIBLE,
+}
+
+/**
+ * The entry in the normalized table for image data.
+ */
+export interface ImageEntity {
+  /** Unique ID for the image provided by the backend. */
+  backendId: ArtifactId;
+  /** Status of loading the image thumbnail. */
+  status: ThumbnailStatus;
+  /** The object URL of the image. */
+  imageUrl: string | null;
+}
+
+/**
  * Represents the state of the thumbnail grid.
  */
-export interface ThumbnailGridState {
-  /** Set of thumbnails that have been successfully loaded. */
-  visibleThumbnails: ArtifactId[];
-  /** Set of thumbnails that are currently still loading. */
-  loadingThumbnails: ArtifactId[];
+export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
   /** Most recent query results. */
   lastQueryResults: QueryResult | null;
   /** Most recent query, possibly still in progress. */
@@ -87,10 +96,3 @@ export interface ThumbnailGridState {
 export interface RootState {
   thumbnailGrid: ThumbnailGridState;
 }
-
-export type ThumbnailGridThunk<ReturnType = void> = ThunkAction<
-  ReturnType,
-  RootState,
-  unknown,
-  Action<string>
->;

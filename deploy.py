@@ -3,6 +3,7 @@ Deployment helper script for GAE.
 """
 
 
+import multiprocessing as mp
 import os
 import subprocess
 from argparse import ArgumentParser, Namespace
@@ -11,6 +12,7 @@ from functools import cache
 from pathlib import Path
 from typing import Iterator
 
+import uvicorn
 from loguru import logger
 
 _REPO_ROOT = Path(__file__).parent
@@ -20,6 +22,10 @@ Path to the root directory of the repository.
 _EDGE_ROOT = _REPO_ROOT / "mallard" / "edge"
 """
 Root directory of the edge package.
+"""
+_GATEWAY_PORT = 8000
+"""
+Port to use for the gateway server.
 """
 
 
@@ -124,6 +130,41 @@ def _deploy_service(service_name: str) -> None:
         )
 
 
+@contextmanager
+def _gateway_server() -> Iterator[None]:
+    """
+    Starts the gateway server in a separate thread. Note that we don't really
+    have a good way to stop it, so it will just run until the script exits.
+
+    """
+    logger.debug("Starting gateway server.")
+    server_process = mp.Process(
+        target=uvicorn.run,
+        args=("mallard.gateway.main:app",),
+        kwargs=dict(host="0.0.0.0", port=_GATEWAY_PORT),
+    )
+    server_process.start()
+
+    try:
+        yield
+    finally:
+        logger.debug("Stopping gateway server.")
+        server_process.terminate()
+
+
+def _generate_api_client() -> None:
+    """
+    Generates a TypeScript client for the gateway API.
+
+    """
+    with _gateway_server(), _working_dir(_EDGE_ROOT / "frontend"):
+        npm_path = _find_tool("npm")
+
+        # Generate the API client.
+        subprocess.run([npm_path.as_posix(), "run", "api"], check=True)
+        subprocess.run([npm_path.as_posix(), "install"], check=True)
+
+
 def _build_frontend() -> None:
     """
     Builds frontend code prior to deploying.
@@ -131,12 +172,11 @@ def _build_frontend() -> None:
     """
     logger.info("Building frontend code...")
 
+    # Generate the API client.
+    _generate_api_client()
+
     with _working_dir(_EDGE_ROOT / "frontend"):
         npm_path = _find_tool("npm")
-
-        # Generate the API client.
-        subprocess.run([npm_path.as_posix(), "run", "api"], check=True)
-        subprocess.run([npm_path.as_posix(), "install"], check=True)
 
         # Format, lint, build and bundle.
         subprocess.run([npm_path.as_posix(), "run", "format"], check=True)

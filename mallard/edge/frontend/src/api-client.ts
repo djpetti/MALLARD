@@ -1,5 +1,5 @@
-import { Configuration, ImagesApi } from "typescript-axios/dist";
-import { ImageQuery, QueryResult } from "./types";
+import { Configuration, ImagesApi } from "typescript-axios";
+import { ArtifactId, ImageQuery, QueryResult } from "./types";
 
 /** Singleton API client used by the entire application. */
 const api = new ImagesApi(new Configuration(), "http://localhost:8000");
@@ -22,4 +22,21 @@ export async function queryImages(query: ImageQuery): Promise<QueryResult> {
     pageNum: rawResult.page_num,
     isLastPage: rawResult.is_last_page,
   };
+}
+
+/**
+ * Loads a specific thumbnail.
+ * @param {ArtifactId} imageId The ID of the image to load the thumbnail for.
+ */
+export async function loadThumbnail(imageId: ArtifactId): Promise<String> {
+  const response = await api
+    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
+      responseType: "blob",
+    })
+    .catch(function (error) {
+      console.log(error.toJSON());
+      throw error;
+    });
+
+  return response.data;
 }

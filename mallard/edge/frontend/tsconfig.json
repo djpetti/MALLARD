@@ -9,6 +9,7 @@
     "experimentalDecorators": true,
     "moduleResolution": "Node",
     "strictNullChecks": true,
+    "sourceMap": true,
     "plugins": [
       {
         "name": "ts-lit-plugin",

@@ -2,6 +2,7 @@
 import "@material/mwc-top-app-bar-fixed";
 import "./artifact-thumbnail";
 import "./thumbnail-grid-section";
+import "./thumbnail-grid";
 import store from "./store";
 import { thunkStartQuery } from "./thumbnail-grid-slice";
 

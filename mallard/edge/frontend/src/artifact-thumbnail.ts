@@ -1,6 +1,20 @@
-import { LitElement, customElement, css, html } from "lit-element";
+import {
+  css,
+  customElement,
+  html,
+  LitElement,
+  property,
+  PropertyValues,
+} from "lit-element";
+import { ImageEntity, RootState, ThumbnailStatus } from "./types";
+import { connect } from "@captaincodeman/redux-connect-element";
+import store from "./store";
+import {
+  thumbnailGridSelectors,
+  thunkLoadThumbnail,
+} from "./thumbnail-grid-slice";
+import { Action } from "redux";
 
-@customElement("artifact-thumbnail")
 /**
  * Thumbnail representation of an uploaded artifact.
  */
@@ -11,15 +25,116 @@ export class ArtifactThumbnail extends LitElement {
       border: none;
       margin: 0.5rem;
       background-color: var(--theme-gray);
-      min-width: 133px;
+      min-width: 128px;
       min-height: 80px;
     }
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+    }
   `;
+
+  /**
+   * The unique ID of the artifact being displayed here.
+   */
+  @property({ type: String })
+  imageId: string | null = null;
+
+  /**
+   * The URL of the thumbnail image to display.
+   */
+  @property({ type: String, attribute: false })
+  imageUrl: string | null = null;
+
+  /**
+   * Checks if an image is set for this component.
+   * @return {boolean} True iff an actual image is set in this component.
+   */
+  get hasImage(): boolean {
+    return this.imageUrl != null;
+  }
 
   /**
    * @inheritDoc
    */
   protected render() {
-    return html`<div><slot></slot></div>`;
+    return html`
+      <div>
+        ${this.hasImage
+          ? html` <img src="${this.imageUrl as string}" alt="thumbnail" /> `
+          : html``}
+      </div>
+    `;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected updated(_changedProperties: PropertyValues) {
+    if (_changedProperties.has("imageId")) {
+      // The image ID has changed. We need to fire an event for this to kick
+      // off the actual thumbnail load.
+      this.dispatchEvent(
+        new CustomEvent<string | null>("image-changed", {
+          bubbles: true,
+          composed: false,
+          detail: this.imageId,
+        })
+      );
+    }
+  }
+}
+
+interface ImageChangedEvent extends Event {
+  detail: string;
+}
+
+@customElement("artifact-thumbnail")
+/**
+ * Extension of `ArtifactThumbnail` that connects to Redux.
+ */
+export class ConnectedArtifactThumbnail extends connect(
+  store,
+  ArtifactThumbnail
+) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: RootState): { [p: string]: any } {
+    if (this.imageId == null) {
+      // No specific thumbnail has been set.
+      return {};
+    }
+
+    // This should never be undefined, because that means our image ID is invalid.
+    const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+      state,
+      this.imageId
+    ) as ImageEntity;
+    if (imageEntity.status != ThumbnailStatus.VISIBLE) {
+      // The thumbnail image is has not been loaded yet.
+      return {};
+    }
+
+    return {
+      imageUrl: imageEntity.imageUrl,
+    };
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    return {
+      // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
+      // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+      // However, it still works just fine with an AsyncThunkAction.
+      "image-changed": (event: Event) =>
+        (thunkLoadThumbnail(
+          (event as ImageChangedEvent).detail
+        ) as unknown) as Action,
+    };
   }
 }

@@ -1,4 +1,3 @@
-import { customElement } from "lit-element";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState, ThumbnailStatus } from "./types";
@@ -13,7 +12,6 @@ interface ImageChangedEvent extends Event {
   detail: string;
 }
 
-@customElement("artifact-thumbnail")
 /**
  * Extension of `ArtifactThumbnail` that connects to Redux.
  */

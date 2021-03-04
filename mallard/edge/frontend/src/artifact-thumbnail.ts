@@ -1,13 +1,11 @@
 import {
   css,
-  customElement,
   html,
   LitElement,
   property,
   PropertyValues,
 } from "lit-element";
 
-@customElement("artifact-thumbnail-unconnected")
 /**
  * Thumbnail representation of an uploaded artifact.
  */
@@ -28,6 +26,8 @@ export class ArtifactThumbnail extends LitElement {
       max-height: 100%;
     }
   `;
+
+  static tagName: string = "artifact-thumbnail";
 
   /**
    * The unique ID of the artifact being displayed here.

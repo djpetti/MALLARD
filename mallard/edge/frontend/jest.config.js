@@ -1,7 +1,9 @@
 module.exports = {
-  preset: "ts-jest",
+  preset: "ts-jest/presets/js-with-babel",
   testEnvironment: 'jest-environment-jsdom-sixteen',
   testRegex: 'src/.*test/test_.*\\.(ts|tsx)$',
   moduleFileExtensions: ['ts', 'js'],
-  setupFiles: ["./bundled/mallard-edge.js"]
+  transformIgnorePatterns: [
+      "node_modules/(?!(lit-element|lit-html|@material)/)"
+  ]
 };

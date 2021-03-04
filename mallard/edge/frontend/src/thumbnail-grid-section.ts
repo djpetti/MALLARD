@@ -1,8 +1,7 @@
-import { LitElement, customElement, css, html, property } from "lit-element";
+import { LitElement, css, html, property } from "lit-element";
 import "@material/mwc-top-app-bar";
 import "./connected-artifact-thumbnail";
 
-@customElement("thumbnail-grid-section")
 /**
  * A grid of thumbnails with a section header.
  */
@@ -19,7 +18,7 @@ export class ThumbnailGridSection extends LitElement {
       grid-gap: 0;
     }
 
-    .section_divider {
+    #section_divider {
       background-color: var(--theme-primary);
       color: var(--theme-blackish);
       padding: 1rem;
@@ -31,6 +30,9 @@ export class ThumbnailGridSection extends LitElement {
       font-style: normal;
     }
   `;
+
+  /** Tag name for this element. */
+  static tagName: string = "thumbnail-grid-section";
 
   /**
    * The header to use for this section.
@@ -49,12 +51,12 @@ export class ThumbnailGridSection extends LitElement {
    */
   protected render() {
     return html`
-      ${this.displayedArtifacts.length == 0
-        ? html`<div class="section_divider">${this.sectionHeader}</div>`
+      ${this.displayedArtifacts.length > 0
+        ? html` <div id="section_divider">${this.sectionHeader}</div>`
         : html``}
       <div id="section_contents">
         ${this.displayedArtifacts.map(
-          (i) => html`<artifact-thumbnail .imageId=${i}></artifact-thumbnail>`
+          (i) => html` <artifact-thumbnail .imageId=${i}></artifact-thumbnail>`
         )}
       </div>
     `;

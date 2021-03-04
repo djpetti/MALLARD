@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/UGA-BSAIL/MALLARD#readme",
   "devDependencies": {
+    "@babel/preset-env": "^7.13.9",
     "@openapitools/openapi-generator-cli": "^2.1.23",
     "@rollup/plugin-commonjs": "^17.1.0",
     "@rollup/plugin-json": "^4.1.0",

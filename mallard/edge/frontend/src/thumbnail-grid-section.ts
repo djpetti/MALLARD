@@ -1,6 +1,6 @@
 import { LitElement, customElement, css, html, property } from "lit-element";
 import "@material/mwc-top-app-bar";
-import "./artifact-thumbnail";
+import "./connected-artifact-thumbnail";
 
 @customElement("thumbnail-grid-section")
 /**
@@ -49,7 +49,9 @@ export class ThumbnailGridSection extends LitElement {
    */
   protected render() {
     return html`
-      <div class="section_divider">${this.sectionHeader}</div>
+      ${this.displayedArtifacts.length == 0
+        ? html`<div class="section_divider">${this.sectionHeader}</div>`
+        : html``}
       <div id="section_contents">
         ${this.displayedArtifacts.map(
           (i) => html`<artifact-thumbnail .imageId=${i}></artifact-thumbnail>`

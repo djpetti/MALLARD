@@ -1,6 +1,6 @@
 import { LitElement, css, html, property } from "lit-element";
 import "@material/mwc-top-app-bar";
-import "./connected-artifact-thumbnail";
+import "./artifact-thumbnail";
 
 /**
  * A grid of thumbnails with a section header.

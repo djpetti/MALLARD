@@ -3,3 +3,4 @@ build/
 bundled/
 gen/
 openapitools.json
+coverage/

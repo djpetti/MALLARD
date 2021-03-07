@@ -5,5 +5,8 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js'],
   transformIgnorePatterns: [
       "node_modules/(?!(lit-element|lit-html|@material)/)"
+  ],
+  collectCoverageFrom: [
+      "src/**/{!(index|elements|element-test-utils),}.ts",
   ]
 };

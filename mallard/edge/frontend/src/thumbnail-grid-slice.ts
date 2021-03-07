@@ -37,7 +37,7 @@ interface LoadThumbnailReturn {
  * @return {string} The equivalent ID used by the frontend.
  */
 function createImageEntityId(backendId: ArtifactId): string {
-  return backendId.bucket + "/" + backendId.name;
+  return `${backendId.bucket}/${backendId.name}`;
 }
 
 const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
@@ -91,11 +91,6 @@ export const thumbnailGridSlice = createSlice({
   extraReducers: (builder) => {
     // Initiates a new query for home screen data.
     builder.addCase(thunkStartQuery.pending, (state) => {
-      if (state.currentQueryState == RequestState.LOADING) {
-        // A query is already in-progress.
-        return;
-      }
-
       state.currentQueryState = RequestState.LOADING;
     });
 

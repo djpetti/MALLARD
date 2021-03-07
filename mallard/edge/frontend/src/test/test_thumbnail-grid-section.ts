@@ -1,6 +1,6 @@
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
-import { getShadowRoot } from "./element_test_utils";
-import {ArtifactThumbnail} from "../artifact-thumbnail";
+import { getShadowRoot } from "./element-test-utils";
+import { ArtifactThumbnail } from "../artifact-thumbnail";
 
 describe("thumbnail-grid-section", () => {
   /** Internal thumbnail-grid-section to use for testing. */
@@ -57,7 +57,9 @@ describe("thumbnail-grid-section", () => {
     expect(contents).not.toBe(null);
     expect(contents.childElementCount).toBe(2);
     for (const thumbnail of contents.children) {
-      expect(gridSectionElement.displayedArtifacts).toContain((thumbnail as ArtifactThumbnail).imageId);
+      expect(gridSectionElement.displayedArtifacts).toContain(
+        (thumbnail as ArtifactThumbnail).imageId
+      );
     }
   });
 });

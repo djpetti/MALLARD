@@ -1,4 +1,4 @@
-import { customElement, LitElement, html, property } from "lit-element";
+import { LitElement, html, property } from "lit-element";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { RootState } from "./types";
@@ -9,6 +9,8 @@ import { thumbnailGridSelectors } from "./thumbnail-grid-slice";
  * A scrollable grid of thumbnails with multiple sections.
  */
 export class ThumbnailGrid extends LitElement {
+  static tagName: string = "thumbnail-grid";
+
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({ type: Array })
   displayedArtifacts: string[] = [];
@@ -27,7 +29,6 @@ export class ThumbnailGrid extends LitElement {
   }
 }
 
-@customElement("thumbnail-grid")
 /**
  * Extension of `ThumbnailGrid` that connects to Redux.
  */

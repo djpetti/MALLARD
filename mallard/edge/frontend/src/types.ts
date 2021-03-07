@@ -13,12 +13,11 @@ export enum RequestState {
 /**
  * Represents a particular artifact in MALLARD.
  */
-export class ArtifactId {
-  /**
-   * @param {string} bucket The bucket name for this artifact.
-   * @param {string} name The unique ID for this artifact.
-   */
-  constructor(public bucket: string, public name: string) {}
+export interface ArtifactId {
+  /** The bucket name for this artifact. */
+  bucket: string;
+  /** The unique ID for this artifact within the bucket. */
+  name: string;
 }
 
 /**

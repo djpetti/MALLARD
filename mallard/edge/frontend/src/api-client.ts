@@ -28,7 +28,7 @@ export async function queryImages(query: ImageQuery): Promise<QueryResult> {
  * Loads a specific thumbnail.
  * @param {ArtifactId} imageId The ID of the image to load the thumbnail for.
  */
-export async function loadThumbnail(imageId: ArtifactId): Promise<String> {
+export async function loadThumbnail(imageId: ArtifactId): Promise<string> {
   const response = await api
     .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",

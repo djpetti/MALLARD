@@ -5,7 +5,7 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
-import { RootState, ThumbnailStatus } from "../types";
+import { RootState } from "../types";
 
 const faker = require("faker");
 

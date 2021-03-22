@@ -4,6 +4,7 @@
 
 import {
   ImageEntity,
+  ImageMetadata,
   RequestState,
   RootState,
   ThumbnailStatus,
@@ -52,15 +53,18 @@ export function fakeThumbnailEntity(imageLoaded?: boolean): ImageEntity {
 
   let status: ThumbnailStatus = ThumbnailStatus.LOADING;
   let imageUrl: string | null = null;
+  let metadata: ImageMetadata | null = null;
   if (imageLoaded) {
     // Simulate a loaded image.
     status = ThumbnailStatus.VISIBLE;
     imageUrl = faker.image.dataUri();
+    metadata = { captureDate: faker.date.past().toISOString() };
   }
 
   return {
     backendId: { bucket: faker.lorem.word(), name: faker.random.uuid() },
     status: status,
     imageUrl: imageUrl,
+    metadata: metadata,
   };
 }

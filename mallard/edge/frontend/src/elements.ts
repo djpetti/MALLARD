@@ -1,7 +1,7 @@
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
 import { LitElement } from "lit-element";
 import { ConnectedArtifactThumbnail } from "./artifact-thumbnail";
-import { ThumbnailGrid } from "./thumbnail-grid";
+import { ConnectedThumbnailGrid } from "./thumbnail-grid";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -12,7 +12,7 @@ interface ComponentType extends LitElementType {
 /** List of all custom elements. */
 const componentClasses: ComponentType[] = [
   ThumbnailGridSection,
-  ThumbnailGrid,
+  ConnectedThumbnailGrid,
   ConnectedArtifactThumbnail,
 ];
 

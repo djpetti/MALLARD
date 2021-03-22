@@ -6,6 +6,7 @@ import {
 import {
   ArtifactId,
   ImageEntity,
+  ImageMetadata,
   ImageQuery,
   QueryResult,
   RequestState,
@@ -13,7 +14,7 @@ import {
   ThumbnailGridState,
   ThumbnailStatus,
 } from "./types";
-import { loadThumbnail, queryImages } from "./api-client";
+import { getMetadata, loadThumbnail, queryImages } from "./api-client";
 
 /**
  * Return type for the `thunkStartQuery` creator.
@@ -29,6 +30,14 @@ interface StartQueryReturn {
 interface LoadThumbnailReturn {
   imageId: string;
   imageUrl: string;
+}
+
+/**
+ * Return type for the `thunkLoadMetadata` creator.
+ */
+interface LoadMetadataReturn {
+  imageIds: string[];
+  metadata: ImageMetadata[];
 }
 
 /**
@@ -84,6 +93,30 @@ export const thunkLoadThumbnail = createAsyncThunk(
   }
 );
 
+/**
+ * Action creator that starts a new request for image metadata for multiple images.
+ */
+export const thunkLoadMetadata = createAsyncThunk(
+  "thumbnailGrid/loadMetadata",
+  async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
+    // Asynchronously load metadata for all the images.
+    const metadataPromises: Promise<ImageMetadata>[] = imageIds.map(
+      (imageId: string) => {
+        // This should never be undefined, because that means our image ID is invalid.
+        const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+          getState() as RootState,
+          imageId
+        ) as ImageEntity;
+
+        return getMetadata(imageEntity.backendId);
+      }
+    );
+    const metadata: ImageMetadata[] = await Promise.all(metadataPromises);
+
+    return { imageIds: imageIds, metadata: metadata };
+  }
+);
+
 export const thumbnailGridSlice = createSlice({
   name: "thumbnailGrid",
   initialState: initialState as ThumbnailGridState,
@@ -106,6 +139,7 @@ export const thumbnailGridSlice = createSlice({
             backendId: i,
             status: ThumbnailStatus.LOADING,
             imageUrl: null,
+            metadata: null,
           };
         })
       );
@@ -121,7 +155,7 @@ export const thumbnailGridSlice = createSlice({
 
     // Adds results from thumbnail loading.
     builder.addCase(thunkLoadThumbnail.fulfilled, (state, action) => {
-      // Move images from the loading set to the visible set, and save the image URL.
+      // Transition images from LOADING to VISIBLE, and save the image URL.
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload.imageId,
         changes: {
@@ -129,6 +163,20 @@ export const thumbnailGridSlice = createSlice({
           imageUrl: action.payload.imageUrl,
         },
       });
+    });
+
+    // Adds results from metadata loading.
+    builder.addCase(thunkLoadMetadata.fulfilled, (state, action) => {
+      // Save the image metadata.
+      const updates = action.payload.imageIds.map(
+        (imageId: string, index: number) => {
+          // Get corresponding metadata.
+          const metadata = action.payload.metadata[index];
+          return { id: imageId, changes: { metadata: metadata } };
+        }
+      );
+
+      thumbnailGridAdapter.updateMany(state, updates);
     });
   },
 });

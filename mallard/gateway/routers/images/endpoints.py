@@ -28,6 +28,7 @@ from ...backends.metadata import ImageMetadataStore, MetadataOperationError
 from ...backends.metadata.models import (
     ImageFormat,
     ImageQuery,
+    Metadata,
     Ordering,
     UavImageMetadata,
 )
@@ -356,6 +357,39 @@ async def get_thumbnail(
         )
 
     return StreamingResponse(image_stream, media_type="image/jpeg")
+
+
+@router.get("/metadata/{bucket}/{name}")
+async def get_image_metadata(
+    bucket: str,
+    name: str,
+    backends: BackendManager = Depends(BackendManager.depend),
+) -> Metadata:
+    """
+    Gets the complete metadata for an image.
+
+    Args:
+        bucket: The bucket that the image is in.
+        name: The name of the image.
+        backends: Used to access storage backends.
+
+    Returns:
+        The image metadata, in JSON form.
+
+    """
+    logger.debug("Getting metadata for image {} in bucket {}.", name, bucket)
+    object_id = ObjectRef(bucket=bucket, name=name)
+
+    try:
+        metadata = await backends.metadata_store.get(object_id)
+    except KeyError:
+        # The image doesn't exist.
+        raise HTTPException(
+            status_code=404,
+            detail="Requested image metadata could not be found.",
+        )
+
+    return metadata
 
 
 @router.post("/query")

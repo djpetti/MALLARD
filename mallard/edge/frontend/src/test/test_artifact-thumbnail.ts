@@ -1,10 +1,10 @@
-import {ConnectedArtifactThumbnail} from "../artifact-thumbnail";
+import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
 import {
   fakeState,
   fakeThumbnailEntity,
   getShadowRoot,
 } from "./element-test-utils";
-import {RequestState, RootState, ThumbnailStatus} from "../types";
+import { RootState } from "../types";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -14,7 +14,9 @@ const faker = require("faker");
 const thumbnailGridSlice = require("../thumbnail-grid-slice");
 const mockThunkLoadThumbnail = thumbnailGridSlice.thunkLoadThumbnail;
 const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
-const {thumbnailGridSelectors} = jest.requireActual("../thumbnail-grid-slice");
+const { thumbnailGridSelectors } = jest.requireActual(
+  "../thumbnail-grid-slice"
+);
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -22,7 +24,7 @@ jest.mock("@captaincodeman/redux-connect-element", () => ({
 }));
 jest.mock("../thumbnail-grid-slice", () => ({
   thunkLoadThumbnail: jest.fn(),
-  thumbnailGridSelectors: {selectById: jest.fn()},
+  thumbnailGridSelectors: { selectById: jest.fn() },
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -46,7 +48,9 @@ describe("artifact-thumbnail", () => {
     faker.seed(1337);
 
     // Use the actual implementation for this function.
-    mockThumbnailGridSelectors.selectById.mockImplementation(thumbnailGridSelectors.selectById);
+    mockThumbnailGridSelectors.selectById.mockImplementation(
+      thumbnailGridSelectors.selectById
+    );
 
     thumbnailElement = window.document.createElement(
       ConnectedArtifactThumbnail.tagName
@@ -107,8 +111,8 @@ describe("artifact-thumbnail", () => {
     expect(eventMap).toHaveProperty("image-changed");
 
     // This should fire the appropriate action creator.
-    const testEvent = {detail: faker.random.uuid()};
-    eventMap["image-changed"](testEvent as unknown as Event);
+    const testEvent = { detail: faker.random.uuid() };
+    eventMap["image-changed"]((testEvent as unknown) as Event);
 
     expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
     expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail);

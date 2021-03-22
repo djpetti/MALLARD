@@ -44,6 +44,16 @@ export interface QueryResult {
 }
 
 /**
+ * Represents image metadata.
+ */
+export interface ImageMetadata {
+  /** The date that the image was captured on. This is in raw string
+   * form to please Redux, but should be trivially convertible to a Date object.
+   */
+  captureDate: string;
+}
+
+/**
  * Generic interface for a normalized table.
  */
 interface NormalizedState<EntityType> {
@@ -73,6 +83,8 @@ export interface ImageEntity {
   status: ThumbnailStatus;
   /** The object URL of the image. */
   imageUrl: string | null;
+  /** The metadata associated with the image. */
+  metadata: ImageMetadata | null;
 }
 
 /**

@@ -1,5 +1,5 @@
-import {ImageQuery, QueryResult} from "../types";
-import {loadThumbnail, queryImages} from "../api-client";
+import { ImageQuery, QueryResult } from "../types";
+import { loadThumbnail, queryImages } from "../api-client";
 
 const faker = require("faker");
 
@@ -19,7 +19,13 @@ describe("api-client", () => {
     faker.seed(1337);
   });
 
+  /**
+   * Fake exception resembling errors from Axios.
+   */
   class FakeAxiosError extends Error {
+    /**
+     * Creates a new error.
+     */
     constructor() {
       super();
       this.toJSON = jest.fn();
@@ -83,12 +89,13 @@ describe("api-client", () => {
   it("can load a thumbnail", async () => {
     // Arrange.
     // Fake a valid response.
-    const mockThumbnailGet = mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
+    const mockThumbnailGet =
+      mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
 
     const imageData = faker.image.cats(128, 128);
-    mockThumbnailGet.mockResolvedValue({data: imageData});
+    mockThumbnailGet.mockResolvedValue({ data: imageData });
 
-    const imageId = {bucket: faker.lorem.word(), name: faker.random.uuid()};
+    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
 
     // Act.
     const result: string = await loadThumbnail(imageId);
@@ -96,7 +103,11 @@ describe("api-client", () => {
     // Assert.
     // It should have loaded the thumbnail.
     expect(mockThumbnailGet).toBeCalledTimes(1);
-    expect(mockThumbnailGet).toBeCalledWith(imageId.bucket, imageId.name, expect.any(Object));
+    expect(mockThumbnailGet).toBeCalledWith(
+      imageId.bucket,
+      imageId.name,
+      expect.any(Object)
+    );
 
     // It should have gotten the proper result.
     expect(result).toEqual(imageData);
@@ -105,11 +116,12 @@ describe("api-client", () => {
   it("handles a failure when loading a thumbnail", async () => {
     // Arrange.
     // Make it look like loading a thumbnail fails.
-    const mockThumbnailGet = mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
+    const mockThumbnailGet =
+      mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
     const fakeError = new FakeAxiosError();
     mockThumbnailGet.mockRejectedValue(fakeError);
 
-    const imageId = {bucket: faker.lorem.word(), name: faker.random.uuid()};
+    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
 
     // Act and assert.
     await expect(loadThumbnail(imageId)).rejects.toThrow(FakeAxiosError);

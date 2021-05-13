@@ -84,6 +84,28 @@ describe("artifact-thumbnail", () => {
     expect(thumbnailElement.hasImage).toBe(false);
   });
 
+  it("displays an image when we set the URL", async () => {
+    // Arrange.
+    const fakeImageUrl = faker.image.imageUrl();
+
+    // Act.
+    // Set the URL.
+    thumbnailElement.imageUrl = fakeImageUrl;
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should have rendered the image.
+    const thumbnailDiv = getShadowRoot(
+      ConnectedArtifactThumbnail.tagName
+    ).querySelector("#image_container") as HTMLElement;
+
+    const images = thumbnailDiv.getElementsByTagName("img");
+    expect(images.length).toEqual(1);
+
+    // It should have set the correct image source.
+    expect(images[0].src).toEqual(fakeImageUrl);
+  });
+
   it("fires an event when we set the image ID", async () => {
     // Arrange.
     // Fake image ID to use for testing.

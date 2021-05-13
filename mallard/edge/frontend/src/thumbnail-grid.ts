@@ -138,7 +138,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       // We don't have all the metadata yet. Ignore this.
     }
 
-    // Sort grouped images by date.
+    // Sort grouped images by date, descending.
     grouped.sort((a, b): number => {
       return b.captureDate.getTime() - a.captureDate.getTime();
     });

@@ -43,12 +43,20 @@ export function fakeState(): RootState {
  * Creates a fake entity in our normalized thumbnail database.
  * @param {boolean} imageLoaded Specify whether to simulate that a particular
  *  thumbnail image has finished loading. If not specified, it will be set randomly.
+ * @param {Date} captureDate Specify a specific capture date for this entity.
  * @return {ImageEntity} The entity that it created.
  */
-export function fakeThumbnailEntity(imageLoaded?: boolean): ImageEntity {
+export function fakeThumbnailEntity(
+  imageLoaded?: boolean,
+  captureDate?: Date
+): ImageEntity {
   // Determine whether we should simulate a loaded image or not.
   if (imageLoaded == undefined) {
     imageLoaded = faker.random.boolean();
+  }
+  // Determine whether we should use a specific capture date.
+  if (captureDate == undefined) {
+    captureDate = faker.date.past();
   }
 
   let status: ThumbnailStatus = ThumbnailStatus.LOADING;
@@ -58,7 +66,7 @@ export function fakeThumbnailEntity(imageLoaded?: boolean): ImageEntity {
     // Simulate a loaded image.
     status = ThumbnailStatus.VISIBLE;
     imageUrl = faker.image.dataUri();
-    metadata = { captureDate: faker.date.past().toISOString() };
+    metadata = { captureDate: captureDate.toISOString() };
   }
 
   return {

@@ -1,5 +1,5 @@
-import { ImageQuery, QueryResult } from "../types";
-import { loadThumbnail, queryImages } from "../api-client";
+import { ImageMetadata, ImageQuery, QueryResult } from "../types";
+import { getMetadata, loadThumbnail, queryImages } from "../api-client";
 
 const faker = require("faker");
 
@@ -125,6 +125,46 @@ describe("api-client", () => {
 
     // Act and assert.
     await expect(loadThumbnail(imageId)).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can load metadata", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const mockMetadataGet =
+      mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
+
+    const captureDate = faker.date.past().toISOString();
+    mockMetadataGet.mockResolvedValue({ data: { capture_date: captureDate } });
+
+    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+
+    // Act.
+    const result: ImageMetadata = await getMetadata(imageId);
+
+    // Assert.
+    // It should have loaded the thumbnail.
+    expect(mockMetadataGet).toBeCalledTimes(1);
+    expect(mockMetadataGet).toBeCalledWith(imageId.bucket, imageId.name);
+
+    // It should have gotten the proper result.
+    expect(result).toEqual({ captureDate: captureDate });
+  });
+
+  it("handles a failure when loading metadata", async () => {
+    // Arrange.
+    // Make it look like loading a thumbnail fails.
+    const mockMetadataGet =
+      mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
+    const fakeError = new FakeAxiosError();
+    mockMetadataGet.mockRejectedValue(fakeError);
+
+    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+
+    // Act and assert.
+    await expect(getMetadata(imageId)).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

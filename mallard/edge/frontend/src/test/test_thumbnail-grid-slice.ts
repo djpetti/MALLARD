@@ -1,11 +1,13 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   thumbnailGridSelectors,
+  thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkStartQuery,
 } from "../thumbnail-grid-slice";
 import {
   ArtifactId,
+  ImageMetadata,
   ImageQuery,
   QueryResult,
   RequestState,
@@ -22,11 +24,13 @@ const faker = require("faker");
 const apiClient = require("../api-client");
 const queryImages: jest.Mock = apiClient.queryImages;
 const loadThumbnail: jest.Mock = apiClient.loadThumbnail;
+const getMetadata: jest.Mock = apiClient.getMetadata;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
   queryImages: jest.fn(),
   loadThumbnail: jest.fn(),
+  getMetadata: jest.fn(),
 }));
 
 // Mock out `createObjectURL`.
@@ -112,6 +116,40 @@ describe("thumbnail-grid-slice action creators", () => {
     );
     expect(fulfilledAction.payload.imageId).toEqual(imageId);
     expect(fulfilledAction.payload.imageUrl).toEqual(imageUrl);
+  });
+
+  it("dispatches a loadMetadata action", async () => {
+    // Arrange.
+    // Make it look like the getMetadata request succeeds.
+    const metadata: ImageMetadata = {
+      captureDate: faker.date.past().toISOString(),
+    };
+    getMetadata.mockResolvedValue(metadata);
+
+    // Initialize the fake store with valid state.
+    const imageId: string = faker.random.uuid();
+    const state = fakeState();
+    state.thumbnailGrid.ids = [imageId];
+    state.thumbnailGrid.entities[imageId] = fakeThumbnailEntity(false);
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkLoadMetadata([imageId])(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have dispatched the lifecycle actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    const pendingAction = actions[0];
+    expect(pendingAction.type).toEqual("thumbnailGrid/loadMetadata/pending");
+
+    const fulfilledAction = actions[1];
+    expect(fulfilledAction.type).toEqual(
+      "thumbnailGrid/loadMetadata/fulfilled"
+    );
+    expect(fulfilledAction.payload.imageIds).toEqual([imageId]);
+    expect(fulfilledAction.payload.metadata).toEqual([metadata]);
   });
 });
 
@@ -218,5 +256,37 @@ describe("thumbnail-grid-slice reducers", () => {
     const imageEntity = newState.entities[imageId];
     expect(imageEntity?.status).toEqual(ThumbnailStatus.VISIBLE);
     expect(imageEntity?.imageUrl).toEqual(imageInfo.imageUrl);
+  });
+
+  it("handles a loadMetadata/pending action", () => {
+    // Arrange.
+    const state: ThumbnailGridState = fakeState().thumbnailGrid;
+
+    // Fix up the state so it looks like we already have a thumbnail.
+    const fakeEntity = fakeThumbnailEntity(true);
+    // In this case, the image ID has to be consistent with the backend ID
+    // from the generated entity.
+    const imageId: string = `${fakeEntity.backendId.bucket}/${fakeEntity.backendId.name}`;
+    state.ids = [imageId];
+    state.entities[imageId] = fakeEntity;
+
+    // Create the fake loaded metadata.
+    const metadata: ImageMetadata = {
+      captureDate: faker.date.past().toISOString(),
+    };
+    const metadataInfo = { imageIds: [imageId], metadata: [metadata] };
+    // Create the action.
+    const action = {
+      type: thunkLoadMetadata.typePrefix + "/fulfilled",
+      payload: metadataInfo,
+    };
+
+    // Act.
+    const newState: ThumbnailGridState = thumbnailGridReducer(state, action);
+
+    // Assert.
+    // It should have updated the entity for the image.
+    const imageEntity = newState.entities[imageId];
+    expect(imageEntity?.metadata).toEqual(metadata);
   });
 });

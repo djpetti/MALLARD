@@ -5,7 +5,7 @@ Common interface for all object storage backends.
 
 import abc
 from io import BytesIO
-from typing import AsyncIterable, Union
+from typing import AsyncIterable, Iterable, Union
 
 from fastapi import UploadFile
 
@@ -143,7 +143,9 @@ class ObjectStore(Injectable):
         """
 
     @abc.abstractmethod
-    async def get_object(self, object_id: ObjectRef) -> BytesIO:
+    async def get_object(
+        self, object_id: ObjectRef
+    ) -> Union[Iterable[bytes], AsyncIterable[bytes]]:
         """
         Gets an existing object from the object store.
 
@@ -155,6 +157,6 @@ class ObjectStore(Injectable):
             or `ObjectOperationError` for other failures.
 
         Returns:
-            A stream of binary data that contains the object data.
+            A stream of binary data that contains the object data, in chunks.
 
         """

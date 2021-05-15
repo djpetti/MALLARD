@@ -80,6 +80,7 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
         if not await self.bucket_exists(name):
             raise KeyError(f"Bucket '{name}' does not exist.")
 
+        logger.debug("Deleting collection {}.", name)
         await self._async_db_op(
             self._session.collections.remove,
             collection_path.as_posix(),
@@ -126,6 +127,8 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
     async def delete_object(self, object_id: ObjectRef) -> None:
         if not await self.object_exists(object_id):
             raise KeyError(f"Object '{object_id}' does not exist.")
+
+        logger.info("Requesting deletion of object {}.", object_id)
 
         object_path = self._object_path(object_id)
         return await self._async_db_op(

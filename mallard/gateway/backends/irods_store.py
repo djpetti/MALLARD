@@ -200,7 +200,7 @@ class IrodsStore(AsyncDbMixin):
                 # relatively rare race condition that only occurs if two
                 # clients are trying to get the same object concurrently.
                 logger.debug(
-                    "Creating {} failed due to new object, getting " "it.",
+                    "Creating {} failed due to new object, getting it instead.",
                     object_id,
                 )
                 return await self._get_object(object_id)

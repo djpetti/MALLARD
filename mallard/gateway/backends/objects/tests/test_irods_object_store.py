@@ -54,7 +54,7 @@ class TestIrodsObjectStore:
     @pytest.fixture
     def config(cls, mocker: MockFixture, faker: Faker) -> ConfigForTests:
         """
-        Encapsulates standard configuration for most tests.
+        Generates standard configuration for most tests.
 
         Args:
             mocker: The fixture to use for mocking.

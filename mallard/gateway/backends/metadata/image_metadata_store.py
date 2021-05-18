@@ -8,13 +8,30 @@ from typing import AsyncIterable, Iterable
 
 from ..objects.models import ObjectRef
 from .metadata_store import MetadataStore
-from .models import ImageQuery, Ordering
+from .schemas import ImageMetadata, ImageQuery, Ordering
 
 
 class ImageMetadataStore(MetadataStore, abc.ABC):
     """
     Metadata storage backend specifically for image data.
     """
+
+    @abc.abstractmethod
+    async def add(
+        self, *, object_id: ObjectRef, metadata: ImageMetadata
+    ) -> None:
+        """
+        Adds metadata for an object to the store.
+
+        Args:
+            object_id: The ID of the object in the object store to add metadata
+                for.
+            metadata: The actual metadata to add.
+
+        Raises:
+            `MetadataOperationError` on failure.
+
+        """
 
     @abc.abstractmethod
     async def query(
@@ -31,7 +48,8 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
             query: The criteria to match.
             orderings: Specifies a specific ordering for the final results. It
                 will first sort by the first ordering specified, then the
-                second, etc.
+                second, etc. Note that not all backends support all
+                orderings, so YMMV.
             skip_first: If not zero, it will skip this many initial results
                 from the query.
             max_num_results: The maximum number of results that this query is

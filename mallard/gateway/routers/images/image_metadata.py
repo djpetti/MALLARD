@@ -13,7 +13,7 @@ import exifread
 from fastapi import UploadFile
 from loguru import logger
 
-from ...backends.metadata.models import GeoPoint, ImageFormat, ImageMetadata
+from ...backends.metadata.schemas import GeoPoint, ImageFormat, ImageMetadata
 
 
 class InvalidImageError(Exception):

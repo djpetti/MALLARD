@@ -19,7 +19,7 @@ from mallard.gateway.backends.metadata import (
     ImageMetadataStore,
     MetadataOperationError,
 )
-from mallard.gateway.backends.metadata.models import (
+from mallard.gateway.backends.metadata.schemas import (
     ImageQuery,
     UavImageMetadata,
 )

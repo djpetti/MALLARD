@@ -21,7 +21,7 @@ from mallard.gateway.backends.metadata import (
     irods_image_metadata_store,
     irods_metadata_store,
 )
-from mallard.gateway.backends.metadata.models import (
+from mallard.gateway.backends.metadata.schemas import (
     ImageMetadata,
     ImageQuery,
     UavImageMetadata,

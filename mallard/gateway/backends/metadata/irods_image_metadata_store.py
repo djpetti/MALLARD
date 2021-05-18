@@ -18,7 +18,7 @@ from ..objects.models import ObjectRef
 from .image_metadata_store import ImageMetadataStore
 from .irods_metadata_helpers import to_irods_string
 from .irods_metadata_store import IrodsMetadataStore
-from .models import (
+from .schemas import (
     GeoPoint,
     ImageMetadata,
     ImageQuery,

@@ -1,3 +1,9 @@
 security:
   # Default to enabling authentication.
   enable_auth: true
+
+backends:
+  object_store:
+    config:
+      # Default region for S3.
+      region_name: us-east-1

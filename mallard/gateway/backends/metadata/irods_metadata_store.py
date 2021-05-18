@@ -23,7 +23,7 @@ from ..irods_store import IrodsStore
 from ..objects.models import ObjectRef
 from .irods_metadata_helpers import to_irods_string
 from .metadata_store import MetadataStore
-from .models import Metadata
+from .schemas import Metadata
 
 _RETRY_ARGS = dict(
     stop=stop_after_attempt(20),

@@ -1,5 +1,5 @@
 """
-Data models for metadata.
+Pydantic data models for metadata. These are shared amongst all backends.
 
 Since different types of data might require different types of metadata,
 this representation allows things to remain flexible.
@@ -23,6 +23,7 @@ class Metadata(BaseModel):
 
     class Config:
         allow_mutation = False
+        orm_mode = True
 
 
 @as_form

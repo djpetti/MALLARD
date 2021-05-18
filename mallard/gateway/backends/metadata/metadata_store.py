@@ -7,7 +7,7 @@ import abc
 
 from ..injectable import Injectable
 from ..objects.models import ObjectRef
-from .models import Metadata
+from .schemas import Metadata
 
 
 class MetadataOperationError(Exception):
@@ -20,21 +20,6 @@ class MetadataStore(Injectable):
     """
     Common interface for all metadata storage backends.
     """
-
-    @abc.abstractmethod
-    async def add(self, *, object_id: ObjectRef, metadata: Metadata) -> None:
-        """
-        Adds metadata for an object to the store.
-
-        Args:
-            object_id: The ID of the object in the object store to add metadata
-                for.
-            metadata: The actual metadata to add.
-
-        Raises:
-            `MetadataOperationError` on failure.
-
-        """
 
     @abc.abstractmethod
     async def get(self, object_id: ObjectRef) -> Metadata:

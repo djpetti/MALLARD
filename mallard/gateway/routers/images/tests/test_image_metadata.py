@@ -16,7 +16,7 @@ from fastapi import UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.gateway.backends.metadata.models import (
+from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
     ImageMetadata,

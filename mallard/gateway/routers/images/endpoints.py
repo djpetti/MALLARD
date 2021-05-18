@@ -25,7 +25,7 @@ from starlette.responses import StreamingResponse
 from ...async_utils import get_process_pool
 from ...backends import BackendManager
 from ...backends.metadata import ImageMetadataStore, MetadataOperationError
-from ...backends.metadata.models import (
+from ...backends.metadata.schemas import (
     ImageFormat,
     ImageQuery,
     Metadata,

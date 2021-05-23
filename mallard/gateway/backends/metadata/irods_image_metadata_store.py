@@ -65,7 +65,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         """
         return Criterion("=", DataObjectMeta.name, name)
 
-    # TODO (danielp): These should be classmethods, but Python issue39679
+    # TODO (danielp): These should be classmethods, but Python issue 39679
     #  prevents this.
     @singledispatchmethod
     def __build_query(self, value: Any, name: str, query: Query) -> Query:
@@ -85,7 +85,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
 
         """
         raise NotImplementedError(
-            f"__build_query is not implemented for type {type(value)}."
+            f"__update_query is not implemented for type {type(value)}."
         )
 
     @__build_query.register
@@ -169,7 +169,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
 
     @__build_query.register
     def _(self, value: ImageQuery, name: str, query: Query) -> Query:
-        for field_name in value.__fields__.keys():
+        for field_name in value.dict().keys():
             # Determine the metadata key in iRODS.
             metadata_key = self._QUERY_TO_META_FIELDS[field_name]
             metadata_key = self._combine_keys(name, metadata_key)

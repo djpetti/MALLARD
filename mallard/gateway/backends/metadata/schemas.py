@@ -214,7 +214,7 @@ class Ordering(BaseModel):
         """
 
     field: Field
-    ascending: bool
+    ascending: bool = True
 
 
 RangeType = TypeVar("RangeType")

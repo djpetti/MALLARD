@@ -5,7 +5,7 @@ Contains custom `Faker` providers.
 
 from enum import Enum
 from math import ceil
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type
 
 from faker import Faker
 from faker.providers import BaseProvider
@@ -18,6 +18,8 @@ from mallard.gateway.backends.metadata.schemas import (
     PlatformType,
     UavImageMetadata,
 )
+from mallard.gateway.backends.metadata.sql.models import Image
+from mallard.gateway.backends.objects.models import ObjectRef
 
 
 class MetadataProvider(BaseProvider):
@@ -127,7 +129,41 @@ class MetadataProvider(BaseProvider):
         return UavImageMetadata(
             **self.__image_metadata_common(),
             altitude_meters=self.__faker.pyfloat(positive=True, max_value=100),
-            gsd_cm_px=self.__faker.pyfloat(positive=True, max_value=10)
+            gsd_cm_px=self.__faker.pyfloat(positive=True, max_value=10),
+        )
+
+    def image_model(
+        self,
+        *,
+        object_id: ObjectRef,
+        source_meta: Optional[ImageMetadata] = None,
+    ) -> Image:
+        """
+        Creates a fake Image ORM model.
+
+        Args:
+            object_id: The object reference to use for populating the model.
+            source_meta: The source data to use for populating the model. Will
+                be randomly generated if not provided.
+
+        Returns:
+            The `Image` that it created.
+
+        """
+        if source_meta is None:
+            source_meta = self.uav_image_metadata()
+
+        model_attributes = source_meta.dict(exclude={"location"})
+        # Convert location format.
+        location_lat = source_meta.location.latitude_deg
+        location_lon = source_meta.location.longitude_deg
+
+        return Image(
+            bucket=object_id.bucket,
+            key=object_id.name,
+            location_lat=location_lat,
+            location_lon=location_lon,
+            **model_attributes,
         )
 
     def image_query(self) -> ImageQuery:

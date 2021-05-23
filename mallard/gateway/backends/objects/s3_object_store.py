@@ -2,6 +2,7 @@
 Object storage backend for object stores that follow the S3 API.
 """
 
+from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import AsyncIterable, AsyncIterator, Optional, Union
 
@@ -52,6 +53,7 @@ class S3ObjectStore(ObjectStore):
         return error_info.get("Code")
 
     @classmethod
+    @asynccontextmanager
     async def from_config(
         cls: ObjectStore.ClassType, config: ConfigView
     ) -> AsyncIterator[ObjectStore.ClassType]:
@@ -60,6 +62,10 @@ class S3ObjectStore(ObjectStore):
         access_key = config["access_key"].as_str()
         access_key_id = config["access_key_id"].as_str()
         endpoint_url = config["endpoint_url"].as_str()
+
+        logger.info(
+            "Connecting to S3-compatible object store at {}.", endpoint_url
+        )
 
         # Create the S3 client.
         session = get_session()

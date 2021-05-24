@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mallard.gateway.backends.metadata.schemas import ImageQuery, Ordering
 from mallard.gateway.backends.metadata.sql import sql_image_metadata_store
+from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
@@ -352,3 +353,40 @@ class TestSqlImageMetadataStore:
         # It should not have applied any filters.
         mock_query = config.mock_select.return_value
         mock_query.where.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_from_config(self, mocker: MockFixture) -> None:
+        """
+        Tests that `from_config` works.
+
+        Args:
+            mocker: The fixture to use for mocking.
+
+        """
+        # Arrange.
+        # Create the fake config data.
+        mock_config = ConfigViewMock()
+
+        # Mock the SQLAlchemy functions.
+        mock_create_async_engine = mocker.patch(
+            f"{sql_image_metadata_store.__name__}.create_async_engine"
+        )
+        mock_session_maker = mocker.patch(
+            f"{sql_image_metadata_store.__name__}.sessionmaker"
+        )
+
+        # Act.
+        async with sql_image_metadata_store.SqlImageMetadataStore.from_config(
+            mock_config
+        ):
+            # Assert.
+            # It should have created the session.
+            mock_create_async_engine.assert_called_once_with(
+                mock_config["db_url"].as_str.return_value
+            )
+            mock_session_maker.assert_called_once()
+
+            # It should have entered the session context.
+            mock_session_factory = mock_session_maker.return_value
+            mock_session_factory.assert_called_once_with()
+            mock_session_factory.return_value.__aenter__.assert_called_once()

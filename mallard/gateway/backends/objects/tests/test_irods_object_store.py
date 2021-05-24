@@ -524,14 +524,11 @@ class TestIrodsObjectStore:
             await config.store.get_object(faker.object_ref())
 
     @pytest.mark.asyncio
-    async def test_from_config(
-        self, config: ConfigForTests, mocker: MockFixture
-    ) -> None:
+    async def test_from_config(self, mocker: MockFixture) -> None:
         """
         Tests that `from_config` works.
 
         Args:
-            config: The configuration to use for testing.
             mocker: The fixture to use for mocking.
 
         """

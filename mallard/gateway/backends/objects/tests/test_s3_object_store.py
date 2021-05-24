@@ -18,6 +18,7 @@ from mallard.gateway.backends.objects.object_store import (
     BucketOperationError,
     ObjectOperationError,
 )
+from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
@@ -301,6 +302,27 @@ class TestS3ObjectStore:
         )
 
     @pytest.mark.asyncio
+    async def test_create_object_non_existent_bucket(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that creating an object fails when the bucket does not exist.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        # Make it look like the bucket doesn't exist.
+        client_error = faker.client_error("404")
+        config.mock_client.head_bucket.side_effect = client_error
+
+        # Act and assert.
+        with pytest.raises(KeyError, match="does not exist"):
+            await config.store.create_object(faker.object_ref(), data=b"")
+
+    @pytest.mark.asyncio
     async def test_object_exists_true(
         self, config: ConfigForTests, faker: Faker
     ) -> None:
@@ -491,3 +513,43 @@ class TestS3ObjectStore:
 
         with pytest.raises(expected_error):
             await config.store.get_object(object_id=faker.object_ref())
+
+    @pytest.mark.asyncio
+    async def test_from_config(self, mocker: MockFixture) -> None:
+        """
+        Tests that `from_config` works.
+
+        Args:
+            mocker: The fixture to use for mocking.
+
+        """
+        # Arrange.
+        # Create the fake config data.
+        mock_config = ConfigViewMock()
+
+        # Mock the botocore functions.
+        mock_get_session = mocker.patch(
+            f"{s3_object_store.__name__}.get_session"
+        )
+
+        # Act.
+        async with s3_object_store.S3ObjectStore.from_config(mock_config):
+            # Assert.
+            # It should have gotten the session.
+            mock_get_session.assert_called_once_with()
+
+            # It should have created the client.
+            mock_session = mock_get_session.return_value
+            mock_session.create_client.assert_called_once_with(
+                "s3",
+                region_name=mock_config["region_name"].as_str.return_value,
+                aws_secret_access_key=mock_config[
+                    "access_key"
+                ].as_str.return_value,
+                aws_access_key_id=mock_config[
+                    "access_key_id"
+                ].as_str.return_value,
+                endpoint_url=mock_config["endpoint_url"].as_str.return_value,
+            )
+            # It should have entered the context manager.
+            mock_session.create_client.return_value.__aenter__.assert_called_once()

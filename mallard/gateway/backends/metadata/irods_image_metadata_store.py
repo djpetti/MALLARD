@@ -4,6 +4,7 @@ An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
 
 
 from datetime import date, datetime, time
+from enum import Enum
 from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any, AsyncIterable, Iterable
@@ -102,6 +103,11 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
             self.__name_criterion(name),
             Like(DataObjectMeta.value, to_irods_string(pattern)),
         )
+
+    @__build_query.register
+    def _(self, value: Enum, name: str, query: Query) -> Query:
+        # Search for the enum by value.
+        return self.__build_query(value.value, name, query)
 
     @__build_query.register
     def _(

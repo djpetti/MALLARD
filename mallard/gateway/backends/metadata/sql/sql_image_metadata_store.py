@@ -206,22 +206,22 @@ class SqlImageMetadataStore(ImageMetadataStore):
     @__update_query.register
     def _(
         self,
-        value: str,
-        *,
-        query: Select,
-        column: InstrumentedAttribute,
-    ) -> Select:
-        return query.where(column.like(f"%{value}%"))
-
-    @__update_query.register
-    def _(
-        self,
         value: Enum,
         *,
         query: Select,
         column: InstrumentedAttribute,
     ) -> Select:
         return query.where(column == value)
+
+    @__update_query.register
+    def _(
+        self,
+        value: str,
+        *,
+        query: Select,
+        column: InstrumentedAttribute,
+    ) -> Select:
+        return query.where(column.like(f"%{value}%"))
 
     @__update_query.register
     def _(

@@ -4,6 +4,7 @@ Tests for the `sql_image_metadata_store` module.
 
 
 import unittest.mock as mock
+from pathlib import Path
 from typing import List
 
 import pytest
@@ -12,10 +13,13 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 from sqlalchemy.engine import ScalarResult
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 from mallard.gateway.backends.metadata.schemas import ImageQuery, Ordering
 from mallard.gateway.backends.metadata.sql import sql_image_metadata_store
+from mallard.gateway.backends.metadata.sql.models import Base, Image
+from mallard.gateway.backends.objects.models import ObjectRef
 from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -78,6 +82,33 @@ class TestSqlImageMetadataStore:
             store=store, mock_session=mock_session, mock_select=mock_select
         )
 
+    @pytest.fixture
+    async def sqlite_session(self, tmp_path: Path) -> AsyncSession:
+        """
+        Creates a new SQL session backed by a SQLite DB.
+
+        Args:
+            tmp_path: The root path for temporary files.
+
+        Returns:
+            The session that it created.
+
+        """
+        db_path = tmp_path / "test_metadata.db"
+        db_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+        engine = create_async_engine(db_url, echo=True)
+
+        # Create the table.
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+        # Create the session.
+        session_maker = sessionmaker(
+            engine, expire_on_commit=False, class_=AsyncSession
+        )
+        async with session_maker() as session:
+            yield session
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("uav", [True, False], ids=["uav", "ground"])
     async def test_add(
@@ -107,7 +138,6 @@ class TestSqlImageMetadataStore:
         # Assert.
         # It should have added a new row to the database.
         config.mock_session.add.assert_called_once()
-        config.mock_session.commit.assert_called_once_with()
 
         # Make sure the parameters got copied over correctly.
         args, _ = config.mock_session.add.call_args
@@ -290,10 +320,12 @@ class TestSqlImageMetadataStore:
             query = query.copy(update=dict(bounding_box=None))
 
         # Produce some fake results for the query.
-        result_1 = faker.object_ref()
-        result_2 = faker.object_ref()
+        object_id_1 = faker.object_ref()
+        object_id_2 = faker.object_ref()
+        result_1 = faker.image_model(object_id=object_id_1)
+        result_2 = faker.image_model(object_id=object_id_2)
         mock_results = config.mock_session.execute.return_value
-        mock_results.__iter__.return_value = [result_1, result_2]
+        mock_results.scalars.return_value = [result_1, result_2]
 
         # Act.
         got_results = [
@@ -312,7 +344,7 @@ class TestSqlImageMetadataStore:
         # It should have run the query.
         config.mock_session.execute.assert_called_once()
         # It should have produced the results.
-        assert got_results == [result_1, result_2]
+        assert got_results == [object_id_1, object_id_2]
 
         # It should have applied the orderings.
         mock_query = config.mock_select.return_value
@@ -339,16 +371,17 @@ class TestSqlImageMetadataStore:
         query = ImageQuery()
 
         # Produce some fake results for the query.
-        result = faker.object_ref()
+        object_id = faker.object_ref()
+        result = faker.image_model(object_id=object_id)
         mock_results = config.mock_session.execute.return_value
-        mock_results.__iter__.return_value = [result]
+        mock_results.scalars.return_value = [result]
 
         # Act.
         got_results = [r async for r in config.store.query(query)]
 
         # Assert.
         # It should have produced the results.
-        assert got_results == [result]
+        assert got_results == [object_id]
 
         # It should not have applied any filters.
         mock_query = config.mock_select.return_value
@@ -390,3 +423,150 @@ class TestSqlImageMetadataStore:
             mock_session_factory = mock_session_maker.return_value
             mock_session_factory.assert_called_once_with()
             mock_session_factory.return_value.__aenter__.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_add_get(
+        self, sqlite_session: AsyncSession, faker: Faker
+    ) -> None:
+        """
+        Tests that we can add and get metadata to and from an actual database.
+
+        Args:
+            sqlite_session: The SQLite session to use for testing.
+            faker: Fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+
+        metadata = faker.uav_image_metadata()
+        object_id = faker.object_ref()
+
+        # Act.
+        await store.add(object_id=object_id, metadata=metadata)
+        # Force a session close here to simulate two separate sessions, which
+        # is how we would typically use this.
+        await sqlite_session.close()
+        got_metadata = await store.get(object_id)
+
+        # Assert.
+        assert got_metadata == metadata
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_add_delete(
+        self, sqlite_session: AsyncSession, faker: Faker
+    ) -> None:
+        """
+        Tests that we can add metadata and then delete it.
+
+        Args:
+            sqlite_session: The SQLite session to use for testing.
+            faker: Fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+
+        metadata = faker.uav_image_metadata()
+        object_id = faker.object_ref()
+
+        # Act.
+        await store.add(object_id=object_id, metadata=metadata)
+        # Force a session close here to simulate two separate sessions, which
+        # is how we would typically use this.
+        await sqlite_session.close()
+        # Delete the metadata.
+        await store.delete(object_id)
+        await sqlite_session.close()
+
+        # Assert.
+        # Now trying to get this metadata should fail.
+        with pytest.raises(KeyError, match="No metadata"):
+            await store.get(object_id)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_standard_queries(
+        self, sqlite_session: AsyncSession, faker: Faker
+    ) -> None:
+        """
+        Tests that we can perform some pretty standard queries.
+
+        Args:
+            sqlite_session: The SQLite session to use for testing.
+            faker: Fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+
+        # Add various records.
+        metadata1 = faker.uav_image_metadata()
+        metadata1 = metadata1.copy(
+            update=dict(
+                name="first image", sequence_number=0, session_number=0
+            )
+        )
+        object_id1 = faker.object_ref()
+
+        metadata2 = faker.uav_image_metadata()
+        metadata2 = metadata2.copy(
+            update=dict(
+                name="second image", sequence_number=1, session_number=0
+            )
+        )
+        object_id2 = faker.object_ref()
+
+        metadata3 = faker.uav_image_metadata()
+        metadata3 = metadata3.copy(
+            update=dict(
+                name="first image", sequence_number=0, session_number=1
+            )
+        )
+        object_id3 = faker.object_ref()
+
+        await store.add(object_id=object_id1, metadata=metadata1)
+        await store.add(object_id=object_id2, metadata=metadata2)
+        await store.add(object_id=object_id3, metadata=metadata3)
+        # Simulate a fresh session.
+        await sqlite_session.close()
+
+        # Act.
+        # Perform some queries.
+        everything = [r async for r in store.query(ImageQuery())]
+        session_0 = [
+            r
+            async for r in store.query(
+                ImageQuery(
+                    session_numbers=ImageQuery.Range(min_value=0, max_value=0)
+                ),
+                orderings=(Ordering(field=Ordering.Field.SEQUENCE_NUM),),
+            )
+        ]
+        session_0_frame_0 = [
+            r
+            async for r in store.query(
+                ImageQuery(
+                    session_numbers=ImageQuery.Range(min_value=0, max_value=0),
+                    sequence_numbers=ImageQuery.Range(
+                        min_value=0, max_value=0
+                    ),
+                )
+            )
+        ]
+        first_images = [
+            r
+            async for r in store.query(
+                ImageQuery(name="first"),
+                orderings=(Ordering(field=Ordering.Field.SESSION_NUM),),
+            )
+        ]
+
+        # Assert.
+        # Check that we got the correct results.
+        assert everything == [object_id1, object_id2, object_id3]
+        assert session_0 == [object_id1, object_id2]
+        assert session_0_frame_0 == [object_id1]
+        assert first_images == [object_id1, object_id3]

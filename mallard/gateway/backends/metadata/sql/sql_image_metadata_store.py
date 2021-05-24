@@ -155,14 +155,14 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
         """
         query = select(Image).where(
-            Image.bucket == object_id.bucket, Image.name == object_id.name
+            Image.bucket == object_id.bucket, Image.key == object_id.name
         )
         query_results = await self.__session.execute(query)
 
         try:
             return query_results.scalars().one()
         except NoResultFound:
-            raise KeyError("No metadata for image '{}'.", object_id)
+            raise KeyError(f"No metadata for image '{object_id}'.")
 
     # TODO (danielp): These should be classmethods, but Python issue 39679
     #  prevents this.
@@ -335,8 +335,8 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
         # Add the new image.
         image = self.__pydantic_to_orm_image(object_id, metadata)
-        self.__session.add(image)
-        await self.__session.commit()
+        async with self.__session.begin():
+            self.__session.add(image)
 
     async def get(self, object_id: ObjectRef) -> UavImageMetadata:
         return self.__orm_image_to_pydantic(await self.__get_by_id(object_id))
@@ -344,8 +344,9 @@ class SqlImageMetadataStore(ImageMetadataStore):
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
-        orm_image = await self.__get_by_id(object_id)
-        await self.__session.delete(orm_image)
+        async with self.__session.begin():
+            orm_image = await self.__get_by_id(object_id)
+            await self.__session.delete(orm_image)
 
     async def query(
         self,
@@ -368,5 +369,5 @@ class SqlImageMetadataStore(ImageMetadataStore):
         # Execute the query.
         query_results = await self.__session.execute(selection)
 
-        for result in query_results:
-            yield result
+        for result in query_results.scalars():
+            yield ObjectRef(bucket=result.bucket, name=result.key)

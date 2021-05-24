@@ -55,6 +55,17 @@ python-versions = ">=3.6"
 typing_extensions = ">=3.7"
 
 [[package]]
+name = "aiosqlite"
+version = "0.17.0"
+description = "asyncio bridge to the standard sqlite3 module"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+typing_extensions = ">=3.7.2"
+
+[[package]]
 name = "appdirs"
 version = "1.4.4"
 description = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
@@ -69,18 +80,6 @@ description = "Timeout context manager for asyncio programs"
 category = "main"
 optional = false
 python-versions = ">=3.5.3"
-
-[[package]]
-name = "asyncstdlib"
-version = "3.9.2"
-description = "The missing async toolbox"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.extras]
-doc = ["sphinx", "sphinxcontrib-contentui", "sphinxcontrib-trio"]
-test = ["pytest (>=4.3.0)", "flake8", "flake8-bugbear", "black", "coverage"]
 
 [[package]]
 name = "atomicwrites"
@@ -948,7 +947,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.9"
-content-hash = "cc07b5dce8ae448dafb143176cf78ac0a4d32bf820e6a3deccde488fe19938b3"
+content-hash = "149bac3f3d004a5d894f7241a21005825e77c5fa95633fbe9fde5f8f54d4e9bf"
 
 [metadata.files]
 aiobotocore = [
@@ -1001,6 +1000,10 @@ aioitertools = [
     {file = "aioitertools-0.7.1-py3-none-any.whl", hash = "sha256:8972308474c41ed5e0636819f948ebff32f2318e70f7e7d23cd208c4357cc773"},
     {file = "aioitertools-0.7.1.tar.gz", hash = "sha256:54a56c7cf3b5290d1cb5e8974353c9f52c677612b5d69a859369a020c53414a3"},
 ]
+aiosqlite = [
+    {file = "aiosqlite-0.17.0-py3-none-any.whl", hash = "sha256:6c49dc6d3405929b1d08eeccc72306d3677503cc5e5e43771efc1e00232e8231"},
+    {file = "aiosqlite-0.17.0.tar.gz", hash = "sha256:f0e6acc24bc4864149267ac82fb46dfb3be4455f99fe21df82609cc6e6baee51"},
+]
 appdirs = [
     {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
     {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
@@ -1008,10 +1011,6 @@ appdirs = [
 async-timeout = [
     {file = "async-timeout-3.0.1.tar.gz", hash = "sha256:0c3c816a028d47f659d6ff5c745cb2acf1f966da1fe5c19c77a70282b25f4c5f"},
     {file = "async_timeout-3.0.1-py3-none-any.whl", hash = "sha256:4291ca197d287d274d0b6cb5d6f8f8f82d434ed288f962539ff18cc9012f9ea3"},
-]
-asyncstdlib = [
-    {file = "asyncstdlib-3.9.2-py2.py3-none-any.whl", hash = "sha256:cecb4e4d7d3d4e7c56ba8d304abe1e259ababb45b2defebf18e3171958e3c9ea"},
-    {file = "asyncstdlib-3.9.2.tar.gz", hash = "sha256:2b9c729d238df39f4728f59303b152d5e9ff89860256d567609c91deba2848f3"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},

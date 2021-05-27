@@ -172,7 +172,7 @@ describe("thumbnail-grid", () => {
 
     // This should fire the appropriate action creator.
     const testEvent = { detail: [faker.random.uuid()] };
-    eventMap["images-changed"]((testEvent as unknown) as Event);
+    eventMap["images-changed"](testEvent as unknown as Event);
 
     expect(mockThunkLoadMetadata).toBeCalledTimes(1);
     expect(mockThunkLoadMetadata).toBeCalledWith(testEvent.detail);

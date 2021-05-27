@@ -15,7 +15,7 @@ backends:
   metadata_store:
     type: mallard.gateway.backends.metadata.sql.SqlImageMetadataStore
     config:
-      endpoint_url: "sqlite:///:memory:"
+      endpoint_url: "cockroachdb://root@localhost:26257/mallard_meta?sslmode=disable"
 
 # URL endpoint we use for authentication.
 auth_url: https://example.com/auth/

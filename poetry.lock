@@ -66,6 +66,20 @@ python-versions = ">=3.6"
 typing_extensions = ">=3.7.2"
 
 [[package]]
+name = "alembic"
+version = "1.6.4"
+description = "A database migration tool for SQLAlchemy."
+category = "dev"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
+
+[package.dependencies]
+Mako = "*"
+python-dateutil = "*"
+python-editor = ">=0.3"
+SQLAlchemy = ">=1.3.0"
+
+[[package]]
 name = "appdirs"
 version = "1.4.4"
 description = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
@@ -80,6 +94,19 @@ description = "Timeout context manager for asyncio programs"
 category = "main"
 optional = false
 python-versions = ">=3.5.3"
+
+[[package]]
+name = "asyncpg"
+version = "0.23.0"
+description = "An asyncio PostgreSQL driver"
+category = "main"
+optional = false
+python-versions = ">=3.5.0"
+
+[package.extras]
+dev = ["Cython (>=0.29.20,<0.30.0)", "pytest (>=3.6.0)", "Sphinx (>=1.7.3,<1.8.0)", "sphinxcontrib-asyncio (>=0.2.0,<0.3.0)", "sphinx-rtd-theme (>=0.2.4,<0.3.0)", "pycodestyle (>=2.5.0,<2.6.0)", "flake8 (>=3.7.9,<3.8.0)", "uvloop (>=0.14.0,<0.15.0)"]
+docs = ["Sphinx (>=1.7.3,<1.8.0)", "sphinxcontrib-asyncio (>=0.2.0,<0.3.0)", "sphinx-rtd-theme (>=0.2.4,<0.3.0)"]
+test = ["pycodestyle (>=2.5.0,<2.6.0)", "flake8 (>=3.7.9,<3.8.0)", "uvloop (>=0.14.0,<0.15.0)"]
 
 [[package]]
 name = "atomicwrites"
@@ -385,6 +412,21 @@ win32-setctime = {version = ">=1.0.0", markers = "sys_platform == \"win32\""}
 dev = ["codecov (>=2.0.15)", "colorama (>=0.3.4)", "flake8 (>=3.7.7)", "tox (>=3.9.0)", "tox-travis (>=0.12)", "pytest (>=4.6.2)", "pytest-cov (>=2.7.1)", "Sphinx (>=2.2.1)", "sphinx-autobuild (>=0.7.1)", "sphinx-rtd-theme (>=0.4.3)", "black (>=19.10b0)", "isort (>=5.1.1)"]
 
 [[package]]
+name = "mako"
+version = "1.1.4"
+description = "A super-fast templating language that borrows the  best ideas from the existing templating languages."
+category = "dev"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[package.dependencies]
+MarkupSafe = ">=0.9.2"
+
+[package.extras]
+babel = ["babel"]
+lingua = ["lingua"]
+
+[[package]]
 name = "markupsafe"
 version = "2.0.0"
 description = "Safely add untrusted strings to HTML/XML markup."
@@ -491,6 +533,14 @@ wcwidth = "*"
 
 [package.extras]
 tests = ["pytest", "pytest-cov"]
+
+[[package]]
+name = "psycopg2"
+version = "2.8.6"
+description = "psycopg2 - Python-PostgreSQL Database Adapter"
+category = "dev"
+optional = false
+python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"
 
 [[package]]
 name = "py"
@@ -662,6 +712,14 @@ python-versions = "*"
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "python-editor"
+version = "1.0.4"
+description = "Programmatically open an editor, capture the result."
+category = "dev"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "python-irodsclient"
 version = "0.8.6"
 description = "A python API for iRODS"
@@ -757,6 +815,14 @@ postgresql_psycopg2binary = ["psycopg2-binary"]
 postgresql_psycopg2cffi = ["psycopg2cffi"]
 pymysql = ["pymysql (<1)", "pymysql"]
 sqlcipher = ["sqlcipher3-binary"]
+
+[[package]]
+name = "sqlalchemy-cockroachdb"
+version = "1.3.3"
+description = "CockroachDB adapter for SQLAlchemy"
+category = "main"
+optional = false
+python-versions = "*"
 
 [[package]]
 name = "starlette"
@@ -947,7 +1013,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.9"
-content-hash = "149bac3f3d004a5d894f7241a21005825e77c5fa95633fbe9fde5f8f54d4e9bf"
+content-hash = "d8c6765b7a6863bf78f224464b9d78e9a6ec572c8cc59fdbc56277a20dc964ee"
 
 [metadata.files]
 aiobotocore = [
@@ -1004,6 +1070,10 @@ aiosqlite = [
     {file = "aiosqlite-0.17.0-py3-none-any.whl", hash = "sha256:6c49dc6d3405929b1d08eeccc72306d3677503cc5e5e43771efc1e00232e8231"},
     {file = "aiosqlite-0.17.0.tar.gz", hash = "sha256:f0e6acc24bc4864149267ac82fb46dfb3be4455f99fe21df82609cc6e6baee51"},
 ]
+alembic = [
+    {file = "alembic-1.6.4-py2.py3-none-any.whl", hash = "sha256:dd0fd7109f82cd1d7ea64b26f287534a1ad1bc5deab79807926d5f3f5b3b517c"},
+    {file = "alembic-1.6.4.tar.gz", hash = "sha256:becb572c6701c90ca249f97fc1ae231468cc9516df367a350901eeb9310a8d43"},
+]
 appdirs = [
     {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
     {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
@@ -1011,6 +1081,23 @@ appdirs = [
 async-timeout = [
     {file = "async-timeout-3.0.1.tar.gz", hash = "sha256:0c3c816a028d47f659d6ff5c745cb2acf1f966da1fe5c19c77a70282b25f4c5f"},
     {file = "async_timeout-3.0.1-py3-none-any.whl", hash = "sha256:4291ca197d287d274d0b6cb5d6f8f8f82d434ed288f962539ff18cc9012f9ea3"},
+]
+asyncpg = [
+    {file = "asyncpg-0.23.0-cp35-cp35m-macosx_10_14_x86_64.whl", hash = "sha256:f86378bbfbec7334af03bad4d5fd432149286665ecc8bfbcb7135da56b15d34b"},
+    {file = "asyncpg-0.23.0-cp35-cp35m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:255839c8c52ebd72d6d0159564d7eb8f70fcf6cc9ce7cdc7e98328fd3279bf52"},
+    {file = "asyncpg-0.23.0-cp36-cp36m-macosx_10_14_x86_64.whl", hash = "sha256:11102ac2febbc208427f39e4555537ecf188bd70ef7b285fc92c6c16b748b4c6"},
+    {file = "asyncpg-0.23.0-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:d82d94badd34c8adbc5c85b85085317444cd9e062fc8b956221b34ba4c823b56"},
+    {file = "asyncpg-0.23.0-cp36-cp36m-win_amd64.whl", hash = "sha256:a88654ede00596a7bdaa08066ff0505aed491f790621dcdb478066c7ddfd1a3d"},
+    {file = "asyncpg-0.23.0-cp37-cp37m-macosx_10_14_x86_64.whl", hash = "sha256:a2031df7573c80186339039cc2c4e684648fea5eaa9537c24f18c509bda2cd3f"},
+    {file = "asyncpg-0.23.0-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:2710b5740cbd572e0fddc20986a44707f05d3f84e29fab72abe87fb8c2fc6885"},
+    {file = "asyncpg-0.23.0-cp37-cp37m-win_amd64.whl", hash = "sha256:b784138e69752aaa905b60c5a07a891445706824358fe1440d47113db72c8946"},
+    {file = "asyncpg-0.23.0-cp38-cp38-macosx_10_14_x86_64.whl", hash = "sha256:a19429d480a387346ae74b38da20e8da004337f14e5066f4bd6a10a8bbe74d3c"},
+    {file = "asyncpg-0.23.0-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:43c44d323c3bd6514fbe6a892ccfdc551259bd92e98dd34ad1a52bad8c7974f3"},
+    {file = "asyncpg-0.23.0-cp38-cp38-win_amd64.whl", hash = "sha256:df84f3e93cd08cb31a252510a2e7be4bb15e6dff8a06d91f94c057a305d5d55d"},
+    {file = "asyncpg-0.23.0-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:98bef539326408da0c2ed0714432e4c79e345820697914318013588ff235b581"},
+    {file = "asyncpg-0.23.0-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:bd6e1f3db9889b5d987b6a1cab49c5b5070756290f3420a4c7a63d942d73ab69"},
+    {file = "asyncpg-0.23.0-cp39-cp39-win_amd64.whl", hash = "sha256:ceedd46f569f5efb8b4def3d1dd6a0d85e1a44722608d68aa1d2d0f8693c1bff"},
+    {file = "asyncpg-0.23.0.tar.gz", hash = "sha256:812dafa4c9e264d430adcc0f5899f0dc5413155a605088af696f952d72d36b5e"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},
@@ -1229,6 +1316,10 @@ loguru = [
     {file = "loguru-0.5.3-py3-none-any.whl", hash = "sha256:f8087ac396b5ee5f67c963b495d615ebbceac2796379599820e324419d53667c"},
     {file = "loguru-0.5.3.tar.gz", hash = "sha256:b28e72ac7a98be3d28ad28570299a393dfcd32e5e3f6a353dec94675767b6319"},
 ]
+mako = [
+    {file = "Mako-1.1.4-py2.py3-none-any.whl", hash = "sha256:aea166356da44b9b830c8023cd9b557fa856bd8b4035d6de771ca027dfc5cc6e"},
+    {file = "Mako-1.1.4.tar.gz", hash = "sha256:17831f0b7087c313c0ffae2bcbbd3c1d5ba9eeac9c38f2eb7b50e8c99fe9d5ab"},
+]
 markupsafe = [
     {file = "MarkupSafe-2.0.0-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:2efaeb1baff547063bad2b2893a8f5e9c459c4624e1a96644bbba08910ae34e0"},
     {file = "MarkupSafe-2.0.0-cp36-cp36m-manylinux1_i686.whl", hash = "sha256:441ce2a8c17683d97e06447fcbccbdb057cbf587c78eb75ae43ea7858042fe2c"},
@@ -1371,6 +1462,23 @@ prettytable = [
     {file = "prettytable-2.1.0-py3-none-any.whl", hash = "sha256:bb5abc72bdfae6f3cdadb04fb7726f6915af0ddb7c897a41d4ad7736d9bfd8fd"},
     {file = "prettytable-2.1.0.tar.gz", hash = "sha256:5882ed9092b391bb8f6e91f59bcdbd748924ff556bb7c634089d5519be87baa0"},
 ]
+psycopg2 = [
+    {file = "psycopg2-2.8.6-cp27-cp27m-win32.whl", hash = "sha256:068115e13c70dc5982dfc00c5d70437fe37c014c808acce119b5448361c03725"},
+    {file = "psycopg2-2.8.6-cp27-cp27m-win_amd64.whl", hash = "sha256:d160744652e81c80627a909a0e808f3c6653a40af435744de037e3172cf277f5"},
+    {file = "psycopg2-2.8.6-cp34-cp34m-win32.whl", hash = "sha256:b8cae8b2f022efa1f011cc753adb9cbadfa5a184431d09b273fb49b4167561ad"},
+    {file = "psycopg2-2.8.6-cp34-cp34m-win_amd64.whl", hash = "sha256:f22ea9b67aea4f4a1718300908a2fb62b3e4276cf00bd829a97ab5894af42ea3"},
+    {file = "psycopg2-2.8.6-cp35-cp35m-win32.whl", hash = "sha256:26e7fd115a6db75267b325de0fba089b911a4a12ebd3d0b5e7acb7028bc46821"},
+    {file = "psycopg2-2.8.6-cp35-cp35m-win_amd64.whl", hash = "sha256:00195b5f6832dbf2876b8bf77f12bdce648224c89c880719c745b90515233301"},
+    {file = "psycopg2-2.8.6-cp36-cp36m-win32.whl", hash = "sha256:a49833abfdede8985ba3f3ec641f771cca215479f41523e99dace96d5b8cce2a"},
+    {file = "psycopg2-2.8.6-cp36-cp36m-win_amd64.whl", hash = "sha256:f974c96fca34ae9e4f49839ba6b78addf0346777b46c4da27a7bf54f48d3057d"},
+    {file = "psycopg2-2.8.6-cp37-cp37m-win32.whl", hash = "sha256:6a3d9efb6f36f1fe6aa8dbb5af55e067db802502c55a9defa47c5a1dad41df84"},
+    {file = "psycopg2-2.8.6-cp37-cp37m-win_amd64.whl", hash = "sha256:56fee7f818d032f802b8eed81ef0c1232b8b42390df189cab9cfa87573fe52c5"},
+    {file = "psycopg2-2.8.6-cp38-cp38-win32.whl", hash = "sha256:ad2fe8a37be669082e61fb001c185ffb58867fdbb3e7a6b0b0d2ffe232353a3e"},
+    {file = "psycopg2-2.8.6-cp38-cp38-win_amd64.whl", hash = "sha256:56007a226b8e95aa980ada7abdea6b40b75ce62a433bd27cec7a8178d57f4051"},
+    {file = "psycopg2-2.8.6-cp39-cp39-win32.whl", hash = "sha256:2c93d4d16933fea5bbacbe1aaf8fa8c1348740b2e50b3735d1b0bf8154cbf0f3"},
+    {file = "psycopg2-2.8.6-cp39-cp39-win_amd64.whl", hash = "sha256:d5062ae50b222da28253059880a871dc87e099c25cb68acf613d9d227413d6f7"},
+    {file = "psycopg2-2.8.6.tar.gz", hash = "sha256:fb23f6c71107c37fd667cb4ea363ddeb936b348bbd6449278eb92c189699f543"},
+]
 py = [
     {file = "py-1.10.0-py2.py3-none-any.whl", hash = "sha256:3b80836aa6d1feeaa108e046da6423ab8f6ceda6468545ae8d02d9d58d18818a"},
     {file = "py-1.10.0.tar.gz", hash = "sha256:21b81bda15b66ef5e1a777a21c4dcd9c20ad3efd0b3f817e7a809035269e1bd3"},
@@ -1444,6 +1552,13 @@ python-dateutil = [
 python-dotenv = [
     {file = "python-dotenv-0.17.1.tar.gz", hash = "sha256:b1ae5e9643d5ed987fc57cc2583021e38db531946518130777734f9589b3141f"},
     {file = "python_dotenv-0.17.1-py2.py3-none-any.whl", hash = "sha256:00aa34e92d992e9f8383730816359647f358f4a3be1ba45e5a5cefd27ee91544"},
+]
+python-editor = [
+    {file = "python-editor-1.0.4.tar.gz", hash = "sha256:51fda6bcc5ddbbb7063b2af7509e43bd84bfc32a4ff71349ec7847713882327b"},
+    {file = "python_editor-1.0.4-py2-none-any.whl", hash = "sha256:5f98b069316ea1c2ed3f67e7f5df6c0d8f10b689964a4a811ff64f0106819ec8"},
+    {file = "python_editor-1.0.4-py2.7.egg", hash = "sha256:ea87e17f6ec459e780e4221f295411462e0d0810858e055fc514684350a2f522"},
+    {file = "python_editor-1.0.4-py3-none-any.whl", hash = "sha256:1bf6e860a8ad52a14c3ee1252d5dc25b2030618ed80c022598f00176adc8367d"},
+    {file = "python_editor-1.0.4-py3.5.egg", hash = "sha256:c3da2053dbab6b29c94e43c486ff67206eafbe7eb52dbec7390b5e2fb05aac77"},
 ]
 python-irodsclient = [
     {file = "python-irodsclient-0.8.6.tar.gz", hash = "sha256:9a9ea40fdfc92902d9b79eb85f2eb89e7848d21500e1f3ee8246563a121f07c0"},
@@ -1557,6 +1672,10 @@ sqlalchemy = [
     {file = "SQLAlchemy-1.4.15-cp39-cp39-win32.whl", hash = "sha256:5642d64feeab65ae662c8e46eccc3db4a3100c9572dcfa29063751e2d1940e78"},
     {file = "SQLAlchemy-1.4.15-cp39-cp39-win_amd64.whl", hash = "sha256:17ce3009c69ac361d871bed3c9c30cf405d2739934d83322272bd455a697c874"},
     {file = "SQLAlchemy-1.4.15.tar.gz", hash = "sha256:0ff100c75cd175f35f4d24375a0b3d82461f5b1af5fc8d112ef0e5ceea8049e6"},
+]
+sqlalchemy-cockroachdb = [
+    {file = "sqlalchemy-cockroachdb-1.3.3.tar.gz", hash = "sha256:1f11d151f3a4f6798cd0e0da50e9c5fa7c1597195d08fd1eba93308ed5fa0cae"},
+    {file = "sqlalchemy_cockroachdb-1.3.3-py3-none-any.whl", hash = "sha256:78a3e898002ca7b307ec34633c925dd0e28bf4fc246713848069822d88c4f5c8"},
 ]
 starlette = [
     {file = "starlette-0.13.6-py3-none-any.whl", hash = "sha256:bd2ffe5e37fb75d014728511f8e68ebf2c80b0fa3d04ca1479f4dc752ae31ac9"},

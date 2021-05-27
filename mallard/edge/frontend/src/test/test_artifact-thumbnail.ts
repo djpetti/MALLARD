@@ -134,7 +134,7 @@ describe("artifact-thumbnail", () => {
 
     // This should fire the appropriate action creator.
     const testEvent = { detail: faker.random.uuid() };
-    eventMap["image-changed"]((testEvent as unknown) as Event);
+    eventMap["image-changed"](testEvent as unknown as Event);
 
     expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
     expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail);

@@ -126,9 +126,9 @@ export class ConnectedArtifactThumbnail extends connect(
       // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
       // However, it still works just fine with an AsyncThunkAction.
       "image-changed": (event: Event) =>
-        (thunkLoadThumbnail(
+        thunkLoadThumbnail(
           (event as ImageChangedEvent).detail
-        ) as unknown) as Action,
+        ) as unknown as Action,
     };
   }
 }

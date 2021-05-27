@@ -60,9 +60,8 @@ const initialState: ThumbnailGridState = thumbnailGridAdapter.getInitialState({
 });
 
 /** Memoized selectors for the state. */
-export const thumbnailGridSelectors = thumbnailGridAdapter.getSelectors<RootState>(
-  (state) => state.thumbnailGrid
-);
+export const thumbnailGridSelectors =
+  thumbnailGridAdapter.getSelectors<RootState>((state) => state.thumbnailGrid);
 
 /**
  * Action creator that starts a new request for thumbnails on the homepage.

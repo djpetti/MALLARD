@@ -73,7 +73,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         cls: ImageMetadataStore.ClassType, config: ConfigView
     ) -> AsyncIterator[ImageMetadataStore.ClassType]:
         # Extract the configuration.
-        db_url = config["db_url"].as_str()
+        db_url = config["endpoint_url"].as_str()
 
         logger.info("Connecting to SQL database at {}.", db_url)
 

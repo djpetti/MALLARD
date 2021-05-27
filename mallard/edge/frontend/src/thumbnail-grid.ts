@@ -158,9 +158,9 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
       // However, it still works just fine with an AsyncThunkAction.
       "images-changed": (event: Event) =>
-        (thunkLoadMetadata(
+        thunkLoadMetadata(
           (event as ImagesChangedEvent).detail
-        ) as unknown) as Action,
+        ) as unknown as Action,
     };
   }
 }

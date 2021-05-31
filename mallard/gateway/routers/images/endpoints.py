@@ -95,7 +95,7 @@ def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
     return thumbnail
 
 
-async def _create_thumbnail(image: UploadFile) -> io.BytesIO:
+async def _create_thumbnail(image: bytes) -> io.BytesIO:
     """
     Generates a thumbnail from an input image.
 
@@ -110,7 +110,7 @@ async def _create_thumbnail(image: UploadFile) -> io.BytesIO:
     logger.debug("Creating thumbnail for image.")
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        get_process_pool(), _create_thumbnail_sync, await image.read()
+        get_process_pool(), _create_thumbnail_sync, image
     )
 
 
@@ -202,6 +202,15 @@ async def create_uav_image(
         A `CreateResponse` object for this image.
 
     """
+    # Since we are uploading images, the metadata store should be able to
+    # handle them.
+    metadata_store = cast(ImageMetadataStore, backends.metadata_store)
+
+    # We need the raw image data to create the thumbnail.
+    image_bytes = await image_data.read()
+    # Reset so we can read it again when storing it.
+    await image_data.seek(0)
+
     # Create the image in the object store.
     unique_name = uuid.uuid4().hex
     object_id = ObjectRef(bucket=bucket, name=unique_name)
@@ -212,14 +221,14 @@ async def create_uav_image(
 
     # Create the corresponding metadata.
     metadata_task = asyncio.create_task(
-        backends.metadata_store.add(object_id=object_id, metadata=metadata)
+        metadata_store.add(object_id=object_id, metadata=metadata)
     )
 
     # Create and save the thumbnail.
     thumbnail_object_id = _thumbnail_id(object_id)
 
     async def _create_and_save_thumbnail() -> None:
-        thumbnail = await _create_thumbnail(image_data)
+        thumbnail = await _create_thumbnail(image_bytes)
         await backends.object_store.create_object(
             thumbnail_object_id, data=thumbnail
         )

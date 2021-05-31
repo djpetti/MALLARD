@@ -415,7 +415,7 @@ class TestSqlImageMetadataStore:
             # Assert.
             # It should have created the session.
             mock_create_async_engine.assert_called_once_with(
-                mock_config["db_url"].as_str.return_value
+                mock_config["endpoint_url"].as_str.return_value
             )
             mock_session_maker.assert_called_once()
 

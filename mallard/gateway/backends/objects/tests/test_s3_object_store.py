@@ -69,6 +69,10 @@ class TestS3ObjectStore:
         mock_client.head_object = mocker.AsyncMock()
         mock_client.delete_object = mocker.AsyncMock()
         mock_client.get_object = mocker.AsyncMock()
+        mock_client.create_multipart_upload = mocker.AsyncMock()
+        mock_client.abort_multipart_upload = mocker.AsyncMock()
+        mock_client.upload_part = mocker.AsyncMock()
+        mock_client.complete_multipart_upload = mocker.AsyncMock()
 
         fake_region = faker.word()
 
@@ -276,11 +280,11 @@ class TestS3ObjectStore:
         )
 
     @pytest.mark.asyncio
-    async def test_create_object(
+    async def test_create_object_bytes(
         self, config: ConfigForTests, faker: Faker
     ) -> None:
         """
-        Tests that we can create an object.
+        Tests that we can create an object with binary data.
 
         Args:
             config: The configuration to use for testing.
@@ -299,6 +303,100 @@ class TestS3ObjectStore:
         # It should have put the object on the backend.
         config.mock_client.put_object.assert_called_once_with(
             Body=blob, Bucket=object_id.bucket, Key=object_id.name
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "file_size",
+        [10 * 2 ** 20, 5 * 2 ** 20, 1024, 2 ** 26],
+        ids=["large", "borderline", "small", "huge"],
+    )
+    async def test_create_object_upload_file(
+        self, config: ConfigForTests, faker: Faker, file_size: int
+    ) -> None:
+        """
+        Tests that we can create an object with an `UploadFile`.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+            file_size: The size in bytes of the fake file to use.
+
+        """
+        # Arrange.
+        # Create a large fake file to try uploading. For some reason,
+        # faker.binary() is really slow, so we avoid it.
+        file_contents = faker.pystr(min_chars=100, max_chars=100) * (
+            file_size // 100
+        )
+        file_contents = file_contents.encode("utf8")
+        upload_file = faker.upload_file(
+            category="image", contents=file_contents
+        )
+
+        object_id = faker.object_ref()
+
+        # Mock a unique ID for the multipart upload.
+        upload_id = faker.pystr()
+        config.mock_client.create_multipart_upload.return_value = dict(
+            UploadId=upload_id
+        )
+
+        # Act.
+        await config.store.create_object(object_id, data=upload_file)
+
+        # Assert.
+        # It should have started the multi-part upload.
+        config.mock_client.create_multipart_upload.assert_called_once_with(
+            Bucket=object_id.bucket, Key=object_id.name
+        )
+
+        # It should have uploaded some chunks.
+        config.mock_client.upload_part.assert_called()
+        for _, kwargs in config.mock_client.upload_part.call_args_list:
+            # Check that the right constant arguments were provided.
+            assert kwargs.get("Bucket") == object_id.bucket
+            assert kwargs.get("Key") == object_id.name
+            assert kwargs.get("UploadId") == upload_id
+
+        # It should have finalized the upload.
+        config.mock_client.complete_multipart_upload.assert_called_once_with(
+            Bucket=object_id.bucket,
+            Key=object_id.name,
+            UploadId=upload_id,
+            MultipartUpload=mock.ANY,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_object_upload_file_fail(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that `create_object` correctly cleans up a multi-part upload
+        when a failure occurs.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        upload_file = faker.upload_file(category="image")
+        object_id = faker.object_ref()
+
+        # Make it look like an unexpected failure occurred at some point,
+        # in this case, on the second part upload.
+        config.mock_client.upload_part.side_effect = (
+            ValueError("An inexplicable error happened."),
+        )
+
+        # Act and assert.
+        with pytest.raises(ValueError, match="inexplicable"):
+            await config.store.create_object(object_id, data=upload_file)
+
+        # It should have aborted the upload.
+        config.mock_client.abort_multipart_upload.assert_called_once_with(
+            Bucket=object_id.bucket, Key=object_id.name, UploadId=mock.ANY
         )
 
     @pytest.mark.asyncio

@@ -46,12 +46,13 @@ class FastApiProvider(BaseProvider):
             UploadFile, instance=True, filename=file_name
         )
 
-        # Make it look like the file contains some data.
-        upload_file.read.side_effect = (contents, b"")
-
         # Mock the underlying file handle.
-        mock_file = mock.create_autospec(SpooledTemporaryFile, instance=True)
-        mock_file.read.side_effect = (contents, b"")
-        upload_file.file = mock_file
+        underlying_file = SpooledTemporaryFile()
+        underlying_file.write(contents)
+        underlying_file.seek(0)
+        upload_file.file = underlying_file
+
+        # Make it look like the file contains some data.
+        upload_file.read.side_effect = underlying_file.read
 
         return upload_file

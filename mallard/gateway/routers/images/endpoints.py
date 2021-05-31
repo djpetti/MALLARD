@@ -123,7 +123,7 @@ async def use_bucket(
         doesn't exist.
 
     """
-    bucket_name = f"{date.today().isoformat()}_images"
+    bucket_name = f"{date.today().isoformat()}-images"
 
     if not await backends.object_store.bucket_exists(bucket_name):
         logger.debug("Creating a new bucket: {}", bucket_name)

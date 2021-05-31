@@ -10,8 +10,8 @@ from aiobotocore import get_session
 from aiobotocore.client import AioBaseClient
 from botocore.exceptions import ClientError
 from confuse import ConfigView
-from fastapi import UploadFile
 from loguru import logger
+from starlette.datastructures import UploadFile
 
 from .models import ObjectRef
 from .object_store import (
@@ -131,6 +131,10 @@ class S3ObjectStore(ObjectStore):
     ) -> None:
         if not await self.bucket_exists(object_id.bucket):
             raise KeyError(f"Bucket '{object_id.bucket}' does not exist.")
+
+        if isinstance(data, UploadFile):
+            # Get the underlying file-like object.
+            data = data.file
 
         logger.info("Requesting creating of new object {}.", object_id)
         await self.__client.put_object(

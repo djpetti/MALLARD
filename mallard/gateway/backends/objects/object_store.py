@@ -7,7 +7,7 @@ import abc
 from io import BytesIO
 from typing import AsyncIterable, Iterable, Union
 
-from fastapi import UploadFile
+from starlette.datastructures import UploadFile
 
 from ..injectable import Injectable
 from .models import ObjectRef

@@ -33,7 +33,7 @@ htmlcov/
 *.pytest_cache/
 
 # Examples
-examples/
+config/examples/
 
 # All JS stuff that's not actual bundled code.
 mallard/edge/frontend/*

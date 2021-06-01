@@ -1,4 +1,4 @@
-version: '3.7'
+version: '3.8'
 
 services:
 
@@ -8,5 +8,21 @@ services:
       dockerfile: dockerfiles/Dockerfile
       context: .
       target: gateway
+    hostname: gateway
+    networks:
+      - mallard
+
+  # Reverse-proxy service. This should be the only service with
+  # publicly-exposed ports.
+  proxy:
+    image: nginx
     ports:
-    - "8000:8000" # Gateway API port.
+      - "8081:8081"
+    volumes:
+      - ./config/local/nginx:/etc/nginx
+    networks:
+      - mallard
+
+networks:
+  # Internal network
+  mallard:

@@ -1,0 +1,21 @@
+# Config file for local MALLARD deployments. This is used by the default
+# docker-compose configuration.
+
+backends:
+  # Configuration for the object store backend.
+  object_store:
+    type: mallard.gateway.backends.objects.s3_object_store.S3ObjectStore
+    config:
+      region_name: us-east-1
+      access_key: minio_mallard_pass
+      access_key_id: minio_mallard
+      endpoint_url: http://127.0.0.1:9000
+
+  # Configuration for the metadata store backend.
+  metadata_store:
+    type: mallard.gateway.backends.metadata.sql.SqlImageMetadataStore
+    config:
+      endpoint_url: "mysql+pymysql://root:password@localhost/mallard_meta?charset=utf8mb4"
+
+# URL endpoint we use for authentication.
+auth_url: https://example.com/auth/

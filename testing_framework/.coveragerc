@@ -15,6 +15,7 @@ omit =
     mallard/gateway/config.py
     mallard/gateway/authentication.py
     mallard/gateway/aiohttp_session.py
+    mallard/gateway/configurable_worker.py
 
 [report]
 # Regexes for lines to exclude from consideration

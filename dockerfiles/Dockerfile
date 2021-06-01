@@ -27,4 +27,9 @@ FROM python:3.9.2-slim AS gateway
 COPY --from=builder /install/deps /usr/local
 COPY mallard /mallard
 
-CMD ["gunicorn", "-w 1", "-b 0.0.0.0:8000", "-k uvicorn.workers.UvicornWorker", "mallard.gateway.main:app"]
+# Set the correct root path.
+ENV SCRIPT_NAME="/api/v1/"
+
+CMD ["gunicorn", "-w 1", "-b 0.0.0.0:8000", \
+     "-k mallard.gateway.configurable_worker.ConfigurableWorker", \
+     "mallard.gateway.main:app"]

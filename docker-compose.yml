@@ -12,6 +12,31 @@ services:
     networks:
       - mallard
 
+  # Object storage service.
+  object_store:
+    image: minio/minio:RELEASE.2021-05-27T22-06-31Z
+    hostname: object-store
+    volumes:
+      - objects:/data
+    environment:
+      MINIO_ROOT_USER: minio_user_51c173
+      MINIO_ROOT_PASSWORD: HFgwH5U5RNaAbe
+    networks:
+      - mallard
+    command: "server /data"
+
+  # Metadata storage service.
+  metadata_store:
+    image: mariadb:10.5-focal
+    hostname: metadata-store
+    volumes:
+    - metadata:/var/lib/mysql
+    environment:
+      MARIADB_ROOT_PASSWORD: TnrHYavLF7WF38
+      MARIADB_DATABASE: mallard_meta
+    networks:
+      - mallard
+
   # Reverse-proxy service. This should be the only service with
   # publicly-exposed ports.
   proxy:
@@ -26,3 +51,9 @@ services:
 networks:
   # Internal network
   mallard:
+
+volumes:
+  # Object store volume. This is where uploaded data will be stored.
+  objects:
+  # Metadata store volume. This is where the metadata DB will be stored.
+  metadata:

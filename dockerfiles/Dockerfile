@@ -23,9 +23,19 @@ RUN mkdir deps && python -m pip install --prefix=deps -r requirements.txt
 ####
 FROM python:3.9.2-slim AS gateway
 
+# Run as a non-root user.
+RUN useradd -ms /bin/bash gateway
+USER gateway
+WORKDIR /home/gateway/
+
 # Copy dependencies.
 COPY --from=builder /install/deps /usr/local
-COPY mallard /mallard
+COPY mallard mallard
+COPY init_db.sh /init_db.sh
+COPY alembic.ini alembic.ini
+
+# Copy config files.
+COPY config/local/local_config.yaml .config/mallard/config.yaml
 
 # Set the correct root path.
 ENV SCRIPT_NAME="/api/v1/"

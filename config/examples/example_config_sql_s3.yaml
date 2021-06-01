@@ -15,7 +15,7 @@ backends:
   metadata_store:
     type: mallard.gateway.backends.metadata.sql.SqlImageMetadataStore
     config:
-      endpoint_url: "mysql+pymysql://root:password@localhost/mallard_meta?charset=utf8mb4"
+      endpoint_url: "mysql+aiomysql://root:password@localhost/mallard_meta?charset=utf8mb4"
 
 # URL endpoint we use for authentication.
 auth_url: https://example.com/auth/

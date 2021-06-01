@@ -12,6 +12,16 @@ services:
     networks:
       - mallard
 
+  # Edge service.
+  edge:
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: edge
+    hostname: edge
+    networks:
+      - mallard
+
   # Object storage service.
   object_store:
     image: minio/minio:RELEASE.2021-05-27T22-06-31Z

@@ -1,0 +1,20 @@
+version: '3.8'
+
+# Volumes that bind to local directories.
+x-local_volumes: &local_volumes
+  volumes:
+    # Code.
+    - ./mallard:/home/gateway/mallard
+
+# This is a docker-compose overlay for facilitating development.
+# Basically, it mounts your local FS in the containers instead of copying the
+# code over, so you can easily test new code.
+services:
+
+  # Gateway service.
+  gateway:
+    << : *local_volumes
+
+  # Edge service.
+  edge:
+    << : *local_volumes

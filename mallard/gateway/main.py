@@ -14,7 +14,8 @@ from .routers import images
 
 _ORIGINS = [
     # Origin of the frontend when testing.
-    "http://127.0.0.1:8081"
+    "http://127.0.0.1:8081",
+    "http://localhost:8081",
 ]
 """
 Specific origins that are allowed to access this API.

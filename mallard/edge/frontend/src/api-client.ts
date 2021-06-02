@@ -2,7 +2,9 @@ import { Configuration, ImagesApi } from "typescript-axios";
 import { ArtifactId, ImageMetadata, ImageQuery, QueryResult } from "./types";
 
 /** Singleton API client used by the entire application. */
-const api = new ImagesApi(new Configuration(), "http://localhost:8081/api/v1");
+const api = new ImagesApi(
+  new Configuration({ basePath: "http://localhost:8081/api/v1" })
+);
 
 /**
  * Performs a query for images.

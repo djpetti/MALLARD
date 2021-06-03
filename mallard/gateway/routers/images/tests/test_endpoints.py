@@ -183,6 +183,10 @@ async def test_create_uav_image(
     mock_image_class.open.assert_called_once()
     mock_image = mock_image_class.open.return_value
     mock_image.thumbnail.assert_called_once()
+
+    mock_image.convert.assert_called_once_with("RGB")
+    mock_image = mock_image.convert.return_value
+
     mock_image.save.assert_called_once_with(mock.ANY, format="jpeg")
 
 

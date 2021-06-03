@@ -86,6 +86,8 @@ def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
     """
     pil_image = Image.open(io.BytesIO(image))
     pil_image.thumbnail(_THUMBNAIL_SIZE)
+    # Make sure it's an RGB image.
+    pil_image = pil_image.convert("RGB")
 
     # Save result as a JPEG.
     thumbnail = io.BytesIO()

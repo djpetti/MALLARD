@@ -1,4 +1,4 @@
-import { LitElement, html, property, PropertyValues } from "lit-element";
+import { LitElement, html, css, property, PropertyValues } from "lit-element";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState } from "./types";
@@ -66,6 +66,18 @@ function groupByDate(imageIds: string[], state: RootState): GroupedImages[] {
  */
 export class ThumbnailGrid extends LitElement {
   static tagName: string = "thumbnail-grid";
+  static styles = css`
+    #empty_message {
+      color: var(--theme-gray);
+      font-family: "Roboto", sans-serif;
+      font-weight: 100;
+      margin: auto;
+      width: 50%;
+      text-align: center;
+      padding-top: 5%;
+      font-size: xxx-large;
+    }
+  `;
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({ type: Array })
@@ -81,6 +93,11 @@ export class ThumbnailGrid extends LitElement {
    * @inheritDoc
    */
   protected render() {
+    if (this.groupedArtifacts.length == 0) {
+      // Show some text indicating that there is no data.
+      return html`<h1 id="empty_message">No Data</h1>`;
+    }
+
     return html`
       <div class="thumbnail_grid">
         ${this.groupedArtifacts.map(

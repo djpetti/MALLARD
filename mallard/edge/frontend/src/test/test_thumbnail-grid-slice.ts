@@ -93,7 +93,7 @@ describe("thumbnail-grid-slice action creators", () => {
     mockCreateObjectUrl.mockReturnValue(imageUrl);
 
     // Initialize the fake store with valid state.
-    const imageId: string = faker.random.uuid();
+    const imageId: string = faker.datatype.uuid();
     const state = fakeState();
     state.thumbnailGrid.ids = [imageId];
     state.thumbnailGrid.entities[imageId] = fakeThumbnailEntity(false);
@@ -127,7 +127,7 @@ describe("thumbnail-grid-slice action creators", () => {
     getMetadata.mockResolvedValue(metadata);
 
     // Initialize the fake store with valid state.
-    const imageId: string = faker.random.uuid();
+    const imageId: string = faker.datatype.uuid();
     const state = fakeState();
     state.thumbnailGrid.ids = [imageId];
     state.thumbnailGrid.entities[imageId] = fakeThumbnailEntity(false);
@@ -188,7 +188,7 @@ describe("thumbnail-grid-slice reducers", () => {
       // Create a fake image to add to the state.
       const fakeImage: ArtifactId = {
         bucket: faker.lorem.word(),
-        name: faker.random.uuid(),
+        name: faker.datatype.uuid(),
       };
 
       // Create the action.

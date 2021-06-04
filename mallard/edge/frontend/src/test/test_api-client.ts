@@ -40,7 +40,7 @@ describe("api-client", () => {
     const mockQueryImages =
       mockImagesApiClass.prototype.queryImagesImagesQueryPost;
 
-    const imageIds: string[] = [faker.random.uuid(), faker.random.uuid()];
+    const imageIds: string[] = [faker.datatype.uuid(), faker.datatype.uuid()];
     const pageNum: number = faker.random.number();
     const isLastPage: boolean = faker.random.boolean();
     mockQueryImages.mockResolvedValue({
@@ -95,7 +95,7 @@ describe("api-client", () => {
     const imageData = faker.image.cats(128, 128);
     mockThumbnailGet.mockResolvedValue({ data: imageData });
 
-    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
     const result: string = await loadThumbnail(imageId);
@@ -121,7 +121,7 @@ describe("api-client", () => {
     const fakeError = new FakeAxiosError();
     mockThumbnailGet.mockRejectedValue(fakeError);
 
-    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act and assert.
     await expect(loadThumbnail(imageId)).rejects.toThrow(FakeAxiosError);
@@ -139,7 +139,7 @@ describe("api-client", () => {
     const captureDate = faker.date.past().toISOString();
     mockMetadataGet.mockResolvedValue({ data: { capture_date: captureDate } });
 
-    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
     const result: ImageMetadata = await getMetadata(imageId);
@@ -161,7 +161,7 @@ describe("api-client", () => {
     const fakeError = new FakeAxiosError();
     mockMetadataGet.mockRejectedValue(fakeError);
 
-    const imageId = { bucket: faker.lorem.word(), name: faker.random.uuid() };
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act and assert.
     await expect(getMetadata(imageId)).rejects.toThrow(FakeAxiosError);

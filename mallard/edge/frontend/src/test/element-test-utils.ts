@@ -70,7 +70,7 @@ export function fakeThumbnailEntity(
   }
 
   return {
-    backendId: { bucket: faker.lorem.word(), name: faker.random.uuid() },
+    backendId: { bucket: faker.lorem.word(), name: faker.datatype.uuid() },
     status: status,
     imageUrl: imageUrl,
     metadata: metadata,

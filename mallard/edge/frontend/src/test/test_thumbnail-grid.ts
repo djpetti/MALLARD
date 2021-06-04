@@ -69,7 +69,7 @@ describe("thumbnail-grid", () => {
   it("renders thumbnails correctly", async () => {
     // Arrange.
     // Add some fake artifacts.
-    const artifactIds = [faker.random.uuid(), faker.random.uuid()];
+    const artifactIds = [faker.datatype.uuid(), faker.datatype.uuid()];
     gridElement.groupedArtifacts = [
       {
         imageIds: artifactIds,
@@ -92,9 +92,24 @@ describe("thumbnail-grid", () => {
     expect(gridSection.displayedArtifacts).toEqual(artifactIds);
   });
 
+  it("renders a message when there are no data", async() => {
+    // Arrange.
+    // Make it look like there are no artifacts.
+    gridElement.groupedArtifacts = [];
+
+    // Act.
+    await gridElement.updateComplete;
+
+    // Assert.
+    // It should have rendered a message.
+    const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
+    const emptyMessage = root.querySelector("#empty_message") as HTMLElement;
+    expect(emptyMessage).not.toBe(null);
+  });
+
   it("updates the properties from the Redux state", () => {
     // Arrange.
-    const imageId = faker.random.uuid();
+    const imageId = faker.datatype.uuid();
 
     // Create a fake state.
     const state: RootState = fakeState();
@@ -116,9 +131,9 @@ describe("thumbnail-grid", () => {
 
   it("groups by date correctly when updating from the Redux state", () => {
     // Arrange.
-    const imageId1 = faker.random.uuid();
-    const imageId2 = faker.random.uuid();
-    const imageId3 = faker.random.uuid();
+    const imageId1 = faker.datatype.uuid();
+    const imageId2 = faker.datatype.uuid();
+    const imageId3 = faker.datatype.uuid();
 
     // Create a fake state.
     const state: RootState = fakeState();
@@ -171,7 +186,7 @@ describe("thumbnail-grid", () => {
     expect(eventMap).toHaveProperty("images-changed");
 
     // This should fire the appropriate action creator.
-    const testEvent = { detail: [faker.random.uuid()] };
+    const testEvent = { detail: [faker.datatype.uuid()] };
     eventMap["images-changed"](testEvent as unknown as Event);
 
     expect(mockThunkLoadMetadata).toBeCalledTimes(1);

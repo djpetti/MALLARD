@@ -133,7 +133,7 @@ describe("artifact-thumbnail", () => {
     expect(eventMap).toHaveProperty("image-changed");
 
     // This should fire the appropriate action creator.
-    const testEvent = { detail: faker.random.uuid() };
+    const testEvent = { detail: faker.datatype.uuid() };
     eventMap["image-changed"](testEvent as unknown as Event);
 
     expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
@@ -143,7 +143,7 @@ describe("artifact-thumbnail", () => {
   it("updates the properties from the Redux state", () => {
     // Arrange.
     // Set a thumbnail image ID.
-    const imageId = faker.random.uuid();
+    const imageId = faker.datatype.uuid();
     thumbnailElement.imageId = imageId;
 
     // Create a fake state.
@@ -176,7 +176,7 @@ describe("artifact-thumbnail", () => {
   it("ignores Redux updates when the image has not been loaded", () => {
     // Arrange.
     // Set a thumbnail image ID.
-    const imageId = faker.random.uuid();
+    const imageId = faker.datatype.uuid();
     thumbnailElement.imageId = imageId;
 
     // Create a fake state.

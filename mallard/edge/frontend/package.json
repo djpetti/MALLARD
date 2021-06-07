@@ -62,6 +62,9 @@
   },
   "dependencies": {
     "@captaincodeman/redux-connect-element": "^2.0.0",
+    "@material/mwc-base": "^0.21.0",
+    "@material/mwc-fab": "^0.21.0",
+    "@material/mwc-icon-button": "^0.21.0",
     "@material/mwc-top-app-bar": "^0.20.0",
     "@material/mwc-top-app-bar-fixed": "^0.20.0",
     "@reduxjs/toolkit": "^1.5.0",

@@ -3,6 +3,17 @@
   --mdc-theme-on-primary: var(--theme-whitish);
 }
 
+#add_data {
+  --mdc-theme-secondary: var(--theme-blackish);
+  --mdc-theme-on-secondary: var(--theme-whitish);
+
+  /* Position in bottom right. */
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  padding: 20pt;
+}
+
 body {
   background-color: var(--theme-background);
   margin: 0;

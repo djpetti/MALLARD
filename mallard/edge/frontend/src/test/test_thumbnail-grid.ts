@@ -92,7 +92,7 @@ describe("thumbnail-grid", () => {
     expect(gridSection.displayedArtifacts).toEqual(artifactIds);
   });
 
-  it("renders a message when there are no data", async() => {
+  it("renders a message when there are no data", async () => {
     // Arrange.
     // Make it look like there are no artifacts.
     gridElement.groupedArtifacts = [];

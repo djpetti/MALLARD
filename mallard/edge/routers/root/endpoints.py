@@ -22,16 +22,3 @@ async def get_index() -> str:
     """
     template = template_environment.get_template("index.html")
     return await template.render_async()
-
-
-@router.get("/upload", response_class=HTMLResponse)
-async def get_upload() -> str:
-    """
-    Handler for the upload page.
-
-    Returns:
-        The HTML response.
-
-    """
-    template = template_environment.get_template("upload.html")
-    return await template.render_async(show_back=True)

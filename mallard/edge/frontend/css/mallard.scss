@@ -1,3 +1,6 @@
+@use "@material/elevation/mdc-elevation";
+@use "colors";
+
 #main_app_bar {
   --mdc-theme-primary: var(--theme-secondary-2);
   --mdc-theme-on-primary: var(--theme-whitish);
@@ -12,6 +15,10 @@
   bottom: 0;
   right: 0;
   padding: 20pt;
+}
+
+mwc-dialog {
+  --mdc-dialog-heading-ink-color: var(--theme-blackish);
 }
 
 body {

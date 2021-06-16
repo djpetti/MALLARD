@@ -3,4 +3,14 @@
 {% block main %}
 <thumbnail-grid></thumbnail-grid>
 <mwc-fab icon="add" id="add_data"></mwc-fab>
+
+<!-- Upload modal (initially closed) -->
+<mwc-dialog id="upload_modal" heading="Upload Data">
+    <file-uploader></file-uploader>
+
+    <mwc-button id="done_button" slot="primaryAction" dialogAction="close">
+        Done
+    </mwc-button>
+</mwc-dialog>
+
 {% endblock %}

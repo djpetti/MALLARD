@@ -4,6 +4,7 @@ import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import nodePolyfills from 'rollup-plugin-node-polyfills';
 import sourcemaps from "rollup-plugin-sourcemaps";
+import scss from "rollup-plugin-scss";
 
 export default {
     input: 'build/index.js',
@@ -34,5 +35,6 @@ export default {
             console.error(`(!) ${warning.message}`);
         }
     },
-    plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json()],
+    plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
+              scss({sass: require('sass')})],
 };

@@ -165,22 +165,27 @@ def _generate_api_client() -> None:
         subprocess.run([npm_path.as_posix(), "install"], check=True)
 
 
-def _build_frontend() -> None:
+def _build_frontend(cli_args: Namespace) -> None:
     """
     Builds frontend code prior to deploying.
+
+    Args:
+        cli_args: The parsed CLI arguments.
 
     """
     logger.info("Building frontend code...")
 
     # Generate the API client.
-    _generate_api_client()
+    if not cli_args.build_only:
+        _generate_api_client()
 
     with _working_dir(_EDGE_ROOT / "frontend"):
         npm_path = _find_tool("npm")
 
         # Format, lint, build and bundle.
-        subprocess.run([npm_path.as_posix(), "run", "format"], check=True)
-        subprocess.run([npm_path.as_posix(), "run", "lint"], check=True)
+        if not cli_args.build_only:
+            subprocess.run([npm_path.as_posix(), "run", "format"], check=True)
+            subprocess.run([npm_path.as_posix(), "run", "lint"], check=True)
         subprocess.run([npm_path.as_posix(), "run", "build"], check=True)
         subprocess.run([npm_path.as_posix(), "run", "bundle"], check=True)
 
@@ -215,7 +220,14 @@ def _make_parser() -> ArgumentParser:
     deploy_parser.set_defaults(func=_deploy)
 
     build_parser = subparsers.add_parser("build", help="Build the frontend.")
-    build_parser.set_defaults(func=lambda _: _build_frontend())
+    build_parser.add_argument(
+        "-b",
+        "--build-only",
+        action="store_true",
+        help="Only builds the frontend, without linting or re-generating the"
+        " API client.",
+    )
+    build_parser.set_defaults(func=_build_frontend)
 
     return parser
 

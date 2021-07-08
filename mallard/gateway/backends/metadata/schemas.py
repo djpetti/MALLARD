@@ -84,7 +84,7 @@ class GeoPoint(BaseModel):
 
 
 @enum.unique
-class PlatformType(enum.Enum):
+class PlatformType(str, enum.Enum):
     """
     Enumeration of various imaging platform types.
     """
@@ -100,7 +100,7 @@ class PlatformType(enum.Enum):
 
 
 @enum.unique
-class ImageFormat(enum.Enum):
+class ImageFormat(str, enum.Enum):
     """
     Enumeration of various images formats that are allowed.
 

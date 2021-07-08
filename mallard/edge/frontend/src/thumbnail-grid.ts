@@ -86,7 +86,7 @@ export class ThumbnailGrid extends LitElement {
   /**
    * Unique IDs of artifacts grouped by date.
    */
-  @property({ type: String, attribute: false })
+  @property({ attribute: false })
   groupedArtifacts: GroupedImages[] = [];
 
   /**

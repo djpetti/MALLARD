@@ -1,5 +1,11 @@
 import { Configuration, ImagesApi } from "typescript-axios";
-import { ArtifactId, ImageMetadata, ImageQuery, QueryResult } from "./types";
+import {
+  ArtifactId,
+  BackendImageMetadata,
+  FrontendImageMetadata,
+  ImageQuery,
+  QueryResult,
+} from "./types";
 
 /** Singleton API client used by the entire application. */
 const api = new ImagesApi(
@@ -48,9 +54,11 @@ export async function loadThumbnail(imageId: ArtifactId): Promise<string> {
 /**
  * Loads metadata for an image.
  * @param {ArtifactId} imageId The ID of the image to load metadata for.
- * @return {ImageMetadata} The image metadata.
+ * @return {BackendImageMetadata} The image metadata.
  */
-export async function getMetadata(imageId: ArtifactId): Promise<ImageMetadata> {
+export async function getMetadata(
+  imageId: ArtifactId
+): Promise<BackendImageMetadata> {
   const response = await api
     .getImageMetadataImagesMetadataBucketNameGet(imageId.bucket, imageId.name)
     .catch(function (error) {
@@ -60,6 +68,33 @@ export async function getMetadata(imageId: ArtifactId): Promise<ImageMetadata> {
 
   // Convert from JSON.
   return {
-    captureDate: response.data["capture_date"],
+    captureDate: response.data.capture_date,
+  };
+}
+
+/**
+ * Uploads a new image.
+ * @param {Blob} imageData The raw image data.
+ * @param {FrontendImageMetadata} metadata The associated metadata for the image.
+ */
+export async function createImage(
+  imageData: Blob,
+  metadata: FrontendImageMetadata
+): Promise<ArtifactId> {
+  // Get the local timezone offset.
+  const offset = new Date().getTimezoneOffset() / 60;
+  const response = await api.createUavImageImagesCreateUavPost(
+    offset,
+    imageData,
+    metadata.name
+  ).catch(function (error) {
+    console.error(error.toJSON());
+    throw error;
+  })
+
+  // Convert from JSON.
+  return {
+    bucket: response.data.image_id.bucket,
+    name: response.data.image_id.name,
   };
 }

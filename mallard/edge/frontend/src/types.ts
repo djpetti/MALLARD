@@ -44,13 +44,24 @@ export interface QueryResult {
 }
 
 /**
- * Represents image metadata.
+ * Represents image metadata as received from the backend.
  */
-export interface ImageMetadata {
+export interface BackendImageMetadata {
   /** The date that the image was captured on. This is in raw string
    * form to please Redux, but should be trivially convertible to a Date object.
    */
   captureDate: string;
+}
+
+/**
+ * Represents image metadata as sent to the backend. This is slightly
+ * different from the backend version, as it allows for certain parameters
+ * to be inferred automatically by the backend. It also allows for some
+ * parameters to be in a format more convenient to the frontend.
+ */
+export interface FrontendImageMetadata {
+  /** The name of the image. */
+  name: string | null;
 }
 
 /**
@@ -84,7 +95,7 @@ export interface ImageEntity {
   /** The object URL of the image. */
   imageUrl: string | null;
   /** The metadata associated with the image. */
-  metadata: ImageMetadata | null;
+  metadata: BackendImageMetadata | null;
 }
 
 /**
@@ -102,8 +113,47 @@ export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
 }
 
 /**
+ * Represents the status of a file that is being processed.
+ */
+export enum FileStatus {
+  /** We have not yet started processing. */
+  PENDING,
+  /** We are currently processing. */
+  PROCESSING,
+  /** We are finished processing. */
+  COMPLETE,
+}
+
+/**
+ * Represents a file, as displayed in the UI.
+ */
+export interface FrontendFileEntity {
+  /** Unique, constant ID for this file. */
+  id: string;
+
+  /** URL of the file icon. This might not be present if
+   * the file has already been uploaded. */
+  iconUrl: string | null;
+  /** Display name for the file. */
+  name: string;
+  /** Current status of the file. */
+  status: FileStatus;
+}
+
+/**
+ * Represents the state of the upload flow.
+ */
+export interface UploadState extends NormalizedState<FrontendFileEntity> {
+  /** True if the upload dialog is currently open. */
+  dialogOpen: boolean;
+  /** True if the user is currently dragging a file. */
+  isDragging: boolean;
+}
+
+/**
  * Represents the type of the root state structure.
  */
 export interface RootState {
   thumbnailGrid: ThumbnailGridState;
+  uploads: UploadState;
 }

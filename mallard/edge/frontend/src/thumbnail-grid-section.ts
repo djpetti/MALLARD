@@ -4,6 +4,7 @@ import "./artifact-thumbnail";
 
 /**
  * A grid of thumbnails with a section header.
+ * @customElement thumbnail-grid-section
  */
 export class ThumbnailGridSection extends LitElement {
   static styles = css`

@@ -1,6 +1,19 @@
-import { css, html, LitElement, property } from "lit-element";
-import "@material/mwc-icon"
-import "@material/mwc-fab"
+import { css, html, LitElement, property, PropertyValues } from "lit-element";
+import "@material/mwc-icon";
+import "@material/mwc-fab";
+import { query } from "lit-element/lib/decorators.js";
+import { FileList } from "./file-list";
+import { connect } from "@captaincodeman/redux-connect-element";
+import store from "./store";
+import { FileStatus, FrontendFileEntity, RootState } from "./types";
+import {
+  fileDropZoneEntered,
+  fileDropZoneExited,
+  processSelectedFiles,
+  thunkUploadFile,
+  uploadSelectors,
+} from "./upload-slice";
+import { Action } from "redux";
 
 /**
  * An element that allows the user to select and upload files.
@@ -46,7 +59,7 @@ export class FileUploader extends LitElement {
       margin-right: -24px;
     }
 
-    /** Place the drop zone on it's own plane above the other content. */
+    /** Place the drop zone on its own plane above the other content. */
     #drop_zone_card {
       padding: 5px 24px 40px 24px;
       background: white;
@@ -55,6 +68,7 @@ export class FileUploader extends LitElement {
     .file_list {
       min-width: 500px;
       min-height: 100px;
+      max-height: 300px;
       padding-top: 130px;
       margin-left: -24px;
       margin-right: -24px;
@@ -95,6 +109,9 @@ export class FileUploader extends LitElement {
     }
   `;
 
+  /** Maximum number of files we are allowed to upload simultaneously. */
+  static MAX_CONCURRENT_UPLOADS = 3;
+
   /**
    * Keeps track of whether the user is actively dragging something
    * over the drop target.
@@ -103,34 +120,13 @@ export class FileUploader extends LitElement {
   isDragging: boolean = false;
 
   /**
-   * Handles the drop event over the drop zone.
-   * @param {Event} event The event to handle.
-   * @protected
+   * The list of files that are currently being uploaded.
    */
-  protected handleDrop(event: Event) {
-    console.log("Got drop event: " + event);
-    event.preventDefault();
-  }
+  @property({ type: Array, attribute: false })
+  uploadingFiles: FrontendFileEntity[] = [];
 
-  /**
-   * Handles the user dragging something over the drop zone.
-   * @param {Event} event The event to handle.
-   * @protected
-   */
-  protected handleDragEnter(event: Event) {
-    event.preventDefault();
-    this.isDragging = true;
-  }
-
-  /**
-   * Handles the user dragging something out of the drop zone.
-   * @param {Event} event The event to handle.
-   * @protected
-   */
-  protected handleDragLeave(event: Event) {
-    event.preventDefault();
-    this.isDragging = false;
-  }
+  @query("#file_list", true)
+  fileList!: FileList;
 
   /**
    * @inheritDoc
@@ -140,29 +136,131 @@ export class FileUploader extends LitElement {
     const dropZoneClass: string = this.isDragging ? "active_drag" : "no_drag";
 
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css">
+      <link rel="stylesheet" href="./static/mallard-edge.css" />
       <div id="drop_zone_container" class="top_layer">
-          <div id="drop_zone_card" class="mdc-elevation--z2">
-              <div
-                id="upload_drop_zone"
-                class="drop_zone ${dropZoneClass}"
-                @drop="${this.handleDrop}"
-                @dragenter="${this.handleDragEnter}"
-                @dragleave="${this.handleDragLeave}"
-              >
-                <mwc-icon id="upload_icon" class="${dropZoneClass}"
-                  >upload_file</mwc-icon
-                >
-                <div class="break"></div>
-                <p id="upload_help" class="${dropZoneClass}">
-                  Drag files here to upload.
-                </p>
-              </div>
+        <div id="drop_zone_card" class="mdc-elevation--z2">
+          <div
+            id="upload_drop_zone"
+            class="drop_zone ${dropZoneClass}"
+            @dragover="${(event: Event) => event.preventDefault()}"
+          >
+            <mwc-icon id="upload_icon" class="${dropZoneClass}"
+              >upload_file
+            </mwc-icon>
+            <div class="break"></div>
+            <p id="upload_help" class="${dropZoneClass}">
+              Drag files here to upload.
+            </p>
           </div>
+        </div>
       </div>
       <mwc-fab icon="add" id="browse"></mwc-fab>
       <div class="file_list bottom_layer">
+        <file-list id="file_list"></file-list>
       </div>
     `;
+  }
+
+  /**
+   * Checks how many uploads are actually running. If it is
+   * less than the maximum number, it will suggest new files
+   * to start uploading.
+   * @return {FrontendFileEntity[]} The list of files to start
+   * uploading.
+   * @private
+   */
+  private findFilesToUpload(): FrontendFileEntity[] {
+    // Separate into pending and processing uploads.
+    const pending: FrontendFileEntity[] = [];
+    const processing: FrontendFileEntity[] = [];
+    for (const file of this.uploadingFiles) {
+      if (file.status == FileStatus.PENDING) {
+        pending.push(file);
+      } else if (file.status == FileStatus.PROCESSING) {
+        processing.push(file);
+      }
+    }
+
+    // Determine if we should start uploading new files.
+    if (processing.length < FileUploader.MAX_CONCURRENT_UPLOADS) {
+      // Start uploading some pending files.
+      const numToUpload =
+        FileUploader.MAX_CONCURRENT_UPLOADS - processing.length;
+      return pending.slice(0, numToUpload);
+    }
+
+    // No need to start more uploads.
+    return [];
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected updated(_changedProperties: PropertyValues) {
+    if (_changedProperties.has("uploadingFiles")) {
+      // Update the list of files.
+      this.fileList.files = this.uploadingFiles;
+
+      // Determine if we should start any new uploads.
+      const newUploads = this.findFilesToUpload();
+      for (const file of newUploads) {
+        this.dispatchEvent(
+          new CustomEvent<string>("upload-ready", {
+            bubbles: true,
+            composed: false,
+            detail: file.id,
+          })
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Interface for the custom event we dispatch when we have new
+ * files to start uploading.
+ */
+interface UploadsReadyEvent extends Event {
+  detail: string;
+}
+
+/**
+ * Extension of `FileUploader` that connects to Redux.
+ */
+export class ConnectedFileUploader extends connect(store, FileUploader) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: RootState): { [p: string]: any } {
+    const allFiles: FrontendFileEntity[] = uploadSelectors.selectAll(state);
+    return {
+      uploadingFiles: allFiles,
+      isDragging: state.uploads.isDragging,
+    };
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    return {
+      dragenter: (_) => fileDropZoneEntered(null),
+      dragleave: (_) => fileDropZoneExited(null),
+      drop: (event: Event) => {
+        event.preventDefault();
+
+        const fileList =
+          (event as DragEvent).dataTransfer?.items ??
+          new DataTransferItemList();
+        return processSelectedFiles(fileList);
+      },
+      // The fancy casting here is a hack to deal with the fact that thunkReadFiles
+      // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+      // However, it still works just fine with an AsyncThunkAction.
+      "upload-ready": (event: Event) =>
+        thunkUploadFile(
+          (event as UploadsReadyEvent).detail
+        ) as unknown as Action,
+    };
   }
 }

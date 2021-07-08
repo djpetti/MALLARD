@@ -4,7 +4,7 @@
 
 import {
   ImageEntity,
-  ImageMetadata,
+  BackendImageMetadata,
   RequestState,
   RootState,
   ThumbnailStatus,
@@ -36,6 +36,12 @@ export function fakeState(): RootState {
       ids: [],
       entities: {},
     },
+    uploads: {
+      dialogOpen: false,
+      isDragging: false,
+      ids: [],
+      entities: {},
+    },
   };
 }
 
@@ -61,7 +67,7 @@ export function fakeThumbnailEntity(
 
   let status: ThumbnailStatus = ThumbnailStatus.LOADING;
   let imageUrl: string | null = null;
-  let metadata: ImageMetadata | null = null;
+  let metadata: BackendImageMetadata | null = null;
   if (imageLoaded) {
     // Simulate a loaded image.
     status = ThumbnailStatus.VISIBLE;

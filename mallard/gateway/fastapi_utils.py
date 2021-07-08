@@ -1,8 +1,7 @@
 """
 Miscellaneous helper functions for FastAPI.
 """
-
-
+import enum
 import inspect
 from typing import Any, Callable, Dict, Type
 
@@ -69,16 +68,27 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
             )
             return Depends(field.type_.as_form)
         else:
+            # This is just a normal field.
             return Form(field.default) if not field.required else Form(...)
 
-    new_params = [
+    new_params = []
+    for field in cls.__fields__.values():
+        field_type = field.type_
+        if issubclass(field_type, enum.Enum):
+            # FastAPI, unfortunately, does not seem to handle enums in form
+            # parameters very well. To work around this, we can just ensure
+            # that the enum type inherits from str and use str values.
+            assert issubclass(
+                field_type, str
+            ), "Enums must also inherit from str when used in forms."
+            field_type = str
+
         inspect.Parameter(
             field.alias,
             inspect.Parameter.POSITIONAL_ONLY,
             default=make_form_parameter(field),
+            annotation=field_type,
         )
-        for field in cls.__fields__.values()
-    ]
 
     async def _as_form(**data):
         return cls(**data)

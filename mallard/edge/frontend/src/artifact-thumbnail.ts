@@ -10,6 +10,7 @@ import { Action } from "redux";
 
 /**
  * Thumbnail representation of an uploaded artifact.
+ * @customElement artifact-thumbnail
  */
 export class ArtifactThumbnail extends LitElement {
   static styles = css`
@@ -82,6 +83,10 @@ export class ArtifactThumbnail extends LitElement {
   }
 }
 
+/**
+ * Interface for the custom event we dispatch when the image
+ * is changed.
+ */
 interface ImageChangedEvent extends Event {
   detail: string;
 }

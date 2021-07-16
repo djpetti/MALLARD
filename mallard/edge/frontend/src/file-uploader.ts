@@ -111,6 +111,8 @@ export class FileUploader extends LitElement {
 
   /** Maximum number of files we are allowed to upload simultaneously. */
   static MAX_CONCURRENT_UPLOADS = 3;
+  /** Name for the custom event signalling that a new file is ready. */
+  static UPLOAD_READY_EVENT_NAME = "upload-ready";
 
   /**
    * Keeps track of whether the user is actively dragging something
@@ -126,7 +128,7 @@ export class FileUploader extends LitElement {
   uploadingFiles: FrontendFileEntity[] = [];
 
   @query("#file_list", true)
-  fileList!: FileList;
+  private fileList!: FileList;
 
   /**
    * @inheritDoc
@@ -142,7 +144,12 @@ export class FileUploader extends LitElement {
           <div
             id="upload_drop_zone"
             class="drop_zone ${dropZoneClass}"
-            @dragover="${(event: Event) => event.preventDefault()}"
+            @dragover="${
+              // This is needed to suppress default behavior in the
+              // browser, but we have no good way of testing that.
+              // istanbul ignore next
+              (event: Event) => event.preventDefault()
+            }"
           >
             <mwc-icon id="upload_icon" class="${dropZoneClass}"
               >upload_file
@@ -205,7 +212,7 @@ export class FileUploader extends LitElement {
       const newUploads = this.findFilesToUpload();
       for (const file of newUploads) {
         this.dispatchEvent(
-          new CustomEvent<string>("upload-ready", {
+          new CustomEvent<string>(FileUploader.UPLOAD_READY_EVENT_NAME, {
             bubbles: true,
             composed: false,
             detail: file.id,
@@ -243,24 +250,26 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
    * @inheritDoc
    */
   mapEvents(): { [p: string]: (event: Event) => Action } {
-    return {
+    let handlers: { [p: string]: (event: Event) => Action } = {
       dragenter: (_) => fileDropZoneEntered(null),
       dragleave: (_) => fileDropZoneExited(null),
       drop: (event: Event) => {
         event.preventDefault();
 
+        // istanbul ignore next
         const fileList =
           (event as DragEvent).dataTransfer?.items ??
+          // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
           new DataTransferItemList();
         return processSelectedFiles(fileList);
       },
-      // The fancy casting here is a hack to deal with the fact that thunkReadFiles
-      // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
-      // However, it still works just fine with an AsyncThunkAction.
-      "upload-ready": (event: Event) =>
-        thunkUploadFile(
-          (event as UploadsReadyEvent).detail
-        ) as unknown as Action,
     };
+    // The fancy casting here is a hack to deal with the fact that thunkReadFiles
+    // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+    // However, it still works just fine with an AsyncThunkAction.
+    handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
+      thunkUploadFile((event as UploadsReadyEvent).detail) as unknown as Action;
+
+    return handlers;
   }
 }

@@ -6,12 +6,18 @@ import {
   UploadState,
 } from "./types";
 import {
+  createAction,
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
 } from "@reduxjs/toolkit";
 import { createImage } from "./api-client";
 import { Action } from "redux";
+import { v4 as uuidv4 } from "uuid";
+import { ThunkAction } from "redux-thunk";
+
+/** Type alias to make typing thunks simpler. */
+type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
 
 const uploadAdapter = createEntityAdapter<FrontendFileEntity>();
 const initialState: UploadState = uploadAdapter.getInitialState({
@@ -41,7 +47,7 @@ export const thunkUploadFile = createAsyncThunk(
     ) as FrontendFileEntity;
 
     // Load the actual contents of the file.
-    const fileReadResponse = await fetch(uploadFile.iconUrl as string);
+    const fileReadResponse = await fetch(uploadFile.iconUrl);
     const fileContents = await fileReadResponse.blob();
 
     // Upload all the files.
@@ -50,9 +56,6 @@ export const thunkUploadFile = createAsyncThunk(
     await createImage(fileContents, metadata);
   }
 );
-
-/** Action that specifies new files to upload selected by the user. */
-const PROCESS_SELECTED_FILES = "upload/processSelectedFiles";
 
 /**
  * Action that specifies new files to upload that were
@@ -67,30 +70,46 @@ interface ProcessSelectedFilesAction extends Action {
  * @param {DataTransferItemList} files The new selected files.
  * @return {ProcessSelectedFilesAction} The created action.
  */
-export function processSelectedFiles(
-  files: DataTransferItemList
-): ProcessSelectedFilesAction {
-  // Extract all the files.
-  const validFiles: File[] = [];
-  for (const item of files) {
-    const asFile = item.getAsFile();
-    if (asFile !== null && asFile.type.startsWith("image/")) {
-      validFiles.push(asFile);
+export const processSelectedFiles = createAction(
+  "upload/processSelectedFiles",
+  function prepare(files: DataTransferItemList) {
+    // Extract all the files.
+    const validFiles: File[] = [];
+    for (const item of files) {
+      const asFile = item.getAsFile();
+      if (asFile !== null && asFile.type.startsWith("image/")) {
+        validFiles.push(asFile);
+      }
     }
+
+    // Create data URLs for every file.
+    const fileUrls = validFiles.map((file) => URL.createObjectURL(file));
+
+    const frontendFiles = validFiles.map((file, i) => {
+      return {
+        id: uuidv4(),
+        iconUrl: fileUrls[i],
+        name: file.name,
+        status: FileStatus.PENDING,
+      };
+    });
+    return { payload: frontendFiles };
   }
+);
 
-  // Create data URLs for every file.
-  const fileUrls = validFiles.map((file) => URL.createObjectURL(file));
+/**
+ * Thunk for creating a `dialogClosed` action that also handles the
+ * proper memory management.
+ */
+export function closeDialog(): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Release the data for all the images that we uploaded.
+    for (const file of sliceSelectors.selectAll(getState().uploads)) {
+      URL.revokeObjectURL(file.iconUrl);
+    }
 
-  const frontendFiles = validFiles.map((file, i) => {
-    return {
-      id: `${file.name}_${fileUrls[i]}`,
-      iconUrl: fileUrls[i],
-      name: file.name,
-      status: FileStatus.PENDING,
-    };
-  });
-  return { type: PROCESS_SELECTED_FILES, payload: frontendFiles };
+    dispatch(uploadSlice.actions.dialogClosed(null));
+  };
 }
 
 export const uploadSlice = createSlice({
@@ -104,17 +123,15 @@ export const uploadSlice = createSlice({
     // The user is closing the upload dialog.
     dialogClosed(state, _) {
       state.dialogOpen = false;
+
+      // Clear the state for the uploaded files.
+      uploadAdapter.removeAll(state);
     },
 
     // The user is dragging files to be uploaded, and they have entered
     // the drop zone.
     fileDropZoneEntered(state, _) {
       state.isDragging = true;
-
-      // Release the data for all the images that we uploaded.
-      for (const file of sliceSelectors.selectAll(state)) {
-        URL.revokeObjectURL(file?.iconUrl as string);
-      }
     },
     // The user is dragging files to be uploaded, and they have left
     // the drop zone.
@@ -142,7 +159,7 @@ export const uploadSlice = createSlice({
     });
     // The user selected some new files that must be processed.
     builder.addCase(
-      PROCESS_SELECTED_FILES,
+      processSelectedFiles.type,
       (state, action: ProcessSelectedFilesAction) => {
         // Add all the uploaded files.
         uploadAdapter.addMany(state, action.payload);

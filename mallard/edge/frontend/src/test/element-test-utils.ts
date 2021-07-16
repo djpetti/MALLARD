@@ -3,8 +3,12 @@
  */
 
 import {
-  ImageEntity,
+  ArtifactId,
   BackendImageMetadata,
+  FileStatus,
+  FrontendFileEntity,
+  FrontendImageMetadata,
+  ImageEntity,
   RequestState,
   RootState,
   ThumbnailStatus,
@@ -58,7 +62,7 @@ export function fakeThumbnailEntity(
 ): ImageEntity {
   // Determine whether we should simulate a loaded image or not.
   if (imageLoaded == undefined) {
-    imageLoaded = faker.random.boolean();
+    imageLoaded = faker.datatype.boolean();
   }
   // Determine whether we should use a specific capture date.
   if (captureDate == undefined) {
@@ -80,5 +84,53 @@ export function fakeThumbnailEntity(
     status: status,
     imageUrl: imageUrl,
     metadata: metadata,
+  };
+}
+
+/**
+ * Creates a fake entity in our normalized upload file database.
+ * @param status {FileStatus} If specified, use a specific status for this file.
+ * @return {FrontendFileEntity} The entity that it created.
+ */
+export function fakeFrontendFileEntity(
+  status?: FileStatus
+): FrontendFileEntity {
+  const id = faker.datatype.uuid();
+  const iconUrl = faker.image.dataUri();
+  const name = faker.system.fileName();
+  if (status == undefined) {
+    status = faker.random.arrayElement([
+      FileStatus.PENDING,
+      FileStatus.PROCESSING,
+      FileStatus.COMPLETE,
+    ]);
+  }
+
+  return {
+    id: id,
+    iconUrl: iconUrl,
+    name: name,
+    status: status,
+  };
+}
+
+/**
+ * Creates a fake `ArtifactId`.
+ * @return {ArtifactId} The random `ArtifactId` that it created.
+ */
+export function fakeArtifactId(): ArtifactId {
+  return {
+    bucket: faker.lorem.words(),
+    name: faker.datatype.uuid(),
+  };
+}
+
+/**
+ * Creates a fake `FrontendImageMetadata`.
+ * @return {FrontendImageMetadata} The random `FrontendImageMetadata` that it created.
+ */
+export function fakeFrontendImageMetadata(): FrontendImageMetadata {
+  return {
+    name: faker.system.fileName(),
   };
 }

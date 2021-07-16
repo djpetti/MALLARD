@@ -18,6 +18,8 @@ import thunk from "redux-thunk";
 import { fakeState, fakeThumbnailEntity } from "./element-test-utils";
 import each from "jest-each";
 
+// Require syntax must be used here due to an issue that prevents
+// access to faker.seed() when using import syntax.
 const faker = require("faker");
 
 // Using older require syntax here so we get the correct mock type.
@@ -51,7 +53,7 @@ describe("thumbnail-grid-slice action creators", () => {
     faker.seed(1337);
   });
 
-  it("dispatches a startQuery action", async () => {
+  it("creates a startQuery action", async () => {
     // Arrange.
     // Make it look like the query request succeeds.
     const queryResult: QueryResult = {
@@ -82,7 +84,7 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction.payload.result).toEqual(queryResult);
   });
 
-  it("dispatches a loadThumbnail action", async () => {
+  it("creates a loadThumbnail action", async () => {
     // Arrange.
     // Make it look like the loadThumbnail request succeeds.
     const rawImage = faker.image.cats(128, 128);
@@ -118,7 +120,7 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction.payload.imageUrl).toEqual(imageUrl);
   });
 
-  it("dispatches a loadMetadata action", async () => {
+  it("creates a loadMetadata action", async () => {
     // Arrange.
     // Make it look like the getMetadata request succeeds.
     const metadata: BackendImageMetadata = {

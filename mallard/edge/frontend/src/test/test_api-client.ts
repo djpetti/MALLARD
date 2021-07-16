@@ -1,5 +1,19 @@
-import { BackendImageMetadata, ImageQuery, QueryResult } from "../types";
-import { getMetadata, loadThumbnail, queryImages } from "../api-client";
+import {
+  ArtifactId,
+  BackendImageMetadata,
+  ImageQuery,
+  QueryResult,
+} from "../types";
+import {
+  createImage,
+  getMetadata,
+  loadThumbnail,
+  queryImages,
+} from "../api-client";
+import {
+  fakeArtifactId,
+  fakeFrontendImageMetadata,
+} from "./element-test-utils";
 
 const faker = require("faker");
 
@@ -41,8 +55,8 @@ describe("api-client", () => {
       mockImagesApiClass.prototype.queryImagesImagesQueryPost;
 
     const imageIds: string[] = [faker.datatype.uuid(), faker.datatype.uuid()];
-    const pageNum: number = faker.random.number();
-    const isLastPage: boolean = faker.random.boolean();
+    const pageNum: number = faker.datatype.number();
+    const isLastPage: boolean = faker.datatype.boolean();
     mockQueryImages.mockResolvedValue({
       data: {
         image_ids: imageIds,
@@ -155,7 +169,7 @@ describe("api-client", () => {
 
   it("handles a failure when loading metadata", async () => {
     // Arrange.
-    // Make it look like loading a thumbnail fails.
+    // Make it look like loading the metadata fails.
     const mockMetadataGet =
       mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
     const fakeError = new FakeAxiosError();
@@ -165,6 +179,46 @@ describe("api-client", () => {
 
     // Act and assert.
     await expect(getMetadata(imageId)).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can upload a new image", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const mockUavImageCreate =
+      mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
+
+    const artifactId = fakeArtifactId();
+    mockUavImageCreate.mockResolvedValue({ data: { image_id: artifactId } });
+
+    const imageData = faker.datatype.string();
+    const metadata = fakeFrontendImageMetadata();
+
+    // Act.
+    const result: ArtifactId = await createImage(imageData, metadata);
+
+    // Assert.
+    // It should have returned the ID of the artifact it created.
+    expect(result).toEqual(artifactId);
+  });
+
+  it("handles a failure when creating the image", async () => {
+    // Arrange.
+    // Make it look like creating the image fails.
+    const mockUavImageCreate =
+      mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
+    const fakeError = new FakeAxiosError();
+    mockUavImageCreate.mockRejectedValue(fakeError);
+
+    const imageData = faker.datatype.string();
+    const metadata = fakeFrontendImageMetadata();
+
+    // Act and assert.
+    await expect(createImage(imageData, metadata)).rejects.toThrow(
+      FakeAxiosError
+    );
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

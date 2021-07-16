@@ -12,8 +12,8 @@ import store from "./store";
 import { thunkStartQuery } from "./thumbnail-grid-slice";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";
-import {dialogClosed, dialogOpened} from "./upload-slice";
-import {Dialog} from "@material/mwc-dialog";
+import { closeDialog, dialogOpened } from "./upload-slice";
+import { Dialog } from "@material/mwc-dialog";
 
 window.onload = function () {
   registerComponents();
@@ -30,7 +30,7 @@ window.onload = function () {
   // Register the callback for the file upload dialog buttons.
   const doneButton = document.querySelector("#done_button");
   doneButton?.addEventListener("click", () => {
-    store.dispatch(dialogClosed(null));
+    store.dispatch(closeDialog());
     uploadModal?.close();
   });
 

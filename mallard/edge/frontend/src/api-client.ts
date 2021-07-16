@@ -83,14 +83,12 @@ export async function createImage(
 ): Promise<ArtifactId> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
-  const response = await api.createUavImageImagesCreateUavPost(
-    offset,
-    imageData,
-    metadata.name
-  ).catch(function (error) {
-    console.error(error.toJSON());
-    throw error;
-  })
+  const response = await api
+    .createUavImageImagesCreateUavPost(offset, imageData, metadata.name)
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
 
   // Convert from JSON.
   return {

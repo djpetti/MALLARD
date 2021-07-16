@@ -131,9 +131,8 @@ export interface FrontendFileEntity {
   /** Unique, constant ID for this file. */
   id: string;
 
-  /** URL of the file icon. This might not be present if
-   * the file has already been uploaded. */
-  iconUrl: string | null;
+  /** URL of the file icon. */
+  iconUrl: string;
   /** Display name for the file. */
   name: string;
   /** Current status of the file. */

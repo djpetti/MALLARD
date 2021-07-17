@@ -105,11 +105,6 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         )
 
     @__build_query.register
-    def _(self, value: Enum, name: str, query: Query) -> Query:
-        # Search for the enum by value.
-        return self.__build_query(value.value, name, query)
-
-    @__build_query.register
     def _(
         self, value: ImageQuery.Range[date], name: str, query: Query
     ) -> Query:

@@ -11,4 +11,34 @@
     --theme-background: var(--theme-whitish);
     --theme-gray: hsl(107, 10%, 70%);
     --theme-light-gray: hsl(107, 10%, 90%);
+    --theme-lighter-gray: hsl(107, 10%, 95%);
+}
+
+mwc-fab {
+    --mdc-theme-secondary: var(--theme-blackish);
+    --mdc-theme-on-secondary: var(--theme-whitish);
+}
+
+mwc-radio {
+    --mdc-theme-secondary: var(--theme-primary);
+}
+
+mwc-dialog {
+    --mdc-dialog-heading-ink-color: var(--theme-blackish);
+}
+
+mwc-button {
+    --mdc-theme-primary: var(--theme-primary)
+}
+
+mwc-circular-progress {
+    --mdc-theme-primary: var(--theme-primary)
+}
+
+mwc-textfield {
+    --mdc-theme-primary: var(--theme-primary)
+}
+
+mwc-textarea {
+    --mdc-theme-primary: var(--theme-primary)
 }

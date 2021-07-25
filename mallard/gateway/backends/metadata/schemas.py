@@ -160,6 +160,7 @@ class ImageMetadata(Metadata):
     location_description: Optional[str] = None
 
 
+@as_form
 class UavImageMetadata(ImageMetadata):
     """
     Represents metadata for an image taken by a UAV.

@@ -1,4 +1,5 @@
 @use "@material/elevation/mdc-elevation";
+@use "multi_column";
 @use "colors";
 
 #main_app_bar {
@@ -7,9 +8,6 @@
 }
 
 #add_data {
-  --mdc-theme-secondary: var(--theme-blackish);
-  --mdc-theme-on-secondary: var(--theme-whitish);
-
   /* Position in bottom right. */
   position: absolute;
   bottom: 0;
@@ -17,11 +15,33 @@
   padding: 20pt;
 }
 
-mwc-dialog {
-  --mdc-dialog-heading-ink-color: var(--theme-blackish);
+#upload_modal {
+  /** Provide for two-column layout. */
+  --mdc-dialog-max-width: 2000px;
+}
+
+#upload_row {
+  height: 70vh;
+}
+
+#upload_column {
+  z-index: 20;
+}
+
+#metadata_column {
+  margin-left: 24px;
+  margin-right: -24px;
+  box-shadow: inset 1px 1px 5px 1px rgba(0, 0, 0, 0.2);
+  background-color: var(--theme-lighter-gray);
 }
 
 body {
   background-color: var(--theme-background);
   margin: 0;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }

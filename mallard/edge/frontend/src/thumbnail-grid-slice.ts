@@ -6,7 +6,7 @@ import {
 import {
   ArtifactId,
   ImageEntity,
-  BackendImageMetadata,
+  ImageMetadata,
   ImageQuery,
   QueryResult,
   RequestState,
@@ -37,7 +37,7 @@ interface LoadThumbnailReturn {
  */
 interface LoadMetadataReturn {
   imageIds: string[];
-  metadata: BackendImageMetadata[];
+  metadata: ImageMetadata[];
 }
 
 /**
@@ -99,7 +99,7 @@ export const thunkLoadMetadata = createAsyncThunk(
   "thumbnailGrid/loadMetadata",
   async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
     // Asynchronously load metadata for all the images.
-    const metadataPromises: Promise<BackendImageMetadata>[] = imageIds.map(
+    const metadataPromises: Promise<ImageMetadata>[] = imageIds.map(
       (imageId: string) => {
         // This should never be undefined, because that means our image ID is invalid.
         const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
@@ -110,9 +110,7 @@ export const thunkLoadMetadata = createAsyncThunk(
         return getMetadata(imageEntity.backendId);
       }
     );
-    const metadata: BackendImageMetadata[] = await Promise.all(
-      metadataPromises
-    );
+    const metadata: ImageMetadata[] = await Promise.all(metadataPromises);
 
     return { imageIds: imageIds, metadata: metadata };
   }

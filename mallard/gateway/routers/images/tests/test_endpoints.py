@@ -483,6 +483,25 @@ async def test_get_image_metadata_nonexistent(
 
 
 @pytest.mark.asyncio
+async def test_infer_metadata(create_uav_params: CreateUavParams) -> None:
+    """
+    Tests that `infer_metadata` works.
+
+    Args:
+        create_uav_params: Common parameters for testing image creation.
+
+    """
+    # Act.
+    got_metadata = await endpoints.infer_image_metadata(
+        create_uav_params.mock_metadata
+    )
+
+    # Assert.
+    # Without dependencies, this should just function as a pass-through.
+    assert got_metadata == create_uav_params.mock_metadata
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("results_per_page", "page_num", "total_results", "is_last"),
     (

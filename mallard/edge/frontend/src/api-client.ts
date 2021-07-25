@@ -1,16 +1,36 @@
 import { Configuration, ImagesApi } from "typescript-axios";
-import {
-  ArtifactId,
-  BackendImageMetadata,
-  FrontendImageMetadata,
-  ImageQuery,
-  QueryResult,
-} from "./types";
+import { ArtifactId, ImageMetadata, ImageQuery, QueryResult } from "./types";
 
 /** Singleton API client used by the entire application. */
 const api = new ImagesApi(
   new Configuration({ basePath: "http://localhost:8081/api/v1" })
 );
+
+/**
+ * Converts a raw response from Axios to a metadata structure.
+ * @param {any} response The response to convert.
+ * @return {ImageMetadata} The equivalent metadata.
+ */
+function responseToMetadata(response: any): ImageMetadata {
+  const rawResult = response.data;
+  return {
+    name: rawResult.name,
+    format: rawResult.format,
+    platformType: rawResult.platform_type,
+    notes: rawResult.notes,
+    sessionNumber: rawResult.session_number,
+    sequenceNumber: rawResult.sequence_number,
+    captureDate: rawResult.capture_date,
+    camera: rawResult.camera,
+    location: {
+      latitudeDeg: rawResult.latitude_deg,
+      longitudeDeg: rawResult.longitude_deg,
+    },
+    locationDescription: rawResult.location_description,
+    altitudeMeters: rawResult.altitude_meters,
+    gsdCmPx: rawResult.gsd_cm_px,
+  };
+}
 
 /**
  * Performs a query for images.
@@ -54,11 +74,9 @@ export async function loadThumbnail(imageId: ArtifactId): Promise<string> {
 /**
  * Loads metadata for an image.
  * @param {ArtifactId} imageId The ID of the image to load metadata for.
- * @return {BackendImageMetadata} The image metadata.
+ * @return {ImageMetadata} The image metadata.
  */
-export async function getMetadata(
-  imageId: ArtifactId
-): Promise<BackendImageMetadata> {
+export async function getMetadata(imageId: ArtifactId): Promise<ImageMetadata> {
   const response = await api
     .getImageMetadataImagesMetadataBucketNameGet(imageId.bucket, imageId.name)
     .catch(function (error) {
@@ -67,19 +85,18 @@ export async function getMetadata(
     });
 
   // Convert from JSON.
-  return {
-    captureDate: response.data.capture_date,
-  };
+  return responseToMetadata(response);
 }
 
 /**
  * Uploads a new image.
  * @param {Blob} imageData The raw image data.
- * @param {FrontendImageMetadata} metadata The associated metadata for the image.
+ * @param {ImageMetadata} metadata The associated metadata for the image.
+ * @return {ArtifactId} The ID of the new artifact that it created.
  */
 export async function createImage(
   imageData: Blob,
-  metadata: FrontendImageMetadata
+  metadata: ImageMetadata
 ): Promise<ArtifactId> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
@@ -95,4 +112,32 @@ export async function createImage(
     bucket: response.data.image_id.bucket,
     name: response.data.image_id.name,
   };
+}
+
+/**
+ * Infers metadata from a provided image.
+ * @param {Blob} imageData The image to infer metadata from.
+ * @param {ImageMetadata} knownMetadata Any previously-known metadata.
+ * @return {ImageMetadata} The inferred metadata.
+ */
+export async function inferMetadata(
+  imageData: Blob,
+  knownMetadata: ImageMetadata
+): Promise<ImageMetadata> {
+  // Get the local timezone offset.
+  const offset = new Date().getTimezoneOffset() / 60;
+
+  const response = await api
+    .inferImageMetadataImagesMetadataInferPost(
+      offset,
+      imageData,
+      knownMetadata.name
+    )
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
+
+  // Convert from JSON.
+  return responseToMetadata(response);
 }

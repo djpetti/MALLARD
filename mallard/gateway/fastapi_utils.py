@@ -47,29 +47,29 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
 
     """
 
-    def make_form_parameter(field: ModelField) -> Any:
+    def make_form_parameter(field_: ModelField) -> Any:
         """
         Converts a field from a `Pydantic` model to the appropriate `FastAPI`
         parameter type.
 
         Args:
-            field: The field to convert.
+            field_: The field to convert.
 
         Returns:
             Either the result of `Form`, if the field is not a sub-model, or
             the result of `Depends` if it is.
 
         """
-        if issubclass(field.type_, BaseModel):
+        if issubclass(field_.type_, BaseModel):
             # This is a sub-model.
-            assert hasattr(field.type_, "as_form"), (
-                f"Sub-model class for {field.name} field must be decorated with"
+            assert hasattr(field_.type_, "as_form"), (
+                f"Sub-model class for {field_.name} field must be decorated with"
                 f" `as_form` too."
             )
-            return Depends(field.type_.as_form)
+            return Depends(field_.type_.as_form)
         else:
-            # This is just a normal field.
-            return Form(field.default) if not field.required else Form(...)
+            # This is just a normal field_.
+            return Form(field_.default) if not field_.required else Form(...)
 
     new_params = []
     for field in cls.__fields__.values():
@@ -83,12 +83,13 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
             ), "Enums must also inherit from str when used in forms."
             field_type = str
 
-        inspect.Parameter(
+        param = inspect.Parameter(
             field.alias,
             inspect.Parameter.POSITIONAL_ONLY,
             default=make_form_parameter(field),
             annotation=field_type,
         )
+        new_params.append(param)
 
     async def _as_form(**data):
         return cls(**data)

@@ -7,7 +7,7 @@ import thumbnailGridReducer, {
 } from "../thumbnail-grid-slice";
 import {
   ArtifactId,
-  BackendImageMetadata,
+  ImageMetadata,
   ImageQuery,
   QueryResult,
   RequestState,
@@ -123,7 +123,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a loadMetadata action", async () => {
     // Arrange.
     // Make it look like the getMetadata request succeeds.
-    const metadata: BackendImageMetadata = {
+    const metadata: ImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
     getMetadata.mockResolvedValue(metadata);
@@ -273,7 +273,7 @@ describe("thumbnail-grid-slice reducers", () => {
     state.entities[imageId] = fakeEntity;
 
     // Create the fake loaded metadata.
-    const metadata: BackendImageMetadata = {
+    const metadata: ImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
     const metadataInfo = { imageIds: [imageId], metadata: [metadata] };

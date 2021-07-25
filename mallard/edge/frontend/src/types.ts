@@ -1,4 +1,5 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
+import Geo = Faker.Geo;
 
 /**
  * Represents the state of a long-running request.
@@ -44,24 +45,66 @@ export interface QueryResult {
 }
 
 /**
- * Represents image metadata as received from the backend.
+ * Possible platform types.
  */
-export interface BackendImageMetadata {
-  /** The date that the image was captured on. This is in raw string
-   * form to please Redux, but should be trivially convertible to a Date object.
-   */
-  captureDate: string;
+export enum PlatformType {
+  GROUND,
+  AERIAL,
 }
 
 /**
- * Represents image metadata as sent to the backend. This is slightly
- * different from the backend version, as it allows for certain parameters
- * to be inferred automatically by the backend. It also allows for some
- * parameters to be in a format more convenient to the frontend.
+ * Possible image formats.
  */
-export interface FrontendImageMetadata {
+export enum ImageFormat {
+  GIF,
+  TIFF,
+  JPEG,
+  BMP,
+  PNG,
+}
+
+/** Represents a point on earth. */
+export interface GeoPoint {
+  /** The latitude of the point, in decimal degrees. */
+  latitudeDeg: number;
+  /** The longitude of the point, in decimal degrees. */
+  longitudeDeg: number;
+}
+
+/**
+ * Represents image metadata.
+ */
+export interface ImageMetadata {
   /** The name of the image. */
-  name: string | null;
+  name?: string;
+  /** The image format. */
+  format?: ImageFormat;
+  /** The type of platform the image came from. */
+  platformType?: PlatformType;
+  /** Associated notes for this image. */
+  notes?: string;
+
+  /** Session number used to group images from the same session. */
+  sessionNumber?: number;
+  /** Defines ordering of images within a session. */
+  sequenceNumber?: number;
+
+  /** The date that the image was captured on. This is in raw string
+   * form to please Redux, but should be trivially convertible to a Date object.
+   */
+  captureDate?: string;
+  /** The name of the camera that the image was captured by. */
+  camera?: string;
+  /** Location where the image was captured. */
+  location?: GeoPoint;
+  /** Text description of the location. */
+  locationDescription?: string;
+
+  // Aerial-platform-specific parameters.
+  /** Flight altitude in meters, AGL. */
+  altitudeMeters?: number;
+  /** GSD in cm/px. */
+  gsdCmPx?: number;
 }
 
 /**
@@ -95,7 +138,7 @@ export interface ImageEntity {
   /** The object URL of the image. */
   imageUrl: string | null;
   /** The metadata associated with the image. */
-  metadata: BackendImageMetadata | null;
+  metadata: ImageMetadata | null;
 }
 
 /**

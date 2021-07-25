@@ -82,11 +82,6 @@ describe("file-list", () => {
         f,
       ])
     );
-    const statusToFiles: Map<FileStatus, string[]> = new Map([
-      [FileStatus.PENDING, [pendingFile1.name, pendingFile2.name]],
-      [FileStatus.PROCESSING, [processingFile.name]],
-      [FileStatus.COMPLETE, [completeFile.name]],
-    ]);
     // Whether we have seen at least one file with a particular status
     // when we iterate over the displayed items.
     const sawFileWithStatus: Map<FileStatus, boolean> = new Map([

@@ -1,9 +1,4 @@
-import {
-  ArtifactId,
-  BackendImageMetadata,
-  ImageQuery,
-  QueryResult,
-} from "../types";
+import { ArtifactId, ImageMetadata, ImageQuery, QueryResult } from "../types";
 import {
   createImage,
   getMetadata,
@@ -156,7 +151,7 @@ describe("api-client", () => {
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
-    const result: BackendImageMetadata = await getMetadata(imageId);
+    const result: ImageMetadata = await getMetadata(imageId);
 
     // Assert.
     // It should have loaded the thumbnail.

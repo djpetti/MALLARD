@@ -6,7 +6,14 @@
 
 <!-- Upload modal (initially closed) -->
 <mwc-dialog id="upload_modal" heading="Upload Data">
-    <file-uploader></file-uploader>
+    <div class="row" id="upload_row">
+        <div id="upload_column" class="column_width1">
+            <file-uploader></file-uploader>
+        </div>
+        <div id="metadata_column" class="column_width1 center">
+            <metadata-form></metadata-form>
+        </div>
+    </div>
 
     <mwc-button id="done_button" slot="primaryAction">
         Done

@@ -1,0 +1,22 @@
+.row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+@mixin column {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+}
+
+.column_width1 {
+  @include column;
+  flex: 1;
+}
+
+.column_width2 {
+  @include column;
+  flex: 2;
+}

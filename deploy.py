@@ -211,7 +211,9 @@ def _make_parser() -> ArgumentParser:
 
     """
     parser = ArgumentParser(description="Build and deploy to GAE.")
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(
+        title="action", dest="action", required=True
+    )
 
     deploy_parser = subparsers.add_parser("deploy", help="Deploy to GAE.")
     deploy_parser.add_argument(

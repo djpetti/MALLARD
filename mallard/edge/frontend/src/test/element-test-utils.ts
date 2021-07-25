@@ -4,10 +4,9 @@
 
 import {
   ArtifactId,
-  BackendImageMetadata,
   FileStatus,
   FrontendFileEntity,
-  FrontendImageMetadata,
+  ImageMetadata,
   ImageEntity,
   RequestState,
   RootState,
@@ -71,7 +70,7 @@ export function fakeThumbnailEntity(
 
   let status: ThumbnailStatus = ThumbnailStatus.LOADING;
   let imageUrl: string | null = null;
-  let metadata: BackendImageMetadata | null = null;
+  let metadata: ImageMetadata | null = null;
   if (imageLoaded) {
     // Simulate a loaded image.
     status = ThumbnailStatus.VISIBLE;
@@ -89,7 +88,7 @@ export function fakeThumbnailEntity(
 
 /**
  * Creates a fake entity in our normalized upload file database.
- * @param status {FileStatus} If specified, use a specific status for this file.
+ * @param {FileStatus} status If specified, use a specific status for this file.
  * @return {FrontendFileEntity} The entity that it created.
  */
 export function fakeFrontendFileEntity(
@@ -126,10 +125,10 @@ export function fakeArtifactId(): ArtifactId {
 }
 
 /**
- * Creates a fake `FrontendImageMetadata`.
- * @return {FrontendImageMetadata} The random `FrontendImageMetadata` that it created.
+ * Creates a fake `ImageMetadata`.
+ * @return {ImageMetadata} The random `ImageMetadata` that it created.
  */
-export function fakeFrontendImageMetadata(): FrontendImageMetadata {
+export function fakeFrontendImageMetadata(): ImageMetadata {
   return {
     name: faker.system.fileName(),
   };

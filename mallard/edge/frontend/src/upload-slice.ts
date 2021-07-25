@@ -1,7 +1,7 @@
 import {
   FileStatus,
   FrontendFileEntity,
-  FrontendImageMetadata,
+  ImageMetadata,
   RootState,
   UploadState,
 } from "./types";
@@ -51,7 +51,7 @@ export const thunkUploadFile = createAsyncThunk(
     const fileContents = await fileReadResponse.blob();
 
     // Upload all the files.
-    const metadata: FrontendImageMetadata = { name: uploadFile.name };
+    const metadata: ImageMetadata = { name: uploadFile.name };
     // File should always be loaded at the time we perform this action.
     await createImage(fileContents, metadata);
   }
@@ -100,6 +100,8 @@ export const processSelectedFiles = createAction(
 /**
  * Thunk for creating a `dialogClosed` action that also handles the
  * proper memory management.
+ * @return {ThunkResult} Does not actually return anything, because it simply
+ *  dispatches other actions.
  */
 export function closeDialog(): ThunkResult<void> {
   return (dispatch, getState) => {

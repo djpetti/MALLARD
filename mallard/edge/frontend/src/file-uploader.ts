@@ -15,6 +15,10 @@ import {
 } from "./upload-slice";
 import { Action } from "redux";
 
+/** Aliases for custom events. */
+type DropZoneDraggingEvent = CustomEvent<boolean>;
+type DropZoneDropEvent = CustomEvent<DataTransferItemList>;
+
 /**
  * An element that allows the user to select and upload files.
  */
@@ -22,6 +26,10 @@ export class FileUploader extends LitElement {
   /** Tag name for this element. */
   static tagName: string = "file-uploader";
   static styles = css`
+    :host {
+      height: 100%;
+    }
+
     /** Content on the bottom layer is scrollable and occluded by
      content on top. */
     .bottom_layer {
@@ -53,7 +61,6 @@ export class FileUploader extends LitElement {
     /** Show shadow only along bottom of the drop zone. */
     #drop_zone_container {
       min-width: 500px;
-      overflow: hidden;
       padding-bottom: 10px;
       margin-left: -24px;
       margin-right: -24px;
@@ -67,9 +74,7 @@ export class FileUploader extends LitElement {
 
     .file_list {
       min-width: 500px;
-      min-height: 100px;
-      max-height: 300px;
-      padding-top: 130px;
+      height: 100%;
       margin-left: -24px;
       margin-right: -24px;
     }
@@ -102,33 +107,54 @@ export class FileUploader extends LitElement {
     }
 
     #browse {
-      position: relative;
+      position: absolute;
       z-index: 15;
       top: 167px;
-      right: -90%;
+      left: 85%;
+    }
+
+    #file_list {
+      position: absolute;
+      top: 200px;
+      width: 100%;
     }
   `;
 
   /** Maximum number of files we are allowed to upload simultaneously. */
   static MAX_CONCURRENT_UPLOADS = 3;
+
   /** Name for the custom event signalling that a new file is ready. */
   static UPLOAD_READY_EVENT_NAME = "upload-ready";
+  /** Name for the event signaling that the user has dragged a file into
+   * or out of the upload drop zone. */
+  static DROP_ZONE_DRAGGING_EVENT_NAME = "upload-drop-zone-dragging";
+  /** Name for the event signaling that the user has dropped a file into the
+   * upload drop zone.
+   */
+  static DROP_ZONE_DROP_EVENT_NAME = "upload-drop-zone-drop";
 
   /**
    * Keeps track of whether the user is actively dragging something
    * over the drop target.
    */
-  @property({ type: Boolean, attribute: false })
-  isDragging: boolean = false;
+  @property({ attribute: false })
+  protected isDragging: boolean = false;
+
+  /** The raw file list data that the user last uploaded. */
+  @property({ attribute: false })
+  protected selectedFiles: DataTransferItemList | undefined;
 
   /**
    * The list of files that are currently being uploaded.
    */
-  @property({ type: Array, attribute: false })
+  @property({ attribute: false })
   uploadingFiles: FrontendFileEntity[] = [];
 
   @query("#file_list", true)
   private fileList!: FileList;
+
+  @query("#upload_drop_zone", true)
+  private dropZone!: HTMLElement;
 
   /**
    * @inheritDoc
@@ -139,17 +165,31 @@ export class FileUploader extends LitElement {
 
     return html`
       <link rel="stylesheet" href="./static/mallard-edge.css" />
+
       <div id="drop_zone_container" class="top_layer">
         <div id="drop_zone_card" class="mdc-elevation--z2">
           <div
             id="upload_drop_zone"
             class="drop_zone ${dropZoneClass}"
+            @dragenter="${(event: Event) => {
+              event.preventDefault();
+              this.isDragging = true;
+            }}"
+            @dragleave="${(event: Event) => {
+              event.preventDefault();
+              this.isDragging = false;
+            }}"
             @dragover="${
               // This is needed to suppress default behavior in the
               // browser, but we have no good way of testing that.
               // istanbul ignore next
               (event: Event) => event.preventDefault()
             }"
+            @drop="${(event: DragEvent) => {
+              event.preventDefault();
+              this.selectedFiles = event.dataTransfer?.items;
+              this.isDragging = false;
+            }}"
           >
             <mwc-icon id="upload_icon" class="${dropZoneClass}"
               >upload_file
@@ -160,8 +200,10 @@ export class FileUploader extends LitElement {
             </p>
           </div>
         </div>
+
+        <mwc-fab icon="add" id="browse"></mwc-fab>
       </div>
-      <mwc-fab icon="add" id="browse"></mwc-fab>
+
       <div class="file_list bottom_layer">
         <file-list id="file_list"></file-list>
       </div>
@@ -214,11 +256,33 @@ export class FileUploader extends LitElement {
         this.dispatchEvent(
           new CustomEvent<string>(FileUploader.UPLOAD_READY_EVENT_NAME, {
             bubbles: true,
-            composed: false,
+            composed: true,
             detail: file.id,
           })
         );
       }
+    }
+
+    // Handle updating the state when dragging starts and finishes.
+    if (_changedProperties.has("isDragging")) {
+      this.dispatchEvent(
+        new CustomEvent<boolean>(FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME, {
+          bubbles: true,
+          composed: true,
+          detail: this.isDragging,
+        })
+      );
+    }
+    if (_changedProperties.has("selectedFiles")) {
+      this.dispatchEvent(
+        new CustomEvent<DataTransferItemList>(
+          FileUploader.DROP_ZONE_DROP_EVENT_NAME,
+          {
+            bubbles: true,
+            composed: true,
+            detail: this.selectedFiles,
+          })
+      );
     }
   }
 }
@@ -242,7 +306,6 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
     const allFiles: FrontendFileEntity[] = uploadSelectors.selectAll(state);
     return {
       uploadingFiles: allFiles,
-      isDragging: state.uploads.isDragging,
     };
   }
 
@@ -250,20 +313,25 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
    * @inheritDoc
    */
   mapEvents(): { [p: string]: (event: Event) => Action } {
-    let handlers: { [p: string]: (event: Event) => Action } = {
-      dragenter: (_) => fileDropZoneEntered(null),
-      dragleave: (_) => fileDropZoneExited(null),
-      drop: (event: Event) => {
-        event.preventDefault();
+    const handlers: { [p: string]: (event: Event) => Action } = {};
 
-        // istanbul ignore next
-        const fileList =
-          (event as DragEvent).dataTransfer?.items ??
-          // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
-          new DataTransferItemList();
-        return processSelectedFiles(fileList);
-      },
+    handlers[ConnectedFileUploader.DROP_ZONE_DRAGGING_EVENT_NAME] = (
+      event: Event
+    ) =>
+      (event as DropZoneDraggingEvent).detail
+        ? fileDropZoneEntered(null)
+        : fileDropZoneExited(null);
+    handlers[ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME] = (
+      event: Event
+    ) => {
+      // istanbul ignore next
+      const fileList =
+        (event as DropZoneDropEvent).detail ??
+        // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
+        new DataTransferItemList();
+      return processSelectedFiles(fileList);
     };
+
     // The fancy casting here is a hack to deal with the fact that thunkReadFiles
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.

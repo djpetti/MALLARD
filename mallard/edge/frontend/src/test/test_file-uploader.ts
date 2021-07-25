@@ -156,15 +156,22 @@ describe("file-uploader", () => {
   ]).it(
     "displays a visual cue when %s",
     async (_: string, isDragging: boolean, expectedClass: string) => {
+      // Arrange.
+      const shadowRoot = getShadowRoot(fileUploader.tagName);
+      const dropZone = shadowRoot.querySelector(
+        "#upload_drop_zone"
+      ) as HTMLElement;
+
       // Act.
-      // Set the dragging status properly.
-      fileUploader.isDragging = isDragging;
+      // Fake a dragging event.
+      if (isDragging) {
+        dropZone.dispatchEvent(new Event("dragenter"));
+      } else {
+        dropZone.dispatchEvent(new Event("dragleave"));
+      }
       await fileUploader.updateComplete;
 
       // Assert.
-      const shadowRoot = getShadowRoot(FileUploader.tagName);
-      const dropZone = shadowRoot.querySelector("#upload_drop_zone");
-
       // It should have chosen the correct class.
       expect(dropZone?.classList.value.split(" ")).toContain(expectedClass);
     }
@@ -182,9 +189,6 @@ describe("file-uploader", () => {
     state.uploads.entities[uploadFile1.id] = uploadFile1;
     state.uploads.entities[uploadFile2.id] = uploadFile2;
 
-    // Set the dragging state.
-    state.uploads.isDragging = faker.datatype.boolean();
-
     // Act.
     const updates = fileUploader.mapState(state);
 
@@ -193,9 +197,6 @@ describe("file-uploader", () => {
     expect(updates).toHaveProperty("uploadingFiles");
     expect(updates.uploadingFiles).toContain(uploadFile1);
     expect(updates.uploadingFiles).toContain(uploadFile2);
-
-    expect(updates).toHaveProperty("isDragging");
-    expect(updates.isDragging).toEqual(state.uploads.isDragging);
   });
 
   describe("maps the correct actions to events", () => {
@@ -220,29 +221,41 @@ describe("file-uploader", () => {
 
       // Assert.
       // It should have a mapping for the proper events.
-      expect(eventMap).toHaveProperty("dragenter");
-      expect(eventMap).toHaveProperty("dragleave");
+      expect(eventMap).toHaveProperty(
+        FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME
+      );
+      expect(eventMap).toHaveProperty(FileUploader.UPLOAD_READY_EVENT_NAME);
       expect(eventMap).toHaveProperty("drop");
     });
 
-    it("uses the correct action creator for dragenter events", () => {
+    it("uses the correct action creator for drop-zone-dragging entry events", () => {
       // Arrange.
-      const testEvent: FakeDragEvent = { type: "dragenter" };
+      const testEvent: FakeDragEvent = {
+        type: FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME,
+        detail: true,
+      };
 
       // Act.
-      eventMap["dragenter"](testEvent as unknown as Event);
+      eventMap[FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME](
+        testEvent as unknown as Event
+      );
 
       // Assert.
       expect(mockDropZoneEntered).toBeCalledTimes(1);
       expect(mockDropZoneEntered).toBeCalledWith(null);
     });
 
-    it("uses the correct action creator for dragleave events", () => {
+    it("uses the correct action creator for drop-zone-dragging exit events", () => {
       // Arrange.
-      const testEvent = { type: "dragleave" };
+      const testEvent = {
+        type: FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME,
+        detail: false,
+      };
 
       // Act.
-      eventMap["dragleave"](testEvent as unknown as Event);
+      eventMap[FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME](
+        testEvent as unknown as Event
+      );
 
       // Assert.
       expect(mockDropZoneExited).toBeCalledTimes(1);

@@ -45,7 +45,7 @@ function groupByDate(imageIds: string[], state: RootState): GroupedImages[] {
       );
     }
 
-    const captureDate: string = entity.metadata.captureDate;
+    const captureDate: string = entity.metadata.captureDate as string;
     if (!datesToImages.has(captureDate)) {
       // Add the empty group.
       datesToImages.set(captureDate, []);

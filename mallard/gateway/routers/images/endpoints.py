@@ -403,6 +403,23 @@ async def get_image_metadata(
     return metadata
 
 
+@router.post("/metadata/infer")
+async def infer_image_metadata(
+    metadata: UavImageMetadata = Depends(filled_uav_metadata),
+) -> UavImageMetadata:
+    """
+    Infers the metadata for an image.
+
+    Args:
+        metadata: Can be used to provide partial metadata to build on.
+
+    Returns:
+        The metadata that it was able to infer.
+
+    """
+    return metadata
+
+
 @router.post("/query")
 async def query_images(
     query: ImageQuery = ImageQuery(),

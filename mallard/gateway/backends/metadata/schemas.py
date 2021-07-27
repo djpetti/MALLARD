@@ -8,7 +8,7 @@ this representation allows things to remain flexible.
 
 import enum
 from datetime import date
-from typing import Dict, Generic, Optional, TypeVar
+from typing import Dict, Generic, Optional, Set, TypeVar
 
 from pydantic import BaseModel, validator
 from pydantic.generics import GenericModel
@@ -129,8 +129,7 @@ class ImageMetadata(Metadata):
         platform_type: The type of platform that these data were collected from.
         notes: Arbitrary full-text notes for this image.
 
-        session_number: An optional session number that can be used to
-            group images in the same session.
+        session_name: Name used to group images as part of the same session.
         sequence_number: An optional sequence number that can be used to
             define ordering of images within the same session.
 
@@ -151,7 +150,7 @@ class ImageMetadata(Metadata):
     platform_type: PlatformType = PlatformType.GROUND
     notes: str = ""
 
-    session_number: int = 0
+    session_name: Optional[str] = None
     sequence_number: Optional[int] = None
 
     capture_date: Optional[date] = None
@@ -197,9 +196,9 @@ class Ordering(BaseModel):
         """
         Order by name, alphabetically.
         """
-        SESSION_NUM = "session_num"
+        SESSION = "session_num"
         """
-        Order by session number.
+        Order by session name, alphabetically.
         """
         SEQUENCE_NUM = "sequence_num"
         """
@@ -238,7 +237,7 @@ class ImageQuery(BaseModel):
         notes: Partial-text search query for image notes.
         camera: Partial-text search query for camera models.
 
-        session_numbers: Look for images from these sessions.
+        sessions: Look for images from these sessions.
         sequence_numbers: Look for images with these sequence numbers.
         capture_dates: Look for images with these capture dates.
 
@@ -308,7 +307,7 @@ class ImageQuery(BaseModel):
     notes: Optional[str] = None
     camera: Optional[str] = None
 
-    session_numbers: Optional[Range[int]] = None
+    sessions: Optional[Set[str]] = None
     sequence_numbers: Optional[Range[int]] = None
     capture_dates: Optional[Range[date]] = None
 

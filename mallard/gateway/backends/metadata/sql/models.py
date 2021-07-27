@@ -31,8 +31,7 @@ class Image(Base):
         platform_type: The type of platform that these data were collected from.
         notes: Arbitrary full-text notes for this image.
 
-        session_number: An optional session number that can be used to
-            group images in the same session.
+        session_name: Name used to group images as part of the same session.
         sequence_number: An optional sequence number that can be used to
             define ordering of images within the same session.
 
@@ -62,7 +61,7 @@ class Image(Base):
     platform_type = Column(Enum(PlatformType), nullable=False)
     notes = Column(Text, default="")
 
-    session_number = Column(Integer, nullable=False)
+    session_name = Column(String(50))
     sequence_number = Column(Integer)
 
     capture_date = Column(Date)

@@ -3,7 +3,6 @@ A metadata store that interfaces with a SQL database.
 """
 
 from contextlib import asynccontextmanager
-from enum import Enum
 from functools import cache, singledispatchmethod
 from typing import (
     Any,
@@ -58,7 +57,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
     _ORDER_TO_COLUMN: Dict[Ordering.Field, InstrumentedAttribute] = {
         Ordering.Field.NAME: Image.name,
-        Ordering.Field.SESSION_NUM: Image.session_number,
+        Ordering.Field.SESSION: Image.session_name,
         Ordering.Field.SEQUENCE_NUM: Image.sequence_number,
         Ordering.Field.CAPTURE_DATE: Image.capture_date,
         Ordering.Field.CAMERA: Image.camera,
@@ -216,6 +215,17 @@ class SqlImageMetadataStore(ImageMetadataStore):
     @__update_query.register
     def _(
         self,
+        value: set,
+        *,
+        query: Select,
+        column: InstrumentedAttribute,
+    ) -> Select:
+        # Match any of the tags.
+        return query.where(column.in_(value))
+
+    @__update_query.register
+    def _(
+        self,
         value: ImageQuery.Range,
         *,
         query: Select,
@@ -281,7 +291,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
                 (value.name, Image.name),
                 (value.notes, Image.notes),
                 (value.camera, Image.camera),
-                (value.session_numbers, Image.session_number),
+                (value.sessions, Image.session_name),
                 (value.sequence_numbers, Image.sequence_number),
                 (value.capture_dates, Image.capture_date),
                 (value.location_description, Image.location_description),

@@ -275,7 +275,7 @@ class TestSqlImageMetadataStore:
         [
             [Ordering(field=Ordering.Field.NAME)],
             [
-                Ordering(field=Ordering.Field.SESSION_NUM),
+                Ordering(field=Ordering.Field.SESSION),
                 Ordering(field=Ordering.Field.SEQUENCE_NUM, ascending=False),
             ],
         ],
@@ -506,7 +506,7 @@ class TestSqlImageMetadataStore:
         metadata1 = faker.uav_image_metadata()
         metadata1 = metadata1.copy(
             update=dict(
-                name="first image", sequence_number=0, session_number=0
+                name="first image", sequence_number=0, session_name="a"
             )
         )
         object_id1 = faker.object_ref()
@@ -514,7 +514,7 @@ class TestSqlImageMetadataStore:
         metadata2 = faker.uav_image_metadata()
         metadata2 = metadata2.copy(
             update=dict(
-                name="second image", sequence_number=1, session_number=0
+                name="second image", sequence_number=1, session_name="a"
             )
         )
         object_id2 = faker.object_ref()
@@ -522,7 +522,7 @@ class TestSqlImageMetadataStore:
         metadata3 = faker.uav_image_metadata()
         metadata3 = metadata3.copy(
             update=dict(
-                name="first image", sequence_number=0, session_number=1
+                name="first image", sequence_number=0, session_name="b"
             )
         )
         object_id3 = faker.object_ref()
@@ -539,9 +539,7 @@ class TestSqlImageMetadataStore:
         session_0 = [
             r
             async for r in store.query(
-                ImageQuery(
-                    session_numbers=ImageQuery.Range(min_value=0, max_value=0)
-                ),
+                ImageQuery(sessions={"a"}),
                 orderings=(Ordering(field=Ordering.Field.SEQUENCE_NUM),),
             )
         ]
@@ -549,7 +547,7 @@ class TestSqlImageMetadataStore:
             r
             async for r in store.query(
                 ImageQuery(
-                    session_numbers=ImageQuery.Range(min_value=0, max_value=0),
+                    sessions={"a"},
                     sequence_numbers=ImageQuery.Range(
                         min_value=0, max_value=0
                     ),
@@ -560,7 +558,7 @@ class TestSqlImageMetadataStore:
             r
             async for r in store.query(
                 ImageQuery(name="first"),
-                orderings=(Ordering(field=Ordering.Field.SESSION_NUM),),
+                orderings=(Ordering(field=Ordering.Field.SESSION),),
             )
         ]
 

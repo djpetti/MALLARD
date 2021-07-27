@@ -60,7 +60,7 @@ class MetadataProvider(BaseProvider):
             format=self.__random_enum(ImageFormat),
             platform_type=self.__random_enum(PlatformType),
             notes=self.__faker.sentence(),
-            session_number=self.random_int(),
+            session_name=self.__faker.word(),
             sequence_number=self.random_int(),
             capture_date=self.__faker.date_object(),
             camera=self.__faker.word(),
@@ -174,10 +174,11 @@ class MetadataProvider(BaseProvider):
             The `ImageQuery` that it created.
 
         """
-        # Create the fake range values.
-        min_session_num = self.random_int()
-        max_session_num = self.random_int(min=min_session_num)
+        # Generate fake session names.
+        num_sessions = self.random_int(min=0, max=10)
+        sessions = {self.__faker.word() for _ in range(num_sessions)}
 
+        # Create the fake range values.
         min_sequence_num = self.random_int()
         max_sequence_num = self.random_int(min=min_sequence_num)
 
@@ -206,9 +207,7 @@ class MetadataProvider(BaseProvider):
             name=self.__faker.file_name(category="image"),
             notes=self.__faker.sentence(),
             camera=self.__faker.word(),
-            session_numbers=ImageQuery.Range(
-                min_value=min_session_num, max_value=max_session_num
-            ),
+            sessions=sessions,
             sequence_numbers=ImageQuery.Range(
                 min_value=min_sequence_num, max_value=max_sequence_num
             ),

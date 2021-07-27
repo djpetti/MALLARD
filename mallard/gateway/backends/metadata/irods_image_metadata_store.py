@@ -4,12 +4,11 @@ An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
 
 
 from datetime import date, datetime, time
-from enum import Enum
 from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any, AsyncIterable, Iterable
 
-from irods.column import Between, Criterion, Like
+from irods.column import Between, Criterion, In, Like
 from irods.models import Collection, DataObject, DataObjectMeta
 from irods.query import Query
 
@@ -38,7 +37,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         "name": "name",
         "notes": "notes",
         "camera": "camera",
-        "session_numbers": "session_number",
+        "sessions": "session_name",
         "sequence_numbers": "sequence_number",
         "capture_dates": "capture_date",
         "bounding_box": "location",
@@ -102,6 +101,14 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         return query.filter(
             self.__name_criterion(name),
             Like(DataObjectMeta.value, to_irods_string(pattern)),
+        )
+
+    @__build_query.register
+    def _(self, value: set, name: str, query: Query) -> Query:
+        # Match any of the tags.
+        return query.filter(
+            self.__name_criterion(name),
+            In(DataObjectMeta.value, value),
         )
 
     @__build_query.register

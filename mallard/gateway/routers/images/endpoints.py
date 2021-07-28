@@ -403,6 +403,49 @@ async def get_image_metadata(
     return metadata
 
 
+@router.post("/metadata/batch_update")
+async def batch_update_metadata(
+    metadata: UavImageMetadata,
+    images: List[ObjectRef] = Body(...),
+    increment_sequence: bool = Query(False),
+    backends: BackendManager = Depends(BackendManager.depend),
+) -> None:
+    """
+    Updates the metadata for a large number of images at once. Note that any
+    parameters that are set to `None` in `metadata` will retain their
+    original values.
+
+    Args:
+        metadata: The new metadata to set.
+        images: The set of existing images to update.
+        increment_sequence: If this is true, the sequence number will be
+            automatically incremented for each image added, starting at whatever
+            value is set in `metadata`. In this case, the order of the images
+            specified in `images` will determine session numbers.
+        backends: Used to access storage backends.
+
+    """
+    # Since we are dealing with images, the metadata store should be able to
+    # handle them.
+    metadata_store = cast(ImageMetadataStore, backends.metadata_store)
+
+    update_tasks = []
+    for image_id in images:
+        update_tasks.append(
+            asyncio.create_task(
+                metadata_store.update(object_id=image_id, metadata=metadata)
+            )
+        )
+
+        # Increment the sequence number if appropriate.
+        if increment_sequence and metadata.sequence_number is not None:
+            metadata = metadata.copy(
+                update=dict(sequence_number=metadata.sequence_number + 1)
+            )
+
+    await asyncio.gather(*update_tasks)
+
+
 @router.post("/metadata/infer")
 async def infer_image_metadata(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),

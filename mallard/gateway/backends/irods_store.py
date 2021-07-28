@@ -4,7 +4,6 @@ Base class containing methods for interacting with iRODS at a low level.
 
 
 import asyncio
-import functools
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, TypeVar

@@ -8,6 +8,7 @@ import asyncio
 import enum
 from typing import Dict, Type, TypeVar
 
+from irods.data_object import iRODSDataObject
 from irods.exception import CAT_UNKNOWN_FILE, CUT_ACTION_PROCESSED_ERR
 from loguru import logger
 from tenacity import (
@@ -91,6 +92,20 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
 
     MetadataType = TypeVar("MetadataType", bound=Metadata)
 
+    async def __clear_metadata(self, data_object: iRODSDataObject) -> None:
+        """
+        Clears all existing metadata from a given object.
+
+        Args:
+            data_object: The object to remove metadata from.
+
+        """
+        avu_operations = [
+            self._async_db_op(data_object.metadata.remove, a)
+            for a in data_object.metadata.items()
+        ]
+        await asyncio.gather(*avu_operations)
+
     async def _get(
         self, object_id: ObjectRef, *, parse_as: Type[MetadataType]
     ) -> MetadataType:
@@ -117,10 +132,20 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
         logger.debug("Got raw metadata for {}: {}", object_id, metadata)
         return parse_as.parse_raw(metadata.value)
 
-    async def add(self, *, object_id: ObjectRef, metadata: Metadata) -> None:
+    async def add(
+        self,
+        *,
+        object_id: ObjectRef,
+        metadata: Metadata,
+        overwrite: bool = False,
+    ) -> None:
         logger.debug("Adding metadata for object {}.", object_id)
 
         data_object = await self._get_or_create_object(object_id)
+
+        if overwrite:
+            # Make sure we remove any existing metadata before adding our own.
+            await self.__clear_metadata(data_object)
 
         # Convert the metadata into simple keys and values.
         metadata_dict = self.__flatten_metadata(metadata)
@@ -166,8 +191,4 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
             )
             return
 
-        avu_operations = [
-            self._async_db_op(data_object.metadata.remove, a)
-            for a in data_object.metadata.items()
-        ]
-        await asyncio.gather(*avu_operations)
+        await self.__clear_metadata(data_object)

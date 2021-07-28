@@ -52,6 +52,10 @@ class Image(Base):
     """
 
     __tablename__ = "images"
+    # required in order to access columns with server defaults or SQL
+    # expression defaults, subsequent to a flush, without triggering an
+    # expired load.
+    __mapper_args__ = {"eager_defaults": True}
 
     bucket = Column(String(50), primary_key=True)
     key = Column(String(50), primary_key=True)

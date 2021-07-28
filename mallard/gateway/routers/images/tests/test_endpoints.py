@@ -483,6 +483,62 @@ async def test_get_image_metadata_nonexistent(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "increment_sequence", [False, True], ids=("no_increment", "increment")
+)
+async def test_batch_update_metadata(
+    config: ConfigForTests, faker: Faker, increment_sequence: bool
+) -> None:
+    """
+    Tests that `batch_update_metadata` works.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+        increment_sequence: Whether to test with auto-incrementing sequence
+            numbers.
+
+    """
+    # Arrange.
+    # Generate some fake objects.
+    object_ids = []
+    for _ in range(faker.random_int(max=20)):
+        object_ids.append(faker.object_ref())
+
+    metadata = faker.uav_image_metadata()
+
+    # Act.
+    await endpoints.batch_update_metadata(
+        metadata=metadata,
+        images=object_ids,
+        increment_sequence=increment_sequence,
+        backends=config.mock_manager,
+    )
+
+    # Assert.
+    # For the case where we are incrementing, the metadata will be different.
+    if increment_sequence:
+        expected_metadata = [
+            metadata.copy(update=dict(sequence_number=i))
+            for i in range(
+                metadata.sequence_number,
+                metadata.sequence_number + len(object_ids),
+            )
+        ]
+    else:
+        expected_metadata = [metadata] * len(object_ids)
+
+    # It should have updated all of the metadata.
+    mock_metadata_store = config.mock_manager.metadata_store
+    mock_metadata_store.update.assert_has_calls(
+        [
+            mock.call(object_id=o, metadata=m)
+            for o, m in zip(object_ids, expected_metadata)
+        ]
+    )
+
+
+@pytest.mark.asyncio
 async def test_infer_metadata(create_uav_params: CreateUavParams) -> None:
     """
     Tests that `infer_metadata` works.

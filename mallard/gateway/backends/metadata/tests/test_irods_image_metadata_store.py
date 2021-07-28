@@ -8,6 +8,7 @@ from typing import AsyncIterable, Type
 
 import pytest
 from faker import Faker
+from irods.data_object import iRODSDataObject
 from irods.exception import CollectionDoesNotExist, DataObjectDoesNotExist
 from irods.manager.collection_manager import CollectionManager
 from irods.manager.data_object_manager import DataObjectManager
@@ -183,10 +184,20 @@ class TestIrodsImageMetadataStore:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "already_exists", [False, True], ids=("new_file", "existing_file")
+        "already_exists",
+        [False, True],
+        ids=("new_file", "existing_file"),
+    )
+    @pytest.mark.parametrize(
+        "overwrite", [False, True], ids=("no_overwrite", "overwrite")
     )
     async def test_add(
-        self, config: ConfigForTests, faker: Faker, already_exists: bool
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        mocker: MockFixture,
+        already_exists: bool,
+        overwrite: bool,
     ) -> None:
         """
         Tests that `add` works.
@@ -194,11 +205,25 @@ class TestIrodsImageMetadataStore:
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
+            mocker: The fixture to use for mocking.
             already_exists: If false, test the case where the object doesn't
                 exist yet. Otherwise, assume the object exists.
+            overwrite: If true, test the case where we enable overwriting
+                existing metadata.
 
         """
         # Arrange.
+        # Create the fake data object we are setting metadata on.
+        mock_data_object = mocker.create_autospec(iRODSDataObject)
+        config.mock_session.data_objects.get.return_value = mock_data_object
+        config.mock_session.data_objects.create.return_value = mock_data_object
+
+        # Make it look like we have actual metadata items.
+        mock_metadata_items = [
+            mocker.create_autospec(iRODSMeta, instance=True)
+        ] * 2
+        mock_data_object.metadata.items.return_value = mock_metadata_items
+
         if not already_exists:
             # Make sure it looks like the object initially doesn't exist.
             config.mock_session.data_objects.get.side_effect = (
@@ -209,19 +234,20 @@ class TestIrodsImageMetadataStore:
         object_id = faker.object_ref()
 
         # Act.
-        await config.store.add(object_id=object_id, metadata=config.metadata)
+        await config.store.add(
+            object_id=object_id, metadata=config.metadata, overwrite=overwrite
+        )
 
         # Assert.
         config.mock_session.data_objects.get.assert_called_once()
-        if already_exists:
-            # It should have gotten the data object.
-            mock_data_object = (
-                config.mock_session.data_objects.get.return_value
-            )
-        else:
+        if not already_exists:
             # It should have created the data object.
-            mock_data_object = (
-                config.mock_session.data_objects.create.return_value
+            config.mock_session.data_objects.create.assert_called_once()
+
+        if overwrite:
+            # It should have deleted existing metadata.
+            mock_data_object.metadata.remove.assert_has_calls(
+                [mocker.call(i) for i in mock_metadata_items]
             )
 
         # It should have applied the metadata.
@@ -230,6 +256,96 @@ class TestIrodsImageMetadataStore:
         mock_data_object.metadata.add.assert_any_call(
             "json", config.metadata.json()
         )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "new_metadata_type",
+        [ImageMetadata, UavImageMetadata],
+        ids=["image_metadata", "uav_image_metadata"],
+    )
+    @pytest.mark.parametrize(
+        "merge", [True, False], ids=("merge", "overwrite")
+    )
+    async def test_update(
+        self,
+        config: ConfigForTests,
+        class_specific_config: ClassSpecificConfig,
+        faker: Faker,
+        new_metadata_type: Type[ImageMetadata],
+        merge: bool,
+    ) -> None:
+        """
+        Tests that `update` works.
+
+        Args:
+            config: The configuration to use for testing.
+            class_specific_config: The subclass-specific configuration.
+            faker: The fixture to use for generating fake data.
+            new_metadata_type: The type of new metadata to pass in.
+            merge: Whether to test merging or overwriting.
+
+        """
+        # Arrange.
+        # Make it look like we have some existing metadata.
+        old_metadata = config.metadata
+        mock_data_object = config.mock_session.data_objects.get.return_value
+        metadata_avus = iRODSMeta(name="json", value=old_metadata.json())
+        mock_data_object.metadata.get_one.return_value = metadata_avus
+
+        # Create some new metadata.
+        if new_metadata_type == ImageMetadata:
+            new_metadata = faker.image_metadata()
+        else:
+            new_metadata = faker.uav_image_metadata()
+        # Don't fill some of the attributes.
+        new_metadata = new_metadata.copy(update=dict(name=None, camera=None))
+
+        # Make sure we can successfully update the metadata.
+        mock_data_object.metadata.items.return_value = []
+
+        object_id = faker.object_ref()
+
+        # Act.
+        # Try updating the object.
+        await config.store.update(
+            object_id=object_id, metadata=new_metadata, merge=merge
+        )
+
+        # Assert.
+        if merge:
+            # It should have gotten the original metadata.
+            config.mock_session.data_objects.get.assert_called()
+            mock_data_object.metadata.get_one.assert_called_once_with("json")
+
+        # It should have set the new metadata.
+        mock_data_object.metadata.add.assert_called()
+        # Check that the proper new metadata was set.
+        expected_call = mock.call("json", mock.ANY)
+        all_calls = mock_data_object.metadata.add.mock_calls
+        assert expected_call in all_calls
+        actual_call = all_calls[all_calls.index(expected_call)]
+        _, args, _ = actual_call
+        got_new_metadata_json = args[1]
+        got_new_metadata = class_specific_config.metadata_type.parse_raw(
+            got_new_metadata_json
+        )
+
+        modified_fields = set()
+        if merge:
+            # It should not have overwritten the fields we wanted to keep.
+            assert got_new_metadata.name == old_metadata.name
+            assert got_new_metadata.camera == old_metadata.camera
+
+            # Everything else should be updated.
+            modified_fields = {"name", "camera"}
+
+        got_unmodified = got_new_metadata.dict(exclude=modified_fields)
+        expected_unmodified = new_metadata.dict(exclude=modified_fields)
+        # There might be some differences in the fields between the two
+        # of them, because they could be different subclasses of
+        # ImageMetadata.
+        for key in got_unmodified.keys() & expected_unmodified.keys():
+            assert got_unmodified[key] == expected_unmodified[key]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

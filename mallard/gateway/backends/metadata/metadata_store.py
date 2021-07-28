@@ -47,7 +47,9 @@ class MetadataStore(Injectable):
             object_id: The ID of the object in the object store.
 
         Raises:
-            `KeyError` if metadata for the specified object doesn't exist, or
-            `MetadataOperationError` for other failures.
+            -`KeyError`, possibly, if metadata for the specified object
+                doesn't exist. This is not guaranteed, so if you really need to
+                know, check explicitly.
+            - `MetadataOperationError` for other failures.
 
         """

@@ -21,6 +21,7 @@ from sqlalchemy.future import Select, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.sql.expression import delete
 
 from ...objects.models import ObjectRef
 from .. import ImageMetadataStore
@@ -329,14 +330,21 @@ class SqlImageMetadataStore(ImageMetadataStore):
         return query.order_by(column_spec)
 
     async def add(
-        self, *, object_id: ObjectRef, metadata: ImageMetadata
+        self,
+        *,
+        object_id: ObjectRef,
+        metadata: ImageMetadata,
+        overwrite: bool = False,
     ) -> None:
         logger.debug("Adding metadata for object {}.", object_id)
 
         # Add the new image.
         image = self.__pydantic_to_orm_image(object_id, metadata)
         async with self.__session.begin():
-            self.__session.add(image)
+            if overwrite:
+                await self.__session.merge(image)
+            else:
+                self.__session.add(image)
 
     async def get(self, object_id: ObjectRef) -> UavImageMetadata:
         return self.__orm_image_to_pydantic(await self.__get_by_id(object_id))
@@ -345,8 +353,10 @@ class SqlImageMetadataStore(ImageMetadataStore):
         logger.debug("Deleting metadata for object {}.", object_id)
 
         async with self.__session.begin():
-            orm_image = await self.__get_by_id(object_id)
-            await self.__session.delete(orm_image)
+            deletion = delete(Image).where(
+                Image.bucket == object_id.bucket, Image.key == object_id.name
+            )
+            await self.__session.execute(deletion)
 
     async def query(
         self,

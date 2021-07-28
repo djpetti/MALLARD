@@ -5,7 +5,7 @@ Tests for the `sql_image_metadata_store` module.
 
 import unittest.mock as mock
 from pathlib import Path
-from typing import List
+from typing import List, Type
 
 import pytest
 from faker import Faker
@@ -16,10 +16,14 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from mallard.gateway.backends.metadata.schemas import ImageQuery, Ordering
+from mallard.gateway.backends.metadata.schemas import (
+    ImageMetadata,
+    ImageQuery,
+    Ordering,
+    UavImageMetadata,
+)
 from mallard.gateway.backends.metadata.sql import sql_image_metadata_store
-from mallard.gateway.backends.metadata.sql.models import Base, Image
-from mallard.gateway.backends.objects.models import ObjectRef
+from mallard.gateway.backends.metadata.sql.models import Base
 from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -39,12 +43,14 @@ class TestSqlImageMetadataStore:
 
             mock_session: The mocked `AsyncSession` to use.
             mock_select: The mocked `select` function to use.
+            mock_delete: The mocked `delete` function to use.
         """
 
         store: sql_image_metadata_store.SqlImageMetadataStore
 
         mock_session: AsyncSession
         mock_select: mock.Mock
+        mock_delete: mock.Mock
 
     @classmethod
     @pytest.fixture
@@ -63,6 +69,7 @@ class TestSqlImageMetadataStore:
         module_name = sql_image_metadata_store.__name__
         mock_session = mocker.create_autospec(AsyncSession, instance=True)
         mock_select = mocker.patch(f"{module_name}.select")
+        mock_delete = mocker.patch(f"{module_name}.delete")
         # create_autospec is a little overzealous about making these
         # coroutines when in fact they aren't.
         mock_results = mock_session.execute.return_value
@@ -79,7 +86,10 @@ class TestSqlImageMetadataStore:
         store = sql_image_metadata_store.SqlImageMetadataStore(mock_session)
 
         return cls.ConfigForTests(
-            store=store, mock_session=mock_session, mock_select=mock_select
+            store=store,
+            mock_session=mock_session,
+            mock_select=mock_select,
+            mock_delete=mock_delete,
         )
 
     @pytest.fixture
@@ -111,8 +121,11 @@ class TestSqlImageMetadataStore:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("uav", [True, False], ids=["uav", "ground"])
+    @pytest.mark.parametrize(
+        "overwrite", [False, True], ids=["merge", "overwrite"]
+    )
     async def test_add(
-        self, config: ConfigForTests, faker: Faker, uav: bool
+        self, config: ConfigForTests, faker: Faker, uav: bool, overwrite: bool
     ) -> None:
         """
         Tests that we can add metadata.
@@ -121,6 +134,7 @@ class TestSqlImageMetadataStore:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
             uav: If true, simulate UAV metadata.
+            overwrite: If true, test overwriting existing data.
 
         """
         # Arrange.
@@ -133,14 +147,20 @@ class TestSqlImageMetadataStore:
         object_id = faker.object_ref()
 
         # Act.
-        await config.store.add(object_id=object_id, metadata=metadata)
+        await config.store.add(
+            object_id=object_id, metadata=metadata, overwrite=overwrite
+        )
 
         # Assert.
         # It should have added a new row to the database.
-        config.mock_session.add.assert_called_once()
+        if overwrite:
+            config.mock_session.merge.assert_called_once()
+            args, _ = config.mock_session.merge.call_args
+        else:
+            config.mock_session.add.assert_called_once()
+            args, _ = config.mock_session.add.call_args
 
         # Make sure the parameters got copied over correctly.
-        args, _ = config.mock_session.add.call_args
         orm_model = args[0]
 
         assert orm_model.bucket == object_id.bucket
@@ -152,6 +172,88 @@ class TestSqlImageMetadataStore:
             assert orm_model.altitude_meters == metadata.altitude_meters
         else:
             assert orm_model.altitude_meters is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "new_metadata_type",
+        [ImageMetadata, UavImageMetadata],
+        ids=["image_metadata", "uav_image_metadata"],
+    )
+    @pytest.mark.parametrize(
+        "merge", [True, False], ids=("merge", "overwrite")
+    )
+    async def test_update(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        mocker: MockFixture,
+        new_metadata_type: Type[ImageMetadata],
+        merge: bool,
+    ) -> None:
+        """
+        Tests that `update` works.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+            mocker: The fixture to use for mocking.
+            new_metadata_type: The type of new metadata to pass in.
+            merge: Whether to test merging or overwriting.
+
+        """
+        # Arrange.
+        object_id = faker.object_ref()
+
+        # Make it look like we have some existing metadata.
+        mock_results = config.mock_session.execute.return_value
+        mock_scalars = mocker.create_autospec(ScalarResult, instance=True)
+        mock_results.scalars.return_value = mock_scalars
+
+        old_model = faker.image_model(object_id=object_id)
+        mock_scalars.one.return_value = old_model
+
+        # Create some new metadata.
+        if new_metadata_type == ImageMetadata:
+            new_metadata = faker.image_metadata()
+        else:
+            new_metadata = faker.uav_image_metadata()
+        # Don't fill some of the attributes.
+        new_metadata = new_metadata.copy(update=dict(name=None, camera=None))
+
+        # Act.
+        # Try updating the object.
+        await config.store.update(
+            object_id=object_id, metadata=new_metadata, merge=merge
+        )
+
+        # Assert.
+        # It should have set the new metadata.
+        config.mock_session.merge.assert_called_once()
+        added_model = config.mock_session.merge.call_args[0][0]
+
+        # Check that the proper new metadata was set.
+        if merge:
+            # It should not have overwritten the fields we wanted to keep.
+            assert added_model.name == old_model.name
+            assert added_model.camera == old_model.camera
+
+            # Everything else should be updated.
+            ignore_fields = {"name", "camera", "location"}
+        else:
+            ignore_fields = {"location"}
+
+        added_metadata = UavImageMetadata.from_orm(added_model)
+        got_unmodified = added_metadata.dict(exclude=ignore_fields)
+        expected_unmodified = new_metadata.dict(exclude=ignore_fields)
+        # There might be some differences in the fields between the two
+        # of them, because they could be different subclasses of
+        # ImageMetadata.
+        for key in got_unmodified.keys() & expected_unmodified.keys():
+            assert got_unmodified[key] == expected_unmodified[key]
+
+        # Location must be compared manually.
+        assert added_model.location_lat == new_metadata.location.latitude_deg
+        assert added_model.location_lon == new_metadata.location.longitude_deg
 
     @pytest.mark.asyncio
     async def test_get(
@@ -233,41 +335,13 @@ class TestSqlImageMetadataStore:
         await config.store.delete(object_id)
 
         # Assert.
-        # It should have performed a query.
-        config.mock_select.assert_called_once()
-        mock_query = config.mock_select.return_value
-        mock_query.where.assert_called_once()
-        mock_query = mock_query.where.return_value
+        # It should have performed a deletion.
+        config.mock_delete.assert_called_once()
+        mock_deletion = config.mock_delete.return_value
+        mock_deletion.where.assert_called_once()
+        mock_deletion = mock_deletion.where.return_value
 
-        config.mock_session.execute.assert_called_once_with(mock_query)
-
-        # It should have deleted the result.
-        mock_result = config.mock_session.execute.return_value
-        config.mock_session.delete.assert_called_once_with(
-            mock_result.scalars.return_value.one.return_value
-        )
-
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent(
-        self, config: ConfigForTests, faker: Faker
-    ) -> None:
-        """
-        Tests that `delete` handles it correctly if metadata for a particular
-        object does not exist.
-
-        Args:
-            config: The configuration to use for testing.
-            faker: The fixture to use for generating fake data.
-
-        """
-        # Arrange.
-        # Make it look like the object does not exist.
-        mock_results = config.mock_session.execute.return_value
-        mock_results.scalars.side_effect = NoResultFound
-
-        # Act and assert.
-        with pytest.raises(KeyError, match="No metadata"):
-            await config.store.delete(faker.object_ref())
+        config.mock_session.execute.assert_called_once_with(mock_deletion)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

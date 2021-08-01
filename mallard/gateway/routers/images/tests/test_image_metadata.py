@@ -480,6 +480,32 @@ def test_fill_metadata(
     assert got_metadata.format == fill_meta_config.image_format
 
 
+def test_fill_metadata_naughty_jpeg(local_tz: timezone, faker: Faker) -> None:
+    """
+    Tests that `fill_metadata` works when we give it a JPEG image that
+    `imghdr` does not support out-of-the-box.
+
+    Args:
+        local_tz: The local timezone to use.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    # Create some fake JPEG-looking data.
+    jpeg_header = b"\xff\xd8\xff"
+    jpeg_contents = jpeg_header + faker.binary()
+    fake_jpeg = faker.upload_file(category="image", contents=jpeg_contents)
+
+    # Act.
+    got_metadata = image_metadata.fill_metadata(
+        ImageMetadata(), image=fake_jpeg, local_tz=local_tz
+    )
+
+    # Assert.
+    # It should have correctly determined the JPEG format.
+    assert got_metadata.format == ImageFormat.JPEG
+
+
 @enum.unique
 class FormatError(enum.IntEnum):
     """

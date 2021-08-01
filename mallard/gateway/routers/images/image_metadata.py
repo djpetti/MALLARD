@@ -7,7 +7,7 @@ import enum
 import imghdr
 from datetime import datetime, timezone, tzinfo
 from functools import cached_property
-from typing import Optional, TypeVar
+from typing import BinaryIO, Optional, TypeVar
 
 import exifread
 from fastapi import UploadFile
@@ -190,6 +190,31 @@ class ExifReader:
         )
 
         return GeoPoint(latitude_deg=lat_decimal, longitude_deg=lon_decimal)
+
+
+_JPEG_MAGIC = b"\xff\xd8\xff"
+"""
+JPEG magic header bytes.
+"""
+
+
+def _test_jpeg(header: bytes, _: Optional[BinaryIO]) -> Optional[str]:
+    """
+    Additional test for JPEG images to work around this bug
+    (https://bugs.python.org/issue28591) in `imghdr`.
+
+    Args:
+        header: The 32-byte header data to check.
+
+    Returns:
+        The string "jpeg" if it is a JPEG, or None if it is not.
+
+    """
+    if header.startswith(_JPEG_MAGIC):
+        return "jpeg"
+
+
+imghdr.tests.append(_test_jpeg)
 
 
 MetadataType = TypeVar("MetadataType", bound=ImageMetadata)

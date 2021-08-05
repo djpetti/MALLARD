@@ -1,5 +1,5 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
-import Geo = Faker.Geo;
+import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 
 /**
  * Represents the state of a long-running request.
@@ -12,16 +12,6 @@ export enum RequestState {
 }
 
 /**
- * Represents a particular artifact in MALLARD.
- */
-export interface ArtifactId {
-  /** The bucket name for this artifact. */
-  bucket: string;
-  /** The unique ID for this artifact within the bucket. */
-  name: string;
-}
-
-/**
  * Represents a query for images.
  *
  * Note that this class does not necessarily follow naming rules because it
@@ -31,81 +21,6 @@ export interface ArtifactId {
  * currently supported here. They will be added as they are needed.
  */
 export interface ImageQuery {}
-
-/**
- * Represents (possibly incomplete) results from a query.
- */
-export interface QueryResult {
-  /** The image IDs that were returned by this query. */
-  imageIds: ArtifactId[];
-  /** The most recent page number that we have queried. */
-  pageNum: number;
-  /** Whether this is the last page of query results. */
-  isLastPage: boolean;
-}
-
-/**
- * Possible platform types.
- */
-export enum PlatformType {
-  GROUND,
-  AERIAL,
-}
-
-/**
- * Possible image formats.
- */
-export enum ImageFormat {
-  GIF,
-  TIFF,
-  JPEG,
-  BMP,
-  PNG,
-}
-
-/** Represents a point on earth. */
-export interface GeoPoint {
-  /** The latitude of the point, in decimal degrees. */
-  latitudeDeg: number;
-  /** The longitude of the point, in decimal degrees. */
-  longitudeDeg: number;
-}
-
-/**
- * Represents image metadata.
- */
-export interface ImageMetadata {
-  /** The name of the image. */
-  name?: string;
-  /** The image format. */
-  format?: ImageFormat;
-  /** The type of platform the image came from. */
-  platformType?: PlatformType;
-  /** Associated notes for this image. */
-  notes?: string;
-
-  /** Session number used to group images from the same session. */
-  sessionNumber?: number;
-  /** Defines ordering of images within a session. */
-  sequenceNumber?: number;
-
-  /** The date that the image was captured on. This is in raw string
-   * form to please Redux, but should be trivially convertible to a Date object.
-   */
-  captureDate?: string;
-  /** The name of the camera that the image was captured by. */
-  camera?: string;
-  /** Location where the image was captured. */
-  location?: GeoPoint;
-  /** Text description of the location. */
-  locationDescription?: string;
-
-  // Aerial-platform-specific parameters.
-  /** Flight altitude in meters, AGL. */
-  altitudeMeters?: number;
-  /** GSD in cm/px. */
-  gsdCmPx?: number;
-}
 
 /**
  * Generic interface for a normalized table.
@@ -132,13 +47,13 @@ export enum ThumbnailStatus {
  */
 export interface ImageEntity {
   /** Unique ID for the image provided by the backend. */
-  backendId: ArtifactId;
+  backendId: ObjectRef;
   /** Status of loading the image thumbnail. */
   status: ThumbnailStatus;
   /** The object URL of the image. */
   imageUrl: string | null;
   /** The metadata associated with the image. */
-  metadata: ImageMetadata | null;
+  metadata: UavImageMetadata | null;
 }
 
 /**
@@ -146,7 +61,7 @@ export interface ImageEntity {
  */
 export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
   /** Most recent query results. */
-  lastQueryResults: QueryResult | null;
+  lastQueryResults: QueryResponse | null;
   /** Most recent query, possibly still in progress. */
   currentQuery: ImageQuery | null;
   /** State of the current query. */
@@ -168,18 +83,35 @@ export enum FileStatus {
 }
 
 /**
+ * Represents the status of a metadata inference request.
+ */
+export enum MetadataInferenceStatus {
+  /** We have not made the request yet. */
+  NOT_STARTED,
+  /** We are waiting for the result. */
+  LOADING,
+  /** We have the result. */
+  COMPLETE,
+}
+
+/**
  * Represents a file, as displayed in the UI.
  */
 export interface FrontendFileEntity {
   /** Unique, constant ID for this file. */
   id: string;
 
-  /** URL of the file icon. */
-  iconUrl: string;
+  /** URL of the file data. */
+  dataUrl: string;
   /** Display name for the file. */
   name: string;
   /** Current status of the file. */
   status: FileStatus;
+
+  /**
+   * The corresponding reference to this file on the backend, if it exists there.
+   */
+  backendRef?: ObjectRef;
 }
 
 /**
@@ -190,6 +122,14 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   dialogOpen: boolean;
   /** True if the user is currently dragging a file. */
   isDragging: boolean;
+
+  /** Status of metadata inference. */
+  metadataStatus: MetadataInferenceStatus;
+  /** The current metadata. Can be null if no metadata has been set or
+   * inferred yet. */
+  metadata: UavImageMetadata | null;
+  /** Whether the loaded metadata has been modified by the user. */
+  metadataChanged: boolean;
 }
 
 /**

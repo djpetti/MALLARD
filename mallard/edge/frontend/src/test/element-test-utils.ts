@@ -3,16 +3,16 @@
  */
 
 import {
-  ArtifactId,
   FileStatus,
   FrontendFileEntity,
-  ImageMetadata,
   ImageEntity,
+  MetadataInferenceStatus,
   RequestState,
   RootState,
   ThumbnailStatus,
 } from "../types";
 import * as faker from "faker";
+import { ObjectRef, UavImageMetadata } from "typescript-axios";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -42,8 +42,13 @@ export function fakeState(): RootState {
     uploads: {
       dialogOpen: false,
       isDragging: false,
+
       ids: [],
       entities: {},
+
+      metadataStatus: MetadataInferenceStatus.NOT_STARTED,
+      metadata: null,
+      metadataChanged: false,
     },
   };
 }
@@ -70,7 +75,7 @@ export function fakeThumbnailEntity(
 
   let status: ThumbnailStatus = ThumbnailStatus.LOADING;
   let imageUrl: string | null = null;
-  let metadata: ImageMetadata | null = null;
+  let metadata: UavImageMetadata | null = null;
   if (imageLoaded) {
     // Simulate a loaded image.
     status = ThumbnailStatus.VISIBLE;
@@ -107,17 +112,17 @@ export function fakeFrontendFileEntity(
 
   return {
     id: id,
-    iconUrl: iconUrl,
+    dataUrl: iconUrl,
     name: name,
     status: status,
   };
 }
 
 /**
- * Creates a fake `ArtifactId`.
- * @return {ArtifactId} The random `ArtifactId` that it created.
+ * Creates a fake `ObjectRef`.
+ * @return {ObjectRef} The random `ObjectRef` that it created.
  */
-export function fakeArtifactId(): ArtifactId {
+export function fakeObjectRef(): ObjectRef {
   return {
     bucket: faker.lorem.words(),
     name: faker.datatype.uuid(),
@@ -126,9 +131,9 @@ export function fakeArtifactId(): ArtifactId {
 
 /**
  * Creates a fake `ImageMetadata`.
- * @return {ImageMetadata} The random `ImageMetadata` that it created.
+ * @return {UavImageMetadata} The random `ImageMetadata` that it created.
  */
-export function fakeFrontendImageMetadata(): ImageMetadata {
+export function fakeFrontendImageMetadata(): UavImageMetadata {
   return {
     name: faker.system.fileName(),
   };

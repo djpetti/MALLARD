@@ -1,7 +1,7 @@
 import {
   FileStatus,
   FrontendFileEntity,
-  ImageMetadata,
+  MetadataInferenceStatus,
   RootState,
   UploadState,
 } from "./types";
@@ -11,10 +11,11 @@ import {
   createEntityAdapter,
   createSlice,
 } from "@reduxjs/toolkit";
-import { createImage } from "./api-client";
+import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
 import { ThunkAction } from "redux-thunk";
+import { ObjectRef, UavImageMetadata } from "typescript-axios";
 
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
@@ -23,6 +24,10 @@ const uploadAdapter = createEntityAdapter<FrontendFileEntity>();
 const initialState: UploadState = uploadAdapter.getInitialState({
   isDragging: false,
   dialogOpen: false,
+
+  metadataStatus: MetadataInferenceStatus.NOT_STARTED,
+  metadata: null,
+  metadataChanged: false,
 });
 
 /** Memoized selectors for the state. */
@@ -33,27 +38,102 @@ export const uploadSelectors = uploadAdapter.getSelectors<RootState>(
 const sliceSelectors = uploadAdapter.getSelectors();
 
 /**
+ * Represents loaded file data.
+ */
+interface UploadFileData {
+  /** The actual contents of the file. */
+  contents: Blob;
+  /** The name of the file. */
+  name: string;
+}
+
+/**
+ * Convenience function to retrieve the raw data for a file being uploaded.
+ * @param {string} fileId The ID of the file in the state.
+ * @param {string} state The current state.
+ * @return {UploadFileData} The raw data from this file.
+ */
+async function getUploadFile(
+  fileId: string,
+  state: RootState
+): Promise<UploadFileData> {
+  // Obtain the file with this ID.
+  const uploadFile = uploadSelectors.selectById(
+    state,
+    fileId
+  ) as FrontendFileEntity;
+
+  // Load the actual contents of the file.
+  const fileReadResponse = await fetch(uploadFile.dataUrl);
+  return { contents: await fileReadResponse.blob(), name: uploadFile.name };
+}
+
+/**
  * Action creator that uploads files to the backend.
  * It takes a file entity to upload.
  */
 export const thunkUploadFile = createAsyncThunk(
-  "upload/uploadFiles",
-  async (fileId: string, { getState }) => {
+  "upload/uploadFile",
+  async (fileId: string, { getState }): Promise<ObjectRef> => {
     // Obtain the file with this ID.
     const state = getState() as RootState;
-    const uploadFile = uploadSelectors.selectById(
-      state,
-      fileId
-    ) as FrontendFileEntity;
-
-    // Load the actual contents of the file.
-    const fileReadResponse = await fetch(uploadFile.iconUrl);
-    const fileContents = await fileReadResponse.blob();
+    const uploadFile = await getUploadFile(fileId, state);
 
     // Upload all the files.
-    const metadata: ImageMetadata = { name: uploadFile.name };
+    const metadata: UavImageMetadata = { name: uploadFile.name };
     // File should always be loaded at the time we perform this action.
-    await createImage(fileContents, metadata);
+    return await createImage(uploadFile.contents, metadata);
+  }
+);
+
+/**
+ * Action creator that infers metadata from a provided file.
+ */
+export const thunkInferMetadata = createAsyncThunk(
+  "upload/inferMetadata",
+  async (fileId: string, { getState }): Promise<UavImageMetadata> => {
+    // Obtain the file with this ID.
+    const state = getState() as RootState;
+    const uploadFile = await getUploadFile(fileId, state);
+
+    // Infer the metadata.
+    return await inferMetadata(uploadFile.contents, {});
+  },
+  {
+    condition: (fileId: string, { getState }) => {
+      const state = getState() as RootState;
+      if (state.uploads.metadataStatus != MetadataInferenceStatus.NOT_STARTED) {
+        // We have already completed or are performing metadata inference.
+        // There is no need to start it again.
+        return false;
+      }
+    },
+  }
+);
+
+/**
+ * Action creator that updates metadata for a set of files. It will use
+ * the metadata currently specified in the state.
+ */
+export const thunkUpdateMetadata = createAsyncThunk(
+  "upload/updateMetadata",
+  async (fileIds: string[], { getState }): Promise<void> => {
+    // Get the backend IDs for all the files.
+    const state = getState() as RootState;
+    const objectRefs = fileIds.map((fileId) => {
+      const file = uploadSelectors.selectById(
+        state,
+        fileId
+      ) as FrontendFileEntity;
+
+      return file.backendRef as ObjectRef;
+    });
+
+    // Perform the updates.
+    await batchUpdateMetadata(
+      state.uploads.metadata as UavImageMetadata,
+      objectRefs
+    );
   }
 );
 
@@ -67,6 +147,8 @@ interface ProcessSelectedFilesAction extends Action {
 
 /**
  * Custom action creator for the `processSelectedFiles` action.
+ * It deals with translating the `DataTransferItem`s into a format
+ * that can be used by Redux.
  * @param {DataTransferItemList} files The new selected files.
  * @return {ProcessSelectedFilesAction} The created action.
  */
@@ -85,10 +167,10 @@ export const processSelectedFiles = createAction(
     // Create data URLs for every file.
     const fileUrls = validFiles.map((file) => URL.createObjectURL(file));
 
-    const frontendFiles = validFiles.map((file, i) => {
+    const frontendFiles = validFiles.map((file, i): FrontendFileEntity => {
       return {
         id: uuidv4(),
-        iconUrl: fileUrls[i],
+        dataUrl: fileUrls[i],
         name: file.name,
         status: FileStatus.PENDING,
       };
@@ -106,8 +188,16 @@ export const processSelectedFiles = createAction(
 export function closeDialog(): ThunkResult<void> {
   return (dispatch, getState) => {
     // Release the data for all the images that we uploaded.
-    for (const file of sliceSelectors.selectAll(getState().uploads)) {
-      URL.revokeObjectURL(file.iconUrl);
+    const state: RootState = getState();
+    for (const file of sliceSelectors.selectAll(state.uploads)) {
+      URL.revokeObjectURL(file.dataUrl);
+    }
+
+    if (state.uploads.metadataChanged) {
+      // The user changed the metadata. Update it on the backend.
+      dispatch(
+        thunkUpdateMetadata(uploadSelectors.selectIds(state) as string[])
+      );
     }
 
     dispatch(uploadSlice.actions.dialogClosed(null));
@@ -128,6 +218,9 @@ export const uploadSlice = createSlice({
 
       // Clear the state for the uploaded files.
       uploadAdapter.removeAll(state);
+      state.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
+      state.metadata = null;
+      state.metadataChanged = false;
     },
 
     // The user is dragging files to be uploaded, and they have entered
@@ -139,6 +232,11 @@ export const uploadSlice = createSlice({
     // the drop zone.
     fileDropZoneExited(state, _) {
       state.isDragging = false;
+    },
+    // Updates the currently-set metadata.
+    setMetadata(state, action) {
+      state.metadata = action.payload;
+      state.metadataChanged = true;
     },
   },
   extraReducers: (builder) => {
@@ -156,8 +254,20 @@ export const uploadSlice = createSlice({
       const fileId = action.meta.arg;
       uploadAdapter.updateOne(state, {
         id: fileId,
-        changes: { status: FileStatus.COMPLETE },
+        changes: { status: FileStatus.COMPLETE, backendRef: action.payload },
       });
+    });
+    // Updates the state when metadata inference starts.
+    builder.addCase(thunkInferMetadata.pending, (state, action) => {
+      // Mark metadata inference as started.
+      state.metadataStatus = MetadataInferenceStatus.LOADING;
+    });
+    // Updates the state when the metadata inference finishes.
+    builder.addCase(thunkInferMetadata.fulfilled, (state, action) => {
+      // Mark metadata inference as complete.
+      state.metadataStatus = MetadataInferenceStatus.COMPLETE;
+      // Set the inferred metadata.
+      state.metadata = action.payload;
     });
     // The user selected some new files that must be processed.
     builder.addCase(
@@ -178,5 +288,6 @@ export const {
   dialogClosed,
   fileDropZoneEntered,
   fileDropZoneExited,
+  setMetadata,
 } = uploadSlice.actions;
 export default uploadSlice.reducer;

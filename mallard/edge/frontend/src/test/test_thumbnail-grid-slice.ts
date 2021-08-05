@@ -6,10 +6,7 @@ import thumbnailGridReducer, {
   thunkStartQuery,
 } from "../thumbnail-grid-slice";
 import {
-  ArtifactId,
-  ImageMetadata,
   ImageQuery,
-  QueryResult,
   RequestState,
   ThumbnailGridState,
   ThumbnailStatus,
@@ -17,6 +14,7 @@ import {
 import thunk from "redux-thunk";
 import { fakeState, fakeThumbnailEntity } from "./element-test-utils";
 import each from "jest-each";
+import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -56,7 +54,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a startQuery action", async () => {
     // Arrange.
     // Make it look like the query request succeeds.
-    const queryResult: QueryResult = {
+    const queryResult: QueryResponse = {
       imageIds: [],
       pageNum: 1,
       isLastPage: true,
@@ -123,7 +121,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a loadMetadata action", async () => {
     // Arrange.
     // Make it look like the getMetadata request succeeds.
-    const metadata: ImageMetadata = {
+    const metadata: UavImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
     getMetadata.mockResolvedValue(metadata);
@@ -188,7 +186,7 @@ describe("thumbnail-grid-slice reducers", () => {
       // Create a fake query.
       const query: ImageQuery = {};
       // Create a fake image to add to the state.
-      const fakeImage: ArtifactId = {
+      const fakeImage: ObjectRef = {
         bucket: faker.lorem.word(),
         name: faker.datatype.uuid(),
       };
@@ -273,7 +271,7 @@ describe("thumbnail-grid-slice reducers", () => {
     state.entities[imageId] = fakeEntity;
 
     // Create the fake loaded metadata.
-    const metadata: ImageMetadata = {
+    const metadata: UavImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
     const metadataInfo = { imageIds: [imageId], metadata: [metadata] };

@@ -125,7 +125,7 @@ export class FileList extends LitElement {
       <mwc-list-item graphic="medium" hasMeta noninteractive>
         <span class="${childClass}">${file.name}</span>
         <img
-          src="${file.iconUrl}"
+          src="${file.dataUrl}"
           alt="icon"
           slot="graphic"
           class="${childClass}"

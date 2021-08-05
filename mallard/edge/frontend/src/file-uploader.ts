@@ -10,6 +10,7 @@ import {
   fileDropZoneEntered,
   fileDropZoneExited,
   processSelectedFiles,
+  thunkInferMetadata,
   thunkUploadFile,
   uploadSelectors,
 } from "./upload-slice";
@@ -123,8 +124,10 @@ export class FileUploader extends LitElement {
   /** Maximum number of files we are allowed to upload simultaneously. */
   static MAX_CONCURRENT_UPLOADS = 3;
 
-  /** Name for the custom event signalling that a new file is ready. */
+  /** Name for the custom event signalling that new files are ready to start uploading. */
   static UPLOAD_READY_EVENT_NAME = "upload-ready";
+  /** Name for the custom event signalling that we are ready to infer metadata. */
+  static METADATA_INFERENCE_READY_EVENT_NAME = "meta-inference-ready";
   /** Name for the event signaling that the user has dragged a file into
    * or out of the upload drop zone. */
   static DROP_ZONE_DRAGGING_EVENT_NAME = "upload-drop-zone-dragging";
@@ -152,9 +155,6 @@ export class FileUploader extends LitElement {
 
   @query("#file_list", true)
   private fileList!: FileList;
-
-  @query("#upload_drop_zone", true)
-  private dropZone!: HTMLElement;
 
   /**
    * @inheritDoc
@@ -250,8 +250,22 @@ export class FileUploader extends LitElement {
       // Update the list of files.
       this.fileList.files = this.uploadingFiles;
 
-      // Determine if we should start any new uploads.
       const newUploads = this.findFilesToUpload();
+      // Determine if we should perform metadata inference.
+      if (newUploads.length !== 0) {
+        this.dispatchEvent(
+          new CustomEvent<string>(
+            FileUploader.METADATA_INFERENCE_READY_EVENT_NAME,
+            {
+              bubbles: true,
+              composed: true,
+              detail: newUploads[0].id,
+            }
+          )
+        );
+      }
+
+      // Determine if we should start any new uploads.
       for (const file of newUploads) {
         this.dispatchEvent(
           new CustomEvent<string>(FileUploader.UPLOAD_READY_EVENT_NAME, {
@@ -281,18 +295,11 @@ export class FileUploader extends LitElement {
             bubbles: true,
             composed: true,
             detail: this.selectedFiles,
-          })
+          }
+        )
       );
     }
   }
-}
-
-/**
- * Interface for the custom event we dispatch when we have new
- * files to start uploading.
- */
-interface UploadsReadyEvent extends Event {
-  detail: string;
 }
 
 /**
@@ -336,7 +343,15 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
     handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
-      thunkUploadFile((event as UploadsReadyEvent).detail) as unknown as Action;
+      thunkUploadFile(
+        (event as CustomEvent<string>).detail
+      ) as unknown as Action;
+    handlers[ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME] = (
+      event: Event
+    ) =>
+      thunkInferMetadata(
+        (event as CustomEvent<string>).detail
+      ) as unknown as Action;
 
     return handlers;
   }

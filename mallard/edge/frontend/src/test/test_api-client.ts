@@ -1,14 +1,12 @@
-import { ArtifactId, ImageMetadata, ImageQuery, QueryResult } from "../types";
+import { ImageQuery } from "../types";
 import {
   createImage,
   getMetadata,
   loadThumbnail,
   queryImages,
 } from "../api-client";
-import {
-  fakeArtifactId,
-  fakeFrontendImageMetadata,
-} from "./element-test-utils";
+import { fakeObjectRef, fakeFrontendImageMetadata } from "./element-test-utils";
+import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 
 const faker = require("faker");
 
@@ -63,7 +61,7 @@ describe("api-client", () => {
     const query: ImageQuery = {};
 
     // Act.
-    const result: QueryResult = await queryImages(query);
+    const result: QueryResponse = await queryImages(query);
 
     // Assert.
     // It should have queried the images.
@@ -151,7 +149,7 @@ describe("api-client", () => {
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
-    const result: ImageMetadata = await getMetadata(imageId);
+    const result: UavImageMetadata = await getMetadata(imageId);
 
     // Assert.
     // It should have loaded the thumbnail.
@@ -185,14 +183,14 @@ describe("api-client", () => {
     const mockUavImageCreate =
       mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
 
-    const artifactId = fakeArtifactId();
+    const artifactId = fakeObjectRef();
     mockUavImageCreate.mockResolvedValue({ data: { image_id: artifactId } });
 
     const imageData = faker.datatype.string();
     const metadata = fakeFrontendImageMetadata();
 
     // Act.
-    const result: ArtifactId = await createImage(imageData, metadata);
+    const result: ObjectRef = await createImage(imageData, metadata);
 
     // Assert.
     // It should have returned the ID of the artifact it created.

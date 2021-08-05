@@ -1,7 +1,7 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thunk from "redux-thunk";
 import {
-  fakeArtifactId,
+  fakeObjectRef,
   fakeFrontendFileEntity,
   fakeState,
 } from "./element-test-utils";
@@ -57,7 +57,7 @@ describe("upload-slice action creators", () => {
   it("creates an uploadFile action", async () => {
     // Arrange.
     // Make it look like the create request succeeds.
-    const newImageId = fakeArtifactId();
+    const newImageId = fakeObjectRef();
     createImage.mockResolvedValue(newImageId);
 
     // Initialize a fake store with valid state.
@@ -90,7 +90,7 @@ describe("upload-slice action creators", () => {
     expect(fulfilledAction.type).toEqual("upload/uploadFiles/fulfilled");
 
     // It should have fetched the image.
-    expect(mockFetch).toHaveBeenCalledWith(uploadFile.iconUrl);
+    expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
     // It should have uploaded the image.
     expect(createImage).toHaveBeenCalledTimes(1);
   });
@@ -125,8 +125,8 @@ describe("upload-slice action creators", () => {
     // It should have created the correct action.
     expect(gotAction.type).toEqual("upload/processSelectedFiles");
     expect(gotAction.payload).toHaveLength(2);
-    expect(gotAction.payload[0].iconUrl).toEqual(imageUri);
-    expect(gotAction.payload[1].iconUrl).toEqual(imageUri);
+    expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
+    expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
     expect(gotAction.payload[0].name).toEqual(fakeFile.name);
     expect(gotAction.payload[1].name).toEqual(fakeFile.name);
     expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
@@ -149,7 +149,7 @@ describe("upload-slice action creators", () => {
 
     // Assert.
     // It should have released the object URLs.
-    expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.iconUrl);
+    expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.dataUrl);
 
     // It should have dispatched the action.
     const actions = store.getActions();

@@ -4,24 +4,22 @@ import {
   createSlice,
 } from "@reduxjs/toolkit";
 import {
-  ArtifactId,
   ImageEntity,
-  ImageMetadata,
   ImageQuery,
-  QueryResult,
   RequestState,
   RootState,
   ThumbnailGridState,
   ThumbnailStatus,
 } from "./types";
 import { getMetadata, loadThumbnail, queryImages } from "./api-client";
+import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 
 /**
  * Return type for the `thunkStartQuery` creator.
  */
 interface StartQueryReturn {
   query: ImageQuery;
-  result: QueryResult;
+  result: QueryResponse;
 }
 
 /**
@@ -37,15 +35,15 @@ interface LoadThumbnailReturn {
  */
 interface LoadMetadataReturn {
   imageIds: string[];
-  metadata: ImageMetadata[];
+  metadata: UavImageMetadata[];
 }
 
 /**
  * Creates a unique ID to use for an image based on the backend ID.
- * @param {ArtifactId} backendId The ID used by the backend.
+ * @param {ObjectRef} backendId The ID used by the backend.
  * @return {string} The equivalent ID used by the frontend.
  */
-function createImageEntityId(backendId: ArtifactId): string {
+function createImageEntityId(backendId: ObjectRef): string {
   return `${backendId.bucket}/${backendId.name}`;
 }
 
@@ -99,7 +97,7 @@ export const thunkLoadMetadata = createAsyncThunk(
   "thumbnailGrid/loadMetadata",
   async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
     // Asynchronously load metadata for all the images.
-    const metadataPromises: Promise<ImageMetadata>[] = imageIds.map(
+    const metadataPromises: Promise<UavImageMetadata>[] = imageIds.map(
       (imageId: string) => {
         // This should never be undefined, because that means our image ID is invalid.
         const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
@@ -110,7 +108,7 @@ export const thunkLoadMetadata = createAsyncThunk(
         return getMetadata(imageEntity.backendId);
       }
     );
-    const metadata: ImageMetadata[] = await Promise.all(metadataPromises);
+    const metadata: UavImageMetadata[] = await Promise.all(metadataPromises);
 
     return { imageIds: imageIds, metadata: metadata };
   }

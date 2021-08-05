@@ -10,24 +10,23 @@ import enum
 from datetime import date
 from typing import Dict, Generic, Optional, Set, TypeVar
 
-from pydantic import BaseModel, validator
-from pydantic.generics import GenericModel
+from pydantic import validator
 
 from ...fastapi_utils import as_form
+from ...schemas import ApiModel, GenericApiModel
 
 
-class Metadata(BaseModel):
+class Metadata(ApiModel):
     """
     Represents a row in a metadata table.
     """
 
-    class Config:
-        allow_mutation = False
+    class Config(ApiModel.Config):
         orm_mode = True
 
 
 @as_form
-class GeoPoint(BaseModel):
+class GeoPoint(ApiModel):
     """
     Represents a location in the world.
 
@@ -35,9 +34,6 @@ class GeoPoint(BaseModel):
         latitude_deg: The latitude, in decimal degrees.
         longitude_deg: The longitude, in decimal degrees.
     """
-
-    class Config:
-        allow_mutation = False
 
     latitude_deg: Optional[float] = None
     longitude_deg: Optional[float] = None
@@ -177,7 +173,7 @@ class UavImageMetadata(ImageMetadata):
     gsd_cm_px: Optional[float] = None
 
 
-class Ordering(BaseModel):
+class Ordering(ApiModel):
     """
     Represents an ordering that can be used for image data.
 
@@ -223,7 +219,7 @@ Represents a type that can be used in a range. Must support comparison.
 """
 
 
-class ImageQuery(BaseModel):
+class ImageQuery(ApiModel):
     """
     Represents a query for images that fit certain criteria. If multiple
     attributes are specified for this query, they will be ANDed. For instance,
@@ -252,10 +248,7 @@ class ImageQuery(BaseModel):
 
     """
 
-    class Config:
-        allow_mutation = False
-
-    class Range(GenericModel, Generic[RangeType]):
+    class Range(GenericApiModel, Generic[RangeType]):
         """
         Specifies a range for numeric parameters in a query.
 
@@ -290,7 +283,7 @@ class ImageQuery(BaseModel):
 
             return max_value
 
-    class BoundingBox(BaseModel):
+    class BoundingBox(ApiModel):
         """
         Represents a location bounding box.
 

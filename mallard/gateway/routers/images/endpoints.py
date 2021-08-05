@@ -35,7 +35,7 @@ from ...backends.metadata.schemas import (
 from ...backends.objects import ObjectOperationError
 from ...backends.objects.models import ObjectRef
 from .image_metadata import InvalidImageError, fill_metadata
-from .models import CreateResponse, QueryResponse
+from .schemas import CreateResponse, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -370,7 +370,7 @@ async def get_thumbnail(
     return StreamingResponse(image_stream, media_type="image/jpeg")
 
 
-@router.get("/metadata/{bucket}/{name}")
+@router.get("/metadata/{bucket}/{name}", response_model=UavImageMetadata)
 async def get_image_metadata(
     bucket: str,
     name: str,
@@ -403,7 +403,7 @@ async def get_image_metadata(
     return metadata
 
 
-@router.post("/metadata/batch_update")
+@router.patch("/metadata/batch_update")
 async def batch_update_metadata(
     metadata: UavImageMetadata,
     images: List[ObjectRef] = Body(...),
@@ -446,7 +446,7 @@ async def batch_update_metadata(
     await asyncio.gather(*update_tasks)
 
 
-@router.post("/metadata/infer")
+@router.post("/metadata/infer", response_model=UavImageMetadata)
 async def infer_image_metadata(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
 ) -> UavImageMetadata:
@@ -463,7 +463,7 @@ async def infer_image_metadata(
     return metadata
 
 
-@router.post("/query")
+@router.post("/query", response_model=QueryResponse)
 async def query_images(
     query: ImageQuery = ImageQuery(),
     orderings: List[Ordering] = Body([]),

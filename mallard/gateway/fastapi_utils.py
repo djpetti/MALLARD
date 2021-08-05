@@ -68,7 +68,7 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
             )
             return Depends(field_.type_.as_form)
         else:
-            # This is just a normal field_.
+            # This is just a normal field.
             return Form(field_.default) if not field_.required else Form(...)
 
     new_params = []

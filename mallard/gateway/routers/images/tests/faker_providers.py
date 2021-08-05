@@ -16,7 +16,7 @@ from PIL import Image
 
 from ....backends.objects.models import ObjectRef
 from ..image_metadata import ExifReader
-from ..models import CreateResponse, QueryResponse
+from ..schemas import CreateResponse, QueryResponse
 
 
 class ImageProvider(BaseProvider):

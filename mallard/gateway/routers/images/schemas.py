@@ -1,16 +1,15 @@
 """
-Models used by the endpoints in `images`.
+Schemas used by the endpoints in `images`.
 """
 
 
 from typing import List
 
-from pydantic import BaseModel
-
 from ...backends.objects.models import ObjectRef
+from ...schemas import ApiModel
 
 
-class CreateResponse(BaseModel):
+class CreateResponse(ApiModel):
     """
     Response to use for image creation requests.
 
@@ -18,13 +17,10 @@ class CreateResponse(BaseModel):
         image_id: The unique ID of the image that was created.
     """
 
-    class Config:
-        allow_mutation = False
-
     image_id: ObjectRef
 
 
-class QueryResponse(BaseModel):
+class QueryResponse(ApiModel):
     """
     Response to a query for images.
 
@@ -37,9 +33,6 @@ class QueryResponse(BaseModel):
             that the last page might be empty.
 
     """
-
-    class Config:
-        allow_mutation = False
 
     image_ids: List[ObjectRef]
 

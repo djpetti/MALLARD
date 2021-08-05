@@ -81,8 +81,6 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
                 object_id,
                 metadata_set_params,
             )
-            # TODO (danielp) Use copy() after resolution of
-            #   https://github.com/samuelcolvin/pydantic/issues/3039
             old_metadata_params.update(metadata_set_params)
             metadata = type(old_metadata)(**old_metadata_params)
 

@@ -1,7 +1,7 @@
 """
 A metadata store that interfaces with a SQL database.
 """
-
+import asyncio
 from contextlib import asynccontextmanager
 from functools import cache, singledispatchmethod
 from typing import (
@@ -88,7 +88,33 @@ class SqlImageMetadataStore(ImageMetadataStore):
             session: The session to use for communicating with the database.
 
         """
-        self.__session = session
+        self.__unsafe_session = session
+
+        # Manages access to the raw session between concurrent tasks.
+        self.__session_lock = asyncio.Lock()
+
+    @asynccontextmanager
+    async def __session_begin(self) -> AsyncIterator[AsyncSession]:
+        """
+        A substitute for `session.begin()` meant to ensure that two
+        co-routines don't use the same session at once.
+
+        Examples:
+            ```
+            with self.__session_begin() as session:
+                query = select(Image)
+                session.execute(query)
+            ```
+
+        Yields:
+            The session that we should use.
+
+        """
+        # In the future, we can potentially replace this with some
+        # fancy-pants session pool system, but for now, just locking access
+        # to a single session is probably fine.
+        async with self.__session_lock, self.__unsafe_session.begin():
+            yield self.__unsafe_session
 
     @staticmethod
     def __orm_image_to_pydantic(image: Image) -> UavImageMetadata:
@@ -140,12 +166,16 @@ class SqlImageMetadataStore(ImageMetadataStore):
             **model_attributes,
         )
 
-    async def __get_by_id(self, object_id: ObjectRef) -> Image:
+    @staticmethod
+    async def __get_by_id(
+        object_id: ObjectRef, *, session: AsyncSession
+    ) -> Image:
         """
         Gets a particular image from the database by its unique ID.
 
         Args:
             object_id: The unique ID of the image.
+            session: The session to use for querying.
 
         Returns:
             The ORM image that it retrieved.
@@ -157,7 +187,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         query = select(Image).where(
             Image.bucket == object_id.bucket, Image.key == object_id.name
         )
-        query_results = await self.__session.execute(query)
+        query_results = await session.execute(query)
 
         try:
             return query_results.scalars().one()
@@ -340,23 +370,26 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
         # Add the new image.
         image = self.__pydantic_to_orm_image(object_id, metadata)
-        async with self.__session.begin():
+        async with self.__session_begin() as session:
             if overwrite:
-                await self.__session.merge(image)
+                await session.merge(image)
             else:
-                self.__session.add(image)
+                session.add(image)
 
     async def get(self, object_id: ObjectRef) -> UavImageMetadata:
-        return self.__orm_image_to_pydantic(await self.__get_by_id(object_id))
+        async with self.__session_begin() as session:
+            model = await self.__get_by_id(object_id, session=session)
+
+        return self.__orm_image_to_pydantic(model)
 
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
-        async with self.__session.begin():
-            deletion = delete(Image).where(
-                Image.bucket == object_id.bucket, Image.key == object_id.name
-            )
-            await self.__session.execute(deletion)
+        deletion = delete(Image).where(
+            Image.bucket == object_id.bucket, Image.key == object_id.name
+        )
+        async with self.__session_begin() as session:
+            await session.execute(deletion)
 
     async def query(
         self,
@@ -377,7 +410,8 @@ class SqlImageMetadataStore(ImageMetadataStore):
         selection = selection.offset(skip_first).limit(max_num_results)
 
         # Execute the query.
-        query_results = await self.__session.execute(selection)
+        async with self.__session_begin() as session:
+            query_results = await session.execute(selection)
 
         for result in query_results.scalars():
             yield ObjectRef(bucket=result.bucket, name=result.key)

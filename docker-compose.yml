@@ -24,7 +24,7 @@ services:
 
   # Object storage service.
   object_store:
-    image: minio/minio:RELEASE.2021-05-27T22-06-31Z
+    image: minio/minio
     hostname: object-store
     volumes:
       - objects:/data

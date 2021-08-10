@@ -1,12 +1,15 @@
 import { ImageQuery } from "../types";
 import {
+  batchUpdateMetadata,
   createImage,
   getMetadata,
+  inferMetadata,
   loadThumbnail,
   queryImages,
 } from "../api-client";
-import { fakeObjectRef, fakeFrontendImageMetadata } from "./element-test-utils";
+import { fakeObjectRef, fakeImageMetadata } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import each from "jest-each";
 
 const faker = require("faker");
 
@@ -19,8 +22,7 @@ jest.mock("typescript-axios");
 
 describe("api-client", () => {
   beforeEach(() => {
-    // Clear all instances, calls to the constructor, and method calls.
-    mockImagesApiClass.mockClear();
+    jest.clearAllMocks();
 
     // Set the faker seed.
     faker.seed(1337);
@@ -52,9 +54,9 @@ describe("api-client", () => {
     const isLastPage: boolean = faker.datatype.boolean();
     mockQueryImages.mockResolvedValue({
       data: {
-        image_ids: imageIds,
-        page_num: pageNum,
-        is_last_page: isLastPage,
+        imageIds: imageIds,
+        pageNum: pageNum,
+        isLastPage: isLastPage,
       },
     });
 
@@ -137,14 +139,14 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  it("can load metadata", async () => {
+  it("can load metadata (%s)", async () => {
     // Arrange.
     // Fake a valid response.
     const mockMetadataGet =
       mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
 
-    const captureDate = faker.date.past().toISOString();
-    mockMetadataGet.mockResolvedValue({ data: { capture_date: captureDate } });
+    const metadata = fakeImageMetadata();
+    mockMetadataGet.mockResolvedValue({ data: metadata });
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
@@ -157,7 +159,7 @@ describe("api-client", () => {
     expect(mockMetadataGet).toBeCalledWith(imageId.bucket, imageId.name);
 
     // It should have gotten the proper result.
-    expect(result).toEqual({ captureDate: captureDate });
+    expect(result).toEqual(metadata);
   });
 
   it("handles a failure when loading metadata", async () => {
@@ -177,22 +179,32 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  it("can upload a new image", async () => {
+  each([
+    ["location", true],
+    ["no location", false],
+  ]).it("can upload a new image", async (_: string, hasLocation: boolean) => {
     // Arrange.
     // Fake a valid response.
     const mockUavImageCreate =
       mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
 
     const artifactId = fakeObjectRef();
-    mockUavImageCreate.mockResolvedValue({ data: { image_id: artifactId } });
+    mockUavImageCreate.mockResolvedValue({ data: { imageId: artifactId } });
 
     const imageData = faker.datatype.string();
-    const metadata = fakeFrontendImageMetadata();
+    const metadata = fakeImageMetadata();
+    if (!hasLocation) {
+      // Remove location data.
+      metadata.location = undefined;
+    }
 
     // Act.
     const result: ObjectRef = await createImage(imageData, metadata);
 
     // Assert.
+    // It should have created the image.'
+    expect(mockUavImageCreate).toBeCalledTimes(1);
+
     // It should have returned the ID of the artifact it created.
     expect(result).toEqual(artifactId);
   });
@@ -206,10 +218,105 @@ describe("api-client", () => {
     mockUavImageCreate.mockRejectedValue(fakeError);
 
     const imageData = faker.datatype.string();
-    const metadata = fakeFrontendImageMetadata();
+    const metadata = fakeImageMetadata();
 
     // Act and assert.
     await expect(createImage(imageData, metadata)).rejects.toThrow(
+      FakeAxiosError
+    );
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can infer metadata from an image", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const expectedResponse = fakeImageMetadata();
+    const response: { [p in keyof UavImageMetadata]: any } = expectedResponse;
+    // In real server responses, the enum values come as raw strings.
+    response.format = response.format.toString();
+    response.platformType = response.platformType.toString();
+
+    const mockMetadataInfer =
+      mockImagesApiClass.prototype.inferImageMetadataImagesMetadataInferPost;
+    mockMetadataInfer.mockResolvedValue({ data: response });
+
+    const imageData = faker.datatype.string();
+    const initialMetadata = fakeImageMetadata();
+
+    // Act.
+    const result: UavImageMetadata = await inferMetadata(
+      imageData,
+      initialMetadata
+    );
+
+    // Assert.
+    expect(mockMetadataInfer).toBeCalledTimes(1);
+
+    // It should have inferred the metadata.
+    expect(result).toEqual(expectedResponse);
+  });
+
+  it("handles a failure when inferring metadata", async () => {
+    // Arrange.
+    // Make it look like inferring the metadata failed.
+    const mockMetadataInfer =
+      mockImagesApiClass.prototype.inferImageMetadataImagesMetadataInferPost;
+    const fakeError = new FakeAxiosError();
+    mockMetadataInfer.mockRejectedValue(fakeError);
+
+    const imageData = faker.datatype.string();
+    const metadata = fakeImageMetadata();
+
+    // Act and assert.
+    await expect(inferMetadata(imageData, metadata)).rejects.toThrow(
+      FakeAxiosError
+    );
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can update existing image metadata", async () => {
+    // Arrange.
+    const metadata = fakeImageMetadata();
+    const images: ObjectRef[] = [];
+    for (let i = 0; i < 10; ++i) {
+      images.push(fakeObjectRef());
+    }
+
+    const incrementSequence = faker.datatype.boolean();
+
+    const mockUpdateMetadata =
+      mockImagesApiClass.prototype
+        .batchUpdateMetadataImagesMetadataBatchUpdatePatch;
+    mockUpdateMetadata.mockResolvedValue({});
+
+    // Act.
+    await batchUpdateMetadata(metadata, images, incrementSequence);
+
+    // Assert.
+    // It should have updated the metadata.
+    expect(mockUpdateMetadata).toBeCalledWith(
+      { metadata: metadata, images: images },
+      incrementSequence
+    );
+  });
+
+  it("handles a failure when updating metadata", async () => {
+    // Arrange.
+    // Make it look like updating the metadata failed.
+    const mockUpdateMetadata =
+      mockImagesApiClass.prototype
+        .batchUpdateMetadataImagesMetadataBatchUpdatePatch;
+    const fakeError = new FakeAxiosError();
+    mockUpdateMetadata.mockRejectedValue(fakeError);
+
+    const metadata = fakeImageMetadata();
+
+    // Act and assert.
+    await expect(batchUpdateMetadata(metadata, [])).rejects.toThrow(
       FakeAxiosError
     );
 

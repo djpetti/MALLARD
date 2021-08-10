@@ -19,6 +19,7 @@ const mockDropZoneEntered = uploadSlice.fileDropZoneEntered;
 const mockDropZoneExited = uploadSlice.fileDropZoneExited;
 const mockProcessSelectedFiles = uploadSlice.processSelectedFiles;
 const mockThunkUploadFile = uploadSlice.thunkUploadFile;
+const mockThunkInferMetadata = uploadSlice.thunkInferMetadata;
 const mockUploadSelectors = uploadSlice.uploadSelectors;
 const { uploadSelectors } = jest.requireActual("../upload-slice");
 
@@ -31,6 +32,7 @@ jest.mock("../upload-slice", () => ({
   fileDropZoneExited: jest.fn(),
   processSelectedFiles: jest.fn(),
   thunkUploadFile: jest.fn(),
+  thunkInferMetadata: jest.fn(),
   uploadSelectors: { selectAll: jest.fn() },
 }));
 jest.mock("../store", () => ({
@@ -54,6 +56,7 @@ describe("file-uploader", () => {
     // Use the actual implementation for this function.
     mockUploadSelectors.selectAll.mockImplementation(uploadSelectors.selectAll);
 
+    // Create the element under test.
     fileUploader = window.document.createElement(
       ConnectedFileUploader.tagName
     ) as ConnectedFileUploader;
@@ -150,6 +153,79 @@ describe("file-uploader", () => {
     }
   );
 
+  it("dispatches an event when metadata can be inferred", async () => {
+    // Arrange.
+    // Setup a fake handler for our event.
+    const handler = jest.fn();
+    fileUploader.addEventListener(
+      ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME,
+      handler
+    );
+
+    const fakeFile = fakeFrontendFileEntity();
+
+    // Act.
+    // Setting at least one file to upload should cause this event to get dispatched.
+    fileUploader.uploadingFiles = [fakeFile];
+    await fileUploader.updateComplete;
+
+    // Assert.
+    expect(handler).toBeCalledTimes(1);
+  });
+
+  each([
+    ["valid", true],
+    ["invalid", false],
+  ]).it(
+    "dispatches an event when %s files are dropped",
+    async (_: string, validFiles: boolean) => {
+      // Arrange.
+      // Setup a fake handler for our event.
+      const handler = jest.fn();
+      fileUploader.addEventListener(
+        ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME,
+        handler
+      );
+
+      // Create a fake drag event. (We can't use a real one due to limitations in
+      // JSDom).
+      const fakeItems = ["foo", "bar"];
+
+      // Act.
+      // Make it look like we dropped files.
+      const shadowRoot = getShadowRoot(fileUploader.tagName);
+      const dropZone = shadowRoot.querySelector(
+        "#upload_drop_zone"
+      ) as HTMLElement;
+
+      /** Since we don't have full access to the DragEvent type, we
+       * have to kind of fake it. */
+      class TestDragEvent extends Event {
+        public dataTransfer: any;
+      }
+      const dropEvent = new TestDragEvent("drop", {
+        bubbles: true,
+        composed: true,
+      });
+      if (validFiles) {
+        dropEvent.dataTransfer = { items: fakeItems };
+      }
+      dropZone.dispatchEvent(dropEvent);
+
+      await fileUploader.updateComplete;
+
+      // Assert.
+      if (validFiles) {
+        // It should have dispatched a new event.
+        expect(handler).toBeCalledTimes(1);
+        expect(handler.mock.calls[0][0].detail).toEqual(fakeItems);
+      } else {
+        // It should have done nothing.
+        expect(handler).not.toBeCalled();
+      }
+    }
+  );
+
   each([
     ["dragging", true, "active_drag"],
     ["not dragging", false, "no_drag"],
@@ -212,7 +288,7 @@ describe("file-uploader", () => {
       preventDefault?: () => {};
     }
 
-    /** Map of events to action cretors. */
+    /** Map of events to action creators. */
     let eventMap: { [p: string]: (event: Event) => Action };
 
     beforeEach(() => {
@@ -224,8 +300,11 @@ describe("file-uploader", () => {
       expect(eventMap).toHaveProperty(
         FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME
       );
+      expect(eventMap).toHaveProperty(FileUploader.DROP_ZONE_DROP_EVENT_NAME);
       expect(eventMap).toHaveProperty(FileUploader.UPLOAD_READY_EVENT_NAME);
-      expect(eventMap).toHaveProperty("drop");
+      expect(eventMap).toHaveProperty(
+        FileUploader.METADATA_INFERENCE_READY_EVENT_NAME
+      );
     });
 
     it("uses the correct action creator for drop-zone-dragging entry events", () => {
@@ -264,22 +343,20 @@ describe("file-uploader", () => {
 
     it("uses the correct action creator for drop events", () => {
       // Arrange.
-      // Fake DataTransfer object.
-      const dataTransfer = { items: ["foo", "bar"] };
       const testEvent = {
         type: "drop",
-        dataTransfer: dataTransfer,
+        detail: ["foo", "bar"],
         preventDefault: jest.fn(),
       };
 
       // Act.
-      eventMap["drop"](testEvent as unknown as Event);
+      eventMap[FileUploader.DROP_ZONE_DROP_EVENT_NAME](
+        testEvent as unknown as Event
+      );
 
       // Assert.
       expect(mockProcessSelectedFiles).toBeCalledTimes(1);
-      expect(mockProcessSelectedFiles).toBeCalledWith(dataTransfer.items);
-      // It should have prevented the default action.
-      expect(testEvent.preventDefault).toBeCalledWith();
+      expect(mockProcessSelectedFiles).toBeCalledWith(testEvent.detail);
     });
 
     // TODO (danielp) Re-enable once JSDom supports drag-and-drop.
@@ -287,7 +364,7 @@ describe("file-uploader", () => {
     //   // Arrange.
     //   const testEvent = {
     //     type: "drop",
-    //     dataTransfer: null,
+    //     detail: null,
     //     preventDefault: jest.fn(),
     //   };
     //
@@ -314,6 +391,24 @@ describe("file-uploader", () => {
       // Assert.
       expect(mockThunkUploadFile).toBeCalledTimes(1);
       expect(mockThunkUploadFile).toBeCalledWith(fileId);
+    });
+
+    it("uses the correct action creator for meta-inference-ready events", () => {
+      // Arrange.
+      const fileId = faker.datatype.uuid();
+      const testEvent = {
+        type: FileUploader.METADATA_INFERENCE_READY_EVENT_NAME,
+        detail: fileId,
+      };
+
+      // Act.
+      eventMap[FileUploader.METADATA_INFERENCE_READY_EVENT_NAME](
+        testEvent as unknown as Event
+      );
+
+      // Assert.
+      expect(mockThunkInferMetadata).toBeCalledTimes(1);
+      expect(mockThunkInferMetadata).toBeCalledWith(fileId);
     });
   });
 });

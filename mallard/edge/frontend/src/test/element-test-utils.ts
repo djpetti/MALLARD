@@ -12,7 +12,12 @@ import {
   ThumbnailStatus,
 } from "../types";
 import * as faker from "faker";
-import { ObjectRef, UavImageMetadata } from "typescript-axios";
+import {
+  ImageFormat,
+  ObjectRef,
+  PlatformType,
+  UavImageMetadata,
+} from "typescript-axios";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -133,8 +138,31 @@ export function fakeObjectRef(): ObjectRef {
  * Creates a fake `ImageMetadata`.
  * @return {UavImageMetadata} The random `ImageMetadata` that it created.
  */
-export function fakeFrontendImageMetadata(): UavImageMetadata {
+export function fakeImageMetadata(): UavImageMetadata {
   return {
     name: faker.system.fileName(),
+    format: faker.random.arrayElement([
+      ImageFormat.GIF,
+      ImageFormat.TIFF,
+      ImageFormat.JPEG,
+      ImageFormat.BMP,
+      ImageFormat.PNG,
+    ]),
+    platformType: faker.random.arrayElement([
+      PlatformType.GROUND,
+      PlatformType.AERIAL,
+    ]),
+    notes: faker.lorem.words(),
+    sessionName: faker.lorem.words(),
+    sequenceNumber: faker.datatype.number(),
+    captureDate: faker.date.past().toISOString(),
+    camera: faker.lorem.word(),
+    location: {
+      latitudeDeg: +faker.address.latitude(),
+      longitudeDeg: +faker.address.longitude(),
+    },
+    locationDescription: faker.lorem.words(),
+    altitudeMeters: faker.datatype.number(400),
+    gsdCmPx: faker.datatype.number(2.0),
   };
 }

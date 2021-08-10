@@ -145,7 +145,7 @@ export class FileUploader extends LitElement {
 
   /** The raw file list data that the user last uploaded. */
   @property({ attribute: false })
-  protected selectedFiles: DataTransferItemList | undefined;
+  protected selectedFiles?: DataTransferItemList;
 
   /**
    * The list of files that are currently being uploaded.
@@ -331,11 +331,10 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
     handlers[ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME] = (
       event: Event
     ) => {
+      // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
       // istanbul ignore next
       const fileList =
-        (event as DropZoneDropEvent).detail ??
-        // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
-        new DataTransferItemList();
+        (event as DropZoneDropEvent).detail ?? new DataTransferItemList();
       return processSelectedFiles(fileList);
     };
 

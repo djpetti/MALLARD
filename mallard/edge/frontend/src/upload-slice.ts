@@ -258,7 +258,7 @@ export const uploadSlice = createSlice({
       });
     });
     // Updates the state when metadata inference starts.
-    builder.addCase(thunkInferMetadata.pending, (state, action) => {
+    builder.addCase(thunkInferMetadata.pending, (state, _) => {
       // Mark metadata inference as started.
       state.metadataStatus = MetadataInferenceStatus.LOADING;
     });

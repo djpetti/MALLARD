@@ -15,12 +15,11 @@ import "@material/mwc-textfield";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { PlatformType, UavImageMetadata } from "typescript-axios";
-import * as events from "events";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
 
 /** Keeps track of what state the form is in. */
-enum FormState {
+export enum FormState {
   INACTIVE,
   LOADING,
   READY,
@@ -118,18 +117,15 @@ export class MetadataForm extends LitElement {
    * @param {Event} event The event.
    * @param {string} property The specific property to update within
    *  the metadata.
-   * @param {string | number} value The value to set for the property. If this is not
-   *  provided, the value will be read from the event target's `value` property.
    * @private
    */
   private updateMetadataNumber(
     event: Event,
-    property: keyof UavImageMetadata,
-    value?: string | number
+    property: keyof UavImageMetadata
   ): void {
     // Properly convert the value to a number.
     const eventTarget = event.target as HTMLInputElement;
-    const numericalValue = +(value ?? eventTarget.value);
+    const numericalValue = +eventTarget.value;
 
     this.updateMetadata(event, property, numericalValue);
   }
@@ -168,6 +164,7 @@ export class MetadataForm extends LitElement {
         <div class="column_width2">
           <mwc-textfield
             label="Altitude"
+            id="altitude"
             type="number"
             step="0.1"
             min="0"
@@ -183,6 +180,7 @@ export class MetadataForm extends LitElement {
         <div class="column_width2">
           <mwc-textfield
             label="GSD"
+            id="gsd"
             type="number"
             step="0.1"
             min="0"
@@ -213,6 +211,7 @@ export class MetadataForm extends LitElement {
             <div class="column_width1">
               <mwc-textfield
                 label="Session Name"
+                id="session_name"
                 value="${this.metadata?.sessionName ?? ""}"
                 @change="${(event: Event) =>
                   this.updateMetadata(event, "sessionName")}"
@@ -223,6 +222,7 @@ export class MetadataForm extends LitElement {
             <div class="column_width1">
               <mwc-textfield
                 label="Capture Date"
+                id="capture_date"
                 value="${this.extractCaptureDate()}"
                 type="date"
                 @change="${(event: Event) =>
@@ -232,6 +232,7 @@ export class MetadataForm extends LitElement {
             <div class="column_width1">
               <mwc-textfield
                 label="Camera"
+                id="camera"
                 value="${this.metadata?.camera ?? ""}"
                 @change="${(event: Event) =>
                   this.updateMetadata(event, "camera")}"
@@ -270,6 +271,7 @@ export class MetadataForm extends LitElement {
             <div class="column_width1">
               <mwc-textarea
                 label="Notes"
+                id="notes"
                 cols="3"
                 value="${this.metadata?.notes ?? ""}"
                 @change="${(event: Event) =>

@@ -51,6 +51,31 @@ function responseToMetadata(response: UavImageMetadata): UavImageMetadata {
 }
 
 /**
+ * Some functions require separate form parameters for input.
+ * This function takes a metadata object, and breaks it down as
+ * an array that can be spread to one of these functions.
+ * @param {UavImageMetadata} metadata The metadata object.
+ * @return {any[]} Array containing the metadata.
+ */
+function metadataToForm(metadata: UavImageMetadata): any[] {
+  return [
+    metadata.name,
+    metadata.format,
+    metadata.platformType,
+    metadata.notes,
+    metadata.sessionName,
+    metadata.sequenceNumber,
+    metadata.captureDate,
+    metadata.camera,
+    metadata.locationDescription,
+    metadata.altitudeMeters,
+    metadata.gsdCmPx,
+    metadata.location?.latitudeDeg,
+    metadata.location?.longitudeDeg,
+  ];
+}
+
+/**
  * Performs a query for images.
  * @param {ImageQuery} query The query to perform.
  * @return {QueryResponse} The result of the query.
@@ -116,7 +141,11 @@ export async function createImage(
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
   const response = await api
-    .createUavImageImagesCreateUavPost(offset, imageData, metadata.name)
+    .createUavImageImagesCreateUavPost(
+      offset,
+      imageData,
+      ...metadataToForm(metadata)
+    )
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -146,7 +175,7 @@ export async function inferMetadata(
     .inferImageMetadataImagesMetadataInferPost(
       offset,
       imageData,
-      knownMetadata.name
+      ...metadataToForm(knownMetadata)
     )
     .catch(function (error) {
       console.error(error.toJSON());

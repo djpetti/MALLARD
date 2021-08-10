@@ -1,8 +1,9 @@
-import configureStore, { MockStoreCreator } from "redux-mock-store";
+import configureStore, { MockStore, MockStoreCreator } from "redux-mock-store";
 import thunk from "redux-thunk";
 import {
-  fakeObjectRef,
   fakeFrontendFileEntity,
+  fakeImageMetadata,
+  fakeObjectRef,
   fakeState,
 } from "./element-test-utils";
 import uploadReducer, {
@@ -12,10 +13,21 @@ import uploadReducer, {
   fileDropZoneEntered,
   fileDropZoneExited,
   processSelectedFiles,
+  setMetadata,
+  thunkInferMetadata,
+  thunkUpdateMetadata,
   thunkUploadFile,
   uploadSlice,
 } from "../upload-slice";
-import { FileStatus, RootState, UploadState } from "../types";
+import {
+  FileStatus,
+  FrontendFileEntity,
+  MetadataInferenceStatus,
+  RootState,
+  UploadState,
+} from "../types";
+import { AsyncThunk } from "@reduxjs/toolkit";
+import each from "jest-each";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -23,11 +35,15 @@ const faker = require("faker");
 
 // Using older require syntax here so we get the correct mock type.
 const apiClient = require("../api-client");
-const createImage: jest.Mock = apiClient.createImage;
+const mockCreateImage: jest.Mock = apiClient.createImage;
+const mockInferMetadata: jest.Mock = apiClient.inferMetadata;
+const mockUpdateMetadata: jest.Mock = apiClient.batchUpdateMetadata;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
   createImage: jest.fn(),
+  inferMetadata: jest.fn(),
+  batchUpdateMetadata: jest.fn(),
 }));
 
 // Mock out the JS fetch API.
@@ -52,47 +68,150 @@ describe("upload-slice action creators", () => {
   beforeEach(() => {
     // Set the faker seed.
     faker.seed(1337);
+
+    // Reset the mocks.
+    jest.clearAllMocks();
   });
 
-  it("creates an uploadFile action", async () => {
-    // Arrange.
-    // Make it look like the create request succeeds.
-    const newImageId = fakeObjectRef();
-    createImage.mockResolvedValue(newImageId);
+  describe("async action creators", () => {
+    /** A fake state to use for testing. */
+    let state: RootState;
+    /** A fake upload file to use for testing. */
+    let uploadFile: FrontendFileEntity;
+    /** A fake Redux store to use for testing. */
+    let store: MockStore;
 
-    // Initialize a fake store with valid state.
-    const state = fakeState();
-    state.uploads.dialogOpen = true;
-    const uploadFile = fakeFrontendFileEntity();
-    state.uploads.ids = [uploadFile.id];
-    state.uploads.entities[uploadFile.id] = uploadFile;
-    const store = mockStoreCreator(state);
+    beforeEach(() => {
+      // Initialize a fake store with valid state.
+      state = fakeState();
+      state.uploads.dialogOpen = true;
+      // The state should have a single pending file.
+      uploadFile = fakeFrontendFileEntity();
+      state.uploads.ids = [uploadFile.id];
+      state.uploads.entities[uploadFile.id] = uploadFile;
+      store = mockStoreCreator(state);
+    });
 
-    // Make it look like reading the image produces valid data.
-    const mockResponse = { blob: jest.fn() };
-    mockResponse.blob.mockResolvedValue(faker.datatype.string());
-    mockFetch.mockResolvedValue(mockResponse);
+    /**
+     * @brief Checks that an `AsyncThunk` has dispatched the lifecycle actions.
+     * @param {AsyncThunk} thunk The thunk to check.
+     */
+    function checkDispatchedActions(thunk: AsyncThunk<any, any, any>): void {
+      const actions = store.getActions();
+      expect(actions).toHaveLength(2);
 
-    // Act.
-    await thunkUploadFile(uploadFile.id)(store.dispatch, store.getState, {});
+      // Check the pending action.
+      const pendingAction = actions[0];
+      expect(pendingAction.type).toEqual(`${thunk.typePrefix}/pending`);
 
-    // Assert.
-    // It should have dispatched the lifecycle actions.
-    const actions = store.getActions();
-    expect(actions).toHaveLength(2);
+      // Check the fulfilled action.
+      const fulfilledAction = actions[1];
+      expect(fulfilledAction.type).toEqual(`${thunk.typePrefix}/fulfilled`);
+    }
 
-    // Check the pending action.
-    const pendingAction = actions[0];
-    expect(pendingAction.type).toEqual("upload/uploadFiles/pending");
+    it("creates an uploadFile action", async () => {
+      // Arrange.
+      // Make it look like the create request succeeds.
+      const newImageId = fakeObjectRef();
+      mockCreateImage.mockResolvedValue(newImageId);
 
-    // Check the fulfilled action.
-    const fulfilledAction = actions[1];
-    expect(fulfilledAction.type).toEqual("upload/uploadFiles/fulfilled");
+      // Make it look like reading the image produces valid data.
+      const mockResponse = { blob: jest.fn() };
+      mockResponse.blob.mockResolvedValue(faker.datatype.string());
+      mockFetch.mockResolvedValue(mockResponse);
 
-    // It should have fetched the image.
-    expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
-    // It should have uploaded the image.
-    expect(createImage).toHaveBeenCalledTimes(1);
+      // Act.
+      await thunkUploadFile(uploadFile.id)(store.dispatch, store.getState, {});
+
+      // Assert.
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkUploadFile);
+
+      // It should have fetched the image.
+      expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
+      // It should have uploaded the image.
+      expect(mockCreateImage).toHaveBeenCalledTimes(1);
+    });
+
+    it("creates an inferMetadata action", async () => {
+      // Arrange.
+      // Inference must not have been started yet for this to succeed.
+      state.uploads.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
+
+      // Make it look like the inference request succeeds.
+      const metadata = fakeImageMetadata();
+      mockInferMetadata.mockResolvedValue(metadata);
+
+      // Make it look like reading the image produces valid data.
+      const imageData = faker.datatype.string();
+      const mockResponse = { blob: jest.fn() };
+      mockResponse.blob.mockResolvedValue(imageData);
+      mockFetch.mockResolvedValue(mockResponse);
+
+      // Act.
+      await thunkInferMetadata(uploadFile.id)(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert.
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkInferMetadata);
+
+      // It should have fetched the image.
+      expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
+      // It should have inferred the metadata.
+      expect(mockInferMetadata).toHaveBeenCalledWith(
+        imageData,
+        expect.anything()
+      );
+    });
+
+    it("does not dispatch inferMetadata if inference is in-progress", async () => {
+      // Arrange.
+      // Make it look like inference has started already.
+      state.uploads.metadataStatus = MetadataInferenceStatus.LOADING;
+
+      // Act.
+      await thunkInferMetadata(uploadFile.id)(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert.
+      // It should not have dispatched any actions.
+      expect(store.getActions()).toHaveLength(0);
+    });
+
+    it("creates an updateMetadata action", async () => {
+      // Arrange.
+      // Make sure the state contains the backend ID for our image.
+      uploadFile.backendRef = fakeObjectRef();
+      state.uploads.entities[uploadFile.id] = uploadFile;
+      // Add fake metadata to the state.
+      state.uploads.metadata = fakeImageMetadata();
+
+      // Make it look like the update request succeeds.
+      mockUpdateMetadata.mockResolvedValue({});
+
+      // Act.
+      await thunkUpdateMetadata([uploadFile.id])(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert.
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkUpdateMetadata);
+
+      // It should have performed the request.
+      expect(mockUpdateMetadata).toHaveBeenCalledWith(state.uploads.metadata, [
+        uploadFile.backendRef,
+      ]);
+    });
   });
 
   it("creates a processSelectedFiles action", () => {
@@ -133,29 +252,45 @@ describe("upload-slice action creators", () => {
     expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
   });
 
-  it("creates a dialogClosed action", () => {
-    // Arrange.
-    const state = fakeState();
-    state.uploads.dialogOpen = true;
-    // Make it look like we have some uploaded files.
-    const uploadFile = fakeFrontendFileEntity();
-    state.uploads.ids = [uploadFile.id];
-    state.uploads.entities[uploadFile.id] = uploadFile;
+  each([
+    ["changed metadata", true],
+    ["unchanged metadata", false],
+  ]).it(
+    "creates a dialogClosed action with %s",
+    (_: string, hasNewMetadata: boolean) => {
+      // Arrange.
+      const state = fakeState();
+      state.uploads.dialogOpen = true;
+      // Make it look like we have some uploaded files.
+      const uploadFile = fakeFrontendFileEntity();
+      state.uploads.ids = [uploadFile.id];
+      state.uploads.entities[uploadFile.id] = uploadFile;
+      state.uploads.metadataChanged = hasNewMetadata;
 
-    const store = mockStoreCreator(state);
+      const store = mockStoreCreator(state);
 
-    // Act.
-    closeDialog()(store.dispatch, store.getState as () => RootState, {});
+      // Act.
+      closeDialog()(store.dispatch, store.getState as () => RootState, {});
 
-    // Assert.
-    // It should have released the object URLs.
-    expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.dataUrl);
+      // Assert.
+      // It should have released the object URLs.
+      expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.dataUrl);
 
-    // It should have dispatched the action.
-    const actions = store.getActions();
-    expect(actions).toHaveLength(1);
-    expect(actions[0].type).toEqual(dialogClosed.type);
-  });
+      // It should have dispatched the action.
+      const actions = store.getActions();
+      expect(actions).toHaveLength(hasNewMetadata ? 2 : 1);
+      expect(actions[actions.length - 1].type).toEqual(dialogClosed.type);
+
+      if (hasNewMetadata) {
+        // It should have dispatched an additional action to update the
+        // metadata on the backend.
+        expect(actions[0].type).toEqual(
+          `${thunkUpdateMetadata.typePrefix}/pending`
+        );
+        expect(actions[0].meta.arg).toEqual(state.uploads.ids);
+      }
+    }
+  );
 });
 
 describe("upload-slice reducers", () => {
@@ -215,6 +350,22 @@ describe("upload-slice reducers", () => {
     expect(newState.isDragging).toEqual(false);
   });
 
+  it("handles a setMetadata action", () => {
+    // Arrange.
+    const state: UploadState = fakeState().uploads;
+    state.metadata = null;
+    state.metadataChanged = false;
+
+    const newMetadata = fakeImageMetadata();
+
+    // Act.
+    const newState = uploadSlice.reducer(state, setMetadata(newMetadata));
+
+    // Assert.
+    expect(newState.metadata).toEqual(newMetadata);
+    expect(newState.metadataChanged).toEqual(true);
+  });
+
   it("handles an uploadFile/pending action", () => {
     // Arrange.
     const state: UploadState = fakeState().uploads;
@@ -267,6 +418,43 @@ describe("upload-slice reducers", () => {
     );
     // It should not have changed the status of the complete file.
     expect(newState.entities[doneFile.id]?.status).toEqual(FileStatus.COMPLETE);
+  });
+
+  it("handles an inferMetadata/pending action", () => {
+    // Arrange.
+    const state: UploadState = fakeState().uploads;
+    // Make it look like we have not started metadata inference.
+    state.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
+
+    // Act.
+    const newState = uploadReducer(state, {
+      type: thunkInferMetadata.typePrefix + "/pending",
+    });
+
+    // Assert.
+    // It should have updated the metadata inference status.
+    expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.LOADING);
+  });
+
+  it("handles an inferMetadata/fulfilled action", () => {
+    // Arrange.
+    const state: UploadState = fakeState().uploads;
+    // Make it look like we have started metadata inference.
+    state.metadataStatus = MetadataInferenceStatus.LOADING;
+    // Make it look like we have no metadata yet.
+    state.metadata = null;
+
+    const metadata = fakeImageMetadata();
+
+    // Act.
+    const newState = uploadReducer(state, {
+      type: thunkInferMetadata.typePrefix + "/fulfilled",
+      payload: metadata,
+    });
+
+    // Assert.
+    expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.COMPLETE);
+    expect(newState.metadata).toEqual(metadata);
   });
 
   it("handles a processSelectedFiles action", () => {

@@ -149,20 +149,14 @@ interface ProcessSelectedFilesAction extends Action {
  * Custom action creator for the `processSelectedFiles` action.
  * It deals with translating the `DataTransferItem`s into a format
  * that can be used by Redux.
- * @param {DataTransferItemList} files The new selected files.
+ * @param {File[]} files The new selected files.
  * @return {ProcessSelectedFilesAction} The created action.
  */
 export const processSelectedFiles = createAction(
   "upload/processSelectedFiles",
-  function prepare(files: DataTransferItemList) {
-    // Extract all the files.
-    const validFiles: File[] = [];
-    for (const item of files) {
-      const asFile = item.getAsFile();
-      if (asFile !== null && asFile.type.startsWith("image/")) {
-        validFiles.push(asFile);
-      }
-    }
+  function prepare(files: File[]) {
+    // Filter to only image files.
+    const validFiles = files.filter((f: File) => f.type.startsWith("image/"));
 
     // Create data URLs for every file.
     const fileUrls = validFiles.map((file) => URL.createObjectURL(file));

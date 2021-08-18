@@ -225,6 +225,11 @@ class S3ObjectStore(ObjectStore):
     be below 5 MiB, which is a limitation imposed by the S3 API.
     """
 
+    _BUCKET_EXISTS_ERROR_CODE = "BucketAlreadyOwnedByYou"
+    """
+    Error code that you get when you try to create a bucket that already exists.
+    """
+
     def __init__(self, client: AioBaseClient, region: str = "us-east-1"):
         """
         Args:
@@ -279,10 +284,14 @@ class S3ObjectStore(ObjectStore):
 
     async def create_bucket(self, name: str) -> None:
         logger.debug("Creating new bucket {}.", name)
-        await self.__client.create_bucket(
-            Bucket=name,
-            CreateBucketConfiguration=dict(LocationConstraint=self.__region),
-        )
+        try:
+            await self.__client.create_bucket(
+                Bucket=name,
+                CreateBucketConfiguration=dict(LocationConstraint=self.__region),
+            )
+        except ClientError:
+
+
 
     async def bucket_exists(self, name: str) -> bool:
         try:

@@ -217,17 +217,13 @@ describe("upload-slice action creators", () => {
   it("creates a processSelectedFiles action", () => {
     // Arrange.
     // Create some files to process.
-    const fakeFile = { type: "image/jpg", name: faker.system.fileName() };
-    const dataTransferItem = { getAsFile: jest.fn() };
-    // Create an invalid file as well.
-    dataTransferItem.getAsFile
-      .mockReturnValueOnce(fakeFile)
-      .mockReturnValueOnce(fakeFile)
-      .mockReturnValue(null);
+    const fakeImageFile = { type: "image/jpg", name: faker.system.fileName() };
+    const fakeTextFile = { type: "text/plain", name: faker.system.fileName() };
     const dataTransferItemList = [
-      dataTransferItem,
-      dataTransferItem,
-      dataTransferItem,
+      fakeImageFile,
+      fakeImageFile,
+      // Throw one invalid file in there too.
+      fakeTextFile,
     ];
 
     // Make it look like creating the object URL succeeds.
@@ -237,7 +233,7 @@ describe("upload-slice action creators", () => {
     // Act.
     // Fancy casting is so we can substitute mock objects.
     const gotAction = processSelectedFiles(
-      dataTransferItemList as unknown as DataTransferItemList
+      dataTransferItemList as unknown as File[]
     );
 
     // Assert.
@@ -246,8 +242,8 @@ describe("upload-slice action creators", () => {
     expect(gotAction.payload).toHaveLength(2);
     expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
     expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
-    expect(gotAction.payload[0].name).toEqual(fakeFile.name);
-    expect(gotAction.payload[1].name).toEqual(fakeFile.name);
+    expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
+    expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
     expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
     expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
   });

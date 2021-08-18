@@ -16,10 +16,6 @@ import {
 } from "./upload-slice";
 import { Action } from "redux";
 
-/** Aliases for custom events. */
-type DropZoneDraggingEvent = CustomEvent<boolean>;
-type DropZoneDropEvent = CustomEvent<DataTransferItemList>;
-
 /**
  * An element that allows the user to select and upload files.
  */
@@ -29,6 +25,10 @@ export class FileUploader extends LitElement {
   static styles = css`
     :host {
       height: 100%;
+    }
+
+    .hidden {
+      display: none;
     }
 
     /** Content on the bottom layer is scrollable and occluded by
@@ -145,7 +145,7 @@ export class FileUploader extends LitElement {
 
   /** The raw file list data that the user last uploaded. */
   @property({ attribute: false })
-  protected selectedFiles?: DataTransferItemList;
+  protected selectedFiles: File[] = [];
 
   /**
    * The list of files that are currently being uploaded.
@@ -156,6 +156,34 @@ export class FileUploader extends LitElement {
   @query("#file_list", true)
   private fileList!: FileList;
 
+  @query("#file_input", true)
+  private fileInput!: HTMLInputElement;
+
+  /**
+   * Helper function that converts a `DataTransferItemList` to an array of files.
+   * @param {DataTransferItemList} dataTransfer The `DataTransferItemList` to convert.
+   * @return {File[]} The array of file objects.
+   * @private
+   */
+  private static getFilesFromDataTransfer(
+    dataTransfer?: DataTransferItemList
+  ): File[] {
+    if (dataTransfer == undefined) {
+      // File list is empty.
+      return [];
+    }
+
+    const validFiles: File[] = [];
+    for (const item of dataTransfer) {
+      const asFile = item.getAsFile();
+      if (asFile !== null) {
+        validFiles.push(asFile);
+      }
+    }
+
+    return validFiles;
+  }
+
   /**
    * @inheritDoc
    */
@@ -165,6 +193,17 @@ export class FileUploader extends LitElement {
 
     return html`
       <link rel="stylesheet" href="./static/mallard-edge.css" />
+
+      <!-- File input to use for manually selecting files. -->
+      <input
+        type="file"
+        id="file_input"
+        class="hidden"
+        multiple
+        @change="${(_: Event) => {
+          this.selectedFiles = [...(this.fileInput.files ?? [])];
+        }}"
+      />
 
       <div id="drop_zone_container" class="top_layer">
         <div id="drop_zone_card" class="mdc-elevation--z2">
@@ -187,7 +226,9 @@ export class FileUploader extends LitElement {
             }"
             @drop="${(event: DragEvent) => {
               event.preventDefault();
-              this.selectedFiles = event.dataTransfer?.items;
+              this.selectedFiles = FileUploader.getFilesFromDataTransfer(
+                event.dataTransfer?.items
+              );
               this.isDragging = false;
             }}"
           >
@@ -201,7 +242,11 @@ export class FileUploader extends LitElement {
           </div>
         </div>
 
-        <mwc-fab icon="add" id="browse"></mwc-fab>
+        <mwc-fab
+          icon="add"
+          id="browse"
+          @click="${(_: Event) => this.fileInput.click()}"
+        ></mwc-fab>
       </div>
 
       <div class="file_list bottom_layer">
@@ -289,14 +334,11 @@ export class FileUploader extends LitElement {
     }
     if (_changedProperties.has("selectedFiles")) {
       this.dispatchEvent(
-        new CustomEvent<DataTransferItemList>(
-          FileUploader.DROP_ZONE_DROP_EVENT_NAME,
-          {
-            bubbles: true,
-            composed: true,
-            detail: this.selectedFiles,
-          }
-        )
+        new CustomEvent<File[]>(FileUploader.DROP_ZONE_DROP_EVENT_NAME, {
+          bubbles: true,
+          composed: true,
+          detail: this.selectedFiles,
+        })
       );
     }
   }
@@ -325,7 +367,7 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
     handlers[ConnectedFileUploader.DROP_ZONE_DRAGGING_EVENT_NAME] = (
       event: Event
     ) =>
-      (event as DropZoneDraggingEvent).detail
+      (event as CustomEvent<boolean>).detail
         ? fileDropZoneEntered(null)
         : fileDropZoneExited(null);
     handlers[ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME] = (
@@ -334,7 +376,7 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
       // istanbul ignore next
       const fileList =
-        (event as DropZoneDropEvent).detail ?? new DataTransferItemList();
+        (event as CustomEvent<File[]>).detail ?? new DataTransferItemList();
       return processSelectedFiles(fileList);
     };
 

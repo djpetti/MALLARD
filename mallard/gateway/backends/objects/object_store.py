@@ -31,12 +31,15 @@ class ObjectStore(Injectable):
     """
 
     @abc.abstractmethod
-    async def create_bucket(self, name: str) -> None:
+    async def create_bucket(self, name: str, exists_ok: bool = False) -> None:
         """
         Creates a new bucket in the object store.
 
         Args:
             name: The name of the bucket.
+            exists_ok: If true, and the bucket already exists, it will do
+                nothing and return normally. Otherwise, this condition will
+                cause an exception.
 
         Raises:
             `BucketOperationError` on failure.

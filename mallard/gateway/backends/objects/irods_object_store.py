@@ -14,7 +14,7 @@ from starlette.datastructures import UploadFile
 
 from ..irods_store import IrodsStore
 from .models import ObjectRef
-from .object_store import ObjectStore
+from .object_store import BucketOperationError, ObjectStore
 
 
 class IrodsObjectStore(IrodsStore, ObjectStore):
@@ -58,7 +58,12 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
         while source_data := await source.read(self._COPY_BUFFER_SIZE):
             await self.__copy_file(source_data, dest_file)
 
-    async def create_bucket(self, name: str) -> None:
+    async def create_bucket(self, name: str, exists_ok: bool = False) -> None:
+        # By default, iRODS will not produce an error if a collection already
+        # exists, so if we requested that check, we have to do it manually.
+        if not exists_ok and await self.bucket_exists(name):
+            raise BucketOperationError("Bucket '{}' already exists.", name)
+
         # In this case, buckets are an abstraction over iRODS collections.
         collection_path = self._bucket_path(name)
         logger.debug("Creating new collection {}.", collection_path)

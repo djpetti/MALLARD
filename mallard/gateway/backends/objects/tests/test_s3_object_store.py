@@ -83,16 +83,22 @@ class TestS3ObjectStore:
         )
 
     @pytest.mark.asyncio
-    async def test_create_bucket(self, config: ConfigForTests) -> None:
+    @pytest.mark.parametrize(
+        "exists_ok", [False, True], ids=("exists_error", "exists_ignore")
+    )
+    async def test_create_bucket(
+        self, config: ConfigForTests, exists_ok: bool
+    ) -> None:
         """
         Tests that `create_bucket` works.
 
         Args:
             config: The configuration to use for testing.
+            exists_ok: Whether to try with the `exists_ok` flag set.
 
         """
         # Act.
-        await config.store.create_bucket("test_bucket")
+        await config.store.create_bucket("test_bucket", exists_ok=exists_ok)
 
         # Assert.
         # It should have created the bucket.
@@ -100,6 +106,64 @@ class TestS3ObjectStore:
             Bucket="test_bucket",
             CreateBucketConfiguration=dict(LocationConstraint=config.region),
         )
+
+    @pytest.mark.asyncio
+    async def test_create_bucket_exists_ok(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that `create_bucket` works when a bucket already exists but we
+        specify `exists_ok`.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        # Make it look like the bucket already exists.
+        config.mock_client.create_bucket.side_effect = faker.client_error(
+            s3_object_store.S3ObjectStore._BUCKET_EXISTS_ERROR_CODE
+        )
+
+        # Act.
+        await config.store.create_bucket("test_bucket", exists_ok=True)
+
+        # Assert.
+        # It should have attempted to create the bucket.
+        config.mock_client.create_bucket.assert_called_once_with(
+            Bucket="test_bucket",
+            CreateBucketConfiguration=dict(LocationConstraint=config.region),
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_code",
+        ["unknown", s3_object_store.S3ObjectStore._BUCKET_EXISTS_ERROR_CODE],
+        ids=("unknown", "already_exists"),
+    )
+    async def test_create_bucket_failure(
+        self, config: ConfigForTests, faker: Faker, error_code: str
+    ) -> None:
+        """
+        Tests that `create_bucket` handles it correctly when creating the
+        bucket fails.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+            error_code: The error code to use for the fake error.
+
+        """
+        # Arrange.
+        # Make it look like the bucket already exists.
+        config.mock_client.create_bucket.side_effect = faker.client_error(
+            error_code
+        )
+
+        # Act and assert.
+        with pytest.raises(BucketOperationError, match=f".*{error_code}(.*)"):
+            await config.store.create_bucket("test_bucket")
 
     @pytest.mark.asyncio
     async def test_bucket_exists_true(self, config: ConfigForTests) -> None:

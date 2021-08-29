@@ -129,7 +129,9 @@ async def use_bucket(
 
     if not await backends.object_store.bucket_exists(bucket_name):
         logger.debug("Creating a new bucket: {}", bucket_name)
-        await backends.object_store.create_bucket(bucket_name)
+        # We specify exists_ok because there is a possible race-condition if
+        # it is servicing multiple requests concurrently.
+        await backends.object_store.create_bucket(bucket_name, exists_ok=True)
 
     return bucket_name
 

@@ -282,16 +282,30 @@ class S3ObjectStore(ObjectStore):
         ) as client:
             yield cls(client, region=region_name)
 
-    async def create_bucket(self, name: str) -> None:
+    async def create_bucket(self, name: str, exists_ok: bool = False) -> None:
         logger.debug("Creating new bucket {}.", name)
         try:
             await self.__client.create_bucket(
                 Bucket=name,
-                CreateBucketConfiguration=dict(LocationConstraint=self.__region),
+                CreateBucketConfiguration=dict(
+                    LocationConstraint=self.__region
+                ),
             )
-        except ClientError:
 
+        except ClientError as error:
+            if (
+                self.__extract_error_code(error)
+                == self._BUCKET_EXISTS_ERROR_CODE
+                and exists_ok
+            ):
+                # This bucket already exists.
+                logger.debug(
+                    "Bucket '{}' already exists, but we are ignoring that.",
+                    name,
+                )
+                return
 
+            raise BucketOperationError(str(error))
 
     async def bucket_exists(self, name: str) -> bool:
         try:

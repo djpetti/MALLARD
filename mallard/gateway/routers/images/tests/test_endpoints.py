@@ -675,7 +675,7 @@ async def test_use_bucket(
     )
     if not exists:
         config.mock_manager.object_store.create_bucket.assert_called_once_with(
-            got_bucket
+            got_bucket, exists_ok=True
         )
     else:
         config.mock_manager.object_store.create_bucket.assert_not_called()

@@ -24,7 +24,10 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
 from mallard.gateway.backends import irods_store
-from mallard.gateway.backends.objects import irods_object_store
+from mallard.gateway.backends.objects import (
+    BucketOperationError,
+    irods_object_store,
+)
 from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -86,16 +89,26 @@ class TestIrodsObjectStore:
         )
 
     @pytest.mark.asyncio
-    async def test_create_bucket(self, config: ConfigForTests) -> None:
+    @pytest.mark.parametrize(
+        "exists_ok", [False, True], ids=("exists_error", "exists_ignore")
+    )
+    async def test_create_bucket(
+        self, config: ConfigForTests, exists_ok: bool
+    ) -> None:
         """
         Tests that `create_bucket` works.
 
         Args:
             config: The configuration to use for testing.
+            exists_ok: Whether to try with the `exists_ok` flag set.
 
         """
+        # Arrange.
+        # Make it look like the bucket does not already exist.
+        config.mock_session.collections.exists.return_value = False
+
         # Act.
-        await config.store.create_bucket("test_bucket")
+        await config.store.create_bucket("test_bucket", exists_ok=exists_ok)
 
         # Assert.
         # It should have created an underlying collection.
@@ -103,6 +116,54 @@ class TestIrodsObjectStore:
         config.mock_session.collections.create.assert_called_once_with(
             expected_path.as_posix()
         )
+
+    @pytest.mark.asyncio
+    async def test_create_bucket_exists_ok(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that `create_bucket` works when a bucket already exists but we
+        specify `exists_ok`.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        # Make it look like the bucket already exists.
+        config.mock_session.collections.exists.return_value = True
+
+        # Act.
+        await config.store.create_bucket("test_bucket", exists_ok=True)
+
+        # Assert.
+        # It should have attempted to create the underlying collection.
+        expected_path = config.root_collection / "test_bucket"
+        config.mock_session.collections.create.assert_called_once_with(
+            expected_path.as_posix()
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_bucket_already_exists(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that `create_bucket` handles it correctly when the bucket
+        already exists and we specify that as an error.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        # Make it look like the bucket already exists.
+        config.mock_session.collections.exists.return_value = True
+
+        # Act and assert.
+        with pytest.raises(BucketOperationError, match="already exists"):
+            await config.store.create_bucket("test_bucket")
 
     @pytest.mark.asyncio
     async def test_bucket_exists(

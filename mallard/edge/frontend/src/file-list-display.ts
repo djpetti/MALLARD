@@ -10,7 +10,7 @@ import { FileStatus, FrontendFileEntity } from "./types";
  * files that are being currently processed.
  * @customElement file-list
  */
-export class FileList extends LitElement {
+export class FileListDisplay extends LitElement {
   /** Tag name for this element. */
   static tagName: string = "file-list";
   static styles = css`
@@ -141,10 +141,10 @@ export class FileList extends LitElement {
    */
   protected render() {
     // Make sure to render files in a canonical order.
-    const sortedFiles = FileList.sortFiles(this.files);
+    const sortedFiles = FileListDisplay.sortFiles(this.files);
 
     return html`
-      <mwc-list> ${sortedFiles.map(FileList.renderItem)} </mwc-list>
+      <mwc-list> ${sortedFiles.map(FileListDisplay.renderItem)} </mwc-list>
     `;
   }
 }

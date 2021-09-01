@@ -4,7 +4,7 @@ import {
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
-import { FileList } from "../file-list";
+import { FileListDisplay } from "../file-list-display";
 import { FileStatus, FrontendFileEntity, RootState } from "../types";
 import each from "jest-each";
 import { Action } from "redux";
@@ -88,7 +88,7 @@ describe("file-uploader", () => {
     // Assert.
     const shadowRoot = getShadowRoot(fileUploader.tagName);
     const fileListDiv = shadowRoot.querySelector(".file_list");
-    const fileList = fileListDiv?.querySelector("file-list") as FileList;
+    const fileList = fileListDiv?.querySelector("file-list") as FileListDisplay;
 
     // It should have updated the displayed files.
     expect(fileList.files).toEqual([file1, file2]);
@@ -174,22 +174,39 @@ describe("file-uploader", () => {
   });
 
   each([
-    ["valid", true],
-    ["invalid", false],
+    ["valid", true, true],
+    ["no", false, true],
+    ["invalid", true, false],
   ]).it(
     "dispatches an event when %s files are dropped",
-    async (_: string, validFiles: boolean) => {
+    async (_: string, validTransfer: boolean, validFiles: boolean) => {
       // Arrange.
       // Setup a fake handler for our event.
       const handler = jest.fn();
       fileUploader.addEventListener(
-        ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME,
+        ConnectedFileUploader.FILES_SELECTED_EVENT_NAME,
         handler
       );
 
       // Create a fake drag event. (We can't use a real one due to limitations in
       // JSDom).
-      const fakeItems = ["foo", "bar"];
+      /** Since we don't have full access to the DragEvent type, we
+       * have to kind of fake it. */
+      class TestDragEvent extends Event {
+        public dataTransfer?: any;
+      }
+      const dropEvent = new TestDragEvent("drop", {
+        bubbles: true,
+        composed: true,
+      });
+
+      // Create some fake transfer items.
+      const fakeFile = validFiles ? "fakeFile" : null;
+      const fakeItemMaker = () => ({ getAsFile: jest.fn(() => fakeFile) });
+      const fakeItems = [fakeItemMaker(), fakeItemMaker()];
+      if (validTransfer) {
+        dropEvent.dataTransfer = { items: fakeItems };
+      }
 
       // Act.
       // Make it look like we dropped files.
@@ -198,30 +215,19 @@ describe("file-uploader", () => {
         "#upload_drop_zone"
       ) as HTMLElement;
 
-      /** Since we don't have full access to the DragEvent type, we
-       * have to kind of fake it. */
-      class TestDragEvent extends Event {
-        public dataTransfer: any;
-      }
-      const dropEvent = new TestDragEvent("drop", {
-        bubbles: true,
-        composed: true,
-      });
-      if (validFiles) {
-        dropEvent.dataTransfer = { items: fakeItems };
-      }
       dropZone.dispatchEvent(dropEvent);
 
       await fileUploader.updateComplete;
 
       // Assert.
-      if (validFiles) {
-        // It should have dispatched a new event.
-        expect(handler).toBeCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail).toEqual(fakeItems);
+      // It should have dispatched a new event.
+      expect(handler).toBeCalledTimes(1);
+      if (validTransfer && validFiles) {
+        // The event should contain files.
+        expect(handler.mock.calls[0][0].detail).toHaveLength(2);
       } else {
-        // It should have done nothing.
-        expect(handler).not.toBeCalled();
+        // The event should contain nothing.
+        expect(handler.mock.calls[0][0].detail).toHaveLength(0);
       }
     }
   );
@@ -252,6 +258,26 @@ describe("file-uploader", () => {
       expect(dropZone?.classList.value.split(" ")).toContain(expectedClass);
     }
   );
+
+  it("forwards click events on the browse button to the file input", () => {
+    // Arrange.
+    // Get the elements.
+    const shadowRoot = getShadowRoot(fileUploader.tagName);
+    const browseButton = shadowRoot.querySelector("#browse") as HTMLElement;
+    const uploadInput = shadowRoot.querySelector("#file_input") as HTMLElement;
+
+    // Add a handler for the click event.
+    const handler = jest.fn();
+    uploadInput.addEventListener("click", handler);
+
+    // Act.
+    // Simulate the click event.
+    browseButton.dispatchEvent(new Event("click"));
+
+    // Assert.
+    // It should have called the handler.
+    expect(handler).toBeCalledTimes(1);
+  });
 
   it("updates the properties from the Redux state", () => {
     // Arrange.
@@ -300,7 +326,7 @@ describe("file-uploader", () => {
       expect(eventMap).toHaveProperty(
         FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME
       );
-      expect(eventMap).toHaveProperty(FileUploader.DROP_ZONE_DROP_EVENT_NAME);
+      expect(eventMap).toHaveProperty(FileUploader.FILES_SELECTED_EVENT_NAME);
       expect(eventMap).toHaveProperty(FileUploader.UPLOAD_READY_EVENT_NAME);
       expect(eventMap).toHaveProperty(
         FileUploader.METADATA_INFERENCE_READY_EVENT_NAME
@@ -350,7 +376,7 @@ describe("file-uploader", () => {
       };
 
       // Act.
-      eventMap[FileUploader.DROP_ZONE_DROP_EVENT_NAME](
+      eventMap[FileUploader.FILES_SELECTED_EVENT_NAME](
         testEvent as unknown as Event
       );
 

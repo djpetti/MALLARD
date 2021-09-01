@@ -3,7 +3,7 @@ import { LitElement } from "lit-element";
 import { ConnectedArtifactThumbnail } from "./artifact-thumbnail";
 import { ConnectedThumbnailGrid } from "./thumbnail-grid";
 import { ConnectedFileUploader } from "./file-uploader";
-import { FileList } from "./file-list";
+import { FileListDisplay } from "./file-list-display";
 import { ConnectedMetadataForm } from "./metadata-form";
 
 type LitElementType = typeof LitElement;
@@ -18,7 +18,7 @@ const componentClasses: ComponentType[] = [
   ConnectedThumbnailGrid,
   ConnectedArtifactThumbnail,
   ConnectedFileUploader,
-  FileList,
+  FileListDisplay,
   ConnectedMetadataForm,
 ];
 

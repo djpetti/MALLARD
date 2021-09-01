@@ -1,4 +1,4 @@
-import { FileList } from "../file-list";
+import { FileListDisplay } from "../file-list-display";
 import { fakeFrontendFileEntity, getShadowRoot } from "./element-test-utils";
 import { FileStatus, FrontendFileEntity } from "../types";
 
@@ -8,24 +8,26 @@ const faker = require("faker");
 
 describe("file-list", () => {
   /** Internal file-list to use for testing. */
-  let fileList: FileList;
+  let fileList: FileListDisplay;
 
   beforeAll(() => {
     // Manually register the custom element.
-    customElements.define(FileList.tagName, FileList);
+    customElements.define(FileListDisplay.tagName, FileListDisplay);
   });
 
   beforeEach(() => {
     // Set the faker seed.
     faker.seed(1337);
 
-    fileList = window.document.createElement(FileList.tagName) as FileList;
+    fileList = window.document.createElement(
+      FileListDisplay.tagName
+    ) as FileListDisplay;
     document.body.appendChild(fileList);
   });
 
   afterEach(() => {
     // Clean up the element we added.
-    document.body.getElementsByTagName(FileList.tagName)[0].remove();
+    document.body.getElementsByTagName(FileListDisplay.tagName)[0].remove();
   });
 
   it("can be instantiated", () => {
@@ -92,14 +94,17 @@ describe("file-list", () => {
     for (const fileName of displayedNames) {
       const fileStatus = namesToFiles.get(fileName as string)
         ?.status as FileStatus;
-      const statusOrder = FileList.FILE_DISPLAY_ORDER.indexOf(fileStatus);
+      const statusOrder =
+        FileListDisplay.FILE_DISPLAY_ORDER.indexOf(fileStatus);
 
       // Mark that we saw a file with this status.
       sawFileWithStatus.set(fileStatus, true);
 
       // Make sure that we haven't yet seen anything that comes after this in the
       // status order.
-      for (const status of FileList.FILE_DISPLAY_ORDER.slice(statusOrder + 1)) {
+      for (const status of FileListDisplay.FILE_DISPLAY_ORDER.slice(
+        statusOrder + 1
+      )) {
         expect(sawFileWithStatus.get(status)).toEqual(false);
       }
     }

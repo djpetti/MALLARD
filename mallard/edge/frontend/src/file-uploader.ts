@@ -2,7 +2,7 @@ import { css, html, LitElement, property, PropertyValues } from "lit-element";
 import "@material/mwc-icon";
 import "@material/mwc-fab";
 import { query } from "lit-element/lib/decorators.js";
-import { FileList } from "./file-list";
+import { FileListDisplay } from "./file-list-display";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { FileStatus, FrontendFileEntity, RootState } from "./types";
@@ -131,10 +131,9 @@ export class FileUploader extends LitElement {
   /** Name for the event signaling that the user has dragged a file into
    * or out of the upload drop zone. */
   static DROP_ZONE_DRAGGING_EVENT_NAME = "upload-drop-zone-dragging";
-  /** Name for the event signaling that the user has dropped a file into the
-   * upload drop zone.
+  /** Name for the event signaling that the user has selected new files.
    */
-  static DROP_ZONE_DROP_EVENT_NAME = "upload-drop-zone-drop";
+  static FILES_SELECTED_EVENT_NAME = "file-selected";
 
   /**
    * Keeps track of whether the user is actively dragging something
@@ -154,7 +153,7 @@ export class FileUploader extends LitElement {
   uploadingFiles: FrontendFileEntity[] = [];
 
   @query("#file_list", true)
-  private fileList!: FileList;
+  private fileList!: FileListDisplay;
 
   @query("#file_input", true)
   private fileInput!: HTMLInputElement;
@@ -201,6 +200,9 @@ export class FileUploader extends LitElement {
         class="hidden"
         multiple
         @change="${(_: Event) => {
+          // Because FileList cannot be constructed manually, this
+          // line is really hard to test.
+          // istanbul ignore next
           this.selectedFiles = [...(this.fileInput.files ?? [])];
         }}"
       />
@@ -334,7 +336,7 @@ export class FileUploader extends LitElement {
     }
     if (_changedProperties.has("selectedFiles")) {
       this.dispatchEvent(
-        new CustomEvent<File[]>(FileUploader.DROP_ZONE_DROP_EVENT_NAME, {
+        new CustomEvent<File[]>(FileUploader.FILES_SELECTED_EVENT_NAME, {
           bubbles: true,
           composed: true,
           detail: this.selectedFiles,
@@ -370,7 +372,7 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       (event as CustomEvent<boolean>).detail
         ? fileDropZoneEntered(null)
         : fileDropZoneExited(null);
-    handlers[ConnectedFileUploader.DROP_ZONE_DROP_EVENT_NAME] = (
+    handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (
       event: Event
     ) => {
       // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.

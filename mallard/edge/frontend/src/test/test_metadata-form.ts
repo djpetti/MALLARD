@@ -145,7 +145,18 @@ describe("metadata-form", () => {
       "#capture_date"
     ) as HTMLInputElement;
     // Value of the date field should be the date in ISO format without the time component.
-    expect(captureDate.toISOString()).toContain(dateField.value);
+    const displayedDate = new Date(dateField.value);
+    // Due to a UTC-vs-local time discrepancy, all the date fields can be within
+    // one of each-other.
+    expect(
+      Math.abs(captureDate.getFullYear() - displayedDate.getFullYear())
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(captureDate.getMonth() - displayedDate.getMonth())
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(captureDate.getDate() - displayedDate.getDate())
+    ).toBeLessThanOrEqual(1);
   });
 
   each([

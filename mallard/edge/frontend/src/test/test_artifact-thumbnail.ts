@@ -74,11 +74,13 @@ describe("artifact-thumbnail", () => {
     await thumbnailElement.updateComplete;
 
     // Assert.
-    const thumbnailDiv = getShadowRoot(
+    const containerDiv = getShadowRoot(
       ConnectedArtifactThumbnail.tagName
     ).querySelector("#image_container") as HTMLElement;
     // There should be no image element displayed.
-    expect(thumbnailDiv.getElementsByTagName("img").length).toEqual(0);
+    expect(containerDiv.getElementsByTagName("img").length).toEqual(0);
+    // The placeholder should be displayed.
+    expect(containerDiv.classList).toContain("placeholder");
 
     // It should report that no image is specified.
     expect(thumbnailElement.hasImage).toBe(false);
@@ -95,11 +97,14 @@ describe("artifact-thumbnail", () => {
 
     // Assert.
     // It should have rendered the image.
-    const thumbnailDiv = getShadowRoot(
+    const containerDiv = getShadowRoot(
       ConnectedArtifactThumbnail.tagName
     ).querySelector("#image_container") as HTMLElement;
 
-    const images = thumbnailDiv.getElementsByTagName("img");
+    // The placeholder should not be displayed.
+    expect(containerDiv.classList).not.toContain("placeholder");
+
+    const images = containerDiv.getElementsByTagName("img");
     expect(images.length).toEqual(1);
 
     // It should have set the correct image source.

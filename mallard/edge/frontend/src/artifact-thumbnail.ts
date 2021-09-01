@@ -18,9 +18,14 @@ export class ArtifactThumbnail extends LitElement {
       display: inline-block;
       border: none;
       margin: 0.5rem;
-      background-color: var(--theme-gray);
       min-width: 128px;
       min-height: 80px;
+    }
+
+    .placeholder {
+      background-color: var(--theme-gray);
+      width: 100%;
+      height: 100%;
     }
 
     img {
@@ -56,8 +61,11 @@ export class ArtifactThumbnail extends LitElement {
    * @inheritDoc
    */
   protected render() {
+    // Only show the placeholder if we don't have an image.
+    const placeholderClass = this.hasImage ? "" : "placeholder";
+
     return html`
-      <div id="image_container">
+      <div id="image_container" class="${placeholderClass}">
         ${this.hasImage
           ? html` <img src="${this.imageUrl as string}" alt="thumbnail" /> `
           : html``}

@@ -98,7 +98,8 @@ export class ThumbnailGrid extends LitElement {
    */
   protected render() {
     // Visibility of the "no data" message.
-    const emptyMessageVisibility = this.groupedArtifacts.length == 0 ? "" : "hidden";
+    const emptyMessageVisibility =
+      this.groupedArtifacts.length == 0 ? "" : "hidden";
 
     return html`
       <!-- Show a message if we have no data. -->

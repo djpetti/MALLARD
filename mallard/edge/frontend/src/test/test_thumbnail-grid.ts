@@ -90,6 +90,10 @@ describe("thumbnail-grid", () => {
     // It should have set the correct thumbnails.
     const gridSection = gridDiv.children[0] as ThumbnailGridSection;
     expect(gridSection.displayedArtifacts).toEqual(artifactIds);
+
+    // It should not be showing the "no data" message.
+    const emptyMessage = root.querySelector("#empty_message") as HTMLElement;
+    expect(emptyMessage.classList).toContain("hidden");
   });
 
   it("renders a message when there are no data", async () => {
@@ -104,7 +108,7 @@ describe("thumbnail-grid", () => {
     // It should have rendered a message.
     const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
     const emptyMessage = root.querySelector("#empty_message") as HTMLElement;
-    expect(emptyMessage).not.toBe(null);
+    expect(emptyMessage.classList).not.toContain("hidden");
   });
 
   it("updates the properties from the Redux state", () => {

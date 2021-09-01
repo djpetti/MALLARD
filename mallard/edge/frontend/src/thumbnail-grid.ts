@@ -77,6 +77,10 @@ export class ThumbnailGrid extends LitElement {
       padding-top: 5%;
       font-size: xxx-large;
     }
+
+    .hidden {
+      display: none;
+    }
   `;
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
@@ -93,12 +97,13 @@ export class ThumbnailGrid extends LitElement {
    * @inheritDoc
    */
   protected render() {
-    if (this.groupedArtifacts.length == 0) {
-      // Show some text indicating that there is no data.
-      return html`<h1 id="empty_message">No Data</h1>`;
-    }
+    // Visibility of the "no data" message.
+    const emptyMessageVisibility = this.groupedArtifacts.length == 0 ? "" : "hidden";
 
     return html`
+      <!-- Show a message if we have no data. -->
+      <h1 id="empty_message" class="${emptyMessageVisibility}">No Data</h1>
+
       <div class="thumbnail_grid">
         ${this.groupedArtifacts.map(
           (e) => html`

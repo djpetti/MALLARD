@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mallard"
-version = "0.3.1"
+version = "0.3.2"
 description = "MAchine Learning Large ARtifact Database"
 authors = ["Daniel Petti <djpetti@gmail.com>", "Justin Hong <wjtw9802@gmail.com>"]
 license = "MIT"

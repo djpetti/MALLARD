@@ -1,13 +1,14 @@
-import { LitElement, html, css, property, PropertyValues } from "lit-element";
+import { css, html, LitElement, property, PropertyValues } from "lit-element";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { ImageEntity, RootState } from "./types";
+import { ImageEntity, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
   thumbnailGridSelectors,
   thunkLoadMetadata,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
+import "@material/mwc-circular-progress";
 
 /** Custom error to signify missing image metadata. */
 class MetadataError extends Error {}
@@ -74,8 +75,11 @@ export class ThumbnailGrid extends LitElement {
       margin: auto;
       width: 50%;
       text-align: center;
-      padding-top: 5%;
       font-size: xxx-large;
+    }
+
+    .top_offset {
+      padding-top: 5%;
     }
 
     .hidden {
@@ -86,6 +90,10 @@ export class ThumbnailGrid extends LitElement {
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({ type: Array })
   displayedArtifacts: string[] = [];
+
+  /** Whether we are still loading data. */
+  @property({ type: Boolean })
+  isLoading: boolean = true;
 
   /**
    * Unique IDs of artifacts grouped by date.
@@ -99,13 +107,32 @@ export class ThumbnailGrid extends LitElement {
   protected render() {
     // Visibility of the "no data" message.
     const emptyMessageVisibility =
-      this.groupedArtifacts.length == 0 ? "" : "hidden";
+      !this.isLoading && this.groupedArtifacts.length == 0 ? "" : "hidden";
+    // Visibility of the loading indicator.
+    const loadingVisibility = this.isLoading ? "" : "hidden";
+    // Visibility of the content.
+    const contentVisibility = this.isLoading ? "hidden" : "";
 
     return html`
-      <!-- Show a message if we have no data. -->
-      <h1 id="empty_message" class="${emptyMessageVisibility}">No Data</h1>
+      <link rel="stylesheet" href="./static/mallard-edge.css" />
 
-      <div class="thumbnail_grid">
+      <!-- Show a loading indicator if needed. -->
+      <mwc-circular-progress
+        id="loading_indicator"
+        indeterminate
+        density="14"
+        class="${loadingVisibility} center top_offset"
+      ></mwc-circular-progress>
+
+      <!-- Show a message if we have no data. -->
+      <h1
+        id="empty_message"
+        class="${emptyMessageVisibility} center top_offset"
+      >
+        No Data
+      </h1>
+
+      <div class="thumbnail_grid ${contentVisibility}">
         ${this.groupedArtifacts.map(
           (e) => html`
             <thumbnail-grid-section
@@ -166,7 +193,13 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       return b.captureDate.getTime() - a.captureDate.getTime();
     });
 
+    // Determine if we should show the loading indicator.
+    const showLoading =
+      state.thumbnailGrid.currentQueryState == RequestState.LOADING ||
+      state.thumbnailGrid.metadataLoadingState == RequestState.LOADING;
+
     return {
+      isLoading: showLoading,
       displayedArtifacts: allIds,
       groupedArtifacts: grouped,
     };

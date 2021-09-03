@@ -261,6 +261,21 @@ describe("thumbnail-grid-slice reducers", () => {
   it("handles a loadMetadata/pending action", () => {
     // Arrange.
     const state: ThumbnailGridState = fakeState().thumbnailGrid;
+    state.metadataLoadingState = RequestState.IDLE;
+
+    // Act.
+    const newState: ThumbnailGridState = thumbnailGridReducer(state, {
+      type: thunkLoadMetadata.typePrefix + "/pending",
+    });
+
+    // Assert.
+    // It should have marked the metadata as loading.
+    expect(newState.metadataLoadingState).toEqual(RequestState.LOADING);
+  });
+
+  it("handles a loadMetadata/fulfilled action", () => {
+    // Arrange.
+    const state: ThumbnailGridState = fakeState().thumbnailGrid;
 
     // Fix up the state so it looks like we already have a thumbnail.
     const fakeEntity = fakeThumbnailEntity(true);
@@ -288,5 +303,8 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have updated the entity for the image.
     const imageEntity = newState.entities[imageId];
     expect(imageEntity?.metadata).toEqual(metadata);
+
+    // It should have marked the metadata as loaded.
+    expect(newState.metadataLoadingState).toEqual(RequestState.SUCCEEDED);
   });
 });

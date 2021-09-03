@@ -5,7 +5,7 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
-import { RootState } from "../types";
+import { RequestState, RootState } from "../types";
 
 const faker = require("faker");
 
@@ -57,6 +57,9 @@ describe("thumbnail-grid", () => {
     gridElement = window.document.createElement(
       ConnectedThumbnailGrid.tagName
     ) as ConnectedThumbnailGrid;
+    // Default to not being in loading mode, since that's typically what
+    // we want to test.
+    gridElement.isLoading = false;
     document.body.appendChild(gridElement);
   });
 
@@ -96,6 +99,23 @@ describe("thumbnail-grid", () => {
     expect(emptyMessage.classList).toContain("hidden");
   });
 
+  it("renders a loading indicator when requested", async () => {
+    // Arrange.
+    // Make it look like we are loading data.
+    gridElement.isLoading = true;
+
+    // Act.
+    await gridElement.updateComplete;
+
+    // Assert.
+    // It should have rendered the loading indicator.
+    const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
+    const loadingIndicator = root.querySelector(
+      "#loading_indicator"
+    ) as HTMLElement;
+    expect(loadingIndicator.classList).not.toContain("hidden");
+  });
+
   it("renders a message when there are no data", async () => {
     // Arrange.
     // Make it look like there are no artifacts.
@@ -119,6 +139,11 @@ describe("thumbnail-grid", () => {
     const state: RootState = fakeState();
     state.thumbnailGrid.ids = [imageId];
     state.thumbnailGrid.entities[imageId] = fakeThumbnailEntity(false);
+    const possibleStates = [RequestState.LOADING, RequestState.SUCCEEDED];
+    state.thumbnailGrid.currentQueryState =
+      faker.random.arrayElement(possibleStates);
+    state.thumbnailGrid.currentQueryState =
+      faker.random.arrayElement(possibleStates);
 
     // Act.
     const updates = gridElement.mapState(state);
@@ -127,6 +152,10 @@ describe("thumbnail-grid", () => {
     // It should have gotten the correct updates.
     expect(updates).toHaveProperty("displayedArtifacts");
     expect(updates["displayedArtifacts"]).toEqual(state.thumbnailGrid.ids);
+    expect(updates["isLoading"]).toEqual(
+      state.thumbnailGrid.currentQueryState == RequestState.LOADING ||
+        state.thumbnailGrid.metadataLoadingState == RequestState.LOADING
+    );
 
     // There should be no grouped images, because our input lacks metadata.
     expect(updates).toHaveProperty("groupedArtifacts");

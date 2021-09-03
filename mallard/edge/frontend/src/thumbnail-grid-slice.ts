@@ -54,6 +54,7 @@ const initialState: ThumbnailGridState = thumbnailGridAdapter.getInitialState({
   lastQueryResults: null,
   currentQuery: null,
   currentQueryState: RequestState.IDLE,
+  metadataLoadingState: RequestState.IDLE,
   currentQueryError: null,
 });
 
@@ -119,7 +120,7 @@ export const thumbnailGridSlice = createSlice({
   initialState: initialState as ThumbnailGridState,
   reducers: {},
   extraReducers: (builder) => {
-    // Initiates a new query for home screen data.
+    // We initiated a new query for home screen data.
     builder.addCase(thunkStartQuery.pending, (state) => {
       state.currentQueryState = RequestState.LOADING;
     });
@@ -162,8 +163,15 @@ export const thumbnailGridSlice = createSlice({
       });
     });
 
+    // We initiated a new request for metadata.
+    builder.addCase(thunkLoadMetadata.pending, (state, _) => {
+      state.metadataLoadingState = RequestState.LOADING;
+    });
+
     // Adds results from metadata loading.
     builder.addCase(thunkLoadMetadata.fulfilled, (state, action) => {
+      state.metadataLoadingState = RequestState.SUCCEEDED;
+
       // Save the image metadata.
       const updates = action.payload.imageIds.map(
         (imageId: string, index: number) => {

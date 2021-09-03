@@ -66,6 +66,8 @@ export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
   currentQuery: ImageQuery | null;
   /** State of the current query. */
   currentQueryState: RequestState;
+  /** State of the metadata loading. */
+  metadataLoadingState: RequestState;
   /** Error message from the query, if we have one. */
   currentQueryError: string | null;
 }

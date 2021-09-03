@@ -40,6 +40,7 @@ export function fakeState(): RootState {
       lastQueryResults: null,
       currentQuery: null,
       currentQueryState: RequestState.IDLE,
+      metadataLoadingState: RequestState.IDLE,
       currentQueryError: null,
       ids: [],
       entities: {},

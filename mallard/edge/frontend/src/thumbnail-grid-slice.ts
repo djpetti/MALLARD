@@ -12,7 +12,12 @@ import {
   ThumbnailStatus,
 } from "./types";
 import { getMetadata, loadThumbnail, queryImages } from "./api-client";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import {
+  ObjectRef,
+  Ordering,
+  QueryResponse,
+  UavImageMetadata,
+} from "typescript-axios";
 
 /**
  * Return type for the `thunkStartQuery` creator.
@@ -56,6 +61,7 @@ const initialState: ThumbnailGridState = thumbnailGridAdapter.getInitialState({
   currentQueryState: RequestState.IDLE,
   metadataLoadingState: RequestState.IDLE,
   currentQueryError: null,
+  lastQueryHasMorePages: true,
 });
 
 /** Memoized selectors for the state. */
@@ -67,9 +73,22 @@ export const thumbnailGridSelectors =
  */
 export const thunkStartQuery = createAsyncThunk(
   "thumbnailGrid/startQuery",
-  async (query: ImageQuery): Promise<StartQueryReturn> => {
+  async ({
+    query,
+    orderings,
+    resultsPerPage,
+    pageNum,
+  }: {
+    query: ImageQuery;
+    orderings?: Ordering[];
+    resultsPerPage?: number;
+    pageNum?: number;
+  }): Promise<StartQueryReturn> => {
     // Perform the query.
-    return { query: query, result: await queryImages(query) };
+    return {
+      query: query,
+      result: await queryImages(query, orderings, resultsPerPage, pageNum),
+    };
   }
 );
 
@@ -149,6 +168,7 @@ export const thumbnailGridSlice = createSlice({
         // We have not gotten all the results, so the query will have to be rerun at some point.
         state.currentQuery = action.payload.query;
       }
+      state.lastQueryHasMorePages = !action.payload.result.isLastPage;
     });
 
     // Adds results from thumbnail loading.

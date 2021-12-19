@@ -7,7 +7,11 @@ import {
   loadThumbnail,
   queryImages,
 } from "../api-client";
-import { fakeObjectRef, fakeImageMetadata } from "./element-test-utils";
+import {
+  fakeObjectRef,
+  fakeImageMetadata,
+  fakeOrdering,
+} from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
 
@@ -49,7 +53,11 @@ describe("api-client", () => {
     const mockQueryImages =
       mockImagesApiClass.prototype.queryImagesImagesQueryPost;
 
-    const imageIds: string[] = [faker.datatype.uuid(), faker.datatype.uuid()];
+    const resultsPerPage = faker.datatype.number();
+    const imageIds: string[] = [];
+    for (let i = 0; i < resultsPerPage; ++i) {
+      imageIds.push(faker.datatype.uuid());
+    }
     const pageNum: number = faker.datatype.number();
     const isLastPage: boolean = faker.datatype.boolean();
     mockQueryImages.mockResolvedValue({
@@ -60,19 +68,24 @@ describe("api-client", () => {
       },
     });
 
+    const orderings = [fakeOrdering(), fakeOrdering()];
     const query: ImageQuery = {};
 
     // Act.
-    const result: QueryResponse = await queryImages(query);
+    const result: QueryResponse = await queryImages(
+      query,
+      orderings,
+      resultsPerPage,
+      pageNum
+    );
 
     // Assert.
     // It should have queried the images.
     expect(mockQueryImages).toBeCalledTimes(1);
-    expect(mockQueryImages).toBeCalledWith(
-      expect.any(Number),
-      expect.any(Number),
-      query
-    );
+    expect(mockQueryImages).toBeCalledWith(resultsPerPage, pageNum, {
+      query: query,
+      orderings: orderings,
+    });
 
     // It should have gotten the proper result.
     expect(result.imageIds).toEqual(imageIds);
@@ -107,7 +120,7 @@ describe("api-client", () => {
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
-    const result: string = await loadThumbnail(imageId);
+    const result: Blob = await loadThumbnail(imageId);
 
     // Assert.
     // It should have loaded the thumbnail.

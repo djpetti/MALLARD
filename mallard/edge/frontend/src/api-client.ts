@@ -3,9 +3,10 @@ import {
   ImageFormat,
   ImagesApi,
   ObjectRef,
+  Ordering,
   PlatformType,
-  UavImageMetadata,
   QueryResponse,
+  UavImageMetadata,
 } from "typescript-axios";
 import { ImageQuery } from "./types";
 
@@ -78,11 +79,22 @@ function metadataToForm(metadata: UavImageMetadata): any[] {
 /**
  * Performs a query for images.
  * @param {ImageQuery} query The query to perform.
+ * @param {Ordering[]} orderings The orderings to use for the query results.
+ * @param {number} resultsPerPage The number of results to include on each page.
+ * @param {number} pageNum The page number to fetch.
  * @return {QueryResponse} The result of the query.
  */
-export async function queryImages(query: ImageQuery): Promise<QueryResponse> {
+export async function queryImages(
+  query: ImageQuery,
+  orderings?: Ordering[],
+  resultsPerPage?: number,
+  pageNum?: number
+): Promise<QueryResponse> {
   const response = await api
-    .queryImagesImagesQueryPost(50, 1, query)
+    .queryImagesImagesQueryPost(resultsPerPage, pageNum, {
+      query: query,
+      orderings: orderings,
+    })
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -96,7 +108,7 @@ export async function queryImages(query: ImageQuery): Promise<QueryResponse> {
  * @param {ObjectRef} imageId The ID of the image to load the thumbnail for.
  * @return {string} The raw thumbnail image blob data.
  */
-export async function loadThumbnail(imageId: ObjectRef): Promise<string> {
+export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const response = await api
     .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",

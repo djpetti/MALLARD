@@ -66,7 +66,7 @@ describe("thumbnail-grid-slice action creators", () => {
     const query: ImageQuery = {};
 
     // Act.
-    await thunkStartQuery(query)(store.dispatch, store.getState, {});
+    await thunkStartQuery({ query: query })(store.dispatch, store.getState, {});
 
     // Assert.
     // It should have dispatched the lifecycle actions.

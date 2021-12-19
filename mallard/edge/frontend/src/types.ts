@@ -70,6 +70,8 @@ export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
   metadataLoadingState: RequestState;
   /** Error message from the query, if we have one. */
   currentQueryError: string | null;
+  /** Whether the last query had more pages. */
+  lastQueryHasMorePages: boolean;
 }
 
 /**

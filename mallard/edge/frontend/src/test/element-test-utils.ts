@@ -13,8 +13,10 @@ import {
 } from "../types";
 import * as faker from "faker";
 import {
+  Field,
   ImageFormat,
   ObjectRef,
+  Ordering,
   PlatformType,
   UavImageMetadata,
 } from "typescript-axios";
@@ -42,6 +44,7 @@ export function fakeState(): RootState {
       currentQueryState: RequestState.IDLE,
       metadataLoadingState: RequestState.IDLE,
       currentQueryError: null,
+      lastQueryHasMorePages: true,
       ids: [],
       entities: {},
     },
@@ -165,5 +168,21 @@ export function fakeImageMetadata(): UavImageMetadata {
     locationDescription: faker.lorem.words(),
     altitudeMeters: faker.datatype.number(400),
     gsdCmPx: faker.datatype.number(2.0),
+  };
+}
+
+/**
+ * @return {Ordering} A fake `Ordering` that it created.
+ */
+export function fakeOrdering(): Ordering {
+  return {
+    field: faker.random.arrayElement([
+      Field.NAME,
+      Field.CAPTURE_DATE,
+      Field.CAMERA,
+      Field.SEQUENCE_NUM,
+      Field.SESSION_NUM,
+    ]),
+    ascending: faker.datatype.boolean(),
   };
 }

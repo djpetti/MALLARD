@@ -13,7 +13,6 @@ import "@material/mwc-radio";
 import "@material/mwc-formfield";
 import "./thumbnail-grid";
 import store from "./store";
-import { thunkStartQuery } from "./thumbnail-grid-slice";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";
 import { closeDialog, dialogOpened } from "./upload-slice";
@@ -37,6 +36,4 @@ window.onload = function () {
     store.dispatch(closeDialog());
     uploadModal?.close();
   });
-
-  store.dispatch(thunkStartQuery({}));
 };

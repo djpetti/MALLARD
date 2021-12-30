@@ -4,7 +4,7 @@ import uploadReducer from "./upload-slice";
 
 export default configureStore({
   reducer: {
-    thumbnailGrid: thumbnailGridReducer,
+    imageView: thumbnailGridReducer,
     uploads: uploadReducer,
   },
 });

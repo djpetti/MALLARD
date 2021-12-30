@@ -106,11 +106,29 @@ export async function queryImages(
 /**
  * Loads a specific thumbnail.
  * @param {ObjectRef} imageId The ID of the image to load the thumbnail for.
- * @return {string} The raw thumbnail image blob data.
+ * @return {Blob} The raw thumbnail image blob data.
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const response = await api
     .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
+      responseType: "blob",
+    })
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
+
+  return response.data;
+}
+
+/**
+ * Loads a specific image.
+ * @param {ObjectRef} imageId The ID of the image to load.
+ * @return {Blob} The raw image blob data.
+ */
+export async function loadImage(imageId: ObjectRef): Promise<Blob> {
+  const response = await api
+    .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
     })
     .catch(function (error) {

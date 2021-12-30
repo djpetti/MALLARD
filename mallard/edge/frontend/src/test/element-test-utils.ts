@@ -6,10 +6,10 @@ import {
   FileStatus,
   FrontendFileEntity,
   ImageEntity,
+  ImageStatus,
   MetadataInferenceStatus,
   RequestState,
   RootState,
-  ThumbnailStatus,
 } from "../types";
 import * as faker from "faker";
 import {
@@ -38,7 +38,7 @@ export const getShadowRoot = (tagName: string): ShadowRoot => {
 export function fakeState(): RootState {
   // Create a fake state.
   return {
-    thumbnailGrid: {
+    imageView: {
       lastQueryResults: null,
       currentQuery: null,
       currentQueryState: RequestState.IDLE,
@@ -63,17 +63,23 @@ export function fakeState(): RootState {
 }
 
 /**
- * Creates a fake entity in our normalized thumbnail database.
- * @param {boolean} imageLoaded Specify whether to simulate that a particular
+ * Creates a fake entity in our normalized image database.
+ * @param {boolean} thumbnailLoaded Specify whether to simulate that a particular
  *  thumbnail image has finished loading. If not specified, it will be set randomly.
+ * @param {boolean} imageLoaded Specify whether to simulate that a particular
+ *  image has finished loading. If not specified, it will be set randomly.
  * @param {Date} captureDate Specify a specific capture date for this entity.
  * @return {ImageEntity} The entity that it created.
  */
-export function fakeThumbnailEntity(
+export function fakeImageEntity(
+  thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
   captureDate?: Date
 ): ImageEntity {
   // Determine whether we should simulate a loaded image or not.
+  if (thumbnailLoaded == undefined) {
+    thumbnailLoaded = faker.datatype.boolean();
+  }
   if (imageLoaded == undefined) {
     imageLoaded = faker.datatype.boolean();
   }
@@ -82,19 +88,28 @@ export function fakeThumbnailEntity(
     captureDate = faker.date.past();
   }
 
-  let status: ThumbnailStatus = ThumbnailStatus.LOADING;
+  let thumbnailStatus: ImageStatus = ImageStatus.LOADING;
+  let imageStatus: ImageStatus = ImageStatus.LOADING;
+  let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let metadata: UavImageMetadata | null = null;
+  if (thumbnailLoaded) {
+    // Simulate a loaded thumbnail.
+    thumbnailStatus = ImageStatus.VISIBLE;
+    thumbnailUrl = faker.image.dataUri();
+    metadata = { captureDate: captureDate.toISOString() };
+  }
   if (imageLoaded) {
     // Simulate a loaded image.
-    status = ThumbnailStatus.VISIBLE;
+    imageStatus = ImageStatus.VISIBLE;
     imageUrl = faker.image.dataUri();
-    metadata = { captureDate: captureDate.toISOString() };
   }
 
   return {
-    backendId: { bucket: faker.lorem.word(), name: faker.datatype.uuid() },
-    status: status,
+    backendId: fakeObjectRef(),
+    thumbnailStatus: thumbnailStatus,
+    imageStatus: imageStatus,
+    thumbnailUrl: thumbnailUrl,
     imageUrl: imageUrl,
     metadata: metadata,
   };

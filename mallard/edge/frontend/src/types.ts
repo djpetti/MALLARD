@@ -5,10 +5,10 @@ import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
  * Represents the state of a long-running request.
  */
 export enum RequestState {
-  IDLE = "idle",
-  LOADING = "loading",
-  SUCCEEDED = "succeeded",
-  FAILED = "failed",
+  IDLE,
+  LOADING,
+  SUCCEEDED,
+  FAILED,
 }
 
 /**
@@ -33,12 +33,12 @@ interface NormalizedState<EntityType> {
 }
 
 /**
- * The loading status of the thumbnail images.
+ * The loading status of images.
  */
-export enum ThumbnailStatus {
-  /** Thumbnail is loading. */
+export enum ImageStatus {
+  /** Image is loading. */
   LOADING,
-  /** Thumbnail is loaded and displayed. */
+  /** Image is loaded and displayed. */
   VISIBLE,
 }
 
@@ -48,18 +48,25 @@ export enum ThumbnailStatus {
 export interface ImageEntity {
   /** Unique ID for the image provided by the backend. */
   backendId: ObjectRef;
+
   /** Status of loading the image thumbnail. */
-  status: ThumbnailStatus;
-  /** The object URL of the image. */
+  thumbnailStatus: ImageStatus;
+  /** Status of loading the full image. */
+  imageStatus: ImageStatus;
+
+  /** The object URL of the image thumbnail. */
+  thumbnailUrl: string | null;
+  /** The object URL of the full-sized image. */
   imageUrl: string | null;
+
   /** The metadata associated with the image. */
   metadata: UavImageMetadata | null;
 }
 
 /**
- * Represents the state of the thumbnail grid.
+ * Represents the state of the home and details pages.
  */
-export interface ThumbnailGridState extends NormalizedState<ImageEntity> {
+export interface ImageViewState extends NormalizedState<ImageEntity> {
   /** Most recent query results. */
   lastQueryResults: QueryResponse | null;
   /** Most recent query, possibly still in progress. */
@@ -140,6 +147,6 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
  * Represents the type of the root state structure.
  */
 export interface RootState {
-  thumbnailGrid: ThumbnailGridState;
+  imageView: ImageViewState;
   uploads: UploadState;
 }

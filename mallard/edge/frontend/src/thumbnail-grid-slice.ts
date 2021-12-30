@@ -6,12 +6,17 @@ import {
 import {
   ImageEntity,
   ImageQuery,
+  ImageStatus,
+  ImageViewState,
   RequestState,
   RootState,
-  ThumbnailGridState,
-  ThumbnailStatus,
 } from "./types";
-import { getMetadata, loadThumbnail, queryImages } from "./api-client";
+import {
+  getMetadata,
+  loadImage,
+  loadThumbnail,
+  queryImages,
+} from "./api-client";
 import {
   ObjectRef,
   Ordering,
@@ -28,9 +33,9 @@ interface StartQueryReturn {
 }
 
 /**
- * Return type for the `thunkLoadThumbnail` creator.
+ * Return type for the `thunkLoadThumbnail` and `thunkLoadImage` creators.
  */
-interface LoadThumbnailReturn {
+interface LoadImageReturn {
   imageId: string;
   imageUrl: string;
 }
@@ -48,14 +53,30 @@ interface LoadMetadataReturn {
  * @param {ObjectRef} backendId The ID used by the backend.
  * @return {string} The equivalent ID used by the frontend.
  */
-function createImageEntityId(backendId: ObjectRef): string {
-  return `${backendId.bucket}/${backendId.name}`;
+export function createImageEntityId(backendId: ObjectRef): string {
+  return `${backendId.bucket}_${backendId.name}`;
+}
+
+/**
+ * Creates an image entity with default values for all the attributes.
+ * @param {ObjectRef} backendId ID of the entity on the backend.
+ * @return {ImageEntity} The entity that it created.
+ */
+function createDefaultEntity(backendId: ObjectRef): ImageEntity {
+  return {
+    backendId: backendId,
+    thumbnailStatus: ImageStatus.LOADING,
+    imageStatus: ImageStatus.LOADING,
+    thumbnailUrl: null,
+    imageUrl: null,
+    metadata: null,
+  };
 }
 
 const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
   selectId: (entity) => createImageEntityId(entity.backendId),
 });
-const initialState: ThumbnailGridState = thumbnailGridAdapter.getInitialState({
+const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   lastQueryResults: null,
   currentQuery: null,
   currentQueryState: RequestState.IDLE,
@@ -66,7 +87,7 @@ const initialState: ThumbnailGridState = thumbnailGridAdapter.getInitialState({
 
 /** Memoized selectors for the state. */
 export const thumbnailGridSelectors =
-  thumbnailGridAdapter.getSelectors<RootState>((state) => state.thumbnailGrid);
+  thumbnailGridAdapter.getSelectors<RootState>((state) => state.imageView);
 
 /**
  * Action creator that starts a new request for thumbnails on the homepage.
@@ -97,13 +118,31 @@ export const thunkStartQuery = createAsyncThunk(
  */
 export const thunkLoadThumbnail = createAsyncThunk(
   "thumbnailGrid/loadThumbnail",
-  async (imageId: string, { getState }): Promise<LoadThumbnailReturn> => {
+  async (imageId: string, { getState }): Promise<LoadImageReturn> => {
     // This should never be undefined, because that means our image ID is invalid.
     const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
       getState() as RootState,
       imageId
     ) as ImageEntity;
     const rawImage = await loadThumbnail(imageEntity.backendId);
+
+    // Get the object URL for it.
+    return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
+  }
+);
+
+/**
+ * Action creator that starts a new request for an image.
+ */
+export const thunkLoadImage = createAsyncThunk(
+  "thumbnailGrid/loadImage",
+  async (imageId: string, { getState }): Promise<LoadImageReturn> => {
+    // This should never be undefined, because that means our image ID is invalid.
+    const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+      getState() as RootState,
+      imageId
+    ) as ImageEntity;
+    const rawImage = await loadImage(imageEntity.backendId);
 
     // Get the object URL for it.
     return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
@@ -136,8 +175,13 @@ export const thunkLoadMetadata = createAsyncThunk(
 
 export const thumbnailGridSlice = createSlice({
   name: "thumbnailGrid",
-  initialState: initialState as ThumbnailGridState,
-  reducers: {},
+  initialState: initialState as ImageViewState,
+  reducers: {
+    // We are manually adding a new artifact to the frontend state.
+    addArtifact(state, action) {
+      thumbnailGridAdapter.addOne(state, createDefaultEntity(action.payload));
+    },
+  },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
     builder.addCase(thunkStartQuery.pending, (state) => {
@@ -151,14 +195,7 @@ export const thumbnailGridSlice = createSlice({
       // Mark these thumbnails as currently loading.
       thumbnailGridAdapter.addMany(
         state,
-        action.payload.result.imageIds.map((i) => {
-          return {
-            backendId: i,
-            status: ThumbnailStatus.LOADING,
-            imageUrl: null,
-            metadata: null,
-          };
-        })
+        action.payload.result.imageIds.map((i) => createDefaultEntity(i))
       );
 
       if (action.payload.result.isLastPage) {
@@ -171,13 +208,25 @@ export const thumbnailGridSlice = createSlice({
       state.lastQueryHasMorePages = !action.payload.result.isLastPage;
     });
 
-    // Adds results from thumbnail loading.
+    // Add results from thumbnail loading.
     builder.addCase(thunkLoadThumbnail.fulfilled, (state, action) => {
       // Transition images from LOADING to VISIBLE, and save the image URL.
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload.imageId,
         changes: {
-          status: ThumbnailStatus.VISIBLE,
+          thumbnailStatus: ImageStatus.VISIBLE,
+          thumbnailUrl: action.payload.imageUrl,
+        },
+      });
+    });
+
+    // Add results from image loading.
+    builder.addCase(thunkLoadImage.fulfilled, (state, action) => {
+      // Transition images from LOADING to VISIBLE, and save the image URL.
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.payload.imageId,
+        changes: {
+          imageStatus: ImageStatus.VISIBLE,
           imageUrl: action.payload.imageUrl,
         },
       });
@@ -188,7 +237,7 @@ export const thumbnailGridSlice = createSlice({
       state.metadataLoadingState = RequestState.LOADING;
     });
 
-    // Adds results from metadata loading.
+    // Add results from metadata loading.
     builder.addCase(thunkLoadMetadata.fulfilled, (state, action) => {
       state.metadataLoadingState = RequestState.SUCCEEDED;
 
@@ -206,4 +255,5 @@ export const thumbnailGridSlice = createSlice({
   },
 });
 
+export const { addArtifact } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

@@ -57,7 +57,8 @@ export class ThumbnailGridSection extends LitElement {
         : html``}
       <div id="section_contents">
         ${this.displayedArtifacts.map(
-          (i) => html` <artifact-thumbnail .imageId=${i}></artifact-thumbnail>`
+          (i) =>
+            html` <artifact-thumbnail .frontendId=${i}></artifact-thumbnail>`
         )}
       </div>
     `;

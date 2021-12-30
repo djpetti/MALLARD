@@ -1,102 +1,35 @@
-import { css, html, LitElement, property, PropertyValues } from "lit-element";
+import { css } from "lit-element";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { ImageEntity, RootState, ThumbnailStatus } from "./types";
+import { ImageEntity, RootState, ImageStatus } from "./types";
 import {
   thumbnailGridSelectors,
   thunkLoadThumbnail,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
+import { ImageChangedEvent, ImageDisplay } from "./image-display";
 
 /**
  * Thumbnail representation of an uploaded artifact.
  * @customElement artifact-thumbnail
  */
-export class ArtifactThumbnail extends LitElement {
+export class ArtifactThumbnail extends ImageDisplay {
   static styles = css`
     :host {
       display: inline-block;
-      border: none;
       margin: 0.5rem;
       min-width: 128px;
       min-height: 80px;
     }
 
     .placeholder {
-      background-color: var(--theme-gray);
-      width: 100%;
       height: 100%;
     }
 
-    img {
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
-    }
+    ${ImageDisplay.styles}
   `;
 
   static tagName: string = "artifact-thumbnail";
-
-  /**
-   * The unique ID of the artifact being displayed here.
-   */
-  @property({ type: String })
-  imageId: string | null = null;
-
-  /**
-   * The URL of the thumbnail image to display.
-   */
-  @property({ type: String, attribute: false })
-  imageUrl: string | null = null;
-
-  /**
-   * Checks if an image is set for this component.
-   * @return {boolean} True iff an actual image is set in this component.
-   */
-  get hasImage(): boolean {
-    return this.imageUrl != null;
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected render() {
-    // Only show the placeholder if we don't have an image.
-    const placeholderClass = this.hasImage ? "" : "placeholder";
-
-    return html`
-      <div id="image_container" class="${placeholderClass}">
-        ${this.hasImage
-          ? html` <img src="${this.imageUrl as string}" alt="thumbnail" /> `
-          : html``}
-      </div>
-    `;
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected updated(_changedProperties: PropertyValues) {
-    if (_changedProperties.has("imageId")) {
-      // The image ID has changed. We need to fire an event for this to kick
-      // off the actual thumbnail load.
-      this.dispatchEvent(
-        new CustomEvent<string | null>("image-changed", {
-          bubbles: true,
-          composed: false,
-          detail: this.imageId,
-        })
-      );
-    }
-  }
-}
-
-/**
- * Interface for the custom event we dispatch when the image
- * is changed.
- */
-interface ImageChangedEvent extends Event {
-  detail: string;
 }
 
 /**
@@ -107,10 +40,21 @@ export class ConnectedArtifactThumbnail extends connect(
   ArtifactThumbnail
 ) {
   /**
+   * Creates a URL that takes us to a page with details about a particular image.
+   * @param {ImageEntity} entity The image entity to make the URL for.
+   * @return {string} The resulting URL.
+   * @private
+   */
+  private static makeDetailsUrl(entity: ImageEntity): string {
+    const backendId = entity.backendId;
+    return `details/${backendId.bucket}/${backendId.name}`;
+  }
+
+  /**
    * @inheritDoc
    */
   mapState(state: RootState): { [p: string]: any } {
-    if (this.imageId == null) {
+    if (!this.frontendId) {
       // No specific thumbnail has been set.
       return {};
     }
@@ -118,15 +62,16 @@ export class ConnectedArtifactThumbnail extends connect(
     // This should never be undefined, because that means our image ID is invalid.
     const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
       state,
-      this.imageId
+      this.frontendId
     ) as ImageEntity;
-    if (imageEntity.status != ThumbnailStatus.VISIBLE) {
+    if (imageEntity.thumbnailStatus != ImageStatus.VISIBLE) {
       // The thumbnail image is has not been loaded yet.
       return {};
     }
 
     return {
-      imageUrl: imageEntity.imageUrl,
+      imageUrl: imageEntity.thumbnailUrl,
+      imageLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
     };
   }
 
@@ -134,14 +79,17 @@ export class ConnectedArtifactThumbnail extends connect(
    * @inheritDoc
    */
   mapEvents(): { [p: string]: (event: Event) => Action } {
-    return {
-      // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
-      // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
-      // However, it still works just fine with an AsyncThunkAction.
-      "image-changed": (event: Event) =>
-        thunkLoadThumbnail(
-          (event as ImageChangedEvent).detail
-        ) as unknown as Action,
-    };
+    const handlers: { [p: string]: (event: Event) => Action } = {};
+
+    // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
+    // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+    // However, it still works just fine with an AsyncThunkAction.
+    handlers[ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME] = (
+      event: Event
+    ) =>
+      thunkLoadThumbnail(
+        (event as ImageChangedEvent).detail.frontendId as string
+      ) as unknown as Action;
+    return handlers;
   }
 }

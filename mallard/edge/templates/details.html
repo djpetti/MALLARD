@@ -1,0 +1,12 @@
+<!-- Details page for artifacts. -->
+
+{% extends "base.html" %}
+
+{% block main %}
+
+<large-image-display
+        backendBucket="{{ image_bucket }}"
+        backendName="{{ image_name }}">
+</large-image-display>
+
+{% endblock %}

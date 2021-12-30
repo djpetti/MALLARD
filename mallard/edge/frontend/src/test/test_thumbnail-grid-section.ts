@@ -58,7 +58,7 @@ describe("thumbnail-grid-section", () => {
     expect(contents.childElementCount).toBe(2);
     for (const thumbnail of contents.children) {
       expect(gridSectionElement.displayedArtifacts).toContain(
-        (thumbnail as ArtifactThumbnail).imageId
+        (thumbnail as ArtifactThumbnail).frontendId
       );
     }
   });

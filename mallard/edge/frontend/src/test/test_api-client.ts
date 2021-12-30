@@ -4,6 +4,7 @@ import {
   createImage,
   getMetadata,
   inferMetadata,
+  loadImage,
   loadThumbnail,
   queryImages,
 } from "../api-client";
@@ -103,6 +104,50 @@ describe("api-client", () => {
 
     // Act and assert.
     await expect(queryImages({})).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can load an image", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const mockImageGet =
+      mockImagesApiClass.prototype.getImageImagesBucketNameGet;
+
+    const imageData = faker.image.cats(1920, 1080);
+    mockImageGet.mockResolvedValue({ data: imageData });
+
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
+
+    // Act.
+    const result: Blob = await loadImage(imageId);
+
+    // Assert.
+    // It should have loaded the thumbnail.
+    expect(mockImageGet).toBeCalledTimes(1);
+    expect(mockImageGet).toBeCalledWith(
+      imageId.bucket,
+      imageId.name,
+      expect.any(Object)
+    );
+
+    // It should have gotten the proper result.
+    expect(result).toEqual(imageData);
+  });
+
+  it("handles a failure when loading an image", async () => {
+    // Arrange.
+    // Make it look like loading a thumbnail fails.
+    const mockImageGet =
+      mockImagesApiClass.prototype.getImageImagesBucketNameGet;
+    const fakeError = new FakeAxiosError();
+    mockImageGet.mockRejectedValue(fakeError);
+
+    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
+
+    // Act and assert.
+    await expect(loadImage(imageId)).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

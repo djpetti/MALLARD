@@ -1,11 +1,12 @@
 import { ConnectedThumbnailGrid } from "../thumbnail-grid";
 import {
+  fakeImageEntity,
   fakeState,
-  fakeThumbnailEntity,
   getShadowRoot,
 } from "./element-test-utils";
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
+import each from "jest-each";
 
 const faker = require("faker");
 
@@ -61,7 +62,7 @@ describe("thumbnail-grid", () => {
     ) as ConnectedThumbnailGrid;
     // Default to not being in loading mode, since that's typically what
     // we want to test.
-    gridElement.isLoading = false;
+    gridElement.loadingState = RequestState.IDLE;
     document.body.appendChild(gridElement);
   });
 
@@ -104,7 +105,7 @@ describe("thumbnail-grid", () => {
   it("renders a loading indicator when requested", async () => {
     // Arrange.
     // Make it look like we are loading data.
-    gridElement.queryComplete = false;
+    gridElement.loadingState = RequestState.LOADING;
 
     // Act.
     await gridElement.updateComplete;
@@ -122,7 +123,7 @@ describe("thumbnail-grid", () => {
     // Arrange.
     // Make it look like there are no artifacts, but it is finished loading.
     gridElement.groupedArtifacts = [];
-    gridElement.queryComplete = true;
+    gridElement.loadingState = RequestState.SUCCEEDED;
 
     // Act.
     await gridElement.updateComplete;
@@ -142,9 +143,11 @@ describe("thumbnail-grid", () => {
     Object.defineProperty(gridElement, "scrollTop", { value: 500 });
 
     // Set up a fake handler for the loading data event.
-    // It will automatically set isLoading to true after the first load event
+    // It will automatically set the status to "loading" after the first load event
     // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn((_) => (gridElement.isLoading = true));
+    const loadDataHandler = jest.fn(
+      (_) => (gridElement.loadingState = RequestState.LOADING)
+    );
     gridElement.addEventListener(
       ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
       loadDataHandler
@@ -169,9 +172,11 @@ describe("thumbnail-grid", () => {
     Object.defineProperty(gridElement, "scrollTop", { value: 0 });
 
     // Set up a fake handler for the loading data event.
-    // It will automatically set isLoading to true after the first load event
+    // It will automatically set the status to "loading" after the first load event
     // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn((_) => (gridElement.isLoading = true));
+    const loadDataHandler = jest.fn(
+      (_) => (gridElement.loadingState = RequestState.LOADING)
+    );
     gridElement.addEventListener(
       ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
       loadDataHandler
@@ -194,12 +199,14 @@ describe("thumbnail-grid", () => {
     Object.defineProperty(gridElement, "scrollTop", { value: 500 });
 
     // Make it look like it's loading.
-    gridElement.isLoading = true;
+    gridElement.loadingState = RequestState.LOADING;
 
     // Set up a fake handler for the loading data event.
-    // It will automatically set isLoading to true after the first load event
+    // It will automatically set the status to "loading" after the first load event
     // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn((_) => (gridElement.isLoading = true));
+    const loadDataHandler = jest.fn(
+      (_) => (gridElement.loadingState = RequestState.LOADING)
+    );
     gridElement.addEventListener(
       ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
       loadDataHandler
@@ -222,13 +229,15 @@ describe("thumbnail-grid", () => {
     Object.defineProperty(gridElement, "scrollTop", { value: 500 });
 
     // Make it look like we have no more data to load.
-    gridElement.isLoading = false;
+    gridElement.loadingState = RequestState.SUCCEEDED;
     gridElement.hasMorePages = false;
 
     // Set up a fake handler for the loading data event.
-    // It will automatically set isLoading to true after the first load event
+    // It will automatically set the status to "loading" after the first load event
     // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn((_) => (gridElement.isLoading = true));
+    const loadDataHandler = jest.fn(
+      (_) => (gridElement.loadingState = RequestState.LOADING)
+    );
     gridElement.addEventListener(
       ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
       loadDataHandler
@@ -243,43 +252,50 @@ describe("thumbnail-grid", () => {
     expect(loadDataHandler).toBeCalledTimes(0);
   });
 
-  it("updates the properties from the Redux state", () => {
-    // Arrange.
-    const imageId = faker.datatype.uuid();
+  each([
+    ["idle", RequestState.IDLE, RequestState.IDLE],
+    ["loading", RequestState.LOADING, RequestState.LOADING],
+    ["loading", RequestState.IDLE, RequestState.LOADING],
+    ["loading", RequestState.IDLE, RequestState.SUCCEEDED],
+    ["successful", RequestState.SUCCEEDED, RequestState.SUCCEEDED],
+  ]).it(
+    "updates the properties from the Redux state when requests are %s",
+    (_: string, contentState: RequestState, metadataState: RequestState) => {
+      // Arrange.
+      const imageId = faker.datatype.uuid();
 
-    // Create a fake state.
-    const state: RootState = fakeState();
-    state.thumbnailGrid.ids = [imageId];
-    state.thumbnailGrid.entities[imageId] = fakeThumbnailEntity(false);
-    const possibleStates = [RequestState.LOADING, RequestState.SUCCEEDED];
-    state.thumbnailGrid.currentQueryState =
-      faker.random.arrayElement(possibleStates);
-    state.thumbnailGrid.currentQueryState =
-      faker.random.arrayElement(possibleStates);
+      // Create a fake state.
+      const state: RootState = fakeState();
+      state.imageView.ids = [imageId];
+      state.imageView.entities[imageId] = fakeImageEntity(false);
+      state.imageView.currentQueryState = contentState;
+      state.imageView.metadataLoadingState = metadataState;
 
-    // Act.
-    const updates = gridElement.mapState(state);
+      // Act.
+      const updates = gridElement.mapState(state);
 
-    // Assert.
-    // It should have gotten the correct updates.
-    expect(updates).toHaveProperty("displayedArtifacts");
-    expect(updates["displayedArtifacts"]).toEqual(state.thumbnailGrid.ids);
-    expect(updates["isLoading"]).toEqual(
-      state.thumbnailGrid.currentQueryState == RequestState.LOADING ||
-        state.thumbnailGrid.metadataLoadingState == RequestState.LOADING
-    );
-    expect(updates["queryComplete"]).toEqual(
-      state.thumbnailGrid.currentQueryState == RequestState.SUCCEEDED &&
-        state.thumbnailGrid.metadataLoadingState == RequestState.SUCCEEDED
-    );
-    expect(updates["hasMorePages"]).toEqual(
-      state.thumbnailGrid.lastQueryHasMorePages
-    );
+      // Assert.
+      // It should have gotten the correct updates.
+      expect(updates).toHaveProperty("displayedArtifacts");
+      expect(updates["displayedArtifacts"]).toEqual(state.imageView.ids);
+      expect(updates["loadingState"]).toEqual(
+        contentState == RequestState.SUCCEEDED &&
+          metadataState == RequestState.SUCCEEDED
+          ? RequestState.SUCCEEDED
+          : contentState == RequestState.IDLE &&
+            metadataState == RequestState.IDLE
+          ? RequestState.IDLE
+          : RequestState.LOADING
+      );
+      expect(updates["hasMorePages"]).toEqual(
+        state.imageView.lastQueryHasMorePages
+      );
 
-    // There should be no grouped images, because our input lacks metadata.
-    expect(updates).toHaveProperty("groupedArtifacts");
-    expect(updates["groupedArtifacts"]).toEqual([]);
-  });
+      // There should be no grouped images, because our input lacks metadata.
+      expect(updates).toHaveProperty("groupedArtifacts");
+      expect(updates["groupedArtifacts"]).toEqual([]);
+    }
+  );
 
   it("groups by date correctly when updating from the Redux state", () => {
     // Arrange.
@@ -289,22 +305,25 @@ describe("thumbnail-grid", () => {
 
     // Create a fake state.
     const state: RootState = fakeState();
-    state.thumbnailGrid.ids = [imageId1, imageId2, imageId3];
+    state.imageView.ids = [imageId1, imageId2, imageId3];
 
     // Make it look like the capture date is the same for two of them.
     const captureDate1 = faker.date.past();
     // Make sure one date is a day before the other.
     const captureDate2 = new Date(captureDate1.getTime() - 1000 * 60 * 60 * 24);
-    state.thumbnailGrid.entities[imageId1] = fakeThumbnailEntity(
+    state.imageView.entities[imageId1] = fakeImageEntity(
       true,
+      undefined,
       captureDate1
     );
-    state.thumbnailGrid.entities[imageId2] = fakeThumbnailEntity(
+    state.imageView.entities[imageId2] = fakeImageEntity(
       true,
+      undefined,
       captureDate1
     );
-    state.thumbnailGrid.entities[imageId3] = fakeThumbnailEntity(
+    state.imageView.entities[imageId3] = fakeImageEntity(
       true,
+      undefined,
       captureDate2
     );
 
@@ -314,7 +333,7 @@ describe("thumbnail-grid", () => {
     // Assert.
     // It should have gotten the correct updates.
     expect(updates).toHaveProperty("displayedArtifacts");
-    expect(updates["displayedArtifacts"]).toEqual(state.thumbnailGrid.ids);
+    expect(updates["displayedArtifacts"]).toEqual(state.imageView.ids);
 
     // It should have grouped things correctly.
     expect(updates).toHaveProperty("groupedArtifacts");

@@ -5,6 +5,7 @@ import { ConnectedThumbnailGrid } from "./thumbnail-grid";
 import { ConnectedFileUploader } from "./file-uploader";
 import { FileListDisplay } from "./file-list-display";
 import { ConnectedMetadataForm } from "./metadata-form";
+import { ConnectedLargeImageDisplay } from "./large-image-display";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -20,6 +21,7 @@ const componentClasses: ComponentType[] = [
   ConnectedFileUploader,
   FileListDisplay,
   ConnectedMetadataForm,
+  ConnectedLargeImageDisplay,
 ];
 
 /**

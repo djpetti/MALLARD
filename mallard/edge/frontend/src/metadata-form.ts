@@ -27,6 +27,7 @@ export enum FormState {
 
 /**
  * A form that allows the user to manually specify metadata.
+ * @customElement metadata-form
  */
 export class MetadataForm extends LitElement {
   static tagName: string = "metadata-form";

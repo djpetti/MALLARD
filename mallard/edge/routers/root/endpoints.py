@@ -22,3 +22,22 @@ async def get_index() -> str:
     """
     template = template_environment.get_template("index.html")
     return await template.render_async()
+
+
+@router.get("/details/{bucket}/{name}", response_class=HTMLResponse)
+async def get_details(bucket: str, name: str) -> str:
+    """
+    Handler for the details page.
+
+    Args:
+        bucket: The bucket that the image is in.
+        name: The name of the image.
+
+    Returns:
+        The HTML response.
+
+    """
+    template = template_environment.get_template("details.html")
+    return await template.render_async(
+        show_back=True, image_bucket=bucket, image_name=name
+    )

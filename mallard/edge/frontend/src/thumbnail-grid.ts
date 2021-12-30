@@ -12,9 +12,7 @@ import { Action } from "redux";
 import "@material/mwc-circular-progress";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
 import { Field, Ordering } from "typescript-axios";
-
-/** Custom error to signify missing image metadata. */
-class MetadataError extends Error {}
+import { isEqual } from "lodash";
 
 /**
  * Encapsulates image IDs grouped with corresponding metadata.
@@ -43,10 +41,8 @@ function groupByDate(imageIds: string[], state: RootState): GroupedImages[] {
       imageId
     ) as ImageEntity;
     if (entity.metadata == null) {
-      // If we're missing metadata, we cannot proceed.
-      throw new MetadataError(
-        "Cannot group images when all metadata is not present."
-      );
+      // If we're missing metadata, exclude this image.
+      continue;
     }
 
     const captureDate: string = entity.metadata.captureDate as string;
@@ -107,7 +103,11 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   static LOAD_MORE_DATA_EVENT_NAME = "load-more-data";
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
-  @property({ type: Array })
+  @property({
+    type: Array,
+    // Do a deep check here since spurious re-rendering is expensive.
+    hasChanged: (newValue, oldValue) => !isEqual(oldValue, newValue),
+  })
   displayedArtifacts: string[] = [];
 
   /**
@@ -116,15 +116,9 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   @property({ attribute: false })
   groupedArtifacts: GroupedImages[] = [];
 
-  /** Whether we are still loading data. */
-  @property()
-  public isLoading: boolean = false;
-
-  /** Whether the last query has completed. Will be false if
-   * no query has been run yet, or it is still in-progress.
-   */
-  @property()
-  public queryComplete: boolean = false;
+  /** Represents the status of the data loading process. */
+  @property({ attribute: false })
+  public loadingState: RequestState = RequestState.IDLE;
 
   /**
    * Keeps track of whether there are more pages of data to be loaded.
@@ -163,7 +157,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * @inheritDoc
    */
   protected override isBusy(): boolean {
-    return this.isLoading;
+    return this.loadingState == RequestState.LOADING;
   }
 
   /**
@@ -172,9 +166,13 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   protected render() {
     // Visibility of the "no data" message.
     const emptyMessageVisibility =
-      this.queryComplete && this.groupedArtifacts.length == 0 ? "" : "hidden";
+      this.loadingState == RequestState.SUCCEEDED &&
+      this.groupedArtifacts.length == 0
+        ? ""
+        : "hidden";
     // Visibility of the loading indicator.
-    const loadingVisibility = !this.queryComplete ? "" : "hidden";
+    const loadingVisibility =
+      this.loadingState == RequestState.LOADING ? "" : "hidden";
     // Visibility of the content.
     const contentVisibility = this.groupedArtifacts.length == 0 ? "hidden" : "";
 
@@ -276,12 +274,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     ) as string[];
 
     // Group the artifacts by date.
-    let grouped = this.groupedArtifacts;
-    try {
-      grouped = groupByDate(allIds, state);
-    } catch (MetadataError) {
-      // We don't have all the metadata yet. Ignore this.
-    }
+    const grouped = groupByDate(allIds, state);
 
     // Sort grouped images by date, descending.
     grouped.sort((a, b): number => {
@@ -289,19 +282,28 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     });
 
     // Determine the loading status.
-    const isLoading =
-      state.thumbnailGrid.currentQueryState == RequestState.LOADING ||
-      state.thumbnailGrid.metadataLoadingState == RequestState.LOADING;
-    const queryComplete =
-      state.thumbnailGrid.currentQueryState == RequestState.SUCCEEDED &&
-      state.thumbnailGrid.metadataLoadingState == RequestState.SUCCEEDED;
+    const contentState = state.imageView.currentQueryState;
+    const metadataState = state.imageView.metadataLoadingState;
+    // If they're in different states, then the overall state will be loading,
+    // because it implies that the process isn't 100% finished.
+    let overallState = RequestState.LOADING;
+    if (
+      contentState == RequestState.IDLE &&
+      metadataState == RequestState.IDLE
+    ) {
+      overallState = RequestState.IDLE;
+    } else if (
+      contentState == RequestState.SUCCEEDED &&
+      metadataState == RequestState.SUCCEEDED
+    ) {
+      overallState = RequestState.SUCCEEDED;
+    }
 
     return {
-      isLoading: isLoading,
-      queryComplete: queryComplete,
+      loadingState: overallState,
       displayedArtifacts: allIds,
       groupedArtifacts: grouped,
-      hasMorePages: state.thumbnailGrid.lastQueryHasMorePages,
+      hasMorePages: state.imageView.lastQueryHasMorePages,
     };
   }
 

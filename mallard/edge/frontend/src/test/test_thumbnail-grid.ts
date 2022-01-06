@@ -8,12 +8,15 @@ import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
 
+// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
+// undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
-// Using older require syntax here so we get the correct mock type.
+// Using older require syntax here so that we get the correct mock type.
 const thumbnailGridSlice = require("../thumbnail-grid-slice");
 const mockThunkLoadMetadata = thumbnailGridSlice.thunkLoadMetadata;
-const mockThunkQuery = thumbnailGridSlice.thunkStartQuery;
+const mockThunkStartNewQuery = thumbnailGridSlice.thunkStartNewQuery;
+const mockThunkContinueQuery = thumbnailGridSlice.thunkContinueQuery;
 const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
 const { thumbnailGridSelectors } = jest.requireActual(
   "../thumbnail-grid-slice"
@@ -25,7 +28,8 @@ jest.mock("@captaincodeman/redux-connect-element", () => ({
 }));
 jest.mock("../thumbnail-grid-slice", () => ({
   thunkLoadMetadata: jest.fn(),
-  thunkStartQuery: jest.fn(),
+  thunkStartNewQuery: jest.fn(),
+  thunkContinueQuery: jest.fn(),
   thumbnailGridSelectors: { selectIds: jest.fn(), selectById: jest.fn() },
 }));
 jest.mock("../store", () => ({
@@ -56,6 +60,11 @@ describe("thumbnail-grid", () => {
     mockThumbnailGridSelectors.selectById.mockImplementation(
       thumbnailGridSelectors.selectById
     );
+
+    // Reset mocks.
+    mockThunkLoadMetadata.mockClear();
+    mockThunkStartNewQuery.mockClear();
+    mockThunkContinueQuery.mockClear();
 
     gridElement = window.document.createElement(
       ConnectedThumbnailGrid.tagName
@@ -160,8 +169,6 @@ describe("thumbnail-grid", () => {
     // Assert.
     // It should have tried to load more data.
     expect(loadDataHandler).toBeCalledTimes(1);
-    // It should initially query the first page.
-    expect(loadDataHandler.mock.calls[0][0].detail).toEqual(1);
   });
 
   it("does not load data if it doesn't need to", async () => {
@@ -267,7 +274,7 @@ describe("thumbnail-grid", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       state.imageView.ids = [imageId];
-      state.imageView.entities[imageId] = fakeImageEntity(false);
+      state.imageView.entities[imageId] = fakeImageEntity(false, false);
       state.imageView.currentQueryState = contentState;
       state.imageView.metadataLoadingState = metadataState;
 
@@ -288,7 +295,7 @@ describe("thumbnail-grid", () => {
           : RequestState.LOADING
       );
       expect(updates["hasMorePages"]).toEqual(
-        state.imageView.lastQueryHasMorePages
+        state.imageView.currentQueryHasMorePages
       );
 
       // There should be no grouped images, because our input lacks metadata.
@@ -368,28 +375,50 @@ describe("thumbnail-grid", () => {
     expect(mockThunkLoadMetadata).toBeCalledWith(testEvent.detail);
   });
 
-  it("maps the correct actions to the load-more-data event", () => {
-    // Act.
-    const eventMap = gridElement.mapEvents();
+  each([
+    ["no query is running", false],
+    ["a query is running", true],
+  ]).it(
+    "maps the correct actions to the load-more-data event when %S",
+    (_: string, isQueryRunning: boolean) => {
+      // Arrange.
+      gridElement.isQueryRunning = isQueryRunning;
+      gridElement.queryPageNum = faker.datatype.number();
 
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME
-    );
+      // Act.
+      const eventMap = gridElement.mapEvents();
 
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: [faker.datatype.number()] };
-    eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME](
-      testEvent as unknown as Event
-    );
+      // Assert.
+      // It should have a mapping for the proper events.
+      expect(eventMap).toHaveProperty(
+        ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME
+      );
 
-    expect(mockThunkQuery).toBeCalledTimes(1);
-    expect(mockThunkQuery).toBeCalledWith({
-      query: expect.any(Object),
-      orderings: expect.any(Array),
-      resultsPerPage: expect.any(Number),
-      pageNum: testEvent.detail,
-    });
-  });
+      // This should fire the appropriate action creator.
+      const testEvent = { detail: [faker.datatype.number()] };
+      eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME](
+        testEvent as unknown as Event
+      );
+
+      if (!isQueryRunning) {
+        // Starting a new query
+        expect(mockThunkStartNewQuery).toBeCalledTimes(1);
+        expect(mockThunkStartNewQuery).toBeCalledWith({
+          query: expect.any(Object),
+          orderings: expect.any(Array),
+          resultsPerPage: expect.any(Number),
+        });
+
+        expect(mockThunkContinueQuery).not.toBeCalled();
+      } else {
+        // Continuing an old one
+        expect(mockThunkContinueQuery).toBeCalledTimes(1);
+        expect(mockThunkContinueQuery).toBeCalledWith(
+          gridElement.queryPageNum + 1
+        );
+
+        expect(mockThunkStartNewQuery).not.toBeCalled();
+      }
+    }
+  );
 });

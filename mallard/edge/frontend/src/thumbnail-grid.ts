@@ -5,8 +5,9 @@ import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
   thumbnailGridSelectors,
+  thunkContinueQuery,
   thunkLoadMetadata,
-  thunkStartQuery,
+  thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import "@material/mwc-circular-progress";
@@ -127,11 +128,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   public hasMorePages: boolean = true;
 
   /**
-   * Keeps track of which page of artifacts we should load next.
-   */
-  private _nextQueryPage: number = 1;
-
-  /**
    * @inheritDoc
    */
   protected override loadNextSection(): boolean {
@@ -143,10 +139,9 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     // Dispatch an event. This will trigger an action that loads
     // the next page.
     this.dispatchEvent(
-      new CustomEvent<number>(ThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME, {
+      new CustomEvent<void>(ThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME, {
         bubbles: true,
         composed: false,
-        detail: this._nextQueryPage++,
       })
     );
 
@@ -234,11 +229,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
  * that were added.
  */
 type ImagesChangedEvent = CustomEvent<string[]>;
-/**
- * Custom event fired when we need to load more data.
- * In this case, the event detail is the page number to load.
- */
-type LoadMoreDataEvent = CustomEvent<number>;
 
 /**
  * Extension of `ThumbnailGrid` that connects to Redux.
@@ -263,6 +253,18 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
    * @private
    */
   private static IMAGES_PER_PAGE = 50;
+
+  /**
+   * Keeps track of whether a query has been started yet.
+   * @private
+   */
+  public isQueryRunning: boolean = false;
+
+  /**
+   * Keeps track of which page of artifacts we just loaded.
+   * @private
+   */
+  public queryPageNum: number = 0;
 
   /**
    * @inheritDoc
@@ -303,7 +305,10 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       loadingState: overallState,
       displayedArtifacts: allIds,
       groupedArtifacts: grouped,
-      hasMorePages: state.imageView.lastQueryHasMorePages,
+      hasMorePages: state.imageView.currentQueryHasMorePages,
+
+      queryPageNum: state.imageView.currentQueryOptions.pageNum,
+      isQueryRunning: state.imageView.currentQuery != null,
     };
   }
 
@@ -322,15 +327,19 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       thunkLoadMetadata(
         (event as ImagesChangedEvent).detail
       ) as unknown as Action;
-    handlers[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME] = (
-      event: Event
-    ) =>
-      thunkStartQuery({
-        query: ConnectedThumbnailGrid.DEFAULT_QUERY,
-        orderings: ConnectedThumbnailGrid.DEFAULT_ORDERINGS,
-        resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
-        pageNum: (event as LoadMoreDataEvent).detail,
-      }) as unknown as Action;
+    handlers[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME] = (_: Event) => {
+      if (!this.isQueryRunning) {
+        // Start a new query.
+        return thunkStartNewQuery({
+          query: ConnectedThumbnailGrid.DEFAULT_QUERY,
+          orderings: ConnectedThumbnailGrid.DEFAULT_ORDERINGS,
+          resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
+        }) as unknown as Action;
+      } else {
+        // Continue the existing query.
+        return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
+      }
+    };
     return handlers;
   }
 }

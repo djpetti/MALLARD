@@ -6,7 +6,7 @@ import { RootState } from "../types";
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
-// Using older require syntax here so we get the correct mock type.
+// Using older require syntax here so that we get the correct mock type.
 const thumbnailGridSlice = require("../thumbnail-grid-slice");
 const mockThunkLoadThumbnail = thumbnailGridSlice.thunkLoadThumbnail;
 const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;

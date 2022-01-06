@@ -9,6 +9,10 @@ import {
 import "@material/mwc-circular-progress";
 import { ObjectRef } from "typescript-axios";
 import { query } from "lit-element/lib/decorators.js";
+import { PageManager } from "./page-manager";
+
+/** Type of click handler functions. */
+type ClickHandler = (_: Event) => any;
 
 /**
  * A generic element for displaying images.
@@ -91,6 +95,11 @@ export class ImageDisplay extends LitElement {
   protected image?: HTMLImageElement;
 
   /**
+   * Keeps track of the handler we are using for image clicks.
+   */
+  private clickHandler?: ClickHandler;
+
+  /**
    * Checks if an image is set for this component.
    * @return {boolean} True iff an actual image is set in this component.
    */
@@ -104,17 +113,11 @@ export class ImageDisplay extends LitElement {
    * @private
    */
   private renderImage(): TemplateResult {
-    let imageTemplate = html`<img
+    return html`<img
       id="image"
       src="${this.imageUrl as string}"
       alt="image"
     />`;
-    if (this.imageLink) {
-      // Make the image link to something.
-      imageTemplate = html`<a href="${this.imageLink}">${imageTemplate}</a>`;
-    }
-
-    return imageTemplate;
   }
 
   /**
@@ -158,6 +161,25 @@ export class ImageDisplay extends LitElement {
           }
         )
       );
+    }
+
+    if (_changedProperties.has("imageLink") && this.hasImage) {
+      const clickHandler = (_: Event) =>
+        PageManager.getInstance().loadPage(this.imageLink as string);
+      if (this.imageLink) {
+        // Add a click handler that takes us to this location.
+        this.clickHandler = clickHandler;
+        (this.image as HTMLImageElement).addEventListener(
+          "click",
+          clickHandler
+        );
+      } else {
+        // Remove any existing handler.
+        (this.image as HTMLImageElement).removeEventListener(
+          "click",
+          this.clickHandler as ClickHandler
+        );
+      }
     }
   }
 }

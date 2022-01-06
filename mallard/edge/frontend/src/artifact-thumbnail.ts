@@ -47,7 +47,7 @@ export class ConnectedArtifactThumbnail extends connect(
    */
   private static makeDetailsUrl(entity: ImageEntity): string {
     const backendId = entity.backendId;
-    return `details/${backendId.bucket}/${backendId.name}`;
+    return `/details/${backendId.bucket}/${backendId.name}`;
   }
 
   /**

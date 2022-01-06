@@ -80,8 +80,10 @@
     "@material/mwc-top-app-bar": "^0.22.1",
     "@material/mwc-top-app-bar-fixed": "^0.22.1",
     "@reduxjs/toolkit": "^1.5.0",
+    "@types/jquery": "^3.5.11",
     "@types/lodash": "^4.14.178",
     "@types/uuid": "^8.3.1",
+    "jquery": "^3.6.0",
     "lodash": "^4.17.21",
     "typescript-axios": "file:gen/api",
     "uuid": "^8.3.2"

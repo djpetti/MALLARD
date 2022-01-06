@@ -6,6 +6,19 @@ import { ImageDisplay } from "../image-display";
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
+// Using older require syntax here so that we get the correct mock type.
+const pageManager = require("../page-manager");
+const mockPageManager = pageManager.PageManager;
+const mockLoadPage = jest.fn();
+
+jest.mock("../page-manager", () => ({
+  PageManager: {
+    getInstance: jest.fn(() => ({
+      loadPage: mockLoadPage,
+    })),
+  },
+}));
+
 describe("image-display", () => {
   /** Internal artifact-thumbnail to use for testing. */
   let imageElement: ImageDisplay;
@@ -18,6 +31,10 @@ describe("image-display", () => {
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
+
+    // Reset the mocks.
+    mockLoadPage.mockClear();
+    mockPageManager.getInstance.mockClear();
 
     imageElement = window.document.createElement(
       ImageDisplay.tagName
@@ -71,49 +88,94 @@ describe("image-display", () => {
     }
   );
 
-  each([
-    ["with a link", faker.internet.url()],
-    ["without a link", undefined],
-  ]).it(
-    "displays an image when we set the URL %s",
-    async (_: string, linkUrl?: string) => {
-      // Arrange.
-      const fakeImageUrl = faker.image.imageUrl();
+  it("displays an image when we set the URL", async () => {
+    // Arrange.
+    const fakeImageUrl = faker.image.imageUrl();
 
-      // Act.
-      // Set the URL.
-      imageElement.imageUrl = fakeImageUrl;
-      // Set the image to link to somewhere.
-      imageElement.imageLink = linkUrl;
+    // Act.
+    // Set the URL.
+    imageElement.imageUrl = fakeImageUrl;
 
-      await imageElement.updateComplete;
+    await imageElement.updateComplete;
 
-      // Assert.
-      // It should have rendered the image.
-      const containerDiv = getShadowRoot(ImageDisplay.tagName).querySelector(
-        "#image_container"
-      ) as HTMLElement;
+    // Assert.
+    // It should have rendered the image.
+    const containerDiv = getShadowRoot(ImageDisplay.tagName).querySelector(
+      "#image_container"
+    ) as HTMLElement;
 
-      // The placeholder should not be displayed.
-      expect(containerDiv.classList).not.toContain("placeholder");
+    // The placeholder should not be displayed.
+    expect(containerDiv.classList).not.toContain("placeholder");
 
-      const images = containerDiv.getElementsByTagName("img");
-      expect(images).toHaveLength(1);
+    const images = containerDiv.getElementsByTagName("img");
+    expect(images).toHaveLength(1);
 
-      if (linkUrl) {
-        // It should have made the image into a link.
-        const links = containerDiv.getElementsByTagName("a");
-        expect(links).toHaveLength(1);
+    // It should have set the correct image source.
+    expect(images[0].src).toEqual(fakeImageUrl);
+  });
 
-        // The href property seems to add a trailing slash, so we use
-        // toContain.
-        expect(links[0].href).toContain(linkUrl);
-      }
+  it("handles clicks on the image correctly", async () => {
+    // Arrange.
+    // Create a fake image URL.
+    imageElement.imageUrl = faker.image.imageUrl();
+    // Make the image link to a particular page.
+    imageElement.imageLink = faker.internet.url();
 
-      // It should have set the correct image source.
-      expect(images[0].src).toEqual(fakeImageUrl);
-    }
-  );
+    // Act.
+    await imageElement.updateComplete;
+
+    // Try simulating a click event.
+    const rootElement = getShadowRoot(ImageDisplay.tagName);
+    const image = rootElement.querySelector("#image") as HTMLImageElement;
+    image.dispatchEvent(new Event("click"));
+
+    // Assert.
+    // It should have called the handler.
+    expect(mockLoadPage).toBeCalledTimes(1);
+    expect(mockLoadPage).toBeCalledWith(imageElement.imageLink);
+  });
+
+  it("removes the click handler if we un-set the image link", async () => {
+    // Arrange.
+    // Create a fake image URL.
+    imageElement.imageUrl = faker.image.imageUrl();
+    // Make the image link to a particular page.
+    imageElement.imageLink = faker.internet.url();
+
+    // Act.
+    await imageElement.updateComplete;
+    // Now, make the image link point nowhere, and update again.
+    imageElement.imageLink = undefined;
+    await imageElement.updateComplete;
+
+    // Try simulating a click event.
+    const rootElement = getShadowRoot(ImageDisplay.tagName);
+    const image = rootElement.querySelector("#image") as HTMLImageElement;
+    image.dispatchEvent(new Event("click"));
+
+    // Assert.
+    // It should not have called the handler.
+    expect(mockLoadPage).not.toBeCalled();
+  });
+
+  it("does not set a click handler if no image is set", async () => {
+    // Arrange.
+    // Make the image link point somewhere.
+    imageElement.imageLink = faker.internet.url();
+    // Make the image link to a particular page.
+    imageElement.imageLink = faker.internet.url();
+
+    // Act.
+    await imageElement.updateComplete;
+    // Now, make the image link point nowhere, and update again.
+    imageElement.imageLink = undefined;
+    await imageElement.updateComplete;
+
+    // No image should have been rendered.
+    const rootElement = getShadowRoot(ImageDisplay.tagName);
+    const image = rootElement.querySelector("#image");
+    expect(image).toBeNull();
+  });
 
   it("fires an event when we set the image ID", async () => {
     // Arrange.

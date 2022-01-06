@@ -1,5 +1,10 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import {
+  ObjectRef,
+  Ordering,
+  QueryResponse,
+  UavImageMetadata,
+} from "typescript-axios";
 
 /**
  * Represents the state of a long-running request.
@@ -21,6 +26,18 @@ export enum RequestState {
  * currently supported here. They will be added as they are needed.
  */
 export interface ImageQuery {}
+
+/**
+ * Represents the various options associated with performing a query.
+ */
+export interface QueryOptions {
+  /** The orderings to use for the query results. */
+  orderings?: Ordering[];
+  /** The number of results to produce for each page. */
+  resultsPerPage?: number;
+  /** The page number that we loaded. */
+  pageNum?: number;
+}
 
 /**
  * Generic interface for a normalized table.
@@ -71,6 +88,9 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   lastQueryResults: QueryResponse | null;
   /** Most recent query, possibly still in progress. */
   currentQuery: ImageQuery | null;
+  /** Options provided for the current query. */
+  currentQueryOptions: QueryOptions;
+
   /** State of the current query. */
   currentQueryState: RequestState;
   /** State of the metadata loading. */
@@ -78,7 +98,7 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   /** Error message from the query, if we have one. */
   currentQueryError: string | null;
   /** Whether the last query had more pages. */
-  lastQueryHasMorePages: boolean;
+  currentQueryHasMorePages: boolean;
 }
 
 /**

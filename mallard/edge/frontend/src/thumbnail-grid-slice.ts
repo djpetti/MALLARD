@@ -2,12 +2,14 @@ import {
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
+  Draft,
 } from "@reduxjs/toolkit";
 import {
   ImageEntity,
   ImageQuery,
   ImageStatus,
   ImageViewState,
+  QueryOptions,
   RequestState,
   RootState,
 } from "./types";
@@ -29,6 +31,15 @@ import {
  */
 interface StartQueryReturn {
   query: ImageQuery;
+  options: QueryOptions;
+  result: QueryResponse;
+}
+
+/**
+ * Return type for the `thunkContinueQuery` creator.
+ */
+interface ContinueQueryReturn {
+  pageNum: number;
   result: QueryResponse;
 }
 
@@ -79,10 +90,11 @@ const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   lastQueryResults: null,
   currentQuery: null,
+  currentQueryOptions: {},
   currentQueryState: RequestState.IDLE,
   metadataLoadingState: RequestState.IDLE,
   currentQueryError: null,
-  lastQueryHasMorePages: true,
+  currentQueryHasMorePages: true,
 });
 
 /** Memoized selectors for the state. */
@@ -92,24 +104,69 @@ export const thumbnailGridSelectors =
 /**
  * Action creator that starts a new request for thumbnails on the homepage.
  */
-export const thunkStartQuery = createAsyncThunk(
-  "thumbnailGrid/startQuery",
+export const thunkStartNewQuery = createAsyncThunk(
+  "thumbnailGrid/startNewQuery",
   async ({
     query,
     orderings,
     resultsPerPage,
-    pageNum,
+    startPageNum,
   }: {
     query: ImageQuery;
     orderings?: Ordering[];
     resultsPerPage?: number;
-    pageNum?: number;
+    startPageNum?: number;
   }): Promise<StartQueryReturn> => {
+    if (startPageNum == undefined) {
+      // Default to the first page.
+      startPageNum = 1;
+    }
+
     // Perform the query.
     return {
       query: query,
-      result: await queryImages(query, orderings, resultsPerPage, pageNum),
+      options: {
+        orderings: orderings,
+        resultsPerPage: resultsPerPage,
+        pageNum: startPageNum,
+      },
+      result: await queryImages(query, orderings, resultsPerPage, startPageNum),
     };
+  }
+);
+
+/**
+ * Action creator that loads a new page of results from the current query.
+ */
+export const thunkContinueQuery = createAsyncThunk(
+  "thumbnailGrid/continueQuery",
+  async (pageNum: number, { getState }): Promise<ContinueQueryReturn> => {
+    const state = (getState() as RootState).imageView;
+    const options = state.currentQueryOptions;
+
+    // Perform the query.
+    return {
+      pageNum: pageNum,
+      result: await queryImages(
+        state.currentQuery as ImageQuery,
+        options.orderings,
+        options.resultsPerPage,
+        pageNum
+      ),
+    };
+  },
+  {
+    condition: (pageNum: number, { getState }): boolean => {
+      const state = (getState() as RootState).imageView;
+      // If there is no current query, we can't continue it. Also, if we
+      // have already loaded this page, or if there are no more pages,
+      // it would be pointless to continue loading.
+      return (
+        state.currentQuery != null &&
+        state.currentQueryHasMorePages &&
+        pageNum > (state.currentQueryOptions.pageNum as number)
+      );
+    },
   }
 );
 
@@ -128,6 +185,16 @@ export const thunkLoadThumbnail = createAsyncThunk(
 
     // Get the object URL for it.
     return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
+  },
+  {
+    condition: (imageId: string, { getState }): boolean => {
+      const imageEntity = thumbnailGridSelectors.selectById(
+        getState() as RootState,
+        imageId
+      ) as ImageEntity;
+      // If the thumbnail is already loaded, we don't need to re-load it.
+      return imageEntity.thumbnailStatus != ImageStatus.VISIBLE;
+    },
   }
 );
 
@@ -146,6 +213,16 @@ export const thunkLoadImage = createAsyncThunk(
 
     // Get the object URL for it.
     return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
+  },
+  {
+    condition: (imageId: string, { getState }): boolean => {
+      const imageEntity = thumbnailGridSelectors.selectById(
+        getState() as RootState,
+        imageId
+      ) as ImageEntity;
+      // If the image is already loaded, we don't need to re-load it.
+      return imageEntity.imageStatus != ImageStatus.VISIBLE;
+    },
   }
 );
 
@@ -170,8 +247,40 @@ export const thunkLoadMetadata = createAsyncThunk(
     const metadata: UavImageMetadata[] = await Promise.all(metadataPromises);
 
     return { imageIds: imageIds, metadata: metadata };
+  },
+  {
+    condition: (imageIds: string[], { getState }): boolean => {
+      const state = getState() as RootState;
+      return !imageIds.every((id) => {
+        const imageEntity = thumbnailGridSelectors.selectById(
+          state,
+          id
+        ) as ImageEntity;
+        return imageEntity.metadata != null;
+      });
+    },
   }
 );
+
+/**
+ * Common reducer logic for updating the state after a query completes.
+ * @param {Draft<ImageViewState>} state The state to update.
+ * @param {QueryResponse} queryResults The results from the query.
+ */
+function updateQueryState(
+  state: Draft<ImageViewState>,
+  queryResults: QueryResponse
+) {
+  // Register all the results.
+  thumbnailGridAdapter.addMany(
+    state,
+    queryResults.imageIds.map((i) => createDefaultEntity(i))
+  );
+
+  // Save the current query.
+  state.currentQueryState = RequestState.SUCCEEDED;
+  state.currentQueryHasMorePages = !queryResults.isLastPage;
+}
 
 export const thumbnailGridSlice = createSlice({
   name: "thumbnailGrid",
@@ -184,28 +293,30 @@ export const thumbnailGridSlice = createSlice({
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
-    builder.addCase(thunkStartQuery.pending, (state) => {
+    builder.addCase(thunkStartNewQuery.pending, (state) => {
       state.currentQueryState = RequestState.LOADING;
     });
 
     // Adds (possibly partial) results from a query.
-    builder.addCase(thunkStartQuery.fulfilled, (state, action) => {
-      state.currentQueryState = RequestState.SUCCEEDED;
+    builder.addCase(thunkStartNewQuery.fulfilled, (state, action) => {
+      updateQueryState(state, action.payload.result);
 
-      // Mark these thumbnails as currently loading.
-      thumbnailGridAdapter.addMany(
-        state,
-        action.payload.result.imageIds.map((i) => createDefaultEntity(i))
-      );
+      // Save the current query.
+      state.currentQuery = action.payload.query;
+      state.currentQueryOptions = action.payload.options;
+    });
 
-      if (action.payload.result.isLastPage) {
-        // We have gotten all the results from this query, so it is now complete.
-        state.currentQuery = null;
-      } else {
-        // We have not gotten all the results, so the query will have to be rerun at some point.
-        state.currentQuery = action.payload.query;
-      }
-      state.lastQueryHasMorePages = !action.payload.result.isLastPage;
+    // We continued a query for home screen data.
+    builder.addCase(thunkContinueQuery.pending, (state) => {
+      state.currentQueryState = RequestState.LOADING;
+    });
+
+    // Adds additional results from a query.
+    builder.addCase(thunkContinueQuery.fulfilled, (state, action) => {
+      updateQueryState(state, action.payload.result);
+
+      // Keep the current page number up-to-date.
+      state.currentQueryOptions.pageNum = action.payload.pageNum;
     });
 
     // Add results from thumbnail loading.

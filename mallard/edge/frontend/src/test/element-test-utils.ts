@@ -41,10 +41,11 @@ export function fakeState(): RootState {
     imageView: {
       lastQueryResults: null,
       currentQuery: null,
+      currentQueryOptions: {},
       currentQueryState: RequestState.IDLE,
       metadataLoadingState: RequestState.IDLE,
       currentQueryError: null,
-      lastQueryHasMorePages: true,
+      currentQueryHasMorePages: true,
       ids: [],
       entities: {},
     },
@@ -103,6 +104,7 @@ export function fakeImageEntity(
     // Simulate a loaded image.
     imageStatus = ImageStatus.VISIBLE;
     imageUrl = faker.image.dataUri();
+    metadata = { captureDate: captureDate.toISOString() };
   }
 
   return {

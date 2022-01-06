@@ -9,6 +9,7 @@
     "experimentalDecorators": true,
     "moduleResolution": "Node",
     "strictNullChecks": true,
+    "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "plugins": [
       {

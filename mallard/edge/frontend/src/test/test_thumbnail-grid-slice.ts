@@ -4,25 +4,26 @@ import thumbnailGridReducer, {
   createImageEntityId,
   thumbnailGridSelectors,
   thumbnailGridSlice,
+  thunkContinueQuery,
   thunkLoadImage,
   thunkLoadMetadata,
   thunkLoadThumbnail,
-  thunkStartQuery,
+  thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
 import {
   ImageQuery,
-  RequestState,
-  ImageViewState,
   ImageStatus,
+  ImageViewState,
+  RequestState,
 } from "../types";
 import thunk from "redux-thunk";
 import {
-  fakeState,
   fakeImageEntity,
   fakeObjectRef,
+  fakeState,
 } from "./element-test-utils";
-import each from "jest-each";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import each from "jest-each";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -30,10 +31,10 @@ const faker = require("faker");
 
 // Using older require syntax here so we get the correct mock type.
 const apiClient = require("../api-client");
-const queryImages: jest.Mock = apiClient.queryImages;
-const loadThumbnail: jest.Mock = apiClient.loadThumbnail;
-const loadImage: jest.Mock = apiClient.loadImage;
-const getMetadata: jest.Mock = apiClient.getMetadata;
+const mockQueryImages: jest.Mock = apiClient.queryImages;
+const mockLoadThumbnail: jest.Mock = apiClient.loadThumbnail;
+const mockLoadImage: jest.Mock = apiClient.loadImage;
+const mockGetMetadata: jest.Mock = apiClient.getMetadata;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -59,44 +60,143 @@ describe("thumbnail-grid-slice action creators", () => {
   beforeEach(() => {
     // Set the faker seed.
     faker.seed(1337);
+
+    // Reset mocks.
+    mockQueryImages.mockClear();
+    mockLoadThumbnail.mockClear();
+    mockLoadImage.mockClear();
+    mockGetMetadata.mockClear();
   });
 
-  it("creates a startQuery action", async () => {
+  each([
+    ["no start page", undefined],
+    ["start page", faker.datatype.number()],
+  ]).it(
+    "creates a startNewQuery action with %s",
+    async (_: string, startPage?: number) => {
+      // Arrange.
+      // Make it look like the query request succeeds.
+      const queryResult: QueryResponse = {
+        imageIds: [],
+        pageNum: startPage ?? 1,
+        isLastPage: true,
+      };
+      mockQueryImages.mockResolvedValue(queryResult);
+
+      const store = mockStoreCreator({});
+      // Fake query to perform.
+      const query: ImageQuery = {};
+
+      // Act.
+      await thunkStartNewQuery({ query: query, startPageNum: startPage })(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert.
+      // It should have started the query.
+      expect(mockQueryImages).toBeCalledTimes(1);
+
+      // It should have dispatched the lifecycle actions.
+      const actions = store.getActions();
+      expect(actions).toHaveLength(2);
+
+      const pendingAction = actions[0];
+      expect(pendingAction.type).toEqual(thunkStartNewQuery.pending.type);
+
+      const fulfilledAction = actions[1];
+      expect(fulfilledAction.type).toEqual(thunkStartNewQuery.fulfilled.type);
+      expect(fulfilledAction.payload.query).toEqual(query);
+      expect(fulfilledAction.payload.result).toEqual(queryResult);
+      expect(fulfilledAction.payload.options).toMatchObject({
+        pageNum: startPage ?? 1,
+      });
+    }
+  );
+
+  it("creates a continueQuery action", async () => {
     // Arrange.
+    // Set up the state so that it looks like we have an existing query.
+    const query: ImageQuery = {};
+    const state = fakeState();
+    const pageNum = faker.datatype.number();
+    state.imageView.currentQuery = query;
+    state.imageView.currentQueryHasMorePages = true;
+    state.imageView.currentQueryOptions.pageNum = pageNum;
+    const store = mockStoreCreator(state);
+
     // Make it look like the query request succeeds.
     const queryResult: QueryResponse = {
       imageIds: [],
-      pageNum: 1,
+      pageNum: pageNum + 1,
       isLastPage: true,
     };
-    queryImages.mockResolvedValue(queryResult);
-
-    const store = mockStoreCreator({});
-    // Fake query to perform.
-    const query: ImageQuery = {};
+    mockQueryImages.mockResolvedValue(queryResult);
 
     // Act.
-    await thunkStartQuery({ query: query })(store.dispatch, store.getState, {});
+    await thunkContinueQuery(pageNum + 1)(store.dispatch, store.getState, {});
 
     // Assert.
+    // It should have made the query.
+    expect(mockQueryImages).toBeCalledTimes(1);
+    expect(mockQueryImages).toBeCalledWith(
+      state.imageView.currentQuery,
+      state.imageView.currentQueryOptions.orderings,
+      state.imageView.currentQueryOptions.resultsPerPage,
+      pageNum + 1
+    );
+
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
     expect(actions).toHaveLength(2);
 
     const pendingAction = actions[0];
-    expect(pendingAction.type).toEqual("thumbnailGrid/startQuery/pending");
+    expect(pendingAction.type).toEqual(thunkContinueQuery.pending.type);
 
     const fulfilledAction = actions[1];
-    expect(fulfilledAction.type).toEqual("thumbnailGrid/startQuery/fulfilled");
-    expect(fulfilledAction.payload.query).toEqual(query);
+    expect(fulfilledAction.type).toEqual(thunkContinueQuery.fulfilled.type);
+    expect(fulfilledAction.payload.pageNum).toEqual(pageNum + 1);
     expect(fulfilledAction.payload.result).toEqual(queryResult);
   });
+
+  each([
+    ["there is no current query", null, true, 3],
+    ["there are no more pages", {}, false, 3],
+    ["this page was already loaded", {}, true, 2],
+  ]).it(
+    "ignores a thunkContinueQuery call when %s",
+    async (
+      _: string,
+      query: ImageQuery | null,
+      hasMorePages: boolean,
+      pageNum: number
+    ) => {
+      // Arrange.
+      // Set up the state.
+      const state = fakeState();
+      state.imageView.currentQuery = query;
+      state.imageView.currentQueryHasMorePages = hasMorePages;
+      state.imageView.currentQueryOptions.pageNum = 2;
+      const store = mockStoreCreator(state);
+
+      // Act.
+      await thunkContinueQuery(pageNum)(store.dispatch, store.getState, {});
+
+      // Assert.
+      // It should not have performed a query.
+      expect(mockQueryImages).not.toBeCalled();
+
+      // It should not have dispatched any actions.
+      expect(store.getActions()).toHaveLength(0);
+    }
+  );
 
   it("creates a loadThumbnail action", async () => {
     // Arrange.
     // Make it look like the loadThumbnail request succeeds.
     const rawImage = faker.image.cats(128, 128);
-    loadThumbnail.mockResolvedValue(rawImage);
+    mockLoadThumbnail.mockResolvedValue(rawImage);
 
     // Make it look like creatObjectURL produces a defined URL.
     const imageUrl = faker.image.dataUri();
@@ -113,6 +213,9 @@ describe("thumbnail-grid-slice action creators", () => {
     await thunkLoadThumbnail(imageId)(store.dispatch, store.getState, {});
 
     // Assert.
+    // It should have loaded the thumbnail.
+    expect(mockLoadThumbnail).toBeCalledTimes(1);
+
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
     expect(actions).toHaveLength(2);
@@ -126,11 +229,31 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction.payload.imageUrl).toEqual(imageUrl);
   });
 
+  it("does not reload a thumbnail that is already loaded", async () => {
+    // Arrange.
+    // Make it look like the thumbnail is already loaded.
+    const imageId: string = faker.datatype.uuid();
+    const state = fakeState();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(true);
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkLoadThumbnail(imageId)(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should not have loaded the thumbnail.
+    expect(mockLoadThumbnail).not.toBeCalled();
+
+    // It should not have dispatched any actions.
+    expect(store.getActions()).toHaveLength(0);
+  });
+
   it("creates a loadImage action", async () => {
     // Arrange.
     // Make it look like the loadImage request succeeds.
     const rawImage = faker.image.cats(1920, 1080);
-    loadImage.mockResolvedValue(rawImage);
+    mockLoadImage.mockResolvedValue(rawImage);
 
     // Make it look like creatObjectURL produces a defined URL.
     const imageUrl = faker.image.dataUri();
@@ -140,13 +263,16 @@ describe("thumbnail-grid-slice action creators", () => {
     const imageId: string = faker.datatype.uuid();
     const state = fakeState();
     state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false);
+    state.imageView.entities[imageId] = fakeImageEntity(undefined, false);
     const store = mockStoreCreator(state);
 
     // Act.
     await thunkLoadImage(imageId)(store.dispatch, store.getState, {});
 
     // Assert.
+    // It should have loaded the image.
+    expect(mockLoadImage).toBeCalledTimes(1);
+
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
     expect(actions).toHaveLength(2);
@@ -160,25 +286,48 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction.payload.imageUrl).toEqual(imageUrl);
   });
 
+  it("does not reload an image that is already loaded", async () => {
+    // Arrange.
+    // Make it look like the image is already loaded.
+    const imageId: string = faker.datatype.uuid();
+    const state = fakeState();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkLoadImage(imageId)(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should not have loaded the image.
+    expect(mockLoadImage).not.toBeCalled();
+
+    // It should not have dispatched any actions.
+    expect(store.getActions()).toHaveLength(0);
+  });
+
   it("creates a loadMetadata action", async () => {
     // Arrange.
     // Make it look like the getMetadata request succeeds.
     const metadata: UavImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
-    getMetadata.mockResolvedValue(metadata);
+    mockGetMetadata.mockResolvedValue(metadata);
 
     // Initialize the fake store with valid state.
     const imageId: string = faker.datatype.uuid();
     const state = fakeState();
     state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false);
+    state.imageView.entities[imageId] = fakeImageEntity(false, false);
     const store = mockStoreCreator(state);
 
     // Act.
     await thunkLoadMetadata([imageId])(store.dispatch, store.getState, {});
 
     // Assert.
+    // It should have loaded the metadata.
+    expect(mockGetMetadata).toBeCalledTimes(1);
+
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
     expect(actions).toHaveLength(2);
@@ -192,6 +341,26 @@ describe("thumbnail-grid-slice action creators", () => {
     );
     expect(fulfilledAction.payload.imageIds).toEqual([imageId]);
     expect(fulfilledAction.payload.metadata).toEqual([metadata]);
+  });
+
+  it("does not reload metadata that is already loaded", async () => {
+    // Arrange.
+    // Make it look like the image metadata is already loaded.
+    const imageId: string = faker.datatype.uuid();
+    const state = fakeState();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(true, true);
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkLoadMetadata([imageId])(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should not have loaded the metadata.
+    expect(mockGetMetadata).not.toBeCalled();
+
+    // It should not have dispatched any actions.
+    expect(store.getActions()).toHaveLength(0);
   });
 });
 
@@ -215,14 +384,14 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
   });
 
-  it("handles a startQuery/pending action", () => {
+  it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
     state.currentQueryState = RequestState.IDLE;
 
     // Act.
     const newState: ImageViewState = thumbnailGridReducer(state, {
-      type: thunkStartQuery.typePrefix + "/pending",
+      type: thunkStartNewQuery.pending.type,
     });
 
     // Assert.
@@ -230,59 +399,122 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.currentQueryState).toEqual(RequestState.LOADING);
   });
 
-  each([
-    ["last page", true],
-    ["not last page", false],
-  ]).it(
-    "handles a startQuery/fulfilled action (%s)",
-    (_: string, isLastPage: boolean) => {
-      // Arrange.
-      const state: ImageViewState = fakeState().imageView;
+  it(`handles a ${thunkStartNewQuery.fulfilled.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
 
-      // Create a fake query.
-      const query: ImageQuery = {};
-      // Create a fake image to add to the state.
-      const fakeImage: ObjectRef = {
-        bucket: faker.lorem.word(),
-        name: faker.datatype.uuid(),
-      };
+    // Create a fake query.
+    const query: ImageQuery = {};
+    // Create a fake image to add to the state.
+    const fakeImage: ObjectRef = {
+      bucket: faker.lorem.word(),
+      name: faker.datatype.uuid(),
+    };
 
-      // Create the action.
-      const action = {
-        type: thunkStartQuery.typePrefix + "/fulfilled",
-        payload: {
-          result: { imageIds: [fakeImage], pageNum: 1, isLastPage: isLastPage },
-          query: query,
+    // Create the action.
+    const action = {
+      type: thunkStartNewQuery.fulfilled.type,
+      payload: {
+        result: {
+          imageIds: [fakeImage],
+          pageNum: 1,
+          isLastPage: faker.datatype.boolean(),
         },
-      };
+        query: query,
+        options: {
+          resultsPerPage: faker.datatype.number(),
+          pageNum: faker.datatype.number(),
+        },
+      },
+    };
 
-      // Act.
-      const newState: ImageViewState = thumbnailGridReducer(state, action);
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, action);
 
-      // Assert.
-      // It should have marked the query as succeeded.
-      expect(newState.currentQueryState).toEqual(RequestState.SUCCEEDED);
+    // Assert.
+    // It should have marked the query as succeeded.
+    expect(newState.currentQueryState).toEqual(RequestState.SUCCEEDED);
 
-      // We need the full state to use selectors.
-      const newRootState = fakeState();
-      newRootState.imageView = newState;
+    // We need the full state to use selectors.
+    const newRootState = fakeState();
+    newRootState.imageView = newState;
 
-      // It should have added the image entity.
-      const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
-      expect(imageEntities).toHaveLength(1);
-      expect(imageEntities[0].backendId).toEqual(fakeImage);
-      expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.LOADING);
-      expect(imageEntities[0].thumbnailUrl).toBe(null);
+    // It should have added the image entity.
+    const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
+    expect(imageEntities).toHaveLength(1);
+    expect(imageEntities[0].backendId).toEqual(fakeImage);
+    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.LOADING);
+    expect(imageEntities[0].thumbnailUrl).toBe(null);
+    // The query should have been preserved so that we can re-run it.
+    expect(newState.currentQuery).toEqual(query);
+    expect(newState.currentQueryOptions).toEqual(action.payload.options);
+  });
 
-      if (isLastPage) {
-        // The currentQuery value in the state should have been reset.
-        expect(newState.currentQuery).toBe(null);
-      } else {
-        // The currentQuery value should have been preserved so we can re-run the query.
-        expect(newState.currentQuery).toEqual(query);
-      }
-    }
-  );
+  it(`handles a ${thunkContinueQuery.pending.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    // The state will probably be SUCCEEDED in practice since we have
+    // run another query before.
+    state.currentQueryState = RequestState.SUCCEEDED;
+
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkContinueQuery.pending.type,
+    });
+
+    // Assert.
+    // It should have marked the query request as loading.
+    expect(newState.currentQueryState).toEqual(RequestState.LOADING);
+  });
+
+  it(`handles a ${thunkContinueQuery.fulfilled.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+
+    // Create a fake query.
+    state.currentQuery = {};
+    state.currentQueryState = RequestState.LOADING;
+    // Create a fake image to add to the state.
+    const fakeImage: ObjectRef = {
+      bucket: faker.lorem.word(),
+      name: faker.datatype.uuid(),
+    };
+
+    // Create the action.
+    const pageNum = faker.datatype.number();
+    const action = {
+      type: thunkContinueQuery.fulfilled.type,
+      payload: {
+        pageNum: pageNum,
+        result: {
+          imageIds: [fakeImage],
+          pageNum: pageNum,
+          isLastPage: faker.datatype.boolean(),
+        },
+      },
+    };
+
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, action);
+
+    // Assert.
+    // It should have marked the query as succeeded.
+    expect(newState.currentQueryState).toEqual(RequestState.SUCCEEDED);
+
+    // We need the full state to use selectors.
+    const newRootState = fakeState();
+    newRootState.imageView = newState;
+
+    // It should have added the image entity.
+    const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
+    expect(imageEntities).toHaveLength(1);
+    expect(imageEntities[0].backendId).toEqual(fakeImage);
+    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.LOADING);
+    expect(imageEntities[0].thumbnailUrl).toBe(null);
+
+    // It should have updated the page number.
+    expect(newState.currentQueryOptions.pageNum).toEqual(pageNum);
+  });
 
   it("handles a loadThumbnail/fulfilled action", () => {
     // Arrange.

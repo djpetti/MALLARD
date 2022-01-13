@@ -3,10 +3,44 @@ Tests for the `endpoints` module.
 """
 
 
+from collections.abc import Coroutine
+from functools import partial
+from typing import Callable
+
 import pytest
 from faker import Faker
 
 from mallard.edge.routers.root import endpoints
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [endpoints.get_index, partial(endpoints.get_details, "bucket", "name")],
+    ids=["get_index", "get_details"],
+)
+@pytest.mark.parametrize("fragment", [False, True], ids=["normal", "fragment"])
+@pytest.mark.asyncio
+async def test_fragment(
+    endpoint: Callable[..., Coroutine[str, None, None]], fragment: bool
+) -> None:
+    """
+    Tests that we can get fragment versions of each page.
+
+    Args:
+        endpoint: The endpoint function to test.
+        fragment: Whether to get the page as a fragment or not.
+
+    """
+    # Act.
+    got_response = await endpoint(fragment=fragment)
+
+    # Assert.
+    if not fragment:
+        # It should have gotten a complete page.
+        assert "</html>" in got_response
+    else:
+        # It should have gotten a fragment.
+        assert "</html>" not in got_response
 
 
 @pytest.mark.asyncio

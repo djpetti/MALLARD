@@ -25,6 +25,10 @@ import {
   QueryResponse,
   UavImageMetadata,
 } from "typescript-axios";
+import { ThunkAction } from "redux-thunk";
+
+/** Type alias to make typing thunks simpler. */
+type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
 
 /**
  * Return type for the `thunkStartQuery` creator.
@@ -263,6 +267,33 @@ export const thunkLoadMetadata = createAsyncThunk(
 );
 
 /**
+ * Thunk for clearing a loaded full-sized image. It will
+ * handle releasing the memory.
+ * @param {string} imageId The entity ID of the image to clear. If not
+ *  provided, it will do nothing.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkClearFullSizedImage(imageId?: string): ThunkResult<void> {
+  return (dispatch, getState) => {
+    if (!imageId) {
+      // Do nothing.
+      return;
+    }
+
+    // Release the loaded image.
+    const state: RootState = getState();
+    const entity = thumbnailGridSelectors.selectById(state, imageId) as ImageEntity;
+    if (entity.imageUrl) {
+      URL.revokeObjectURL(entity.imageUrl);
+    }
+
+    // Update the state.
+    dispatch(thumbnailGridSlice.actions.clearFullSizedImage(imageId));
+  };
+}
+
+/**
  * Common reducer logic for updating the state after a query completes.
  * @param {Draft<ImageViewState>} state The state to update.
  * @param {QueryResponse} queryResults The results from the query.
@@ -289,6 +320,13 @@ export const thumbnailGridSlice = createSlice({
     // We are manually adding a new artifact to the frontend state.
     addArtifact(state, action) {
       thumbnailGridAdapter.addOne(state, createDefaultEntity(action.payload));
+    },
+    // Clears a loaded full-sized image.
+    clearFullSizedImage(state, action) {
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.payload,
+        changes: { imageUrl: null, imageStatus: ImageStatus.LOADING },
+      });
     },
   },
   extraReducers: (builder) => {
@@ -366,5 +404,5 @@ export const thumbnailGridSlice = createSlice({
   },
 });
 
-export const { addArtifact } = thumbnailGridSlice.actions;
+export const { clearFullSizedImage, addArtifact } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

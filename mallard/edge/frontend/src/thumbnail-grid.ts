@@ -96,12 +96,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * Name for the custom event signaling that the displayed images have
    * changed. */
-  static IMAGES_CHANGED_EVENT_NAME = "images-changed";
+  static IMAGES_CHANGED_EVENT_NAME = `${ThumbnailGrid.tagName}-images-changed`;
   /**
    * Name for the custom event signaling that the user has scrolled near
    * the bottom, and we need to load more data.
    */
-  static LOAD_MORE_DATA_EVENT_NAME = "load-more-data";
+  static LOAD_MORE_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data`;
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({

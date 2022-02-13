@@ -11,7 +11,6 @@ import {
 import { RootState } from "../types";
 import each from "jest-each";
 import { ObjectRef } from "typescript-axios";
-import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
 import { ImageIdentifier } from "../image-display";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
@@ -23,6 +22,7 @@ const thumbnailGridSlice = require("../thumbnail-grid-slice");
 const mockCreateImageEntityId = thumbnailGridSlice.createImageEntityId;
 const mockThunkLoadImage = thumbnailGridSlice.thunkLoadImage;
 const mockAddArtifact = thumbnailGridSlice.addArtifact;
+const mockClearFullSizedImage = thumbnailGridSlice.thunkClearFullSizedImage;
 const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
 const { thumbnailGridSelectors } = jest.requireActual(
   "../thumbnail-grid-slice"
@@ -36,6 +36,7 @@ jest.mock("../thumbnail-grid-slice", () => ({
   createImageEntityId: jest.fn(),
   thunkLoadImage: jest.fn(),
   addArtifact: jest.fn(),
+  thunkClearFullSizedImage: jest.fn(),
   thumbnailGridSelectors: { selectById: jest.fn() },
 }));
 jest.mock("../store", () => ({
@@ -212,7 +213,7 @@ describe("large-image-display", () => {
     ["image is registered", { frontendId: faker.datatype.uuid() }],
     ["image is not registered", { backendId: fakeObjectRef() }],
   ]).it(
-    "maps the correct actions to events when the %s",
+    "maps the correct actions to the image changed event when the %s",
     (_: string, imageId: ImageIdentifier) => {
       // Act.
       const eventMap = imageElement.mapEvents();
@@ -225,10 +226,11 @@ describe("large-image-display", () => {
 
       // This should fire the appropriate action creator.
       const testEvent = { detail: imageId };
-      eventMap[ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME](
+      eventMap[ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME](
         testEvent as unknown as Event
       );
 
+      // Check image changed event.
       if (imageId.frontendId) {
         // Image is registered.
         expect(mockThunkLoadImage).toBeCalledTimes(1);
@@ -240,4 +242,25 @@ describe("large-image-display", () => {
       }
     }
   );
+
+  it("maps the correct action to the disconnected event", () => {
+    // Act.
+    const eventMap = imageElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: faker.datatype.uuid() };
+    eventMap[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    // Check disconnected event.
+    expect(mockClearFullSizedImage).toBeCalledTimes(1);
+    expect(mockClearFullSizedImage).toBeCalledWith(testEvent.detail);
+  });
 });

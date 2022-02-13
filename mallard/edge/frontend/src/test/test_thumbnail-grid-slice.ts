@@ -1,6 +1,7 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifact,
+  thunkClearFullSizedImage,
   createImageEntityId,
   thumbnailGridSelectors,
   thumbnailGridSlice,
@@ -9,12 +10,14 @@ import thumbnailGridReducer, {
   thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkStartNewQuery,
+  clearFullSizedImage,
 } from "../thumbnail-grid-slice";
 import {
   ImageQuery,
   ImageStatus,
   ImageViewState,
   RequestState,
+  RootState,
 } from "../types";
 import thunk from "redux-thunk";
 import {
@@ -24,6 +27,7 @@ import {
 } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
+import store from "../store";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -44,9 +48,11 @@ jest.mock("../api-client", () => ({
   getMetadata: jest.fn(),
 }));
 
-// Mock out `createObjectURL`.
+// Mock out `createObjectURL` and `revokeObjectURL`.
 const mockCreateObjectUrl = jest.fn();
+const mockRevokeObjectUrl = jest.fn();
 global.URL.createObjectURL = mockCreateObjectUrl;
+global.URL.revokeObjectURL = mockRevokeObjectUrl;
 
 describe("thumbnail-grid-slice action creators", () => {
   /** Factory function for a mocked Redux store. */
@@ -62,10 +68,7 @@ describe("thumbnail-grid-slice action creators", () => {
     faker.seed(1337);
 
     // Reset mocks.
-    mockQueryImages.mockClear();
-    mockLoadThumbnail.mockClear();
-    mockLoadImage.mockClear();
-    mockGetMetadata.mockClear();
+    jest.clearAllMocks();
   });
 
   each([
@@ -362,6 +365,66 @@ describe("thumbnail-grid-slice action creators", () => {
     // It should not have dispatched any actions.
     expect(store.getActions()).toHaveLength(0);
   });
+
+  each([
+    ["loaded", true],
+    ["not loaded", false],
+  ]).it(
+    "creates a clearFullSizedImage action when the image is %s",
+    (_: string, imageLoaded: boolean) => {
+      // Arrange.
+      // Set up the state appropriately.
+      const imageId = faker.datatype.uuid();
+      const state = fakeState();
+      state.imageView.ids = [imageId];
+      const fakeEntity = fakeImageEntity(undefined, imageLoaded);
+      state.imageView.entities[imageId] = fakeEntity;
+      const store = mockStoreCreator(state);
+
+      // Act.
+      thunkClearFullSizedImage(imageId)(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
+
+      // Assert.
+      if (imageLoaded) {
+        // It should have released the loaded image.
+        expect(mockRevokeObjectUrl).toBeCalledTimes(1);
+        expect(mockRevokeObjectUrl).toBeCalledWith(fakeEntity.imageUrl);
+      } else {
+        expect(mockRevokeObjectUrl).not.toBeCalled();
+      }
+
+      // It should have dispatched the action.
+      const actions = store.getActions();
+      expect(actions).toHaveLength(1);
+
+      const clearAction = actions[0];
+      expect(clearAction.type).toEqual(
+        thumbnailGridSlice.actions.clearFullSizedImage.type
+      );
+      expect(clearAction.payload).toEqual(imageId);
+    }
+  );
+
+  it("Does nothing when no image is passed to clearFullSizedImage", () => {
+    // Arrange.
+    const store = mockStoreCreator(fakeState());
+
+    // Act.
+    thunkClearFullSizedImage(undefined)(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have done nothing.
+    expect(mockRevokeObjectUrl).not.toBeCalled();
+    expect(store.getActions()).toHaveLength(0);
+  });
 });
 
 describe("thumbnail-grid-slice reducers", () => {
@@ -382,6 +445,31 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have added a new entity.
     expect(newState.ids.length).toEqual(1);
     expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
+  });
+
+  it("handles a clearFullSizedImage action", () => {
+    // Arrange.
+    const state: RootState = fakeState();
+    // Make it look like an image is loaded.
+    const imageId = faker.datatype.uuid();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      clearFullSizedImage(imageId)
+    );
+
+    // Assert.
+    const newState = fakeState();
+    newState.imageView = newImageState;
+
+    // It should have removed the image.
+    const imageEntities = thumbnailGridSelectors.selectAll(newState);
+    expect(imageEntities).toHaveLength(1);
+    expect(imageEntities[0].imageUrl).toBeNull();
+    expect(imageEntities[0].imageStatus).toEqual(ImageStatus.LOADING);
   });
 
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {

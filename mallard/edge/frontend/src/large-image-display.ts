@@ -9,6 +9,7 @@ import store from "./store";
 import { ImageStatus } from "./types";
 import {
   addArtifact,
+  thunkClearFullSizedImage,
   createImageEntityId,
   thumbnailGridSelectors,
   thunkLoadImage,
@@ -121,12 +122,48 @@ export class LargeImageDisplay extends ImageDisplay {
 }
 
 /**
+ * Interface for the custom event we dispatch when the element is
+ * connected or disconnected.
+ */
+export interface ConnectionChangedEvent extends Event {
+  /** The frontend ID of the currently-set image. */
+  detail?: string;
+}
+
+/**
  * Extension of `LargeImageDisplay` that connects to Redux.
  */
 export class ConnectedLargeImageDisplay extends connect(
   store,
   LargeImageDisplay
 ) {
+  /**
+   * Name for the custom event signaling that the element is disconnected from the DOM.
+   */
+  static DISCONNECTED_EVENT_NAME = `${LargeImageDisplay.tagName}-disconnected`;
+
+  /**
+   * The implementation of `disconnectedCallback()` from`redux-connect-element`
+   * unfortunately de-registers the event listeners *before* calling the
+   * superclass version, so we have to implement this method here, or it will
+   * never handle the event and dispatch the Redux action.
+   * @inheritDoc
+   */
+  public override disconnectedCallback() {
+    // Dispatch the correct event.
+    this.dispatchEvent(
+      new CustomEvent<string | undefined>(
+        ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME,
+        {
+          bubbles: true,
+          composed: false,
+          detail: this.frontendId,
+        }
+      )
+    );
+    super.disconnectedCallback();
+  }
+
   /**
    * @inheritDoc
    */
@@ -145,7 +182,6 @@ export class ConnectedLargeImageDisplay extends connect(
       }
     }
 
-    // This should never be undefined, because that means our image ID is invalid.
     const imageEntity = thumbnailGridSelectors.selectById(state, frontendId);
     if (!imageEntity) {
       // Image loading has not been started yet.
@@ -183,6 +219,12 @@ export class ConnectedLargeImageDisplay extends connect(
         return addArtifact(imageEvent.detail.backendId as ObjectRef);
       }
     };
+    handlers[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME] = (
+      event: Event
+    ) =>
+      thunkClearFullSizedImage(
+        (event as ConnectionChangedEvent).detail
+      ) as unknown as Action;
     return handlers;
   }
 }

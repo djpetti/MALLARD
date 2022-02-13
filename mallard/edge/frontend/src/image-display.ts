@@ -53,7 +53,7 @@ export class ImageDisplay extends LitElement {
   /**
    * The name of the event to fire when the `imageId` property is changed.
    */
-  static IMAGE_CHANGED_EVENT_NAME = "image-changed";
+  static IMAGE_CHANGED_EVENT_NAME = `${ImageDisplay.tagName}-image-changed`;
 
   /**
    * The unique ID of the artifact being displayed here.

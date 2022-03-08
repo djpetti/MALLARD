@@ -14,19 +14,13 @@
 </head>
 <body>
 
-<mwc-top-app-bar-fixed id="main_app_bar">
-    {% if show_back | default(false) %}
-    <mwc-icon-button icon="arrow_back" slot="navigationIcon" id="back_button">
-    </mwc-icon-button>
-    {% endif %}
-    <div slot="title">{% block title %}Mallard{% endblock %}</div>
-
+<top-nav-bar id="main_app_bar" title="{% block title %}Mallard{% endblock %}">
     <main id="main">
 {% endif %}
         {% block main %}{% endblock %}
 {% if not fragment | default(false) %}
     </main>
-</mwc-top-app-bar-fixed>
+</top-nav-bar>
 
 </body>
 

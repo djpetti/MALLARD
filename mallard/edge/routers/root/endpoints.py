@@ -46,5 +46,7 @@ async def get_details(bucket: str, name: str, fragment: bool = False) -> str:
     """
     template = template_environment.get_template("details.html")
     return await template.render_async(
-        image_bucket=bucket, image_name=name, fragment=fragment
+        image_bucket=bucket,
+        image_name=name,
+        fragment=fragment,
     )

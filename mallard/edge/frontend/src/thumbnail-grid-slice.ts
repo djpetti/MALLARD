@@ -283,7 +283,10 @@ export function thunkClearFullSizedImage(imageId?: string): ThunkResult<void> {
 
     // Release the loaded image.
     const state: RootState = getState();
-    const entity = thumbnailGridSelectors.selectById(state, imageId) as ImageEntity;
+    const entity = thumbnailGridSelectors.selectById(
+      state,
+      imageId
+    ) as ImageEntity;
     if (entity.imageUrl) {
       URL.revokeObjectURL(entity.imageUrl);
     }

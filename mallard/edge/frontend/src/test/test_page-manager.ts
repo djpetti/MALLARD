@@ -1,4 +1,5 @@
 import { PageManager } from "../page-manager";
+import each from "jest-each";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -10,11 +11,31 @@ const mockLoad = jest.fn();
 jQuery.fn.load = mockLoad;
 
 describe("page-manager", () => {
+  interface FakeNavBar extends HTMLElement {
+    showBack: boolean;
+  }
+
+  /** The top nav bar to use when testing. */
+  let navBarElement: FakeNavBar;
+
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
 
     jest.clearAllMocks();
+
+    // Create the fake top nav bar, which PageManager expects to exist.
+    const navBar = window.document.createElement("div") as HTMLElement;
+    navBar.id = "main_app_bar";
+    // PageManager depends on the nav bar having the showBack property.
+    Object.defineProperty(navBar, "showBack", { value: false, writable: true });
+    document.body.appendChild(navBar);
+    // We added the needed properties manually, so this is okay.
+    navBarElement = navBar as unknown as FakeNavBar;
+  });
+
+  afterEach(() => {
+    document.body.querySelector("#main_app_bar")?.remove();
   });
 
   it("can initialize the singleton", () => {
@@ -28,7 +49,11 @@ describe("page-manager", () => {
     expect(instance1).toBe(instance2);
   });
 
-  it("can load a new page", () => {
+  each([
+    ["shows the back button", true],
+    ["shows the back button (default)", undefined],
+    ["hides the back button", false],
+  ]).it("can load a new page that %s", (_: string, showBack: boolean) => {
     // Arrange.
     // We will have to test navigating to a sub-page, because `pushState`
     // won't let us go to an arbitrary URL.
@@ -38,9 +63,15 @@ describe("page-manager", () => {
     pushStateSpy.mockClear();
 
     // Act.
-    PageManager.getInstance().loadPage(newUrl);
+    PageManager.getInstance().loadPage(newUrl, showBack);
 
     // Assert.
+    if (showBack === undefined) {
+      // The default for this parameter is true, so it should operate like it was
+      // set to true.
+      showBack = true;
+    }
+
     // It should have loaded the proper page fragment.
     expect(mockLoad).toBeCalledTimes(1);
     expect(mockLoad.mock.calls[0][0]).toContain(newUrl);
@@ -52,6 +83,9 @@ describe("page-manager", () => {
       expect.any(String),
       newUrl
     );
+
+    // It should be showing the back button if requested.
+    expect(navBarElement.showBack).toEqual(showBack);
   });
 
   it("correctly handles the back button", () => {

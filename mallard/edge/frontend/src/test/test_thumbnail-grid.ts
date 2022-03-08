@@ -62,9 +62,7 @@ describe("thumbnail-grid", () => {
     );
 
     // Reset mocks.
-    mockThunkLoadMetadata.mockClear();
-    mockThunkStartNewQuery.mockClear();
-    mockThunkContinueQuery.mockClear();
+    jest.clearAllMocks();
 
     gridElement = window.document.createElement(
       ConnectedThumbnailGrid.tagName
@@ -379,7 +377,7 @@ describe("thumbnail-grid", () => {
     ["no query is running", false],
     ["a query is running", true],
   ]).it(
-    "maps the correct actions to the load-more-data event when %S",
+    "maps the correct actions to the load-more-data event when %s",
     (_: string, isQueryRunning: boolean) => {
       // Arrange.
       gridElement.isQueryRunning = isQueryRunning;

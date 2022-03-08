@@ -2,13 +2,6 @@
 @use "multi_column";
 @use "colors";
 
-#main_app_bar {
-  --mdc-theme-primary: var(--theme-secondary-2);
-  --mdc-theme-on-primary: var(--theme-whitish);
-
-  overflow-x: hidden;
-}
-
 #thumbnails {
   overflow-x: hidden;
 }

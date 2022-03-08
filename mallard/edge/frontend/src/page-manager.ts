@@ -1,4 +1,5 @@
 import $ from "jquery";
+import { TopNavBar } from "./top-nav-bar";
 
 /**
  * In an SPA, it is sometimes convenient to have separate pages that
@@ -10,21 +11,27 @@ import $ from "jquery";
 export class PageManager {
   /** The root element selector to use for the singleton. */
   private static ROOT_ELEMENT_SELECTOR = "#main";
+  /** The top nav bar selector to use for the singleton. */
+  private static TOP_NAV_BAR_SELECTOR = "#main_app_bar";
 
   /** The singleton instance. */
   private static instance?: PageManager;
 
   /** The element that encapsulates our entire page. */
   private readonly rootElementSelector: string;
+  /** The top navigation bar. */
+  private readonly topNavBarSelector: string;
 
   /**
    * @param {string} rootElementSelector Selector for the root element
    *  that encapsulates all the contents of the page. The
    *  contents of this element will be completely swapped out when a new
    *  page is loaded.
+   * @param {string} topNavBarSelector Selector for the top navigation bar element.
    */
-  private constructor(rootElementSelector: string) {
+  private constructor(rootElementSelector: string, topNavBarSelector: string) {
     this.rootElementSelector = rootElementSelector;
+    this.topNavBarSelector = topNavBarSelector;
 
     // Register a handler for the onpopstate event, which we need to catch
     // so that the app behaves intuitively when the user presses the "back"
@@ -39,7 +46,10 @@ export class PageManager {
   public static getInstance(): PageManager {
     if (!PageManager.instance) {
       // Initialize the singleton.
-      PageManager.instance = new PageManager(PageManager.ROOT_ELEMENT_SELECTOR);
+      PageManager.instance = new PageManager(
+        PageManager.ROOT_ELEMENT_SELECTOR,
+        PageManager.TOP_NAV_BAR_SELECTOR
+      );
     }
 
     return PageManager.instance;
@@ -72,6 +82,20 @@ export class PageManager {
   private handlePopState() {
     // Load the previous page.
     this.replacePageContent(document.location.href);
+    // Hide the back button after we go back.
+    PageManager.setBackButtonDisplay(false);
+  }
+
+  /**
+   * Sets whether the back button is shown on the navigation bar or not.
+   * @param {boolean} show Whether to show the button.
+   * @private
+   */
+  private static setBackButtonDisplay(show: boolean) {
+    const navBar = document.querySelector(
+      this.TOP_NAV_BAR_SELECTOR
+    ) as TopNavBar;
+    navBar.showBack = show;
   }
 
   /**
@@ -81,9 +105,13 @@ export class PageManager {
    * be performed.
    * @param {string} url The URL of the new page to load. It must actually
    *  point to a valid page, but it can be relative.
+   * @param {boolean} showBack If provided, it will show the back button on the
+   *  new page.
    */
-  public loadPage(url: string) {
+  public loadPage(url: string, showBack: boolean = true) {
     PageManager.updateAddressBar(url);
     this.replacePageContent(url);
+
+    PageManager.setBackButtonDisplay(showBack);
   }
 }

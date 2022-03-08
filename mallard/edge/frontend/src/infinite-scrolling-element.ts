@@ -47,8 +47,7 @@ export abstract class InfiniteScrollingElement extends LitElement {
 
     // Compute how many pixels worth of content beyond the
     // user's current position we want to have loaded.
-    const bufferSizePx =
-      viewportHeight + (viewportHeight * this.OVERFILL_MARGIN_PERCENT) / 100;
+    const bufferSizePx = (viewportHeight * this.OVERFILL_MARGIN_PERCENT) / 100;
     // Find out how many we actually have loaded.
     const bufferUsedPx = contentHeight - (scrollDistance + viewportHeight);
 
@@ -75,7 +74,9 @@ export abstract class InfiniteScrollingElement extends LitElement {
     // content if needed.
     this.addEventListener("scroll", (_) => this.loadContentWhileNeeded());
 
-    // Go ahead and load the first section of data.
+    // Go ahead and load the first section of data. It is guaranteed to load
+    // at least some.
+    this.loadNextSection();
     this.loadContentWhileNeeded();
   }
 

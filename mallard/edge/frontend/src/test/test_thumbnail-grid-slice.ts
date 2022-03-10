@@ -27,7 +27,6 @@ import {
 } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
-import store from "../store";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.

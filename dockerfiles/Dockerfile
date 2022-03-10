@@ -6,13 +6,13 @@ FROM python:3.9.2-slim AS gateway_builder
 # Install poetry.
 RUN apt-get update
 RUN apt-get install -y curl
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Export dependencies.
 WORKDIR /install
 COPY poetry.lock poetry.lock
 COPY pyproject.toml pyproject.toml
-RUN . $HOME/.poetry/env && poetry export -n -o requirements.txt
+RUN $HOME/.local/bin/poetry export -n -o requirements.txt
 
 # Install dependencies.
 RUN apt-get install -y build-essential
@@ -65,9 +65,9 @@ RUN apt-get install -y curl
 WORKDIR /home/gateway/
 
 # Install Node.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 ENV NVM_DIR=/root/.nvm
-RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 15.8.0
+RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 16.14.0
 
 # Install NPM dependencies.
 RUN cd mallard/edge/frontend && . ~/.nvm/nvm.sh && npm install

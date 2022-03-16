@@ -6,6 +6,7 @@ Root endpoints for the edge service.
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
+from ....config import config
 from ...template_engine import template_environment
 
 router = APIRouter()
@@ -25,7 +26,9 @@ async def get_index(fragment: bool = False) -> str:
 
     """
     template = template_environment.get_template("index.html")
-    return await template.render_async(fragment=fragment)
+    return await template.render_async(
+        fragment=fragment, api_base_url=config["api_base_url"].as_str()
+    )
 
 
 @router.get("/details/{bucket}/{name}", response_class=HTMLResponse)
@@ -49,4 +52,5 @@ async def get_details(bucket: str, name: str, fragment: bool = False) -> str:
         image_bucket=bucket,
         image_name=name,
         fragment=fragment,
+        api_base_url=config["api_base_url"].as_str(),
     )

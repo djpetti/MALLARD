@@ -5,6 +5,8 @@ x-local_volumes: &local_volumes
   volumes:
     # Code.
     - ./mallard:/home/gateway/mallard
+    # Config.
+    - ~/.config/mallard:/home/gateway/.config/mallard
 
 # This is a docker-compose overlay for facilitating development.
 # Basically, it mounts your local FS in the containers instead of copying the
@@ -18,3 +20,9 @@ services:
   # Edge service.
   edge:
     << : *local_volumes
+
+  proxy:
+    # We need to manually specify ports because they're not specified in the
+    # base config.
+    ports:
+      - "8081:8081"

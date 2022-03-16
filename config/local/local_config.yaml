@@ -1,6 +1,10 @@
 # Config file for local MALLARD deployments. This is used by the default
 # docker-compose configuration.
 
+# Base URL for the API that the frontend will use to communicate
+# with the backend.
+api_base_url: "http://localhost:8081/api/v1"
+
 backends:
   # Configuration for the object store backend.
   object_store:
@@ -20,3 +24,8 @@ backends:
 security:
   # Disable authentication.
   enable_auth: false
+
+  # Origins to allow API requests from.
+  api_origins:
+    - "http://127.0.0.1:8081"
+    - "http://localhost:8081"

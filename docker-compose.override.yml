@@ -1,0 +1,7 @@
+# Default override for docker-compose.
+version: '3.8'
+
+services:
+  proxy:
+    ports:
+      - "8081:8081"

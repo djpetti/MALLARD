@@ -11,7 +11,7 @@ from typing import AsyncIterator, Type, TypeVar
 from confuse import ConfigTypeError, ConfigView
 from loguru import logger
 
-from ..config import config
+from ...config import config
 from .injectable import Injectable
 from .metadata import MetadataStore
 from .objects import ObjectStore

@@ -10,9 +10,12 @@ import {
 } from "typescript-axios";
 import { ImageQuery } from "./types";
 
+// This global variable is expected to be pre-set by an external script.
+declare const API_BASE_URL: string;
+
 /** Singleton API client used by the entire application. */
 const api = new ImagesApi(
-  new Configuration({ basePath: "http://localhost:8081/api/v1" })
+  new Configuration({ basePath: API_BASE_URL })
 );
 
 /** Used for translating raw platform types to enum values.

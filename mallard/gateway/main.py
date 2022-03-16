@@ -7,19 +7,10 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from ..config import config
 from .aiohttp_session import init_session, session
 from .authentication import check_auth_token
-from .config import config
 from .routers import images
-
-_ORIGINS = [
-    # Origin of the frontend when testing.
-    "http://127.0.0.1:8081",
-    "http://localhost:8081",
-]
-"""
-Specific origins that are allowed to access this API.
-"""
 
 dependencies = []
 if config["security"]["enable_auth"].get(bool):
@@ -32,7 +23,7 @@ app.include_router(images.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_ORIGINS,
+    allow_origins=config["security"]["api_origins"].as_str_seq(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

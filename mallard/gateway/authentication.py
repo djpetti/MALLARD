@@ -7,8 +7,8 @@ from typing import TypeVar
 from fastapi import Header, HTTPException
 from loguru import logger
 
+from ..config import config
 from .aiohttp_session import session
-from .config import config
 
 ResponseType = TypeVar("ResponseType")
 

@@ -11,10 +11,9 @@ from fastapi import HTTPException
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.type_helpers import ArbitraryTypesConfig
-
+from ...config_view_mock import ConfigViewMock
+from ...type_helpers import ArbitraryTypesConfig
 from .. import authentication
-from ..config_view_mock import ConfigViewMock
 
 
 @dataclass(frozen=True, config=ArbitraryTypesConfig)
@@ -52,7 +51,7 @@ def config(mocker: MockFixture, faker: Faker) -> ConfigForTests:
         authentication.__name__ + ".config", new_callable=ConfigViewMock
     )
     # Make it look like we have an authentication URL configured.
-    mock_config["security"]["auth_url"].return_value = faker.url()
+    mock_config["security"]["auth_url"].as_str.return_value = faker.url()
 
     return ConfigForTests(mock_session=mock_session, mock_config=mock_config)
 

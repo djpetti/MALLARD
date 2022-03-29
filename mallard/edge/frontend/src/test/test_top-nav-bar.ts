@@ -82,7 +82,7 @@ describe("top-nav-bar", () => {
     await navBarElement.updateComplete;
 
     // Monitor the history object, so we can detect the callback.
-    const backSpy = jest.spyOn(history, "back")
+    const backSpy = jest.spyOn(history, "back");
     backSpy.mockClear();
 
     // Act.

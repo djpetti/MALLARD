@@ -16,6 +16,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends.metadata.schemas import (
     ImageMetadata,
     ImageQuery,
@@ -24,7 +25,6 @@ from mallard.gateway.backends.metadata.schemas import (
 )
 from mallard.gateway.backends.metadata.sql import sql_image_metadata_store
 from mallard.gateway.backends.metadata.sql.models import Base
-from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

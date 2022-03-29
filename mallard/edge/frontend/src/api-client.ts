@@ -14,9 +14,7 @@ import { ImageQuery } from "./types";
 declare const API_BASE_URL: string;
 
 /** Singleton API client used by the entire application. */
-const api = new ImagesApi(
-  new Configuration({ basePath: API_BASE_URL })
-);
+const api = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
 
 /** Used for translating raw platform types to enum values.
  * Must be kept in-sync with `PlatformType` on the backend.

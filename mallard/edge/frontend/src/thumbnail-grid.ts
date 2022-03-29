@@ -290,14 +290,16 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     // because it implies that the process isn't 100% finished.
     let overallState = RequestState.LOADING;
     if (
-      contentState == RequestState.IDLE &&
-      metadataState == RequestState.IDLE
+      contentState === RequestState.IDLE &&
+      metadataState === RequestState.IDLE
     ) {
       overallState = RequestState.IDLE;
     } else if (
-      contentState == RequestState.SUCCEEDED &&
-      metadataState == RequestState.SUCCEEDED
+      contentState === RequestState.SUCCEEDED &&
+      (metadataState === RequestState.SUCCEEDED || allIds.length === 0)
     ) {
+      // The allIds check here is to cover a corner case where we don't have
+      // any images. In this case, there will be no metadata to load.
       overallState = RequestState.SUCCEEDED;
     }
 

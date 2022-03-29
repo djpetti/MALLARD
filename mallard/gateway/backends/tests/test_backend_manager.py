@@ -10,10 +10,10 @@ from confuse import ConfigTypeError
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends import backend_manager
 from mallard.gateway.backends.metadata import MetadataStore
 from mallard.gateway.backends.objects import ObjectStore
-from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

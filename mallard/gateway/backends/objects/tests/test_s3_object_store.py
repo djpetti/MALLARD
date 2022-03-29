@@ -13,12 +13,12 @@ from faker import Faker
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends.objects import s3_object_store
 from mallard.gateway.backends.objects.object_store import (
     BucketOperationError,
     ObjectOperationError,
 )
-from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

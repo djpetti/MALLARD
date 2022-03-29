@@ -23,12 +23,12 @@ from irods.session import iRODSSession
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends import irods_store
 from mallard.gateway.backends.objects import (
     BucketOperationError,
     irods_object_store,
 )
-from mallard.gateway.config_view_mock import ConfigViewMock
 from mallard.type_helpers import ArbitraryTypesConfig
 
 

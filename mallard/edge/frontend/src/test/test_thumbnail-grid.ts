@@ -1,11 +1,7 @@
-import { ConnectedThumbnailGrid } from "../thumbnail-grid";
-import {
-  fakeImageEntity,
-  fakeState,
-  getShadowRoot,
-} from "./element-test-utils";
-import { ThumbnailGridSection } from "../thumbnail-grid-section";
-import { RequestState, RootState } from "../types";
+import {ConnectedThumbnailGrid} from "../thumbnail-grid";
+import {fakeImageEntity, fakeState, getShadowRoot,} from "./element-test-utils";
+import {ThumbnailGridSection} from "../thumbnail-grid-section";
+import {RequestState, RootState} from "../types";
 import each from "jest-each";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
@@ -301,6 +297,24 @@ describe("thumbnail-grid", () => {
       expect(updates["groupedArtifacts"]).toEqual([]);
     }
   );
+
+  it("marks loading as finished when there are no data", () => {
+    // Arrange.
+    // Create a fake state.
+    const state: RootState = fakeState();
+    state.imageView.ids = [];
+    // Make it look like the initial query succeeded, but the metadata fetch
+    // never ran because the query produced no results.
+    state.imageView.currentQueryState = RequestState.SUCCEEDED;
+    state.imageView.metadataLoadingState = RequestState.IDLE;
+
+    // Act.
+    const updates = gridElement.mapState(state);
+
+    // Assert.
+    // It should have gotten the correct updates.
+    expect(updates["loadingState"]).toEqual(RequestState.SUCCEEDED);
+  });
 
   it("groups by date correctly when updating from the Redux state", () => {
     // Arrange.

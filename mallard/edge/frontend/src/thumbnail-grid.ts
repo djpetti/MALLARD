@@ -158,7 +158,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * @inheritDoc
    */
-  protected render() {
+  protected override render() {
     // Visibility of the "no data" message.
     const emptyMessageVisibility =
       this.loadingState == RequestState.SUCCEEDED &&
@@ -206,7 +206,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * @inheritDoc
    */
-  protected updated(_changedProperties: PropertyValues) {
+  protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
     if (_changedProperties.has("displayedArtifacts")) {
@@ -317,7 +317,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that thunkLoadMetadata

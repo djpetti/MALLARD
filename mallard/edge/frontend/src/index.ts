@@ -12,28 +12,9 @@ import "@material/mwc-textfield";
 import "@material/mwc-radio";
 import "@material/mwc-formfield";
 import "./thumbnail-grid";
-import store from "./store";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";
-import { closeDialog, dialogOpened } from "./upload-slice";
-import { Dialog } from "@material/mwc-dialog";
 
 window.onload = function () {
   registerComponents();
-
-  const uploadModal: Dialog | null = document.querySelector("#upload_modal");
-
-  // Register the FAB callback.
-  const addButton = document.querySelector("#add_data");
-  addButton?.addEventListener("click", () => {
-    store.dispatch(dialogOpened(null));
-    uploadModal?.show();
-  });
-
-  // Register the callback for the file upload dialog buttons.
-  const doneButton = document.querySelector("#done_button");
-  doneButton?.addEventListener("click", () => {
-    store.dispatch(closeDialog());
-    uploadModal?.close();
-  });
 };

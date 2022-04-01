@@ -1,7 +1,11 @@
-import {ConnectedThumbnailGrid} from "../thumbnail-grid";
-import {fakeImageEntity, fakeState, getShadowRoot,} from "./element-test-utils";
-import {ThumbnailGridSection} from "../thumbnail-grid-section";
-import {RequestState, RootState} from "../types";
+import { ConnectedThumbnailGrid } from "../thumbnail-grid";
+import {
+  fakeImageEntity,
+  fakeState,
+  getShadowRoot,
+} from "./element-test-utils";
+import { ThumbnailGridSection } from "../thumbnail-grid-section";
+import { RequestState, RootState } from "../types";
 import each from "jest-each";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up

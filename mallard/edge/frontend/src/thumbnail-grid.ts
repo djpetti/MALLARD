@@ -102,6 +102,17 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * the bottom, and we need to load more data.
    */
   static LOAD_MORE_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data`;
+  /**
+   * Name for the custom event signaling that the query has changed.
+   */
+  static QUERY_CHANGED_EVENT_NAME = `${ThumbnailGrid.tagName}-query-changed`;
+
+  /**
+   * Initial query to use for fetching images when the page first loads.
+   * This will apply no filters and get everything.
+   * @private
+   */
+  protected static DEFAULT_QUERY: ImageQuery = {};
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({
@@ -120,6 +131,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /** Represents the status of the data loading process. */
   @property({ attribute: false })
   public loadingState: RequestState = RequestState.IDLE;
+
+  /** The query that we want to display the results of in this element. */
+  @property({ attribute: false })
+  public query = ThumbnailGrid.DEFAULT_QUERY;
 
   /**
    * Keeps track of whether there are more pages of data to be loaded.
@@ -220,6 +235,18 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         })
       );
     }
+
+    if (_changedProperties.has("query")) {
+      // The query has changed. We need to fire an event in order to signal
+      // that the new query should be performed.
+      this.dispatchEvent(
+        new CustomEvent<ImageQuery>(ThumbnailGrid.QUERY_CHANGED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+          detail: this.query,
+        })
+      );
+    }
   }
 }
 
@@ -234,12 +261,6 @@ type ImagesChangedEvent = CustomEvent<string[]>;
  * Extension of `ThumbnailGrid` that connects to Redux.
  */
 export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
-  /**
-   * Initial query to use for fetching images when the page first loads.
-   * This will apply no filters and get everything.
-   * @private
-   */
-  private static DEFAULT_QUERY: ImageQuery = {};
   /**
    * Initial ordering to use when the page loads. This will put the
    * newest stuff at the top.

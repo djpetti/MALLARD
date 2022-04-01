@@ -39,7 +39,6 @@ export function fakeState(): RootState {
   // Create a fake state.
   return {
     imageView: {
-      lastQueryResults: null,
       currentQuery: null,
       currentQueryOptions: {},
       currentQueryState: RequestState.IDLE,

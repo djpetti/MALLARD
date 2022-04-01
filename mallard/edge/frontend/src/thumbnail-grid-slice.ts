@@ -92,7 +92,6 @@ const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
   selectId: (entity) => createImageEntityId(entity.backendId),
 });
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
-  lastQueryResults: null,
   currentQuery: null,
   currentQueryOptions: {},
   currentQueryState: RequestState.IDLE,
@@ -330,6 +329,18 @@ export const thumbnailGridSlice = createSlice({
         id: action.payload,
         changes: { imageUrl: null, imageStatus: ImageStatus.LOADING },
       });
+    },
+    // Completely resets the current image view, removing all loaded images.
+    clearImageView(state, _) {
+      thumbnailGridAdapter.removeAll(state);
+
+      // Reset the query state.
+      state.currentQuery = null;
+      state.currentQueryOptions = {};
+      state.currentQueryState = RequestState.IDLE;
+      state.metadataLoadingState = RequestState.IDLE;
+      state.currentQueryError = null;
+      state.currentQueryHasMorePages = true;
     },
   },
   extraReducers: (builder) => {

@@ -84,8 +84,6 @@ export interface ImageEntity {
  * Represents the state of the home and details pages.
  */
 export interface ImageViewState extends NormalizedState<ImageEntity> {
-  /** Most recent query results. */
-  lastQueryResults: QueryResponse | null;
   /** Most recent query, possibly still in progress. */
   currentQuery: ImageQuery | null;
   /** Options provided for the current query. */

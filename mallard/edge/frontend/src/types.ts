@@ -151,6 +151,8 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   dialogOpen: boolean;
   /** True if the user is currently dragging a file. */
   isDragging: boolean;
+  /** Counts the number of uploads that are in-progress. */
+  uploadsInProgress: number;
 
   /** Status of metadata inference. */
   metadataStatus: MetadataInferenceStatus;

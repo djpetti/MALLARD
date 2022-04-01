@@ -4,6 +4,7 @@ import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
+  clearImageView,
   thumbnailGridSelectors,
   thunkContinueQuery,
   thunkLoadMetadata,
@@ -103,9 +104,9 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   static LOAD_MORE_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data`;
   /**
-   * Name for the custom event signaling that the query has changed.
+   * Name for the custom event signaling that the query needs to be re-run.
    */
-  static QUERY_CHANGED_EVENT_NAME = `${ThumbnailGrid.tagName}-query-changed`;
+  static QUERY_REFRESH_EVENT_NAME = `${ThumbnailGrid.tagName}-query-refresh`;
 
   /**
    * Initial query to use for fetching images when the page first loads.
@@ -161,6 +162,21 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     );
 
     return true;
+  }
+
+  /**
+   * Re-runs the current query and reloads any pertinent data.
+   * Useful if we suspect that the query results have changed since
+   * we ran it last.
+   */
+  public refresh(): void {
+    this.dispatchEvent(
+      new CustomEvent<ImageQuery>(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.query,
+      })
+    );
   }
 
   /**
@@ -239,13 +255,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     if (_changedProperties.has("query")) {
       // The query has changed. We need to fire an event in order to signal
       // that the new query should be performed.
-      this.dispatchEvent(
-        new CustomEvent<ImageQuery>(ThumbnailGrid.QUERY_CHANGED_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-          detail: this.query,
-        })
-      );
+      this.refresh();
     }
   }
 }
@@ -362,6 +372,11 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         // Continue the existing query.
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
+    };
+    handlers[ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME] = (_: Event) => {
+      // Clear the image view. Other logic in this component will handle actually
+      // running the new query and processing the results.
+      return clearImageView(null);
     };
     return handlers;
   }

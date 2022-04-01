@@ -51,6 +51,7 @@ export function fakeState(): RootState {
     uploads: {
       dialogOpen: false,
       isDragging: false,
+      uploadsInProgress: 0,
 
       ids: [],
       entities: {},

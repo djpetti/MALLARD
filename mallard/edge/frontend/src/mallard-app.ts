@@ -1,4 +1,4 @@
-import { css, html, LitElement, property, PropertyValues } from "lit-element";
+import { css, html, LitElement, property, PropertyValues, query } from "lit-element";
 import "./thumbnail-grid";
 import "./file-uploader";
 import "./metadata-form";
@@ -10,6 +10,7 @@ import store from "./store";
 import { Action } from "redux";
 import { dialogClosed, dialogOpened } from "./upload-slice";
 import { RootState } from "./types";
+import {ThumbnailGrid} from "./thumbnail-grid";
 
 /**
  * This is the root element that controls the behavior of the main page of
@@ -59,6 +60,13 @@ export class MallardApp extends LitElement {
   /** Indicates whether the upload modal should be open. */
   @property()
   uploadModalOpen: boolean = false;
+
+  /** Keeps track of whether any uploads are currently in-progress. */
+  @property({ attribute: false })
+  protected uploadsInProgress: boolean = false;
+
+  @query("#thumbnails", true)
+  private thumbnailGrid!: ThumbnailGrid;
 
   /**
    * @inheritDoc
@@ -120,6 +128,15 @@ export class MallardApp extends LitElement {
         })
       );
     }
+
+    if (
+      _changedProperties.has("uploadsInProgress") &&
+      !this.uploadsInProgress
+    ) {
+      // If we finished some pending uploads, we should force a refresh of the
+      // thumbnail grid in order to capture any new data.
+      this.thumbnailGrid.refresh();
+    }
   }
 }
 
@@ -137,7 +154,10 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
    * @inheritDoc
    */
   mapState(state: RootState): { [p: string]: any } {
-    return { uploadModalOpen: state.uploads.dialogOpen };
+    return {
+      uploadModalOpen: state.uploads.dialogOpen,
+      uploadsInProgress: state.uploads.uploadsInProgress > 0,
+    };
   }
 
   /**

@@ -24,6 +24,7 @@ const uploadAdapter = createEntityAdapter<FrontendFileEntity>();
 const initialState: UploadState = uploadAdapter.getInitialState({
   isDragging: false,
   dialogOpen: false,
+  uploadsInProgress: 0,
 
   metadataStatus: MetadataInferenceStatus.NOT_STARTED,
   metadata: null,
@@ -241,6 +242,8 @@ export const uploadSlice = createSlice({
         id: action.meta.arg,
         changes: { status: FileStatus.PROCESSING },
       });
+
+      ++state.uploadsInProgress;
     });
     // Updates the state when an upload to the backend finishes.
     builder.addCase(thunkUploadFile.fulfilled, (state, action) => {
@@ -250,6 +253,8 @@ export const uploadSlice = createSlice({
         id: fileId,
         changes: { status: FileStatus.COMPLETE, backendRef: action.payload },
       });
+
+      --state.uploadsInProgress;
     });
     // Updates the state when metadata inference starts.
     builder.addCase(thunkInferMetadata.pending, (state, _) => {

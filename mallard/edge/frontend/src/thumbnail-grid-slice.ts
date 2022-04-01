@@ -418,5 +418,6 @@ export const thumbnailGridSlice = createSlice({
   },
 });
 
-export const { clearFullSizedImage, addArtifact } = thumbnailGridSlice.actions;
+export const { clearFullSizedImage, addArtifact, clearImageView } =
+  thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

@@ -2,7 +2,7 @@
 A metadata store that interfaces with a SQL database.
 """
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, AsyncExitStack
 from functools import cache, singledispatchmethod
 from typing import (
     Any,
@@ -13,6 +13,7 @@ from typing import (
     Optional,
     Tuple,
 )
+from datetime import timedelta
 
 from confuse import ConfigView
 from loguru import logger
@@ -33,9 +34,20 @@ from ..schemas import (
     UavImageMetadata,
 )
 from .models import Image
+from ...time_expiring_cache import time_expiring_cache
 
 
-@cache
+_SQL_CONNECTION_TIMEOUT = timedelta(minutes=30)
+"""
+The SQL server has a habit of terminating connections when they go too
+long with no activity, and, despite several attempts to fix this bug,
+`aiomysql` still doesn't handle this properly. As a workaround, we manually
+refresh the session when it goes unused for a certain amount of time. This
+variable specifies what that refresh period is, in seconds.
+"""
+
+
+@time_expiring_cache(_SQL_CONNECTION_TIMEOUT)
 def _create_session_maker(db_url: str) -> sessionmaker:
     """
     Creates the `sessionmaker` for a particular database.
@@ -47,7 +59,7 @@ def _create_session_maker(db_url: str) -> sessionmaker:
         The appropriate session-maker.
 
     """
-    engine = create_async_engine(db_url)
+    engine = create_async_engine(db_url, echo_pool=True)
     return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 

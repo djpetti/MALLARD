@@ -23,8 +23,12 @@ from PIL import Image
 from starlette.responses import StreamingResponse
 
 from ...async_utils import get_process_pool
-from ...backends import BackendManager
-from ...backends.metadata import ImageMetadataStore, MetadataOperationError
+from ...backends import backend_manager as backends
+from ...backends.metadata import (
+    ImageMetadataStore,
+    MetadataOperationError,
+    MetadataStore,
+)
 from ...backends.metadata.schemas import (
     ImageFormat,
     ImageQuery,
@@ -32,7 +36,7 @@ from ...backends.metadata.schemas import (
     Ordering,
     UavImageMetadata,
 )
-from ...backends.objects import ObjectOperationError
+from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef
 from .image_metadata import InvalidImageError, fill_metadata
 from .schemas import CreateResponse, QueryResponse
@@ -117,9 +121,12 @@ async def _create_thumbnail(image: bytes) -> io.BytesIO:
 
 
 async def use_bucket(
-    backends: BackendManager = Depends(BackendManager.depend),
+    object_store: ObjectStore = Depends(backends.object_store),
 ) -> str:
     """
+    Args:
+        object_store: The object store to use.
+
     Returns:
         The bucket to use for saving new images. It will create it if it
         doesn't exist.
@@ -127,11 +134,11 @@ async def use_bucket(
     """
     bucket_name = f"{date.today().isoformat()}-images"
 
-    if not await backends.object_store.bucket_exists(bucket_name):
+    if not await object_store.bucket_exists(bucket_name):
         logger.debug("Creating a new bucket: {}", bucket_name)
         # We specify exists_ok because there is a possible race-condition if
         # it is servicing multiple requests concurrently.
-        await backends.object_store.create_bucket(bucket_name, exists_ok=True)
+        await object_store.create_bucket(bucket_name, exists_ok=True)
 
     return bucket_name
 
@@ -190,7 +197,8 @@ def filled_uav_metadata(
 async def create_uav_image(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
     image_data: UploadFile = File(...),
-    backends: BackendManager = Depends(BackendManager.depend),
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
     bucket: str = Depends(use_bucket),
 ) -> CreateResponse:
     """
@@ -199,7 +207,8 @@ async def create_uav_image(
     Args:
         metadata: The image-specific metadata.
         image_data: The actual image file to upload.
-        backends: Used to access storage backends.
+        object_store: The object store to use.
+        metadata_store: The metadata store to use.
         bucket: The bucket to use for new images.
 
     Returns:
@@ -208,7 +217,7 @@ async def create_uav_image(
     """
     # Since we are uploading images, the metadata store should be able to
     # handle them.
-    metadata_store = cast(ImageMetadataStore, backends.metadata_store)
+    metadata_store = cast(ImageMetadataStore, metadata_store)
 
     # We need the raw image data to create the thumbnail.
     image_bytes = await image_data.read()
@@ -220,7 +229,7 @@ async def create_uav_image(
     object_id = ObjectRef(bucket=bucket, name=unique_name)
     logger.info("Creating a new image {} in bucket {}.", unique_name, bucket)
     object_task = asyncio.create_task(
-        backends.object_store.create_object(object_id, data=image_data)
+        object_store.create_object(object_id, data=image_data)
     )
 
     # Create the corresponding metadata.
@@ -233,9 +242,7 @@ async def create_uav_image(
 
     async def _create_and_save_thumbnail() -> None:
         thumbnail = await _create_thumbnail(image_bytes)
-        await backends.object_store.create_object(
-            thumbnail_object_id, data=thumbnail
-        )
+        await object_store.create_object(thumbnail_object_id, data=thumbnail)
 
     thumbnail_task = asyncio.create_task(_create_and_save_thumbnail())
 
@@ -245,12 +252,12 @@ async def create_uav_image(
         # If one operation fails, it would be best to try and roll back the
         # other.
         logger.info("Rolling back object creation {} upon error.", object_id)
-        await backends.object_store.delete_object(object_id)
-        await backends.object_store.delete_object(thumbnail_object_id)
+        await object_store.delete_object(object_id)
+        await object_store.delete_object(thumbnail_object_id)
         raise error
     except ObjectOperationError as error:
         logger.info("Rolling back metadata add for {} upon error.", object_id)
-        await backends.metadata_store.delete(object_id)
+        await metadata_store.delete(object_id)
         raise error
 
     return CreateResponse(image_id=object_id)
@@ -260,7 +267,8 @@ async def create_uav_image(
 async def delete_image(
     bucket: str,
     name: str,
-    backends: BackendManager = Depends(BackendManager.depend),
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> None:
     """
     Deletes an existing image from the server.
@@ -268,18 +276,15 @@ async def delete_image(
     Args:
         bucket: The bucket that the image is in.
         name: The name of the image.
-        backends: Used to access storage backends.
+        object_store: The object store to use.
+        metadata_store: The metadata store to use.
 
     """
     logger.info("Deleting image {} in bucket {}.", name, bucket)
     object_id = ObjectRef(bucket=bucket, name=name)
 
-    object_task = asyncio.create_task(
-        backends.object_store.delete_object(object_id)
-    )
-    metadata_task = asyncio.create_task(
-        backends.metadata_store.delete(object_id)
-    )
+    object_task = asyncio.create_task(object_store.delete_object(object_id))
+    metadata_task = asyncio.create_task(metadata_store.delete(object_id))
 
     try:
         await asyncio.gather(object_task, metadata_task)
@@ -294,7 +299,8 @@ async def delete_image(
 async def get_image(
     bucket: str,
     name: str,
-    backends: BackendManager = Depends(BackendManager.depend),
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> StreamingResponse:
     """
     Gets the contents of a specific image.
@@ -302,7 +308,8 @@ async def get_image(
     Args:
         bucket: The bucket that the image is in.
         name: The name of the image.
-        backends: Used to access storage backends.
+        object_store: The object store to use.
+        metadata_store: The metadata store to use.
 
     Returns:
         The binary contents of the image.
@@ -311,10 +318,8 @@ async def get_image(
     logger.debug("Getting image {} in bucket {}.", name, bucket)
     object_id = ObjectRef(bucket=bucket, name=name)
 
-    object_task = asyncio.create_task(
-        backends.object_store.get_object(object_id)
-    )
-    metadata_task = asyncio.create_task(backends.metadata_store.get(object_id))
+    object_task = asyncio.create_task(object_store.get_object(object_id))
+    metadata_task = asyncio.create_task(metadata_store.get(object_id))
 
     try:
         image_stream, metadata = await asyncio.gather(
@@ -340,7 +345,7 @@ async def get_image(
 async def get_thumbnail(
     bucket: str,
     name: str,
-    backends: BackendManager = Depends(BackendManager.depend),
+    object_store: ObjectStore = Depends(backends.object_store),
 ) -> StreamingResponse:
     """
     Gets the thumbnail for a specific image.
@@ -348,7 +353,7 @@ async def get_thumbnail(
     Args:
         bucket: The bucket that the image is in.
         name: The name of the image.
-        backends: Used to access storage backends.
+        object_store: The object store to use.
 
     Returns:
         The binary contents of the thumbnail.
@@ -359,9 +364,7 @@ async def get_thumbnail(
 
     thumbnail_object_id = _thumbnail_id(object_id)
     try:
-        image_stream = await backends.object_store.get_object(
-            thumbnail_object_id
-        )
+        image_stream = await object_store.get_object(thumbnail_object_id)
     except KeyError:
         # The thumbnail doesn't exist.
         raise HTTPException(
@@ -376,7 +379,7 @@ async def get_thumbnail(
 async def get_image_metadata(
     bucket: str,
     name: str,
-    backends: BackendManager = Depends(BackendManager.depend),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> Metadata:
     """
     Gets the complete metadata for an image.
@@ -384,7 +387,7 @@ async def get_image_metadata(
     Args:
         bucket: The bucket that the image is in.
         name: The name of the image.
-        backends: Used to access storage backends.
+        metadata_store: The metadata store to use.
 
     Returns:
         The image metadata, in JSON form.
@@ -394,7 +397,7 @@ async def get_image_metadata(
     object_id = ObjectRef(bucket=bucket, name=name)
 
     try:
-        metadata = await backends.metadata_store.get(object_id)
+        metadata = await metadata_store.get(object_id)
     except KeyError:
         # The image doesn't exist.
         raise HTTPException(
@@ -410,7 +413,7 @@ async def batch_update_metadata(
     metadata: UavImageMetadata,
     images: List[ObjectRef] = Body(...),
     increment_sequence: bool = Query(False),
-    backends: BackendManager = Depends(BackendManager.depend),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> None:
     """
     Updates the metadata for a large number of images at once. Note that any
@@ -424,12 +427,12 @@ async def batch_update_metadata(
             automatically incremented for each image added, starting at whatever
             value is set in `metadata`. In this case, the order of the images
             specified in `images` will determine session numbers.
-        backends: Used to access storage backends.
+        metadata_store: The metadata store to use.
 
     """
     # Since we are dealing with images, the metadata store should be able to
     # handle them.
-    metadata_store = cast(ImageMetadataStore, backends.metadata_store)
+    metadata_store = cast(ImageMetadataStore, metadata_store)
 
     update_tasks = []
     for image_id in images:
@@ -471,7 +474,7 @@ async def query_images(
     orderings: List[Ordering] = Body([]),
     results_per_page: int = Query(50, gt=0),
     page_num: int = Query(1, gt=0),
-    backends: BackendManager = Depends(BackendManager.depend),
+    metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> QueryResponse:
     """
     Performs a query for images that meet certain criteria.
@@ -485,15 +488,15 @@ async def query_images(
             single response.
         page_num: If there are multiple pages of results, this can be used to
             specify a later page.
-        backends: Used to access storage backends.
+        metadata_store: The metadata store to use.
 
     Returns:
         The query response.
 
     """
     logger.debug("Querying for images that match {}.", query)
-    # First of all, we assume that this particular backend can query images.
-    metadata = cast(ImageMetadataStore, backends.metadata_store)
+    # First, we assume that this particular backend can query images.
+    metadata = cast(ImageMetadataStore, metadata_store)
 
     skip_first = (page_num - 1) * results_per_page
     results = metadata.query(

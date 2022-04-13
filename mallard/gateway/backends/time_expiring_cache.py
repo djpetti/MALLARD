@@ -3,14 +3,14 @@ A cache implementation that expires items when they get too old.
 """
 
 
-from datetime import timedelta
-from typing import Callable, Any
 import functools
 import time
+from datetime import timedelta
+from typing import Any, Callable
+
 from loguru import logger
 
-
-DecoratedType = Callable[[Any, ...], Any]
+DecoratedType = Callable[..., Any]
 """
 Type of function that we can decorate.
 """

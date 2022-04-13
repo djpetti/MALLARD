@@ -2,8 +2,9 @@
 A metadata store that interfaces with a SQL database.
 """
 import asyncio
-from contextlib import asynccontextmanager, AsyncExitStack
-from functools import cache, singledispatchmethod
+from contextlib import asynccontextmanager
+from datetime import timedelta
+from functools import singledispatchmethod
 from typing import (
     Any,
     AsyncIterable,
@@ -13,7 +14,6 @@ from typing import (
     Optional,
     Tuple,
 )
-from datetime import timedelta
 
 from confuse import ConfigView
 from loguru import logger
@@ -25,6 +25,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import delete
 
 from ...objects.models import ObjectRef
+from ...time_expiring_cache import time_expiring_cache
 from .. import ImageMetadataStore
 from ..schemas import (
     GeoPoint,
@@ -34,8 +35,6 @@ from ..schemas import (
     UavImageMetadata,
 )
 from .models import Image
-from ...time_expiring_cache import time_expiring_cache
-
 
 _SQL_CONNECTION_TIMEOUT = timedelta(minutes=30)
 """

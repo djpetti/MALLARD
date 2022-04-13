@@ -14,7 +14,6 @@ from fastapi import HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
-from mallard.gateway.backends import BackendManager
 from mallard.gateway.backends.metadata import (
     ImageMetadataStore,
     MetadataOperationError,
@@ -35,11 +34,13 @@ class ConfigForTests:
     Encapsulates standard configuration for most tests.
 
     Attributes:
-        mock_manager: The mocked `BackendManager` instance.
+        mock_object_store: The mocked `ObjectStore` instance.
+        mock_metadata_store: The mocked `ImageMetadataStore` instance.
         mock_streaming_response_class: The mocked `StreamingResponse` class.
     """
 
-    mock_manager: BackendManager
+    mock_object_store: ObjectStore
+    mock_metadata_store: ImageMetadataStore
     mock_streaming_response_class: mock.Mock
 
 
@@ -74,13 +75,8 @@ def config(mocker: MockFixture) -> ConfigForTests:
         The configuration that it generated.
 
     """
-    mock_manager = mocker.create_autospec(BackendManager, instance=True)
-    # These don't get auto-specced for some reason, so we have to do them
-    # manually.
-    mock_manager.object_store = mocker.create_autospec(
-        ObjectStore, instance=True
-    )
-    mock_manager.metadata_store = mocker.create_autospec(
+    mock_object_store = mocker.create_autospec(ObjectStore, instance=True)
+    mock_metadata_store = mocker.create_autospec(
         ImageMetadataStore, instance=True
     )
 
@@ -89,7 +85,8 @@ def config(mocker: MockFixture) -> ConfigForTests:
     )
 
     return ConfigForTests(
-        mock_manager=mock_manager,
+        mock_object_store=mock_object_store,
+        mock_metadata_store=mock_metadata_store,
         mock_streaming_response_class=mock_streaming_response_class,
     )
 
@@ -159,7 +156,8 @@ async def test_create_uav_image(
     response = await endpoints.create_uav_image(
         metadata=create_uav_params.mock_metadata,
         image_data=create_uav_params.mock_file,
-        backends=config.mock_manager,
+        object_store=config.mock_object_store,
+        metadata_store=config.mock_metadata_store,
         bucket=create_uav_params.bucket_id,
     )
 
@@ -170,11 +168,11 @@ async def test_create_uav_image(
     assert got_image_id.name == create_uav_params.mock_uuid.return_value.hex
 
     # It should have updated the databases.
-    assert config.mock_manager.object_store.create_object.call_count == 2
-    config.mock_manager.object_store.create_object.assert_any_call(
+    assert config.mock_object_store.create_object.call_count == 2
+    config.mock_object_store.create_object.assert_any_call(
         got_image_id, data=create_uav_params.mock_file
     )
-    config.mock_manager.metadata_store.add.assert_called_once_with(
+    config.mock_metadata_store.add.assert_called_once_with(
         object_id=got_image_id, metadata=create_uav_params.mock_metadata
     )
 
@@ -212,25 +210,26 @@ async def test_create_uav_image_write_failure(
     """
     # Arrange.
     # Make it look like the operations failed.
-    config.mock_manager.object_store.create_object.side_effect = exception
-    config.mock_manager.metadata_store.add.side_effect = exception
+    config.mock_object_store.create_object.side_effect = exception
+    config.mock_metadata_store.add.side_effect = exception
 
     # Act and assert.
     with pytest.raises(exception):
         await endpoints.create_uav_image(
             metadata=create_uav_params.mock_metadata,
             image_data=create_uav_params.mock_file,
-            backends=config.mock_manager,
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
             bucket=create_uav_params.bucket_id,
         )
 
     # Assert
     # It should have deleted whichever one didn't fail.
     if exception is ObjectOperationError:
-        config.mock_manager.metadata_store.delete.assert_called_once()
+        config.mock_metadata_store.delete.assert_called_once()
     else:
         # It should have deleted both the object and its thumbnail.
-        assert config.mock_manager.object_store.delete_object.call_count == 2
+        assert config.mock_object_store.delete_object.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -250,18 +249,17 @@ async def test_delete_image(config: ConfigForTests, faker: Faker) -> None:
 
     # Act.
     await endpoints.delete_image(
-        bucket=bucket, name=image_name, backends=config.mock_manager
+        bucket=bucket,
+        name=image_name,
+        object_store=config.mock_object_store,
+        metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
     # It should have deleted the corresponding items in both databases.
     object_id = ObjectRef(bucket=bucket, name=image_name)
-    config.mock_manager.object_store.delete_object.assert_called_once_with(
-        object_id
-    )
-    config.mock_manager.metadata_store.delete.assert_called_once_with(
-        object_id
-    )
+    config.mock_object_store.delete_object.assert_called_once_with(object_id)
+    config.mock_metadata_store.delete.assert_called_once_with(object_id)
 
 
 @pytest.mark.asyncio
@@ -283,13 +281,16 @@ async def test_delete_image_nonexistent(
     image_name = faker.pystr()
 
     # Make it look like the image was not found.
-    config.mock_manager.object_store.delete_object.side_effect = KeyError
-    config.mock_manager.metadata_store.delete.side_effect = KeyError
+    config.mock_object_store.delete_object.side_effect = KeyError
+    config.mock_metadata_store.delete.side_effect = KeyError
 
     # Act and assert.
     with pytest.raises(HTTPException):
         await endpoints.delete_image(
-            bucket=bucket, name=image_name, backends=config.mock_manager
+            bucket=bucket,
+            name=image_name,
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
         )
 
 
@@ -306,7 +307,7 @@ async def test_get_image(config: ConfigForTests, faker: Faker) -> None:
     # Arrange.
     # Make it look like we have a valid image format.
     metadata = faker.image_metadata()
-    config.mock_manager.metadata_store.get.return_value = metadata
+    config.mock_metadata_store.get.return_value = metadata
 
     # Generate fake bucket and image names.
     bucket = faker.pystr()
@@ -314,16 +315,17 @@ async def test_get_image(config: ConfigForTests, faker: Faker) -> None:
 
     # Act.
     response = await endpoints.get_image(
-        bucket=bucket, name=image_name, backends=config.mock_manager
+        bucket=bucket,
+        name=image_name,
+        object_store=config.mock_object_store,
+        metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
     # It should have gotten the image.
     object_id = ObjectRef(bucket=bucket, name=image_name)
-    config.mock_manager.object_store.get_object.assert_called_once_with(
-        object_id
-    )
-    image_stream = config.mock_manager.object_store.get_object.return_value
+    config.mock_object_store.get_object.assert_called_once_with(object_id)
+    image_stream = config.mock_object_store.get_object.return_value
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
@@ -351,12 +353,15 @@ async def test_get_image_nonexistent(
     image_name = faker.pystr()
 
     # Make it look like the image doesn't exist.
-    config.mock_manager.object_store.get_object.side_effect = KeyError
+    config.mock_object_store.get_object.side_effect = KeyError
 
     # Act and assert.
     with pytest.raises(HTTPException):
         await endpoints.get_image(
-            bucket=bucket, name=image_name, backends=config.mock_manager
+            bucket=bucket,
+            name=image_name,
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
         )
 
 
@@ -377,18 +382,20 @@ async def test_get_thumbnail(config: ConfigForTests, faker: Faker) -> None:
 
     # Act.
     response = await endpoints.get_thumbnail(
-        bucket=bucket, name=image_name, backends=config.mock_manager
+        bucket=bucket,
+        name=image_name,
+        object_store=config.mock_object_store,
     )
 
     # Assert.
     # It should have gotten the thumbnail.
-    config.mock_manager.object_store.get_object.assert_called_once()
-    args, _ = config.mock_manager.object_store.get_object.call_args
+    config.mock_object_store.get_object.assert_called_once()
+    args, _ = config.mock_object_store.get_object.call_args
     thumbnail_id = args[0]
     assert thumbnail_id.bucket == bucket
     # The name for this object should be distinct from that of the raw image.
     assert thumbnail_id.name != image_name
-    image_stream = config.mock_manager.object_store.get_object.return_value
+    image_stream = config.mock_object_store.get_object.return_value
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
@@ -416,12 +423,14 @@ async def test_get_thumbnail_nonexistent(
     image_name = faker.pystr()
 
     # Make it look like the image doesn't exist.
-    config.mock_manager.object_store.get_object.side_effect = KeyError
+    config.mock_object_store.get_object.side_effect = KeyError
 
     # Act and assert.
     with pytest.raises(HTTPException):
         await endpoints.get_thumbnail(
-            bucket=bucket, name=image_name, backends=config.mock_manager
+            bucket=bucket,
+            name=image_name,
+            object_store=config.mock_object_store,
         )
 
 
@@ -444,14 +453,16 @@ async def test_get_image_metadata(
 
     # Act.
     response = await endpoints.get_image_metadata(
-        bucket=bucket, name=image_name, backends=config.mock_manager
+        bucket=bucket,
+        name=image_name,
+        metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
     # It should have gotten the metadata.
     object_id = ObjectRef(bucket=bucket, name=image_name)
-    config.mock_manager.metadata_store.get.assert_called_once_with(object_id)
-    assert response == config.mock_manager.metadata_store.get.return_value
+    config.mock_metadata_store.get.assert_called_once_with(object_id)
+    assert response == config.mock_metadata_store.get.return_value
 
 
 @pytest.mark.asyncio
@@ -473,12 +484,14 @@ async def test_get_image_metadata_nonexistent(
     image_name = faker.pystr()
 
     # Make it look like the image doesn't exist.
-    config.mock_manager.metadata_store.get.side_effect = KeyError
+    config.mock_metadata_store.get.side_effect = KeyError
 
     # Act and assert.
     with pytest.raises(HTTPException):
         await endpoints.get_image_metadata(
-            bucket=bucket, name=image_name, backends=config.mock_manager
+            bucket=bucket,
+            name=image_name,
+            metadata_store=config.mock_metadata_store,
         )
 
 
@@ -512,7 +525,7 @@ async def test_batch_update_metadata(
         metadata=metadata,
         images=object_ids,
         increment_sequence=increment_sequence,
-        backends=config.mock_manager,
+        metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
@@ -529,8 +542,7 @@ async def test_batch_update_metadata(
         expected_metadata = [metadata] * len(object_ids)
 
     # It should have updated all of the metadata.
-    mock_metadata_store = config.mock_manager.metadata_store
-    mock_metadata_store.update.assert_has_calls(
+    config.mock_metadata_store.update.assert_has_calls(
         [
             mock.call(object_id=o, metadata=m)
             for o, m in zip(object_ids, expected_metadata)
@@ -610,7 +622,7 @@ async def test_query_images(
         for _ in range(num_results):
             yield faker.object_ref()
 
-    config.mock_manager.metadata_store.query.return_value = query_results()
+    config.mock_metadata_store.query.return_value = query_results()
 
     # Act.
     response = await endpoints.query_images(
@@ -618,12 +630,12 @@ async def test_query_images(
         orderings=[],
         results_per_page=results_per_page,
         page_num=page_num,
-        backends=config.mock_manager,
+        metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
     # It should have queried the backend.
-    config.mock_manager.metadata_store.query.assert_called_once_with(
+    config.mock_metadata_store.query.assert_called_once_with(
         mock_query,
         skip_first=(page_num - 1) * results_per_page,
         max_num_results=results_per_page,
@@ -657,28 +669,26 @@ async def test_use_bucket(
     fake_date = faker.date()
     mock_date_class.today.return_value.isoformat.return_value = fake_date
 
-    config.mock_manager.object_store.bucket_exists.return_value = False
+    config.mock_object_store.bucket_exists.return_value = False
     if exists:
         # Make it look like the bucket already exists.
-        config.mock_manager.object_store.bucket_exists.return_value = True
+        config.mock_object_store.bucket_exists.return_value = True
 
     # Act.
-    got_bucket = await endpoints.use_bucket(config.mock_manager)
+    got_bucket = await endpoints.use_bucket(config.mock_object_store)
 
     # Assert.
     # It should have produced a good name.
     assert fake_date in got_bucket
 
     # It should have created the bucket only if necessary.
-    config.mock_manager.object_store.bucket_exists.assert_called_once_with(
-        got_bucket
-    )
+    config.mock_object_store.bucket_exists.assert_called_once_with(got_bucket)
     if not exists:
-        config.mock_manager.object_store.create_bucket.assert_called_once_with(
+        config.mock_object_store.create_bucket.assert_called_once_with(
             got_bucket, exists_ok=True
         )
     else:
-        config.mock_manager.object_store.create_bucket.assert_not_called()
+        config.mock_object_store.create_bucket.assert_not_called()
 
 
 def test_user_timezone(faker: Faker) -> None:

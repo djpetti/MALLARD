@@ -7,7 +7,7 @@ import {
   fakeState,
 } from "./element-test-utils";
 import uploadReducer, {
-  closeDialog,
+  finishUpload,
   dialogClosed,
   dialogOpened,
   fileDropZoneEntered,
@@ -266,7 +266,7 @@ describe("upload-slice action creators", () => {
       const store = mockStoreCreator(state);
 
       // Act.
-      closeDialog()(store.dispatch, store.getState as () => RootState, {});
+      finishUpload()(store.dispatch, store.getState as () => RootState, {});
 
       // Assert.
       // It should have released the object URLs.

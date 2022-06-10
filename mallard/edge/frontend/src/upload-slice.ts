@@ -175,12 +175,12 @@ export const processSelectedFiles = createAction(
 );
 
 /**
- * Thunk for creating a `dialogClosed` action that also handles the
- * proper memory management.
+ * Thunk that completes an upload by updating metadata on the backend, cleaning
+ * up memory, and closing the upload modal.
  * @return {ThunkResult} Does not actually return anything, because it simply
  *  dispatches other actions.
  */
-export function closeDialog(): ThunkResult<void> {
+export function finishUpload(): ThunkResult<void> {
   return (dispatch, getState) => {
     // Release the data for all the images that we uploaded.
     const state: RootState = getState();

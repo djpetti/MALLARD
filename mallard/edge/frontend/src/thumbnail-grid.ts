@@ -252,7 +252,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       );
     }
 
-    if (_changedProperties.has("query")) {
+    if (_changedProperties.get("query") !== undefined) {
       // The query has changed. We need to fire an event in order to signal
       // that the new query should be performed.
       this.refresh();

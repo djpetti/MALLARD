@@ -8,7 +8,7 @@ import "@material/mwc-button";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
-import { dialogClosed, dialogOpened } from "./upload-slice";
+import {finishUpload, dialogOpened } from "./upload-slice";
 import { RootState } from "./types";
 import {ThumbnailGrid} from "./thumbnail-grid";
 
@@ -130,7 +130,7 @@ export class MallardApp extends LitElement {
     }
 
     if (
-      _changedProperties.has("uploadsInProgress") &&
+      _changedProperties.get("uploadsInProgress") === true &&
       !this.uploadsInProgress
     ) {
       // If we finished some pending uploads, we should force a refresh of the
@@ -171,7 +171,7 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
     ) => {
       return (event as ModalStateChangedEvent).detail
         ? dialogOpened(null)
-        : dialogClosed(null);
+        : finishUpload() as unknown as Action;
     };
     return handlers;
   }

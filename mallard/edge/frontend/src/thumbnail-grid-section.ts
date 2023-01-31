@@ -1,4 +1,5 @@
-import { LitElement, css, html, property } from "lit-element";
+import { LitElement, css, html } from "lit";
+import { property } from "lit/decorators.js";
 import "@material/mwc-top-app-bar";
 import "./artifact-thumbnail";
 

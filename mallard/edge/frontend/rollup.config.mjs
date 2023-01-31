@@ -1,8 +1,8 @@
-import {terser} from "rollup-plugin-terser";
+import terser from "@rollup/plugin-terser"
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
-import nodePolyfills from 'rollup-plugin-node-polyfills';
+import nodePolyfills from 'rollup-plugin-polyfill-node';
 import sourcemaps from "rollup-plugin-sourcemaps";
 import scss from "rollup-plugin-scss";
 
@@ -36,5 +36,5 @@ export default {
         }
     },
     plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
-              scss({sass: require('sass')})],
+              scss()],
 };

@@ -1,14 +1,7 @@
-import {
-  css,
-  html,
-  LitElement,
-  property,
-  PropertyValues,
-  TemplateResult,
-} from "lit-element";
+import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
+import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
 import { ObjectRef } from "typescript-axios";
-import { query } from "lit-element/lib/decorators.js";
 import { PageManager } from "./page-manager";
 
 /** Type of click handler functions. */

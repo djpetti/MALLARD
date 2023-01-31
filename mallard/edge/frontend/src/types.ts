@@ -1,10 +1,5 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
-import {
-  ObjectRef,
-  Ordering,
-  QueryResponse,
-  UavImageMetadata,
-} from "typescript-axios";
+import { ObjectRef, Ordering, UavImageMetadata } from "typescript-axios";
 
 /**
  * Represents the state of a long-running request.

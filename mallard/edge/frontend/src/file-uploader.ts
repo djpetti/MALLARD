@@ -1,7 +1,7 @@
-import { css, html, LitElement, property, PropertyValues } from "lit-element";
+import { css, html, LitElement, PropertyValues } from "lit";
 import "@material/mwc-icon";
 import "@material/mwc-fab";
-import { query } from "lit-element/lib/decorators.js";
+import { query, property } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";

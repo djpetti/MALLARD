@@ -52,11 +52,11 @@ def config(mocker: MockFixture) -> ConfigForTests:
     """
     # Mock the dependencies.
     mock_import_module = mocker.patch("importlib.import_module")
-    mock_config = mocker.patch(
-        backend_manager.__name__ + ".config", new_callable=ConfigViewMock
+    mock_config = mocker.patch.object(
+        backend_manager, "config", new_callable=ConfigViewMock
     )
 
-    mock_issubclass = mocker.patch(backend_manager.__name__ + ".issubclass")
+    mock_issubclass = mocker.patch.object(backend_manager, "issubclass")
     # Default to making this check always pass.
     mock_issubclass.return_value = True
 

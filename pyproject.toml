@@ -6,28 +6,25 @@ authors = ["Daniel Petti <djpetti@gmail.com>", "Justin Hong <wjtw9802@gmail.com>
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "~3.10"
+python = "~3.11"
 pydantic = "^1.7.3"
-fastapi = "^0.75.1"
-uvicorn = { extras = ["standard"], version = "^0.13.3" }
+fastapi = "^0.89.1"
+uvicorn = { extras = ["standard"], version = "^0.20.0" }
 python-multipart = "^0.0.5"
-Pillow = "^8.1.0"
+Pillow = "^9.4.0"
 confuse = "^1.4.0"
 loguru = "^0.5.3"
 exifread = "^2.3.2"
 aioitertools = "^0.7.1"
 python-irodsclient = "^0.8.6"
 tenacity = "^6.3.1"
-aiohttp = "^3.7.3"
+aiohttp = "^3.8.3"
 gunicorn = "^20.0.4"
 aiofiles = "^0.6.0"
 jinja2 = "^3.1.1"
 aiobotocore = "^1.3.0"
 SQLAlchemy = "^1.4.15"
-# Aiomysql hasn't released a new version since Nov 2021, and I need a fix
-# for this issue (https://github.com/aio-libs/aiomysql/pull/660) that was merged
-# in Jan 2022. That's why I'm pulling a specific commit.
-aiomysql = { git = "https://github.com/aio-libs/aiomysql.git", branch = "42532c8" }
+aiomysql = "^0.1.1"
 alembic = "^1.6.4"
 
 [tool.poetry.dev-dependencies]
@@ -46,6 +43,9 @@ pytest-black = "^0.3.12"
 aiosqlite = "^0.17.0"
 PyMySQL = ">=0.9"
 Faker = "^13.3.4"
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.12.0"
 
 [tool.black]
 line-length = 79

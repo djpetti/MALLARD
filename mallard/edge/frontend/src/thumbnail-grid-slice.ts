@@ -27,6 +27,15 @@ import {
 } from "typescript-axios";
 import { ThunkAction } from "redux-thunk";
 
+// WORKAROUND for immer.js esm
+// (see https://github.com/immerjs/immer/issues/557)
+// @ts-ignore
+window.process = {
+	env: {
+		NODE_ENV: "production"
+	}
+};
+
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
 

@@ -1,4 +1,5 @@
-import { LitElement, property, html, TemplateResult, css } from "lit-element";
+import { LitElement, html, TemplateResult, css } from "lit";
+import { property } from "lit/decorators.js";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item";
 import "@material/mwc-icon";

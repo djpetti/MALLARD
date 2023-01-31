@@ -1,4 +1,4 @@
-import { css } from "lit-element";
+import { css } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";

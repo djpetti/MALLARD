@@ -17,7 +17,15 @@
         "strict": true,
         "rules": {
           "no-unknown-attribute": "off",
-        }
+        },
+        "globalTags": [
+          // These have to be added to global tags because
+          // the plugin isn't clever enough to figure out
+          // the "ConnectectedX" pattern that we're using to
+          // link the elements to Redux state.
+          "thumbnail-grid",
+          "file-uploader"
+        ]
       }
     ]
   },

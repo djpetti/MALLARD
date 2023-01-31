@@ -1,4 +1,5 @@
-import { css, html, LitElement, property, PropertyValues, query } from "lit-element";
+import { css, html, LitElement, PropertyValues } from "lit";
+import { property, query } from "lit/decorators.js";
 import "./thumbnail-grid";
 import "./file-uploader";
 import "./metadata-form";
@@ -8,9 +9,9 @@ import "@material/mwc-button";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
-import {finishUpload, dialogOpened } from "./upload-slice";
+import { finishUpload, dialogOpened } from "./upload-slice";
 import { RootState } from "./types";
-import {ThumbnailGrid} from "./thumbnail-grid";
+import { ThumbnailGrid } from "./thumbnail-grid";
 
 /**
  * This is the root element that controls the behavior of the main page of
@@ -171,7 +172,7 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
     ) => {
       return (event as ModalStateChangedEvent).detail
         ? dialogOpened(null)
-        : finishUpload() as unknown as Action;
+        : (finishUpload() as unknown as Action);
     };
     return handlers;
   }

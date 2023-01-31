@@ -15,7 +15,10 @@ rules:
   "@typescript-eslint/no-unused-vars": [
     "error",
     {
-      "argsIgnorePattern": "^_$"
+      "argsIgnorePattern": "^_",
+      # It seems to have trouble with these specific
+      # imports, so we ignore them manually.
+      "varsIgnorePattern": "^property$|^query$|^isEqual$"
     }
   ]
   new-cap:

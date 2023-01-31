@@ -1,5 +1,5 @@
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
-import { LitElement } from "lit-element";
+import { LitElement } from "lit";
 import { ConnectedArtifactThumbnail } from "./artifact-thumbnail";
 import { ConnectedThumbnailGrid } from "./thumbnail-grid";
 import { ConnectedFileUploader } from "./file-uploader";

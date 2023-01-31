@@ -1,11 +1,5 @@
-import {
-  css,
-  html,
-  LitElement,
-  property,
-  PropertyValues,
-  TemplateResult,
-} from "lit-element";
+import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
+import { property } from "lit/decorators.js";
 import { MetadataInferenceStatus, RootState } from "./types";
 import "@material/mwc-circular-progress";
 import "@material/mwc-formfield";

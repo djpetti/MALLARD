@@ -1,7 +1,7 @@
 ####
 # gateway_builder image is used for building the gateway service dependencies.
 ####
-FROM python:3.9.2-slim AS gateway_builder
+FROM python:3.11.1-slim AS gateway_builder
 
 # Install poetry.
 RUN apt-get update
@@ -21,7 +21,7 @@ RUN mkdir deps && python -m pip install --prefix=deps -r requirements.txt
 ####
 # service_base image is used as a common base for mallard services.
 ####
-FROM python:3.9.2-slim AS service_base
+FROM python:3.11.1-slim AS service_base
 
 # Run as a non-root user.
 RUN useradd -ms /bin/bash gateway
@@ -65,9 +65,9 @@ RUN apt-get install -y curl
 WORKDIR /home/gateway/
 
 # Install Node.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
 ENV NVM_DIR=/root/.nvm
-RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 16.14.0
+RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 19.5.0
 
 # Install NPM dependencies.
 RUN cd mallard/edge/frontend && . ~/.nvm/nvm.sh && npm install

@@ -1,4 +1,5 @@
-import { css, html, property, PropertyValues } from "lit-element";
+import { css, html, PropertyValues } from "lit";
+import { property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";

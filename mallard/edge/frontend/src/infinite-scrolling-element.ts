@@ -1,4 +1,4 @@
-import { LitElement, PropertyValues } from "lit-element";
+import { LitElement, PropertyValues } from "lit";
 
 /**
  * A superclass for elements that need to be infinitely

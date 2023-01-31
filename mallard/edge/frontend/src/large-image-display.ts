@@ -3,7 +3,8 @@ import {
   ImageDisplay,
   ImageIdentifier,
 } from "./image-display";
-import { css, property, PropertyValues } from "lit-element";
+import { css, PropertyValues } from "lit";
+import { property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageStatus } from "./types";

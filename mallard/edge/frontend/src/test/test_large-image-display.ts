@@ -12,18 +12,14 @@ import { RootState } from "../types";
 import each from "jest-each";
 import { ObjectRef } from "typescript-axios";
 import { ImageIdentifier } from "../image-display";
+import {createImageEntityId, thunkLoadImage, addArtifact, thunkClearFullSizedImage, thumbnailGridSelectors} from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
 // Using older require syntax here so we get the correct mock type.
-const thumbnailGridSlice = require("../thumbnail-grid-slice");
-const mockCreateImageEntityId = thumbnailGridSlice.createImageEntityId;
-const mockThunkLoadImage = thumbnailGridSlice.thunkLoadImage;
-const mockAddArtifact = thumbnailGridSlice.addArtifact;
-const mockClearFullSizedImage = thumbnailGridSlice.thunkClearFullSizedImage;
-const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
+jest.mock("../thumbnail-grid-slice")
 const { thumbnailGridSelectors } = jest.requireActual(
   "../thumbnail-grid-slice"
 );
@@ -61,7 +57,7 @@ describe("large-image-display", () => {
     faker.seed(1337);
 
     // Use the actual implementation for this function.
-    mockThumbnailGridSelectors.selectById.mockImplementation(
+    thumbnailGridSelectors.selectById.mockImplementation(
       thumbnailGridSelectors.selectById
     );
 
@@ -146,7 +142,7 @@ describe("large-image-display", () => {
       const state: RootState = fakeState();
 
       // Set up the frontend ID.
-      mockCreateImageEntityId.mockReturnValue(faker.datatype.uuid());
+      createImageEntityId.mockReturnValue(faker.datatype.uuid());
 
       // Act.
       const updates = imageElement.mapState(state);
@@ -157,7 +153,7 @@ describe("large-image-display", () => {
 
       if (backendId) {
         // It should have checked the frontend state.
-        expect(mockThumbnailGridSelectors.selectById).toBeCalledTimes(1);
+        expect(thumbnailGridSelectors.selectById).toBeCalledTimes(1);
       }
     }
   );
@@ -178,7 +174,7 @@ describe("large-image-display", () => {
     state.imageView.entities[imageId] = imageEntity;
 
     // Set up the frontend ID.
-    mockCreateImageEntityId.mockReturnValue(imageId);
+    createImageEntityId.mockReturnValue(imageId);
 
     // Act.
     const updates = imageElement.mapState(state);

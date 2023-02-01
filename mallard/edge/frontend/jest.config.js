@@ -1,10 +1,13 @@
 module.exports = {
     preset: "ts-jest/presets/js-with-babel",
-    testEnvironment: 'jest-environment-jsdom-sixteen',
+    testEnvironmentOptions: {
+        url: "http://localhost/",
+    },
+    testEnvironment: 'jest-environment-jsdom',
     testRegex: 'src/.*test/test_.*\\.(ts|tsx)$',
     moduleFileExtensions: ['ts', 'js'],
     transformIgnorePatterns: [
-        "node_modules/(?!(lit-element|lit-html|@material)/)"
+        "node_modules/(?!(lit|@lit|lit-element|lit-html|@material)/)"
     ],
     collectCoverageFrom: [
         "src/**/{!(index|elements|element-test-utils),}.ts",

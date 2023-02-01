@@ -19,10 +19,15 @@ import {createImageEntityId, thunkLoadImage, addArtifact, thunkClearFullSizedIma
 const faker = require("faker");
 
 // Using older require syntax here so we get the correct mock type.
-jest.mock("../thumbnail-grid-slice")
-const { thumbnailGridSelectors } = jest.requireActual(
-  "../thumbnail-grid-slice"
-);
+jest.mock("../thumbnail-grid-slice", () => {
+  return {
+    createImageEntityId: jest.fn(),
+    thunkLoadImage: jest.fn(),
+    addArtifact: jest.fn(),
+    thunkClearFullSizedImage: jest.fn(),
+    thumbnailGridSelectors: jest.requireActual("../thumbnail-grid-slice")
+  }
+})
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -229,12 +234,12 @@ describe("large-image-display", () => {
       // Check image changed event.
       if (imageId.frontendId) {
         // Image is registered.
-        expect(mockThunkLoadImage).toBeCalledTimes(1);
-        expect(mockThunkLoadImage).toBeCalledWith(testEvent.detail.frontendId);
+        expect(thunkLoadImage).toBeCalledTimes(1);
+        expect(thunkLoadImage).toBeCalledWith(testEvent.detail.frontendId);
       } else {
         // Image is not registered.
-        expect(mockAddArtifact).toBeCalledTimes(1);
-        expect(mockAddArtifact).toBeCalledWith(testEvent.detail.backendId);
+        expect(addArtifact).toBeCalledTimes(1);
+        expect(addArtifact).toBeCalledWith(testEvent.detail.backendId);
       }
     }
   );
@@ -256,7 +261,7 @@ describe("large-image-display", () => {
     );
 
     // Check disconnected event.
-    expect(mockClearFullSizedImage).toBeCalledTimes(1);
-    expect(mockClearFullSizedImage).toBeCalledWith(testEvent.detail);
+    expect(thunkClearFullSizedImage).toBeCalledTimes(1);
+    expect(thunkClearFullSizedImage).toBeCalledWith(testEvent.detail);
   });
 });

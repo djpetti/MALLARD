@@ -12,34 +12,36 @@ import { RootState } from "../types";
 import each from "jest-each";
 import { ObjectRef } from "typescript-axios";
 import { ImageIdentifier } from "../image-display";
-import {createImageEntityId, thunkLoadImage, addArtifact, thunkClearFullSizedImage, thumbnailGridSelectors} from "../thumbnail-grid-slice";
+import {
+  createImageEntityId,
+  thunkLoadImage,
+  addArtifact,
+  thunkClearFullSizedImage,
+  thumbnailGridSelectors,
+} from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
-// Using older require syntax here so we get the correct mock type.
+jest.mock("@captaincodeman/redux-connect-element", () => ({
+  // Turn connect() into a pass-through.
+  connect: jest.fn((_, elementClass) => elementClass),
+}));
 jest.mock("../thumbnail-grid-slice", () => {
+  const actualSlice = jest.requireActual("../thumbnail-grid-slice");
+
   return {
     createImageEntityId: jest.fn(),
     thunkLoadImage: jest.fn(),
     addArtifact: jest.fn(),
     thunkClearFullSizedImage: jest.fn(),
-    thumbnailGridSelectors: jest.requireActual("../thumbnail-grid-slice")
-  }
-})
-
-jest.mock("@captaincodeman/redux-connect-element", () => ({
-  // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
-}));
-jest.mock("../thumbnail-grid-slice", () => ({
-  createImageEntityId: jest.fn(),
-  thunkLoadImage: jest.fn(),
-  addArtifact: jest.fn(),
-  thunkClearFullSizedImage: jest.fn(),
-  thumbnailGridSelectors: { selectById: jest.fn() },
-}));
+    thumbnailGridSelectors: {
+      // Use the actual implementation for this function, but spy on calls.
+      selectById: jest.spyOn(actualSlice.thumbnailGridSelectors, "selectById"),
+    },
+  };
+});
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
   configureStore: jest.fn(),
@@ -60,11 +62,6 @@ describe("large-image-display", () => {
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
-
-    // Use the actual implementation for this function.
-    thumbnailGridSelectors.selectById.mockImplementation(
-      thumbnailGridSelectors.selectById
-    );
 
     imageElement = window.document.createElement(
       ConnectedLargeImageDisplay.tagName
@@ -147,7 +144,9 @@ describe("large-image-display", () => {
       const state: RootState = fakeState();
 
       // Set up the frontend ID.
-      createImageEntityId.mockReturnValue(faker.datatype.uuid());
+      (
+        createImageEntityId as jest.MockedFn<typeof createImageEntityId>
+      ).mockReturnValue(faker.datatype.uuid());
 
       // Act.
       const updates = imageElement.mapState(state);
@@ -179,7 +178,9 @@ describe("large-image-display", () => {
     state.imageView.entities[imageId] = imageEntity;
 
     // Set up the frontend ID.
-    createImageEntityId.mockReturnValue(imageId);
+    (
+      createImageEntityId as jest.MockedFn<typeof createImageEntityId>
+    ).mockReturnValue(imageId);
 
     // Act.
     const updates = imageElement.mapState(state);

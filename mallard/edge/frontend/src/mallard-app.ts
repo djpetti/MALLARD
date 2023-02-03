@@ -64,7 +64,7 @@ export class MallardApp extends LitElement {
 
   /** Keeps track of whether any uploads are currently in-progress. */
   @property({ attribute: false })
-  protected uploadsInProgress: boolean = false;
+  uploadsInProgress: boolean = false;
 
   @query("#thumbnails", true)
   private thumbnailGrid!: ThumbnailGrid;
@@ -171,8 +171,10 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
       event: Event
     ) => {
       return (event as ModalStateChangedEvent).detail
-        ? dialogOpened(null)
-        : (finishUpload() as unknown as Action);
+        ? // If it's opened, make sure Redux reflects that.
+          dialogOpened(null)
+        : // If it's closed, finalize the upload.
+          (finishUpload() as unknown as Action);
     };
     return handlers;
   }

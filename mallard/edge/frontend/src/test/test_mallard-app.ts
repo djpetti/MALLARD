@@ -1,5 +1,3 @@
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
 import { ConnectedMallardApp } from "../mallard-app";
 import { Dialog } from "@material/mwc-dialog";
 import each from "jest-each";
@@ -8,13 +6,13 @@ import { Button } from "@material/mwc-button";
 import { RootState } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
+import { dialogOpened, finishUpload } from "../upload-slice";
+import { ThumbnailGrid } from "../thumbnail-grid";
+import mock = jest.mock;
 
+// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
+// undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
-
-// Using older require syntax here so we get the correct mock type.
-const uploadSlice = require("../upload-slice");
-const mockDialogOpened = uploadSlice.dialogOpened;
-const mockDialogClosed = uploadSlice.dialogClosed;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -22,23 +20,28 @@ jest.mock("@captaincodeman/redux-connect-element", () => ({
 }));
 jest.mock("../upload-slice", () => ({
   dialogOpened: jest.fn(),
-  dialogClosed: jest.fn(),
+  finishUpload: jest.fn(),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
   configureStore: jest.fn(),
 }));
 
+const mockDialogOpened = dialogOpened as jest.MockedFn<typeof dialogOpened>;
+const mockFinishUpload = finishUpload as jest.MockedFn<typeof finishUpload>;
+
 describe("mallard-app", () => {
   /** Internal MallardApp to use for testing. */
   let app: ConnectedMallardApp;
+  /** Internal ThumbnailGrid used by the app. **/
+  let thumbnailGrid: ThumbnailGrid;
 
   beforeAll(() => {
     // Manually register the custom element.
     customElements.define(ConnectedMallardApp.tagName, ConnectedMallardApp);
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Set a faker seed.
     faker.seed(1337);
 
@@ -50,6 +53,13 @@ describe("mallard-app", () => {
       ConnectedMallardApp.tagName
     ) as ConnectedMallardApp;
     document.body.appendChild(app);
+    await app.updateComplete;
+
+    // Mock out the methods of ThumbnailGrid that we use directly.
+    thumbnailGrid = app.shadowRoot?.querySelector(
+      "#thumbnails"
+    ) as ThumbnailGrid;
+    thumbnailGrid.refresh = jest.fn();
   });
 
   afterEach(() => {
@@ -80,7 +90,7 @@ describe("mallard-app", () => {
     }
   );
 
-  it("dispatches events when the model is opened or closed", async () => {
+  it("dispatches events when the modal is opened or closed", async () => {
     // Arrange.
     // Create a fake event handler.
     const eventHandler = jest.fn();
@@ -135,6 +145,22 @@ describe("mallard-app", () => {
     expect(app.uploadModalOpen).toBe(false);
   });
 
+  it("refreshes the thumbnails when uploads finish", async () => {
+    // Arrange.
+    // Make it look like some uploads are in-progress.
+    app.uploadsInProgress = true;
+    await app.updateComplete;
+
+    // Act.
+    // Now, make it look like they are finished.
+    app.uploadsInProgress = false;
+    await app.updateComplete;
+
+    // Assert.
+    // It should have refreshed the thumbnails.
+    expect(thumbnailGrid.refresh).toBeCalledTimes(1);
+  });
+
   it("updates the properties from the Redux state", () => {
     // Arrange.
     // Create a fake state.
@@ -143,6 +169,8 @@ describe("mallard-app", () => {
     // Set the relevant parameters.
     const dialogOpen = faker.datatype.boolean();
     state.uploads.dialogOpen = dialogOpen;
+    const uploadsInProgress = faker.datatype.number();
+    state.uploads.uploadsInProgress = uploadsInProgress;
 
     // Act.
     const updates = app.mapState(state);
@@ -151,6 +179,7 @@ describe("mallard-app", () => {
     // It should have updated the modal state.
     expect(updates).toHaveProperty("uploadModalOpen");
     expect(updates["uploadModalOpen"]).toEqual(dialogOpen);
+    expect(updates["uploadsInProgress"]).toEqual(uploadsInProgress > 0);
   });
 
   describe("maps the correct actions to events", () => {
@@ -189,7 +218,7 @@ describe("mallard-app", () => {
         if (modalOpen) {
           expect(mockDialogOpened).toBeCalled();
         } else {
-          expect(mockDialogClosed).toBeCalled();
+          expect(mockFinishUpload).toBeCalled();
         }
       }
     );

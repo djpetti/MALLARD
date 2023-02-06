@@ -1,16 +1,17 @@
-import configureStore, { MockStoreCreator } from "redux-mock-store";
+import configureStore, {MockStoreCreator} from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifact,
-  thunkClearFullSizedImage,
+  clearFullSizedImage,
+  clearImageView,
   createImageEntityId,
   thumbnailGridSelectors,
   thumbnailGridSlice,
+  thunkClearFullSizedImage,
   thunkContinueQuery,
   thunkLoadImage,
   thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkStartNewQuery,
-  clearFullSizedImage,
 } from "../thumbnail-grid-slice";
 import {
   ImageQuery,
@@ -20,12 +21,8 @@ import {
   RootState,
 } from "../types";
 import thunk from "redux-thunk";
-import {
-  fakeImageEntity,
-  fakeObjectRef,
-  fakeState,
-} from "./element-test-utils";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import {fakeImageEntity, fakeObjectRef, fakeState,} from "./element-test-utils";
+import {ObjectRef, QueryResponse, UavImageMetadata} from "typescript-axios";
 import each from "jest-each";
 
 // Require syntax must be used here due to an issue that prevents
@@ -469,6 +466,33 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(imageEntities).toHaveLength(1);
     expect(imageEntities[0].imageUrl).toBeNull();
     expect(imageEntities[0].imageStatus).toEqual(ImageStatus.LOADING);
+  });
+
+  it("handles a clearImageView action", () => {
+    // Arrange.
+    const state: RootState = fakeState();
+    // Make it look like an image is loaded.
+    const imageId = faker.datatype.uuid();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
+
+    // Make it look like some other parameters are set.
+    state.imageView.currentQueryState = RequestState.SUCCEEDED;
+    state.imageView.metadataLoadingState = RequestState.SUCCEEDED;
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(state.imageView, clearImageView(null));
+
+    // Assert.
+    const newState = fakeState();
+    newState.imageView = newImageState;
+
+    // It should have removed all images.
+    const imageEntities = thumbnailGridSelectors.selectAll(newState);
+    expect(imageEntities).toHaveLength(0);
+    // It should have reset state parameters.
+    expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
+    expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
   });
 
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {

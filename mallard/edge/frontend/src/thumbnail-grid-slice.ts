@@ -29,6 +29,7 @@ import { ThunkAction } from "redux-thunk";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
+/* istanbul ignore next */
 // @ts-ignore
 window.process =
   window.process != undefined

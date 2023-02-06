@@ -1,4 +1,4 @@
-import { ConnectedThumbnailGrid } from "../thumbnail-grid";
+import {ConnectedThumbnailGrid, ThumbnailGrid} from "../thumbnail-grid";
 import {
   fakeImageEntity,
   fakeState,
@@ -7,17 +7,30 @@ import {
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
+import {thunkLoadMetadata, thunkStartNewQuery, thunkContinueQuery, thumbnailGridSelectors, clearImageView} from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
 // Using older require syntax here so that we get the correct mock type.
+jest.mock("../thumbnail-grid-slice", () => {
+  const actualSlice = jest.requireActual("../thumbnail-grid-slice");
+
+  return {
+    thunkLoadMetadata: jest.fn(),
+    thunkStartNewQuery: jest.fn(),
+    thunkContinueQuery: jest.fn(),
+    thunkClearImageView: jest.fn(),
+    thumbnailGridSelectors: { selectIds: jest.fn(), selectById: jest.fn() },
+  }
+});
 const thumbnailGridSlice = require("../thumbnail-grid-slice");
 const mockThunkLoadMetadata = thumbnailGridSlice.thunkLoadMetadata;
 const mockThunkStartNewQuery = thumbnailGridSlice.thunkStartNewQuery;
 const mockThunkContinueQuery = thumbnailGridSlice.thunkContinueQuery;
 const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
+const mockClearImageView = thumbnailGridSlice.clearImageView;
 const { thumbnailGridSelectors } = jest.requireActual(
   "../thumbnail-grid-slice"
 );
@@ -30,7 +43,6 @@ jest.mock("../thumbnail-grid-slice", () => ({
   thunkLoadMetadata: jest.fn(),
   thunkStartNewQuery: jest.fn(),
   thunkContinueQuery: jest.fn(),
-  thumbnailGridSelectors: { selectIds: jest.fn(), selectById: jest.fn() },
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -257,6 +269,21 @@ describe("thumbnail-grid", () => {
     expect(loadDataHandler).toBeCalledTimes(0);
   });
 
+  it("re-runs the query when we change it", async () => {
+    // Arrange.
+    // Set up an event handler for the query refresh event.
+    const refreshEventListener = jest.fn();
+    gridElement.addEventListener(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, refreshEventListener);
+
+    // Act.
+    gridElement.query = {};
+    await gridElement.updateComplete;
+
+    // Assert.
+    // It should have dispatched the event.
+    expect(refreshEventListener).toBeCalledTimes(1);
+  });
+
   each([
     ["idle", RequestState.IDLE, RequestState.IDLE],
     ["loading", RequestState.LOADING, RequestState.LOADING],
@@ -437,4 +464,17 @@ describe("thumbnail-grid", () => {
       }
     }
   );
+
+  it("maps the correct actions to the refresh event", () => {
+    // Act.
+    const eventMap = gridElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME);
+
+    // This should file the appropriate action creator.
+    eventMap[ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME]({} as unknown as Event);
+    expect(mockClearImageView).toBeCalledTimes(1);
+  });
 });

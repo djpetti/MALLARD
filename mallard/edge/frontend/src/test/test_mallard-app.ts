@@ -8,7 +8,6 @@ import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, finishUpload } from "../upload-slice";
 import { ThumbnailGrid } from "../thumbnail-grid";
-import mock = jest.mock;
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.

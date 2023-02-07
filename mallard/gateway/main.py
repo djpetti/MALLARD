@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from ..config import config
-from .aiohttp_session import init_session, session
+from .aiohttp_session import init_session, close_session
 from .authentication import check_auth_token
 from .routers import images
 
@@ -46,4 +46,4 @@ async def close_aiohttp_session():
 
     """
     logger.debug("Closing aiohttp session.")
-    await session.close()
+    await close_session()

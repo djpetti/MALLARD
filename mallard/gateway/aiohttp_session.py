@@ -15,3 +15,13 @@ async def init_session() -> None:
     """
     global session
     session = aiohttp.ClientSession()
+
+
+async def close_session() -> None:
+    """
+    Closes the global `aiohttp` session.
+
+    """
+    global session
+    if session is not None:
+        await session.close()

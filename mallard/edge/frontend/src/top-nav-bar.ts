@@ -1,7 +1,8 @@
-import { css, html, LitElement } from "lit";
-import { property } from "lit/decorators.js";
+import {css, html, LitElement, PropertyValues} from "lit";
+import {property, query} from "lit/decorators.js";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
+import "@material/mwc-textfield";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -19,6 +20,11 @@ export class TopNavBar extends LitElement {
 
       overflow-x: hidden;
     }
+    
+    #search {
+      margin-left: 10vw;
+      width: 20vw;
+    }
   `;
 
   /**
@@ -32,6 +38,9 @@ export class TopNavBar extends LitElement {
    */
   @property({ type: String })
   title: string = "";
+
+  @query("#search")
+  protected search?: HTMLInputElement;
 
   /**
    * @inheritDoc
@@ -50,11 +59,35 @@ export class TopNavBar extends LitElement {
           id="back_button"
           @click="${() => history.back()}"
         ></mwc-icon-button>
-        <!-- Title bar -->
-        <div slot="title">${this.title}</div>
+        <!-- Title and search box. -->
+        <span slot="title">
+          <span>${this.title}</span>
+          <mwc-textfield
+            id="search"
+            class="rounded autocomplete"
+            label="Search"
+            iconLeading="search"
+          ></mwc-textfield>
+        </span>
 
         <slot></slot>
       </mwc-top-app-bar-fixed>
     `;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override firstUpdated(_changedProperties: PropertyValues) {
+    // Initialize autocomplete.
+    M.Autocomplete.init(this.search as HTMLInputElement, {
+      data: {
+        "foo": null,
+        "bar": null,
+        "baz": null,
+      }
+    })
+
+    super.firstUpdated(_changedProperties);
   }
 }

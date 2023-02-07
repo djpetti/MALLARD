@@ -1,4 +1,4 @@
-import {ConnectedThumbnailGrid, ThumbnailGrid} from "../thumbnail-grid";
+import { ConnectedThumbnailGrid, ThumbnailGrid } from "../thumbnail-grid";
 import {
   fakeImageEntity,
   fakeState,
@@ -7,7 +7,12 @@ import {
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
-import {thunkLoadMetadata, thunkStartNewQuery, thunkContinueQuery, thumbnailGridSelectors, clearImageView} from "../thumbnail-grid-slice";
+import {
+  thunkLoadMetadata,
+  thunkStartNewQuery,
+  thunkContinueQuery,
+  clearImageView,
+} from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -21,28 +26,29 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadMetadata: jest.fn(),
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
-    thunkClearImageView: jest.fn(),
-    thumbnailGridSelectors: { selectIds: jest.fn(), selectById: jest.fn() },
-  }
+    clearImageView: jest.fn(),
+    thumbnailGridSelectors: {
+      selectIds: actualSlice.thumbnailGridSelectors.selectIds,
+      selectById: actualSlice.thumbnailGridSelectors.selectById,
+    },
+  };
 });
-const thumbnailGridSlice = require("../thumbnail-grid-slice");
-const mockThunkLoadMetadata = thumbnailGridSlice.thunkLoadMetadata;
-const mockThunkStartNewQuery = thumbnailGridSlice.thunkStartNewQuery;
-const mockThunkContinueQuery = thumbnailGridSlice.thunkContinueQuery;
-const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
-const mockClearImageView = thumbnailGridSlice.clearImageView;
-const { thumbnailGridSelectors } = jest.requireActual(
-  "../thumbnail-grid-slice"
-);
+const mockThunkLoadMetadata = thunkLoadMetadata as jest.MockedFn<
+  typeof thunkLoadMetadata
+>;
+const mockThunkStartNewQuery = thunkStartNewQuery as jest.MockedFn<
+  typeof thunkStartNewQuery
+>;
+const mockThunkContinueQuery = thunkContinueQuery as jest.MockedFn<
+  typeof thunkContinueQuery
+>;
+const mockClearImageView = clearImageView as jest.MockedFn<
+  typeof clearImageView
+>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
   connect: jest.fn((_, elementClass) => elementClass),
-}));
-jest.mock("../thumbnail-grid-slice", () => ({
-  thunkLoadMetadata: jest.fn(),
-  thunkStartNewQuery: jest.fn(),
-  thunkContinueQuery: jest.fn(),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -64,14 +70,6 @@ describe("thumbnail-grid", () => {
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
-
-    // Use the actual implementation for these functions.
-    mockThumbnailGridSelectors.selectIds.mockImplementation(
-      thumbnailGridSelectors.selectIds
-    );
-    mockThumbnailGridSelectors.selectById.mockImplementation(
-      thumbnailGridSelectors.selectById
-    );
 
     // Reset mocks.
     jest.clearAllMocks();
@@ -273,7 +271,10 @@ describe("thumbnail-grid", () => {
     // Arrange.
     // Set up an event handler for the query refresh event.
     const refreshEventListener = jest.fn();
-    gridElement.addEventListener(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, refreshEventListener);
+    gridElement.addEventListener(
+      ThumbnailGrid.QUERY_REFRESH_EVENT_NAME,
+      refreshEventListener
+    );
 
     // Act.
     gridElement.query = {};
@@ -471,10 +472,14 @@ describe("thumbnail-grid", () => {
 
     // Assert.
     // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME);
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME
+    );
 
     // This should file the appropriate action creator.
-    eventMap[ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME]({} as unknown as Event);
+    eventMap[ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME](
+      {} as unknown as Event
+    );
     expect(mockClearImageView).toBeCalledTimes(1);
   });
 });

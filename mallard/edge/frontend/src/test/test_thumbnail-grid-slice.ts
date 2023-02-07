@@ -1,4 +1,4 @@
-import configureStore, {MockStoreCreator} from "redux-mock-store";
+import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifact,
   clearFullSizedImage,
@@ -21,8 +21,12 @@ import {
   RootState,
 } from "../types";
 import thunk from "redux-thunk";
-import {fakeImageEntity, fakeObjectRef, fakeState,} from "./element-test-utils";
-import {ObjectRef, QueryResponse, UavImageMetadata} from "typescript-axios";
+import {
+  fakeImageEntity,
+  fakeObjectRef,
+  fakeState,
+} from "./element-test-utils";
+import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
 
 // Require syntax must be used here due to an issue that prevents
@@ -481,7 +485,10 @@ describe("thumbnail-grid-slice reducers", () => {
     state.imageView.metadataLoadingState = RequestState.SUCCEEDED;
 
     // Act.
-    const newImageState = thumbnailGridSlice.reducer(state.imageView, clearImageView(null));
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      clearImageView(null)
+    );
 
     // Assert.
     const newState = fakeState();

@@ -11,8 +11,6 @@ import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import "@material/mwc-radio";
 import "@material/mwc-formfield";
-// Allow use of Materialize
-import "materialize-css/dist/js/materialize.js"
 import "./thumbnail-grid";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";

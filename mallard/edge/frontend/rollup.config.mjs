@@ -36,5 +36,5 @@ export default {
         }
     },
     plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
-              scss()],
+              scss({fileName: "mallard-edge.css"})],
 };

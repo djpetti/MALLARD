@@ -24,6 +24,11 @@ export class TopNavBar extends LitElement {
 
     #search {
       margin-left: 10vw;
+      margin-top: 5px;
+      position: absolute;
+      /* Put the search box on top of the navigation bar. */
+      top: 0;
+      z-index: 10;
     }
   `;
 
@@ -56,11 +61,10 @@ export class TopNavBar extends LitElement {
           id="back_button"
           @click="${() => history.back()}"
         ></mwc-icon-button>
-        <!-- Title and search box. -->
-        <span slot="title">
-          <span>${this.title}</span>
-          <search-box id="search"></search-box>
-        </span>
+        <!-- Title -->
+        <span slot="title">${this.title}</span>
+        <!-- Search box. -->
+        <search-box id="search"></search-box>
 
         <slot></slot>
       </mwc-top-app-bar-fixed>

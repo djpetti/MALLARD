@@ -111,11 +111,24 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   metadataLoadingState: RequestState.IDLE,
   currentQueryError: null,
   currentQueryHasMorePages: true,
+  search: {
+    searchString: "",
+    autocompleteSuggestions: [],
+    query: null,
+    queryState: RequestState.IDLE,
+  },
 });
 
 /** Memoized selectors for the state. */
 export const thumbnailGridSelectors =
   thumbnailGridAdapter.getSelectors<RootState>((state) => state.imageView);
+
+/**
+ * Generates a query based on the search string a user entered.
+ * @param {string} searchString The search string.
+ * @return {ImageQuery} The generated query.
+ */
+function queryFromSearchString(searchString: string): ImageQuery {}
 
 /**
  * Action creator that starts a new request for thumbnails on the homepage.

@@ -500,7 +500,7 @@ async def query_images(
 
     skip_first = (page_num - 1) * results_per_page
     results = metadata.query(
-        query,
+        [query],
         skip_first=skip_first,
         max_num_results=results_per_page,
         orderings=orderings,

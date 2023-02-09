@@ -1,8 +1,7 @@
 """
 An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
 """
-
-
+import asyncio
 from datetime import date, datetime, time
 from functools import singledispatchmethod
 from pathlib import Path
@@ -210,16 +209,26 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
             Criterion("not like", DataObject.name, "%.thumbnail")
         )
 
-    async def get(self, object_id: ObjectRef) -> ImageMetadata:
-        return await self._get(object_id, parse_as=ImageMetadata)
-
-    async def query(
-        self,
-        query: ImageQuery,
-        orderings: Iterable[Ordering] = (),
-        skip_first: int = 0,
-        max_num_results: int = 500,
+    async def __query_one(
+            self,
+            query: ImageQuery,
+            orderings: Iterable[Ordering] = (),
+            skip_first: int = 0,
+            max_num_results: int = 500,
     ) -> AsyncIterable[ObjectRef]:
+        """
+        Performs a single query on the database.
+
+        Args:
+            query: The query to perform.
+            orderings: Specified orderings for the final results.
+            skip_first: Will skip the first N results if specified.
+            max_num_results: Maximum number of results to produce.
+
+        Yields:
+            The IDs of all matching objects.
+
+        """
         # Translate this into an actual SQL query.
         sql_query = self.__make_default_query()
         sql_query = self.__build_query(query, "", sql_query)
@@ -240,6 +249,34 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
                 bucket=bucket.as_posix(),
                 name=result[DataObject.name],
             )
+
+    async def get(self, object_id: ObjectRef) -> ImageMetadata:
+        return await self._get(object_id, parse_as=ImageMetadata)
+
+    async def query(
+        self,
+        queries: Iterable[ImageQuery],
+        orderings: Iterable[Ordering] = (),
+        skip_first: int = 0,
+        max_num_results: int = 500,
+    ) -> AsyncIterable[ObjectRef]:
+        # IRODS doesn't support UNION natively, so we perform the queries
+        # separately and then aggregate the results.
+        query_ops = [self.__query_one(q) for q in queries]
+        query_results = await asyncio.gather(*query_ops)
+
+        saw_results = set()
+        for result_num, result in enumerate(query_results):
+            if result_num > max_num_results:
+                # We've produced enough results.
+                break
+
+            if result in saw_results:
+                # This is a duplicate.
+                continue
+            saw_results.add(result)
+
+            yield result
 
 
 class IrodsUavImageMetadataStore(IrodsImageMetadataStore):

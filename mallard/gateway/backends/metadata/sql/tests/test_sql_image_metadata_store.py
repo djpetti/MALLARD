@@ -73,7 +73,7 @@ class TestSqlImageMetadataStore:
         # create_autospec is a little overzealous about making these
         # coroutines when in fact they aren't.
         mock_results = mock_session.execute.return_value
-        mock_results.scalars = mocker.Mock()
+        mock_results.all = mocker.Mock()
 
         # In order to make assertions easier, we force it to apply chained
         # query operators to the same underlying mock.
@@ -82,6 +82,7 @@ class TestSqlImageMetadataStore:
         mock_query.order_by.return_value = mock_query
         mock_query.limit.return_value = mock_query
         mock_query.offset.return_value = mock_query
+        mock_query.union.return_value = mock_query
 
         store = sql_image_metadata_store.SqlImageMetadataStore(mock_session)
 
@@ -365,6 +366,9 @@ class TestSqlImageMetadataStore:
         [True, False],
         ids=["default_location", "no_location"],
     )
+    @pytest.mark.parametrize(
+        "multiple", [True, False], ids=["multiple_queries", "single_query"]
+    )
     async def test_query(
         self,
         config: ConfigForTests,
@@ -373,6 +377,7 @@ class TestSqlImageMetadataStore:
         offset: int,
         limit: int,
         include_location: bool,
+        multiple: bool,
     ) -> None:
         """
         Tests that we can query metadata.
@@ -385,6 +390,8 @@ class TestSqlImageMetadataStore:
             limit: The limit to use for testing.
             include_location: Whether to include a location in the query. This
                 case is handled specially, which is why we test it.
+            multiple: If true, test multiple ORed queries, instead of just a
+                single one.
 
         """
         # Arrange.
@@ -399,13 +406,13 @@ class TestSqlImageMetadataStore:
         result_1 = faker.image_model(object_id=object_id_1)
         result_2 = faker.image_model(object_id=object_id_2)
         mock_results = config.mock_session.execute.return_value
-        mock_results.scalars.return_value = [result_1, result_2]
+        mock_results.all.return_value = [result_1, result_2]
 
         # Act.
         got_results = [
             r
             async for r in config.store.query(
-                query,
+                [query],
                 orderings=orderings,
                 skip_first=offset,
                 max_num_results=limit,

@@ -18,11 +18,10 @@ from typing import (
 from confuse import ConfigView
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.future import Select, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql.expression import delete
+from sqlalchemy.sql.expression import delete, Select, select
 
 from ...objects.models import ObjectRef
 from ...time_expiring_cache import time_expiring_cache
@@ -404,14 +403,21 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
     async def query(
         self,
-        query: ImageQuery,
+        queries: Iterable[ImageQuery],
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
     ) -> AsyncIterable[ObjectRef]:
         # Create the SQL query.
-        selection = select(Image)
-        selection = self.__update_image_query(query, query=selection)
+        selections = []
+        for query in queries:
+            selection = select(Image)
+            selections.append(
+                self.__update_image_query(query, query=selection)
+            )
+        # Get the union of the results.
+        last_selection = selections.pop()
+        selection = last_selection.union(*selections)
 
         # Apply the specified orderings.
         for order in orderings:
@@ -424,5 +430,5 @@ class SqlImageMetadataStore(ImageMetadataStore):
         async with self.__session_begin() as session:
             query_results = await session.execute(selection)
 
-        for result in query_results.scalars():
+        for result in query_results.all():
             yield ObjectRef(bucket=result.bucket, name=result.key)

@@ -17,9 +17,9 @@ export class SearchBox extends LitElement {
       display: inline-block;
     }
 
-    .autocomplete-items {
+    .autocomplete-content {
       position: absolute;
-      border: 1px solid #d4d4d4;
+      border: 1px solid var(--theme-light-gray);
       border-bottom: none;
       border-top: none;
       z-index: 99;
@@ -29,22 +29,22 @@ export class SearchBox extends LitElement {
       right: 0;
     }
 
-    .autocomplete-items div {
+    .autocomplete-content div {
       padding: 10px;
       cursor: pointer;
-      background-color: #fff;
-      border-bottom: 1px solid #d4d4d4;
+      background-color: var(--theme-whitish);
+      border-bottom: 1px solid var(--theme-light-gray);
     }
 
-    .autocomplete-items div:hover {
+    .autocomplete-content div:hover {
       /*when hovering an item:*/
-      background-color: #e9e9e9;
+      background-color: var(--theme-gray);
     }
 
     .autocomplete-active {
       /*when navigating through the items using the arrow keys:*/
-      background-color: DodgerBlue !important;
-      color: #ffffff;
+      background-color: var(--theme-secondary-2) !important;
+      color: var(--theme-whitish);
     }
   `;
 
@@ -54,14 +54,9 @@ export class SearchBox extends LitElement {
   protected override render(): unknown {
     return html`
       <div class="autocomplete">
-        <mwc-textfield
-          id="search"
-          class="rounded"
-          label="Search"
-          iconLeading="search"
-        >
+        <mwc-textfield id="search" class="rounded" label="Search" icon="search">
         </mwc-textfield>
-        <div class="autocomplete-items">
+        <div class="autocomplete-content">
           <div>
             <strong style="color:black">Autocomplete</strong>
           </div>

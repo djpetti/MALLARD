@@ -20,7 +20,14 @@ export enum RequestState {
  * Also note that not all query parameters supported by the API are
  * currently supported here. They will be added as they are needed.
  */
-export interface ImageQuery {}
+export interface ImageQuery {
+  /** Name of the images to search for. */
+  name: string;
+  /** Notes for the images to search for. */
+  notes: string;
+  /** Camera for the images to search for. */
+  camera: string;
+}
 
 /**
  * Represents the various options associated with performing a query.
@@ -76,6 +83,21 @@ export interface ImageEntity {
 }
 
 /**
+ * Represents the state of the search interface.
+ */
+export interface SearchState {
+  /** Current text in the search box. */
+  searchString: string;
+  /** Current autocomplete suggestions. */
+  autocompleteSuggestions: string[];
+
+  /** Current query used for autocomplete. */
+  query: ImageQuery | null;
+  /** State of the autocomplete query. */
+  queryState: RequestState;
+}
+
+/**
  * Represents the state of the home and details pages.
  */
 export interface ImageViewState extends NormalizedState<ImageEntity> {
@@ -92,6 +114,9 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   currentQueryError: string | null;
   /** Whether the last query had more pages. */
   currentQueryHasMorePages: boolean;
+
+  /** State of the search interface. */
+  search: SearchState;
 }
 
 /**

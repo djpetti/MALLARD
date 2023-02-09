@@ -90,7 +90,7 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
     @abc.abstractmethod
     async def query(
         self,
-        query: ImageQuery,
+        queries: Iterable[ImageQuery],
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
@@ -99,7 +99,7 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
         Queries the store for objects that match a particular set of criteria.
 
         Args:
-            query: The criteria to match.
+            queries: The criteria to match.
             orderings: Specifies a specific ordering for the final results. It
                 will first sort by the first ordering specified, then the
                 second, etc. Note that not all backends support all

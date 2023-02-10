@@ -466,6 +466,7 @@ class TestIrodsImageMetadataStore:
             await config.store.get(object_id)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize
     async def test_query(self, config: ConfigForTests, faker: Faker) -> None:
         """
         Tests that `query` works.
@@ -508,7 +509,7 @@ class TestIrodsImageMetadataStore:
         got_results = [
             r
             async for r in config.store.query(
-                query, skip_first=skip_first, max_num_results=max_num_results
+                [query], skip_first=skip_first, max_num_results=max_num_results
             )
         ]
 

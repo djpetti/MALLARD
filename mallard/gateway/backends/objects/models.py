@@ -16,7 +16,7 @@ class ObjectRef(BaseModel):
     """
 
     class Config:
-        allow_mutation = False
+        frozen = True
 
     bucket: str
     name: str

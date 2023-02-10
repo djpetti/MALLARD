@@ -24,6 +24,8 @@ from .schemas import (
     Ordering,
     UavImageMetadata,
 )
+from aioitertools import chain, enumerate as aio_enumerate
+from loguru import logger
 
 
 class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
@@ -47,6 +49,17 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
     """
     Mapping of fields in the `ImageQuery` structure to corresponding fields
     that will be searched in the `UavImageMetadata` structure.
+    """
+
+    _ORDER_TO_META_FIELDS = {
+        Ordering.Field.NAME: "name",
+        Ordering.Field.SESSION: "session_name",
+        Ordering.Field.SEQUENCE_NUM: "sequence_number",
+        Ordering.Field.CAPTURE_DATE: "capture_date",
+        Ordering.Field.CAMERA: "camera",
+    }
+    """
+    Maps orderings to corresponding fields in the `UavImageMetadata` structure.
     """
 
     @staticmethod
@@ -209,12 +222,32 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
             Criterion("not like", DataObject.name, "%.thumbnail")
         )
 
+    @classmethod
+    def __update_query_order(cls, order: Ordering, *, query: Query) -> Query:
+        """
+        Updates a query with the specified ordering.
+
+        Args:
+            order: The ordering to use.
+            query: The query to update.
+
+        Returns:
+            The updated query.
+
+        """
+        column_spec = cls._ORDER_TO_META_FIELDS[order.field]
+        irods_order = "asc"
+        if not order.ascending:
+            irods_order = "desc"
+
+        return query.order_by(column_spec, order=irods_order)
+
     async def __query_one(
-            self,
-            query: ImageQuery,
-            orderings: Iterable[Ordering] = (),
-            skip_first: int = 0,
-            max_num_results: int = 500,
+        self,
+        query: ImageQuery,
+        orderings: Iterable[Ordering] = (),
+        skip_first: int = 0,
+        max_num_results: int = 500,
     ) -> AsyncIterable[ObjectRef]:
         """
         Performs a single query on the database.
@@ -236,7 +269,10 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         # Apply the limit and offset.
         sql_query = sql_query.offset(skip_first)
         sql_query = sql_query.limit(max_num_results)
-        # TODO (danielp) Support ordering in some capacity.
+
+        # Apply ordering constraints.
+        for order in orderings:
+            sql_query = self.__update_query_order(order, query=sql_query)
 
         # Get the results asynchronously.
         query_results = make_async_iter(sql_query)
@@ -260,13 +296,32 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         skip_first: int = 0,
         max_num_results: int = 500,
     ) -> AsyncIterable[ObjectRef]:
+        # TODO (danielp): We cannot currently correctly handle orderings
+        #   with multiple queries.
+        #
+        queries = list(queries)
+        orderings = list(orderings)
+        if len(queries) > 1 and len(orderings) > 0:  # pragma: no cover
+            logger.warning(
+                "IRODS doesn't support multiple queries with "
+                "orderings currently. Result ordering might be incorrect."
+            )
+
         # IRODS doesn't support UNION natively, so we perform the queries
         # separately and then aggregate the results.
-        query_ops = [self.__query_one(q) for q in queries]
-        query_results = await asyncio.gather(*query_ops)
+        query_results = [
+            self.__query_one(
+                q,
+                orderings=orderings,
+                skip_first=skip_first,
+                max_num_results=max_num_results,
+            )
+            for q in queries
+        ]
+        query_results = chain(*query_results)
 
         saw_results = set()
-        for result_num, result in enumerate(query_results):
+        async for result_num, result in aio_enumerate(query_results):
             if result_num > max_num_results:
                 # We've produced enough results.
                 break

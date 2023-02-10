@@ -367,7 +367,9 @@ class TestSqlImageMetadataStore:
         ids=["default_location", "no_location"],
     )
     @pytest.mark.parametrize(
-        "multiple", [True, False], ids=["multiple_queries", "single_query"]
+        "num_queries",
+        [1, 2],
+        ids=["single_query", "multiple_queries"],
     )
     async def test_query(
         self,
@@ -377,7 +379,7 @@ class TestSqlImageMetadataStore:
         offset: int,
         limit: int,
         include_location: bool,
-        multiple: bool,
+        num_queries: int,
     ) -> None:
         """
         Tests that we can query metadata.
@@ -390,15 +392,17 @@ class TestSqlImageMetadataStore:
             limit: The limit to use for testing.
             include_location: Whether to include a location in the query. This
                 case is handled specially, which is why we test it.
-            multiple: If true, test multiple ORed queries, instead of just a
-                single one.
+            num_queries: Number of queries to test performing.
 
         """
         # Arrange.
-        # Create a fake query to perform.
-        query = faker.image_query()
-        if not include_location:
-            query = query.copy(update=dict(bounding_box=None))
+        queries = []
+        for _ in range(num_queries):
+            # Create a fake queries to perform.
+            query = faker.image_query()
+            if not include_location:
+                query = query.copy(update=dict(bounding_box=None))
+            queries.append(query)
 
         # Produce some fake results for the query.
         object_id_1 = faker.object_ref()
@@ -412,7 +416,7 @@ class TestSqlImageMetadataStore:
         got_results = [
             r
             async for r in config.store.query(
-                [query],
+                queries,
                 orderings=orderings,
                 skip_first=offset,
                 max_num_results=limit,
@@ -420,8 +424,8 @@ class TestSqlImageMetadataStore:
         ]
 
         # Assert.
-        # It should have created the query.
-        config.mock_select.assert_called_once()
+        # It should have created the queries.
+        assert config.mock_select.call_count == num_queries
         # It should have run the query.
         config.mock_session.execute.assert_called_once()
         # It should have produced the results.
@@ -434,6 +438,26 @@ class TestSqlImageMetadataStore:
         # It should have applied the offset and limit.
         mock_query.offset.assert_called_once_with(offset)
         mock_query.limit.assert_called_once_with(limit)
+
+    @pytest.mark.asyncio
+    async def test_query_no_queries(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that `query` handles the strange case where we don't give it
+        any queries at all.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Act.
+        got_results = [r async for r in config.store.query([])]
+
+        # Assert.
+        # No results should have been produced.
+        assert len(got_results) == 0
 
     @pytest.mark.asyncio
     async def test_query_empty(
@@ -455,10 +479,10 @@ class TestSqlImageMetadataStore:
         object_id = faker.object_ref()
         result = faker.image_model(object_id=object_id)
         mock_results = config.mock_session.execute.return_value
-        mock_results.scalars.return_value = [result]
+        mock_results.all.return_value = [result]
 
         # Act.
-        got_results = [r async for r in config.store.query(query)]
+        got_results = [r async for r in config.store.query([query])]
 
         # Assert.
         # It should have produced the results.
@@ -617,36 +641,48 @@ class TestSqlImageMetadataStore:
 
         # Act.
         # Perform some queries.
-        everything = [r async for r in store.query(ImageQuery())]
+        everything = [r async for r in store.query([ImageQuery()])]
         session_0 = [
             r
             async for r in store.query(
-                ImageQuery(sessions={"a"}),
+                [ImageQuery(sessions={"a"})],
                 orderings=(Ordering(field=Ordering.Field.SEQUENCE_NUM),),
             )
         ]
         session_0_frame_0 = [
             r
             async for r in store.query(
-                ImageQuery(
-                    sessions={"a"},
-                    sequence_numbers=ImageQuery.Range(
-                        min_value=0, max_value=0
-                    ),
-                )
+                [
+                    ImageQuery(
+                        sessions={"a"},
+                        sequence_numbers=ImageQuery.Range(
+                            min_value=0, max_value=0
+                        ),
+                    )
+                ]
             )
         ]
         first_images = [
             r
             async for r in store.query(
-                ImageQuery(name="first"),
+                [ImageQuery(name="first")],
                 orderings=(Ordering(field=Ordering.Field.SESSION),),
+            )
+        ]
+        disjunction = [
+            r
+            async for r in store.query(
+                [
+                    ImageQuery(name="first", sessions={"a"}),
+                    ImageQuery(name="second", sessions={"a"}),
+                ]
             )
         ]
 
         # Assert.
         # Check that we got the correct results.
-        assert everything == [object_id1, object_id2, object_id3]
+        assert {object_id1, object_id2, object_id3} == set(everything)
         assert session_0 == [object_id1, object_id2]
         assert session_0_frame_0 == [object_id1]
         assert first_images == [object_id1, object_id3]
+        assert {object_id1, object_id2} == set(disjunction)

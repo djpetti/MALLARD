@@ -415,6 +415,9 @@ class SqlImageMetadataStore(ImageMetadataStore):
             selections.append(
                 self.__update_image_query(query, query=selection)
             )
+        if len(selections) == 0:
+            # No queries at all.
+            return
         # Get the union of the results.
         last_selection = selections.pop()
         selection = last_selection.union(*selections)

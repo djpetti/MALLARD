@@ -200,7 +200,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         query_results = await session.execute(query)
 
         try:
-            return query_results.scalars().one()
+            return query_results.scalar_one()
         except NoResultFound:
             raise KeyError(f"No metadata for image '{object_id}'.")
 

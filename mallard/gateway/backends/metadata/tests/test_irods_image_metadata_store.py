@@ -466,26 +466,40 @@ class TestIrodsImageMetadataStore:
             await config.store.get(object_id)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize
-    async def test_query(self, config: ConfigForTests, faker: Faker) -> None:
+    @pytest.mark.parametrize(
+        "num_queries", range(1, 3), ids=[f"{i}_queries" for i in range(1, 3)]
+    )
+    @pytest.mark.parametrize(
+        "max_num_results", [1, 100], ids=["low_limit", "high_limit"]
+    )
+    async def test_query(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        num_queries: int,
+        max_num_results: int,
+    ) -> None:
         """
         Tests that `query` works.
 
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
+            num_queries: The number of queries to test with.
+            max_num_results: The maximum number of results that we want to
+                return from the query.
 
         """
         # Arrange.
         # Create a fake query to perform.
-        query = faker.image_query()
+        queries = [faker.image_query() for _ in range(num_queries)]
 
         # Make it return some reasonable-looking data.
         fake_bucket = faker.word()
         fake_bucket_path = config.root_collection / fake_bucket
-        result1, result2 = [
+        result1, result2, result3 = [
             {Collection.name: fake_bucket_path, DataObject.name: faker.word()}
-            for _ in range(2)
+            for _ in range(3)
         ]
 
         # In order to make it easier to unravel the chain of mocked filter()
@@ -495,60 +509,84 @@ class TestIrodsImageMetadataStore:
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = mock_query
 
-        async def results() -> AsyncIterable[dict]:
+        async def results_iter_1() -> AsyncIterable[dict]:
             yield result1
             yield result2
 
-        config.mock_make_async_iter.return_value = results()
+        async def results_iter_2() -> AsyncIterable[dict]:
+            yield result2
+            yield result3
+
+        config.mock_make_async_iter.side_effect = [
+            results_iter_1(),
+            results_iter_2(),
+        ]
 
         # Generate values to use for skip_first and max_num_results.
         skip_first = faker.random_int()
-        max_num_results = faker.random_int()
 
         # Act.
         got_results = [
             r
             async for r in config.store.query(
-                [query], skip_first=skip_first, max_num_results=max_num_results
+                queries, skip_first=skip_first, max_num_results=max_num_results
             )
         ]
 
         # Assert.
         # It should have gotten the expected results.
-        for got_result, result in zip(got_results, (result1, result2)):
+        expected_results = [result1, result2]
+        if num_queries == 2:
+            # This should get everything.
+            expected_results.append(result3)
+        expected_results = expected_results[:max_num_results]
+        for got_result, result in zip(got_results, expected_results):
             assert fake_bucket == got_result.bucket
             assert result[DataObject.name] == got_result.name
 
         # It should have built the query.
-        config.mock_session.query.assert_called_once()
+        assert config.mock_session.query.call_count == num_queries
         # It should have added the offset and limit.
-        mock_query.offset.assert_called_once_with(skip_first)
-        mock_query.limit.assert_called_once_with(max_num_results)
+        mock_query.offset.assert_called_with(skip_first)
+        mock_query.limit.assert_called_with(max_num_results)
         # It should have converted to an async iterator.
-        config.mock_make_async_iter.assert_called_once_with(mock_query)
-
-        # It should have added an initial filter to limit data to this
-        # application.
-        args, _ = mock_query.filter.call_args_list[0]
-        assert len(args) == 1
-        assert args[0].query_key == Collection.name
-
-        # It should have added another initial filter to exclude thumbnails.
-        args, _ = mock_query.filter.call_args_list[1]
-        assert len(args) == 1
-        assert args[0].query_key == DataObject.name
+        config.mock_make_async_iter.assert_called_with(mock_query)
 
         # It should have added filters to the query.
-        for call in mock_query.filter.call_args_list[2:]:
+        for call in mock_query.filter.call_args_list:
             args, _ = call
-            name_criterion, value_criterion = args
+            assert len(args) in {1, 2}
+            if len(args) == 1:
+                # These are filters for limiting data to this application and
+                # excluding thumbnails.
+                assert args[0].query_key in {Collection.name, DataObject.name}
 
-            # It should be searching the correct columns.
-            assert name_criterion.query_key == DataObjectMeta.name
-            assert value_criterion.query_key == DataObjectMeta.value
+            elif len(args) == 2:
+                # These are the filters specified by the user.
+                name_criterion, value_criterion = args
 
-            # It should be matching a name exactly.
-            assert name_criterion.op == "="
+                # It should be searching the correct columns.
+                assert name_criterion.query_key == DataObjectMeta.name
+                assert value_criterion.query_key == DataObjectMeta.value
+
+                # It should be matching a name exactly.
+                assert name_criterion.op == "="
+
+    @pytest.mark.asyncio
+    async def test_query_no_queries(self, config: ConfigForTests) -> None:
+        """
+        Tests that `query()` works when we pass it no queries at all.
+
+        Args:
+            config: The configuration to use for testing.
+
+        """
+        # Act.
+        got_results = [r async for r in config.store.query([])]
+
+        # Assert.
+        # It should have gotten nothing.
+        assert len(got_results) == 0
 
     @pytest.mark.asyncio
     async def test_query_empty(self, config: ConfigForTests) -> None:
@@ -564,7 +602,7 @@ class TestIrodsImageMetadataStore:
         query = ImageQuery()
 
         # Act.
-        got_results = [r async for r in config.store.query(query)]
+        got_results = [r async for r in config.store.query([query])]
 
         # Assert.
         # No results should have been produced.

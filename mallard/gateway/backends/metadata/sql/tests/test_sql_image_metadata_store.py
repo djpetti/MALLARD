@@ -74,6 +74,7 @@ class TestSqlImageMetadataStore:
         # coroutines when in fact they aren't.
         mock_results = mock_session.execute.return_value
         mock_results.all = mocker.Mock()
+        mock_results.scalar_one = mocker.Mock()
 
         # In order to make assertions easier, we force it to apply chained
         # query operators to the same underlying mock.
@@ -207,11 +208,8 @@ class TestSqlImageMetadataStore:
 
         # Make it look like we have some existing metadata.
         mock_results = config.mock_session.execute.return_value
-        mock_scalars = mocker.create_autospec(ScalarResult, instance=True)
-        mock_results.scalars.return_value = mock_scalars
-
         old_model = faker.image_model(object_id=object_id)
-        mock_scalars.one.return_value = old_model
+        mock_results.scalar_one.return_value = old_model
 
         # Create some new metadata.
         if new_metadata_type == ImageMetadata:
@@ -278,7 +276,7 @@ class TestSqlImageMetadataStore:
         mock_results.scalars.return_value = mock_scalars
 
         fake_model = faker.image_model(object_id=object_id)
-        mock_scalars.one.return_value = fake_model
+        mock_results.scalar_one.return_value = fake_model
 
         # Act.
         got_metadata = await config.store.get(object_id)
@@ -313,7 +311,7 @@ class TestSqlImageMetadataStore:
         # Arrange.
         # Make it look like the object does not exist.
         mock_results = config.mock_session.execute.return_value
-        mock_results.scalars.side_effect = NoResultFound
+        mock_results.scalar_one.side_effect = NoResultFound
 
         # Act and assert.
         with pytest.raises(KeyError, match="No metadata"):

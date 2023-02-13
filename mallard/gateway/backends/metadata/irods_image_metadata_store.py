@@ -298,7 +298,6 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
     ) -> AsyncIterable[ObjectRef]:
         # TODO (danielp): We cannot currently correctly handle orderings
         #   with multiple queries.
-        #
         queries = list(queries)
         orderings = list(orderings)
         if len(queries) > 1 and len(orderings) > 0:  # pragma: no cover

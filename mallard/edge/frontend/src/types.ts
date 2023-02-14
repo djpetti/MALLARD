@@ -22,11 +22,11 @@ export enum RequestState {
  */
 export interface ImageQuery {
   /** Name of the images to search for. */
-  name: string;
+  name?: string;
   /** Notes for the images to search for. */
-  notes: string;
+  notes?: string;
   /** Camera for the images to search for. */
-  camera: string;
+  camera?: string;
 }
 
 /**
@@ -92,7 +92,7 @@ export interface SearchState {
   autocompleteSuggestions: string[];
 
   /** Current query used for autocomplete. */
-  query: ImageQuery | null;
+  query: ImageQuery[];
   /** State of the autocomplete query. */
   queryState: RequestState;
 }
@@ -102,7 +102,7 @@ export interface SearchState {
  */
 export interface ImageViewState extends NormalizedState<ImageEntity> {
   /** Most recent query, possibly still in progress. */
-  currentQuery: ImageQuery | null;
+  currentQuery: ImageQuery[];
   /** Options provided for the current query. */
   currentQueryOptions: QueryOptions;
 

@@ -86,14 +86,14 @@ function metadataToForm(metadata: UavImageMetadata): any[] {
  * @return {QueryResponse} The result of the query.
  */
 export async function queryImages(
-  query: ImageQuery,
-  orderings?: Ordering[],
+  query: ImageQuery[],
+  orderings: Ordering[] = [],
   resultsPerPage?: number,
-  pageNum?: number
+  pageNum: number = 1
 ): Promise<QueryResponse> {
   const response = await api
     .queryImagesImagesQueryPost(resultsPerPage, pageNum, {
-      query: query,
+      queries: query,
       orderings: orderings,
     })
     .catch(function (error) {

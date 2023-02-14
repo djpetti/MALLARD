@@ -47,7 +47,7 @@ type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
  * Return type for the `thunkStartQuery` creator.
  */
 interface StartQueryReturn {
-  query: ImageQuery;
+  query: ImageQuery[];
   options: QueryOptions;
   result: QueryResponse;
 }
@@ -74,6 +74,12 @@ interface LoadImageReturn {
 interface LoadMetadataReturn {
   imageIds: string[];
   metadata: UavImageMetadata[];
+}
+
+/**
+ * Return type for the `thunkDoAutocomplete` creator
+ */
+interface DoAutocompleteReturn {
 }
 
 /**
@@ -105,7 +111,7 @@ const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
   selectId: (entity) => createImageEntityId(entity.backendId),
 });
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
-  currentQuery: null,
+  currentQuery: [],
   currentQueryOptions: {},
   currentQueryState: RequestState.IDLE,
   metadataLoadingState: RequestState.IDLE,
@@ -114,7 +120,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   search: {
     searchString: "",
     autocompleteSuggestions: [],
-    query: null,
+    query: [],
     queryState: RequestState.IDLE,
   },
 });
@@ -122,13 +128,6 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
 /** Memoized selectors for the state. */
 export const thumbnailGridSelectors =
   thumbnailGridAdapter.getSelectors<RootState>((state) => state.imageView);
-
-/**
- * Generates a query based on the search string a user entered.
- * @param {string} searchString The search string.
- * @return {ImageQuery} The generated query.
- */
-function queryFromSearchString(searchString: string): ImageQuery {}
 
 /**
  * Action creator that starts a new request for thumbnails on the homepage.
@@ -141,7 +140,7 @@ export const thunkStartNewQuery = createAsyncThunk(
     resultsPerPage,
     startPageNum,
   }: {
-    query: ImageQuery;
+    query: ImageQuery[];
     orderings?: Ordering[];
     resultsPerPage?: number;
     startPageNum?: number;
@@ -177,7 +176,7 @@ export const thunkContinueQuery = createAsyncThunk(
     return {
       pageNum: pageNum,
       result: await queryImages(
-        state.currentQuery as ImageQuery,
+        state.currentQuery,
         options.orderings,
         options.resultsPerPage,
         pageNum
@@ -292,6 +291,14 @@ export const thunkLoadMetadata = createAsyncThunk(
 );
 
 /**
+ * Action creator that starts a new autocomplete request.
+ */
+export const thunkDoAutocomplete = createAsyncThunk(
+    "thumbnailGrid/doAutocomplete",
+    async (searchString: string): Promise<>
+)
+
+/**
  * Thunk for clearing a loaded full-sized image. It will
  * handle releasing the memory.
  * @param {string} imageId The entity ID of the image to clear. If not
@@ -361,7 +368,7 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.removeAll(state);
 
       // Reset the query state.
-      state.currentQuery = null;
+      state.currentQuery = [];
       state.currentQueryOptions = {};
       state.currentQueryState = RequestState.IDLE;
       state.metadataLoadingState = RequestState.IDLE;

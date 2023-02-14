@@ -470,7 +470,7 @@ async def infer_image_metadata(
 
 @router.post("/query", response_model=QueryResponse)
 async def query_images(
-    query: ImageQuery = ImageQuery(),
+    queries: List[ImageQuery] = Body([ImageQuery()]),
     orderings: List[Ordering] = Body([]),
     results_per_page: int = Query(50, gt=0),
     page_num: int = Query(1, gt=0),
@@ -480,7 +480,7 @@ async def query_images(
     Performs a query for images that meet certain criteria.
 
     Args:
-        query: Specifies the query to perform.
+        queries: Specifies the queries to perform.
         orderings: Specifies a specific ordering for the final results. It
             will first sort by the first ordering specified, then the
             second, etc.
@@ -494,13 +494,16 @@ async def query_images(
         The query response.
 
     """
-    logger.debug("Querying for images that match {}.", query)
+    logger.debug(
+        "Querying for images that match {}.",
+        " OR ".join((str(q) for q in queries)),
+    )
     # First, we assume that this particular backend can query images.
     metadata = cast(ImageMetadataStore, metadata_store)
 
     skip_first = (page_num - 1) * results_per_page
     results = metadata.query(
-        [query],
+        queries,
         skip_first=skip_first,
         max_num_results=results_per_page,
         orderings=orderings,

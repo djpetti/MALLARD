@@ -91,7 +91,7 @@ class ExifReader:
             The same angle in decimal degrees.
 
         """
-        angle = degrees + minutes / 60 + seconds / (60 ** 2)
+        angle = degrees + minutes / 60 + seconds / (60**2)
         if direction in {cls.LatLonDirection.WEST, cls.LatLonDirection.SOUTH}:
             angle *= -1
 

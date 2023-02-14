@@ -59,6 +59,7 @@ async def test_as_form(config: ConfigForTests) -> None:
         config: The configuration to use for testing.
 
     """
+
     # Arrange.
     # Create a testing model class.
     class TestModel(BaseModel):
@@ -95,6 +96,7 @@ async def test_as_form_nested(config: ConfigForTests) -> None:
         config: The configuration to use for testing.
 
     """
+
     # Arrange.
     # Create the testing model classes.
     @fastapi_utils.as_form
@@ -144,6 +146,7 @@ async def test_as_form_defaults(config: ConfigForTests) -> None:
         config: The configuration to use for testing.
 
     """
+
     # Arrange.
     # Create the testing model class.
     class TestModel(BaseModel):
@@ -189,7 +192,7 @@ async def test_as_form_defaults(config: ConfigForTests) -> None:
             {"foo": [1, 2, 3], "bar": "hello"},
         ),
     ],
-    ids={"empty", "not_nested", "one_level", "two_levels", "with_list"},
+    ids=["empty", "not_nested", "one_level", "two_levels", "with_list"],
 )
 def test_flatten_dict(
     nested: Dict[str, Any], expected_flat: Dict[str, Any]

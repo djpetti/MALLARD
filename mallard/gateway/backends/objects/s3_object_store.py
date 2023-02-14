@@ -219,7 +219,7 @@ class S3ObjectStore(ObjectStore):
     """
     Number of concurrent uploads to allow for multi-part uploads.
     """
-    _CHUNK_SIZE = 5 * 2 ** 20
+    _CHUNK_SIZE = 5 * 2**20
     """
     Chunk size to use for multi-part uploads, in bytes. Note that this can't
     be below 5 MiB, which is a limitation imposed by the S3 API.

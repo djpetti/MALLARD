@@ -4,7 +4,7 @@ Tests for the `irods_image_metadata_store` module.
 
 import unittest.mock as mock
 from pathlib import Path
-from typing import AsyncIterable, Type
+from typing import AsyncIterable, List, Type
 
 import pytest
 from faker import Faker
@@ -25,6 +25,7 @@ from mallard.gateway.backends.metadata import (
 from mallard.gateway.backends.metadata.schemas import (
     ImageMetadata,
     ImageQuery,
+    Ordering,
     UavImageMetadata,
 )
 from mallard.type_helpers import ArbitraryTypesConfig, Request
@@ -172,6 +173,14 @@ class TestIrodsImageMetadataStore:
         metadata = types_to_faker_functions[
             class_specific_config.metadata_type
         ]()
+
+        # In order to make it easier to unravel the chain of mocked filter()
+        # calls, we make chained query operations return the same query.
+        mock_query = mock_session.query.return_value
+        mock_query.filter.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
 
         return cls.ConfigForTests(
             store=store,
@@ -472,12 +481,26 @@ class TestIrodsImageMetadataStore:
     @pytest.mark.parametrize(
         "max_num_results", [1, 100], ids=["low_limit", "high_limit"]
     )
+    @pytest.mark.parametrize(
+        "orderings",
+        [
+            [],
+            [Ordering(field=Ordering.Field.NAME)],
+            [Ordering(field=Ordering.Field.NAME, ascending=False)],
+            [
+                Ordering(field=Ordering.Field.CAPTURE_DATE),
+                Ordering(field=Ordering.Field.NAME),
+            ],
+        ],
+        ids=["no_order", "one_ordering", "one_ordering_desc", "two_orderings"],
+    )
     async def test_query(
         self,
         config: ConfigForTests,
         faker: Faker,
         num_queries: int,
         max_num_results: int,
+        orderings: List[Ordering],
     ) -> None:
         """
         Tests that `query` works.
@@ -488,6 +511,7 @@ class TestIrodsImageMetadataStore:
             num_queries: The number of queries to test with.
             max_num_results: The maximum number of results that we want to
                 return from the query.
+            orderings: The orderings to use for testing.
 
         """
         # Arrange.
@@ -501,13 +525,6 @@ class TestIrodsImageMetadataStore:
             {Collection.name: fake_bucket_path, DataObject.name: faker.word()}
             for _ in range(3)
         ]
-
-        # In order to make it easier to unravel the chain of mocked filter()
-        # calls, we make filter, offset, and limit return the same query.
-        mock_query = config.mock_session.query.return_value
-        mock_query.filter.return_value = mock_query
-        mock_query.offset.return_value = mock_query
-        mock_query.limit.return_value = mock_query
 
         async def results_iter_1() -> AsyncIterable[dict]:
             yield result1
@@ -529,7 +546,10 @@ class TestIrodsImageMetadataStore:
         got_results = [
             r
             async for r in config.store.query(
-                queries, skip_first=skip_first, max_num_results=max_num_results
+                queries,
+                skip_first=skip_first,
+                max_num_results=max_num_results,
+                orderings=orderings,
             )
         ]
 
@@ -547,8 +567,23 @@ class TestIrodsImageMetadataStore:
         # It should have built the query.
         assert config.mock_session.query.call_count == num_queries
         # It should have added the offset and limit.
+        mock_query = config.mock_session.query.return_value
         mock_query.offset.assert_called_with(skip_first)
         mock_query.limit.assert_called_with(max_num_results)
+
+        # Check for ascending vs. descending.
+        expected_calls = []
+        for ordering in orderings:
+            expected_calls.append(
+                mock.call(
+                    mock.ANY, order="asc" if ordering.ascending else "desc"
+                )
+            )
+        # It will repeat this for every individual query.
+        expected_calls *= num_queries
+        # It should have applied the orderings.
+        mock_query.order_by.assert_has_calls(expected_calls)
+
         # It should have converted to an async iterator.
         config.mock_make_async_iter.assert_called_with(mock_query)
 
@@ -610,5 +645,6 @@ class TestIrodsImageMetadataStore:
 
         # It should have built the query.
         config.mock_session.query.assert_called_once()
-        # It should have added only the filter for MALLARD data.
-        config.mock_session.query.return_value.filter.assert_called_once()
+        # It should have added only the filters for MALLARD data and
+        # thumbnails..
+        assert config.mock_session.query.return_value.filter.call_count == 2

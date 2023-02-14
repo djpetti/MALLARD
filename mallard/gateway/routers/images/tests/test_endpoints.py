@@ -571,13 +571,20 @@ async def test_infer_metadata(create_uav_params: CreateUavParams) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("results_per_page", "page_num", "total_results", "is_last"),
     (
-        (10, 1, 5, True),
-        (20, 2, 40, False),
-        (20, 3, 40, True),
-        (5, 2, 16, False),
-        (10, 5, 5, True),
+        "results_per_page",
+        "page_num",
+        "total_results",
+        "is_last",
+        "multiple_queries",
+    ),
+    (
+        (10, 1, 5, True, False),
+        (20, 2, 40, False, False),
+        (20, 3, 40, True, False),
+        (5, 2, 16, False, False),
+        (10, 5, 5, True, False),
+        (10, 1, 5, True, True),
     ),
     ids=(
         "fits_on_one_page",
@@ -585,6 +592,7 @@ async def test_infer_metadata(create_uav_params: CreateUavParams) -> None:
         "empty_last_page",
         "truncated_results",
         "out_of_bounds",
+        "multiple_queries",
     ),
 )
 async def test_query_images(
@@ -595,6 +603,7 @@ async def test_query_images(
     page_num: int,
     total_results: int,
     is_last: bool,
+    multiple_queries: bool,
 ) -> None:
     """
     Tests that the `query_image` endpoint works.
@@ -607,11 +616,15 @@ async def test_query_images(
         page_num: Page number to retrieve.
         total_results: Total number of results that will be produced.
         is_last: True if we expect it to report that this is the last page.
+        multiple_queries: Whether to simulate running more than one query at
+            once.
 
     """
     # Arrange.
     # Generate a fake query.
-    mock_query = mocker.create_autospec(ImageQuery, instance=True)
+    mock_queries = [mocker.create_autospec(ImageQuery, instance=True)]
+    if multiple_queries:
+        mock_queries.append(mocker.create_autospec(ImageQuery, instance=True))
 
     # Fake the query results.
     async def query_results() -> AsyncIterable:
@@ -626,7 +639,7 @@ async def test_query_images(
 
     # Act.
     response = await endpoints.query_images(
-        query=mock_query,
+        queries=mock_queries,
         orderings=[],
         results_per_page=results_per_page,
         page_num=page_num,
@@ -636,7 +649,7 @@ async def test_query_images(
     # Assert.
     # It should have queried the backend.
     config.mock_metadata_store.query.assert_called_once_with(
-        mock_query,
+        mock_queries,
         skip_first=(page_num - 1) * results_per_page,
         max_num_results=results_per_page,
         orderings=[],

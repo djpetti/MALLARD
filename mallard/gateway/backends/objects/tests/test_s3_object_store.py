@@ -290,6 +290,7 @@ class TestS3ObjectStore:
             num_pages: The number of pages of results to simulate.
 
         """
+
         # Arrange.
         def _fake_results(num_results: int) -> List[Dict[str, str]]:
             # Creates fake results.
@@ -372,7 +373,7 @@ class TestS3ObjectStore:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "file_size",
-        [10 * 2 ** 20, 5 * 2 ** 20, 1024, 2 ** 26],
+        [10 * 2**20, 5 * 2**20, 1024, 2**26],
         ids=["large", "borderline", "small", "huge"],
     )
     async def test_create_object_upload_file(

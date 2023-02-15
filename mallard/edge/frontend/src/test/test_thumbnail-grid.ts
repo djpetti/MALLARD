@@ -277,7 +277,7 @@ describe("thumbnail-grid", () => {
     );
 
     // Act.
-    gridElement.query = {};
+    gridElement.query = [{}];
     await gridElement.updateComplete;
 
     // Assert.

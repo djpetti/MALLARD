@@ -91,7 +91,7 @@ describe("thumbnail-grid-slice action creators", () => {
       const query: ImageQuery = {};
 
       // Act.
-      await thunkStartNewQuery({ query: query, startPageNum: startPage })(
+      await thunkStartNewQuery({ query: [query], startPageNum: startPage })(
         store.dispatch,
         store.getState,
         {}
@@ -124,7 +124,7 @@ describe("thumbnail-grid-slice action creators", () => {
     const query: ImageQuery = {};
     const state = fakeState();
     const pageNum = faker.datatype.number();
-    state.imageView.currentQuery = query;
+    state.imageView.currentQuery = [query];
     state.imageView.currentQueryHasMorePages = true;
     state.imageView.currentQueryOptions.pageNum = pageNum;
     const store = mockStoreCreator(state);
@@ -164,14 +164,14 @@ describe("thumbnail-grid-slice action creators", () => {
   });
 
   each([
-    ["there is no current query", null, true, 3],
-    ["there are no more pages", {}, false, 3],
-    ["this page was already loaded", {}, true, 2],
+    ["there is no current query", [], true, 3],
+    ["there are no more pages", [{}], false, 3],
+    ["this page was already loaded", [{}], true, 2],
   ]).it(
     "ignores a thunkContinueQuery call when %s",
     async (
       _: string,
-      query: ImageQuery | null,
+      query: ImageQuery[],
       hasMorePages: boolean,
       pageNum: number
     ) => {
@@ -590,7 +590,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
 
     // Create a fake query.
-    state.currentQuery = {};
+    state.currentQuery = [{}];
     state.currentQueryState = RequestState.LOADING;
     // Create a fake image to add to the state.
     const fakeImage: ObjectRef = {

@@ -91,8 +91,6 @@ export interface SearchState {
   /** Current autocomplete suggestions. */
   autocompleteSuggestions: string[];
 
-  /** Current query used for autocomplete. */
-  query: ImageQuery[];
   /** State of the autocomplete query. */
   queryState: RequestState;
 }

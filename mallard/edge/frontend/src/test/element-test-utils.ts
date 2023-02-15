@@ -39,7 +39,7 @@ export function fakeState(): RootState {
   // Create a fake state.
   return {
     imageView: {
-      currentQuery: null,
+      currentQuery: [],
       currentQueryOptions: {},
       currentQueryState: RequestState.IDLE,
       metadataLoadingState: RequestState.IDLE,
@@ -47,6 +47,11 @@ export function fakeState(): RootState {
       currentQueryHasMorePages: true,
       ids: [],
       entities: {},
+      search: {
+        searchString: "",
+        autocompleteSuggestions: [],
+        queryState: RequestState.IDLE,
+      },
     },
     uploads: {
       dialogOpen: false,

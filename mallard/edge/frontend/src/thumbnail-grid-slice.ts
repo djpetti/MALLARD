@@ -26,6 +26,7 @@ import {
   UavImageMetadata,
 } from "typescript-axios";
 import { ThunkAction } from "redux-thunk";
+import { requestAutocomplete } from "./autocomplete";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -80,6 +81,10 @@ interface LoadMetadataReturn {
  * Return type for the `thunkDoAutocomplete` creator
  */
 interface DoAutocompleteReturn {
+  /** Current search string. */
+  searchString: string;
+  /** Current autocomplete suggestions. */
+  autocompleteSuggestions: string[];
 }
 
 /**
@@ -120,7 +125,6 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   search: {
     searchString: "",
     autocompleteSuggestions: [],
-    query: [],
     queryState: RequestState.IDLE,
   },
 });
@@ -294,9 +298,19 @@ export const thunkLoadMetadata = createAsyncThunk(
  * Action creator that starts a new autocomplete request.
  */
 export const thunkDoAutocomplete = createAsyncThunk(
-    "thumbnailGrid/doAutocomplete",
-    async (searchString: string): Promise<>
-)
+  "thumbnailGrid/doAutocomplete",
+  async ({
+    searchString,
+    numSuggestions = 5,
+  }: {
+    searchString: string;
+    numSuggestions: number;
+  }): Promise<DoAutocompleteReturn> => {
+    // Query the backend for autocomplete suggestions.
+    const suggestions = await requestAutocomplete(searchString, numSuggestions);
+    return { searchString: searchString, autocompleteSuggestions: suggestions };
+  }
+);
 
 /**
  * Thunk for clearing a loaded full-sized image. It will
@@ -402,6 +416,20 @@ export const thumbnailGridSlice = createSlice({
 
       // Keep the current page number up-to-date.
       state.currentQueryOptions.pageNum = action.payload.pageNum;
+    });
+
+    // We initiated a new autocomplete query.
+    builder.addCase(thunkDoAutocomplete.pending, (state, action) => {
+      state.search.queryState = RequestState.LOADING;
+      state.search.searchString = action.meta.arg.searchString;
+    });
+
+    // We completed an autocomplete query and have suggestions.
+    builder.addCase(thunkDoAutocomplete.fulfilled, (state, action) => {
+      // Add the results to the state.
+      state.search.queryState = RequestState.SUCCEEDED;
+      state.search.autocompleteSuggestions =
+        action.payload.autocompleteSuggestions;
     });
 
     // Add results from thumbnail loading.

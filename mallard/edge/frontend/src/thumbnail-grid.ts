@@ -114,7 +114,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * This will apply no filters and get everything.
    * @private
    */
-  protected static DEFAULT_QUERY: ImageQuery = {};
+  protected static DEFAULT_QUERY: ImageQuery[] = [{}];
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({
@@ -172,7 +172,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   public refresh(): void {
     this.dispatchEvent(
-      new CustomEvent<ImageQuery>(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, {
+      new CustomEvent<ImageQuery[]>(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, {
         bubbles: true,
         composed: false,
         detail: this.query,
@@ -342,7 +342,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       hasMorePages: state.imageView.currentQueryHasMorePages,
 
       queryPageNum: state.imageView.currentQueryOptions.pageNum,
-      isQueryRunning: state.imageView.currentQuery != null,
+      isQueryRunning: state.imageView.currentQuery.length > 0,
     };
   }
 

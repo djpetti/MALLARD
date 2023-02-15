@@ -74,7 +74,7 @@ describe("api-client", () => {
 
     // Act.
     const result: QueryResponse = await queryImages(
-      query,
+      [query],
       orderings,
       resultsPerPage,
       pageNum
@@ -103,7 +103,7 @@ describe("api-client", () => {
     mockQueryImages.mockRejectedValue(fakeError);
 
     // Act and assert.
-    await expect(queryImages({})).rejects.toThrow(FakeAxiosError);
+    await expect(queryImages([{}])).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

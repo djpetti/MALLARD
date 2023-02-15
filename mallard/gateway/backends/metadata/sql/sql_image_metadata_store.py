@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql.expression import delete, Select, select
+from sqlalchemy.sql.expression import Select, delete, select
 
 from ...objects.models import ObjectRef
 from ...time_expiring_cache import time_expiring_cache
@@ -251,7 +251,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         query: Select,
         column: InstrumentedAttribute,
     ) -> Select:
-        return query.where(column.like(f"%{value}%"))
+        return query.where(column.contains(value))
 
     @__update_query.register
     def _(

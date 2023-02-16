@@ -389,6 +389,12 @@ export const thumbnailGridSlice = createSlice({
       state.currentQueryError = null;
       state.currentQueryHasMorePages = true;
     },
+    // Removes any current autocomplete suggestions.
+    clearAutocomplete(state, _) {
+      state.search.searchString = "";
+      state.search.autocompleteSuggestions = [];
+      state.search.queryState = RequestState.IDLE;
+    },
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
@@ -479,6 +485,10 @@ export const thumbnailGridSlice = createSlice({
   },
 });
 
-export const { clearFullSizedImage, addArtifact, clearImageView } =
-  thumbnailGridSlice.actions;
+export const {
+  clearFullSizedImage,
+  addArtifact,
+  clearImageView,
+  clearAutocomplete,
+} = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

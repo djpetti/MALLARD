@@ -8,7 +8,7 @@ import { ConnectedMetadataForm } from "./metadata-form";
 import { ConnectedLargeImageDisplay } from "./large-image-display";
 import { TopNavBar } from "./top-nav-bar";
 import { ConnectedMallardApp } from "./mallard-app";
-import { SearchBox } from "./search-box";
+import { ConnectedSearchBox } from "./search-box";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -27,7 +27,7 @@ const componentClasses: ComponentType[] = [
   ConnectedLargeImageDisplay,
   TopNavBar,
   ConnectedMallardApp,
-  SearchBox,
+  ConnectedSearchBox,
 ];
 
 /**

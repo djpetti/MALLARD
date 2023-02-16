@@ -2,6 +2,9 @@ import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
 import { UavImageMetadata } from "typescript-axios";
 
+/** Maximum length we allow for autocomplete suggestions. */
+const MAX_AUTOCOMPLETE_LENGTH = 60;
+
 /**
  * Generates a set of queries based on the search string a user entered.
  * @param {string} searchString The search string.
@@ -29,9 +32,13 @@ function queriesFromSearchString(searchString: string): ImageQuery[] {
 function findTextInField(
   searchString: string,
   fieldText: string,
-  desiredLength: number = 30
+  desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
 ): string | null {
-  let startIndex = fieldText.indexOf(searchString);
+  // Ignore case
+  searchString = searchString.toLowerCase();
+  const fieldTextLower = fieldText.toLowerCase();
+
+  let startIndex = fieldTextLower.indexOf(searchString);
   if (startIndex < 0) {
     // Search string was not found.
     return null;
@@ -82,6 +89,25 @@ function findSurroundingText(
 }
 
 /**
+ * Removes duplicate auto-complete suggestions.
+ * @param {string[]} suggestions The raw suggestions.
+ * @return {string[]} The filtered suggestions.
+ */
+function deDuplicateSuggestions(suggestions: string[]): string[] {
+  const suggestionSet = new Set<string>();
+
+  const filteredSuggestions = [];
+  for (const suggestion of suggestions) {
+    if (!suggestionSet.has(suggestion)) {
+      filteredSuggestions.push(suggestion);
+      suggestionSet.add(suggestion);
+    }
+  }
+
+  return filteredSuggestions;
+}
+
+/**
  * Performs a request to auto-complete a search string.
  * @param {string} searchString The search string to get suggested
  *  completions for.
@@ -103,5 +129,8 @@ export async function requestAutocomplete(
   );
 
   // Find the matching text from each item.
-  return allMetadata.map((m) => findSurroundingText(searchString, m));
+  const suggestions = allMetadata.map((m) =>
+    findSurroundingText(searchString, m)
+  );
+  return deDuplicateSuggestions(suggestions);
 }

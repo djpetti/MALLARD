@@ -17,7 +17,6 @@ import {
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
-// Using older require syntax here so that we get the correct mock type.
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
 

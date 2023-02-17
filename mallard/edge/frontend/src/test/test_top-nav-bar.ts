@@ -44,7 +44,7 @@ describe("top-nav-bar", () => {
     expect(topBar).not.toBe(null);
 
     // It should have rendered the title.
-    const titleDiv = topBar?.querySelector("div");
+    const titleDiv = topBar?.querySelector("span");
     expect(titleDiv).not.toBe(null);
     expect(titleDiv?.textContent).toEqual(fakeTitle);
   });

@@ -7,8 +7,6 @@ import { RootState } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, finishUpload } from "../upload-slice";
-import { ThumbnailGrid } from "../thumbnail-grid";
-import { clearImageView } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -32,15 +30,10 @@ jest.mock("../store", () => ({
 
 const mockDialogOpened = dialogOpened as jest.MockedFn<typeof dialogOpened>;
 const mockFinishUpload = finishUpload as jest.MockedFn<typeof finishUpload>;
-const mockClearImageView = clearImageView as jest.MockedFn<
-  typeof clearImageView
->;
 
 describe("mallard-app", () => {
   /** Internal MallardApp to use for testing. */
   let app: ConnectedMallardApp;
-  /** Internal ThumbnailGrid used by the app. **/
-  let thumbnailGrid: ThumbnailGrid;
 
   beforeAll(() => {
     // Manually register the custom element.
@@ -151,6 +144,13 @@ describe("mallard-app", () => {
     app.uploadsInProgress = true;
     await app.updateComplete;
 
+    // Listen for the refresh event.
+    const refreshEventHandler = jest.fn();
+    app.addEventListener(
+      ConnectedMallardApp.REFRESH_EVENT_NAME,
+      refreshEventHandler
+    );
+
     // Act.
     // Now, make it look like they are finished.
     app.uploadsInProgress = false;
@@ -158,7 +158,7 @@ describe("mallard-app", () => {
 
     // Assert.
     // It should have refreshed the thumbnails.
-    expect(mockClearImageView).toBeCalledTimes(1);
+    expect(refreshEventHandler).toBeCalledTimes(1);
   });
 
   it("updates the properties from the Redux state", () => {

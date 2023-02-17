@@ -88,10 +88,10 @@ describe("thumbnail-grid-slice action creators", () => {
 
       const store = mockStoreCreator({});
       // Fake query to perform.
-      const query: ImageQuery = {};
+      const queries: ImageQuery[] = [{}];
 
       // Act.
-      await thunkStartNewQuery({ query: [query], startPageNum: startPage })(
+      await thunkStartNewQuery({ query: queries, startPageNum: startPage })(
         store.dispatch,
         store.getState,
         {}
@@ -110,7 +110,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
       const fulfilledAction = actions[1];
       expect(fulfilledAction.type).toEqual(thunkStartNewQuery.fulfilled.type);
-      expect(fulfilledAction.payload.query).toEqual(query);
+      expect(fulfilledAction.payload.query).toEqual(queries);
       expect(fulfilledAction.payload.result).toEqual(queryResult);
       expect(fulfilledAction.payload.options).toMatchObject({
         pageNum: startPage ?? 1,

@@ -70,11 +70,11 @@ describe("api-client", () => {
     });
 
     const orderings = [fakeOrdering(), fakeOrdering()];
-    const query: ImageQuery = {};
+    const queries: ImageQuery[] = [{}];
 
     // Act.
     const result: QueryResponse = await queryImages(
-      [query],
+      queries,
       orderings,
       resultsPerPage,
       pageNum
@@ -84,7 +84,7 @@ describe("api-client", () => {
     // It should have queried the images.
     expect(mockQueryImages).toBeCalledTimes(1);
     expect(mockQueryImages).toBeCalledWith(resultsPerPage, pageNum, {
-      query: query,
+      queries: queries,
       orderings: orderings,
     });
 

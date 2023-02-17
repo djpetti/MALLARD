@@ -162,9 +162,10 @@ export function fakeObjectRef(): ObjectRef {
 
 /**
  * Creates a fake `ImageMetadata`.
+ * @param {string} notes The notes to use for the metadata.
  * @return {UavImageMetadata} The random `ImageMetadata` that it created.
  */
-export function fakeImageMetadata(): UavImageMetadata {
+export function fakeImageMetadata(notes?: string): UavImageMetadata {
   return {
     name: faker.system.fileName(),
     format: faker.random.arrayElement([
@@ -178,7 +179,7 @@ export function fakeImageMetadata(): UavImageMetadata {
       PlatformType.GROUND,
       PlatformType.AERIAL,
     ]),
-    notes: faker.lorem.words(),
+    notes: notes ?? faker.lorem.words(),
     sessionName: faker.lorem.words(),
     sequenceNumber: faker.datatype.number(),
     captureDate: faker.date.past().toISOString(),

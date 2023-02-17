@@ -43,11 +43,21 @@ function findTextInField(
   if (startIndex > 0) {
     prefix = "...";
   }
-  if (endIndex >= fieldText.length) {
+  if (endIndex < fieldText.length) {
     suffix = "...";
   }
   startIndex = Math.max(startIndex, 0);
-  endIndex = Math.min(endIndex, fieldText.length - 1);
+  endIndex = Math.min(endIndex, fieldText.length);
+
+  // If we still have some more length to fill, try expanding.
+  let lengthBudget = desiredLength - (endIndex - startIndex);
+  if (lengthBudget > 0) {
+    startIndex = Math.max(startIndex - lengthBudget, 0);
+    lengthBudget = endIndex - startIndex - desiredLength;
+  }
+  if (lengthBudget > 0) {
+    endIndex = Math.min(endIndex + lengthBudget, fieldText.length);
+  }
 
   // Extract the surrounding text.
   return prefix + fieldText.substring(startIndex, endIndex) + suffix;
@@ -58,18 +68,23 @@ function findTextInField(
  * suggestion.
  * @param {string} searchString The original search string.
  * @param {UavImageMetadata} metadata The metadata for a matching entity.
+ * @param {number} desiredLength THe desired length of the returned text.
  * @return {string} The surrounding text from the field that matches.
  */
 function findSurroundingText(
   searchString: string,
-  metadata: UavImageMetadata
+  metadata: UavImageMetadata,
+  desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
 ): string {
   // Check the text fields for matches.
   let matchText: string | null = null;
 
-  matchText = findTextInField(searchString, metadata.name ?? "") ?? matchText;
-  matchText = findTextInField(searchString, metadata.notes ?? "") ?? matchText;
-  matchText = findTextInField(searchString, metadata.camera ?? "") ?? matchText;
+  const searchField = (fieldText?: string) =>
+    findTextInField(searchString, fieldText ?? "", desiredLength) ?? matchText;
+
+  matchText = searchField(metadata.name);
+  matchText = searchField(metadata.notes);
+  matchText = searchField(metadata.camera);
 
   return matchText as string;
 }
@@ -113,11 +128,13 @@ export function queriesFromSearchString(searchString: string): ImageQuery[] {
  *  completions for.
  * @param {number} numSuggestions The maximum number of autocomplete suggestions
  *  to get.
+ * @param {number} desiredLength The desired length of the suggestions.
  * @return {string[]} The autocomplete suggestions.
  */
 export async function requestAutocomplete(
   searchString: string,
-  numSuggestions: number = 5
+  numSuggestions: number = 5,
+  desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
 ): Promise<string[]> {
   // Initially, query for any entities that match the search string.
   const queries = queriesFromSearchString(searchString);
@@ -130,7 +147,7 @@ export async function requestAutocomplete(
 
   // Find the matching text from each item.
   const suggestions = allMetadata.map((m) =>
-    findSurroundingText(searchString, m)
+    findSurroundingText(searchString, m, desiredLength)
   );
   return deDuplicateSuggestions(suggestions);
 }

@@ -195,7 +195,7 @@ export const thunkContinueQuery = createAsyncThunk(
       // have already loaded this page, or if there are no more pages,
       // it would be pointless to continue loading.
       return (
-        state.currentQuery != null &&
+        state.currentQuery.length > 0 &&
         state.currentQueryHasMorePages &&
         pageNum > (state.currentQueryOptions.pageNum as number)
       );

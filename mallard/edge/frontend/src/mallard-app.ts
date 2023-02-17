@@ -12,6 +12,7 @@ import { Action } from "redux";
 import { finishUpload, dialogOpened } from "./upload-slice";
 import { RootState } from "./types";
 import { ThumbnailGrid } from "./thumbnail-grid";
+import { clearImageView } from "./thumbnail-grid-slice";
 
 /**
  * This is the root element that controls the behavior of the main page of
@@ -57,6 +58,11 @@ export class MallardApp extends LitElement {
    * opened or closed.
    */
   static UPLOAD_MODAL_STATE_CHANGE = `${MallardApp.tagName}-upload-modal-state-change`;
+
+  /** Name for the custom event signaling that we want to reset the current
+   *  artifact display.
+   */
+  static REFRESH_EVENT_NAME = `${MallardApp.tagName}-refresh`;
 
   /** Indicates whether the upload modal should be open. */
   @property()
@@ -136,7 +142,12 @@ export class MallardApp extends LitElement {
     ) {
       // If we finished some pending uploads, we should force a refresh of the
       // thumbnail grid in order to capture any new data.
-      this.thumbnailGrid.refresh();
+      this.dispatchEvent(
+        new CustomEvent(MallardApp.REFRESH_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+        })
+      );
     }
   }
 }
@@ -176,6 +187,8 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
         : // If it's closed, finalize the upload.
           (finishUpload() as unknown as Action);
     };
+    handlers[ConnectedMallardApp.REFRESH_EVENT_NAME] = (_: Event) =>
+      clearImageView(null);
     return handlers;
   }
 }

@@ -9,7 +9,11 @@ import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { RequestState, RootState } from "./types";
 import { Action } from "redux";
-import { clearAutocomplete, thunkDoAutocomplete } from "./thumbnail-grid-slice";
+import {
+  clearAutocomplete,
+  thunkDoAutocomplete,
+  thunkTextSearch,
+} from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
 import KeyPressEvent = JQuery.KeyPressEvent;
 
@@ -67,6 +71,16 @@ export class SearchBox extends LitElement {
   static SEARCH_STRING_CHANGED_EVENT_NAME = `${SearchBox.tagName}-search-string-changed`;
 
   /**
+   * Name for the custom event signaling that a search has been run.
+   */
+  static SEARCH_STARTED_EVENT_NAME = `${SearchBox.tagName}-search-started`;
+
+  /** Name for the custom event signaling that the autocomplete suggestions
+   * should be cleared.
+   */
+  static CLEARED_AUTOCOMPLETE_EVENT_NAME = `${SearchBox.tagName}-cleared-autocomplete`;
+
+  /**
    * Suggested completions that will be shown below the search bar.
    */
   @property({ type: Array })
@@ -90,7 +104,13 @@ export class SearchBox extends LitElement {
   private clear(): void {
     this.searchBox.value = "";
     this.showClear = false;
-    this.autocompleteSuggestions = [];
+
+    this.dispatchEvent(
+      new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
   }
 
   /**
@@ -117,7 +137,25 @@ export class SearchBox extends LitElement {
    * @private
    */
   private onKeyPress(event: KeyPressEvent): void {
-    console.log(event.key);
+    if (event.key == "Enter") {
+      // We should perform the actual search.
+      this.dispatchEvent(
+        new CustomEvent<string>(SearchBox.SEARCH_STARTED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+          detail: this.searchBox.value,
+        })
+      );
+
+      // Also, once the search has been run, we should not show suggestions
+      // anymore.
+      this.dispatchEvent(
+        new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+        })
+      );
+    }
   }
 
   /**
@@ -174,6 +212,12 @@ export class SearchBox extends LitElement {
 type SearchStringChangedEvent = CustomEvent<string>;
 
 /**
+ * Event fired when a search is initiated by the user. The detail attribute
+ * contains the search string.
+ */
+type SearchStartedEvent = CustomEvent<string>;
+
+/**
  * Extension of `SearchBox` that connects to Redux.
  */
 export class ConnectedSearchBox extends connect(store, SearchBox) {
@@ -216,6 +260,12 @@ export class ConnectedSearchBox extends connect(store, SearchBox) {
         }) as unknown as Action;
       }
     };
+    handlers[ConnectedSearchBox.SEARCH_STARTED_EVENT_NAME] = (event: Event) =>
+      thunkTextSearch(
+        (event as SearchStartedEvent).detail
+      ) as unknown as Action;
+    handlers[ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME] = (_: Event) =>
+      clearAutocomplete(null);
 
     return handlers;
   }

@@ -60,10 +60,14 @@ export class ConnectedArtifactThumbnail extends connect(
     }
 
     // This should never be undefined, because that means our image ID is invalid.
-    const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+    const imageEntity = thumbnailGridSelectors.selectById(
       state,
       this.frontendId
-    ) as ImageEntity;
+    );
+    if (imageEntity === undefined) {
+      // The frontendId that was set is apparently invalid.
+      return {};
+    }
     if (imageEntity.thumbnailStatus != ImageStatus.VISIBLE) {
       // The thumbnail image is has not been loaded yet.
       return {};

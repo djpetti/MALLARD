@@ -6,20 +6,6 @@ import { UavImageMetadata } from "typescript-axios";
 const MAX_AUTOCOMPLETE_LENGTH = 60;
 
 /**
- * Generates a set of queries based on the search string a user entered.
- * @param {string} searchString The search string.
- * @return {ImageQuery[]} The generated query.
- */
-function queriesFromSearchString(searchString: string): ImageQuery[] {
-  // We will look for the input in all the text fields at once.
-  return [
-    { name: searchString },
-    { notes: searchString },
-    { camera: searchString },
-  ];
-}
-
-/**
  * Finds text that matches a search string in the contents of a field. It
  * will extract the surrounding text.
  * @param {string} searchString The string to search for.
@@ -105,6 +91,20 @@ function deDuplicateSuggestions(suggestions: string[]): string[] {
   }
 
   return filteredSuggestions;
+}
+
+/**
+ * Generates a set of queries based on the search string a user entered.
+ * @param {string} searchString The search string.
+ * @return {ImageQuery[]} The generated query.
+ */
+export function queriesFromSearchString(searchString: string): ImageQuery[] {
+  // We will look for the input in all the text fields at once.
+  return [
+    { name: searchString },
+    { notes: searchString },
+    { camera: searchString },
+  ];
 }
 
 /**

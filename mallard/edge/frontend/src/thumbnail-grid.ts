@@ -104,17 +104,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * the bottom, and we need to load more data.
    */
   static LOAD_MORE_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data`;
-  /**
-   * Name for the custom event signaling that the query needs to be re-run.
-   */
-  static QUERY_REFRESH_EVENT_NAME = `${ThumbnailGrid.tagName}-query-refresh`;
-
-  /**
-   * Initial query to use for fetching images when the page first loads.
-   * This will apply no filters and get everything.
-   * @private
-   */
-  protected static DEFAULT_QUERY: ImageQuery[] = [{}];
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component. */
   @property({
@@ -133,10 +122,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /** Represents the status of the data loading process. */
   @property({ attribute: false })
   public loadingState: RequestState = RequestState.IDLE;
-
-  /** The query that we want to display the results of in this element. */
-  @property({ attribute: false })
-  public query = ThumbnailGrid.DEFAULT_QUERY;
 
   /**
    * Keeps track of whether there are more pages of data to be loaded.
@@ -163,21 +148,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     );
 
     return true;
-  }
-
-  /**
-   * Re-runs the current query and reloads any pertinent data.
-   * Useful if we suspect that the query results have changed since
-   * we ran it last.
-   */
-  public refresh(): void {
-    this.dispatchEvent(
-      new CustomEvent<ImageQuery[]>(ThumbnailGrid.QUERY_REFRESH_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: this.query,
-      })
-    );
   }
 
   /**
@@ -252,12 +222,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         })
       );
     }
-
-    if (_changedProperties.get("query") !== undefined) {
-      // The query has changed. We need to fire an event in order to signal
-      // that the new query should be performed.
-      this.refresh();
-    }
   }
 }
 
@@ -285,6 +249,13 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
    * @private
    */
   private static IMAGES_PER_PAGE = 50;
+
+  /**
+   * Initial query to use for fetching images when the page first loads.
+   * This will apply no filters and get everything.
+   * @private
+   */
+  private static DEFAULT_QUERY: ImageQuery[] = [{}];
 
   /**
    * Keeps track of whether a query has been started yet.
@@ -373,11 +344,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         // Continue the existing query.
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
-    };
-    handlers[ConnectedThumbnailGrid.QUERY_REFRESH_EVENT_NAME] = (_: Event) => {
-      // Clear the image view. Other logic in this component will handle actually
-      // running the new query and processing the results.
-      return clearImageView(null);
     };
     return handlers;
   }

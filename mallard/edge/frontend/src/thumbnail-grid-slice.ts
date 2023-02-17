@@ -20,13 +20,14 @@ import {
   queryImages,
 } from "./api-client";
 import {
+  Field,
   ObjectRef,
   Ordering,
   QueryResponse,
   UavImageMetadata,
 } from "typescript-axios";
 import { ThunkAction } from "redux-thunk";
-import { requestAutocomplete } from "./autocomplete";
+import { queriesFromSearchString, requestAutocomplete } from "./autocomplete";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -312,6 +313,25 @@ export const thunkDoAutocomplete = createAsyncThunk(
   }
 );
 
+/** Action creator that performs a new text search.
+ * @param {string} searchString The search string that the user entered.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkTextSearch(searchString: string): ThunkResult<void> {
+  return (dispatch) => {
+    // Determine the query to use for searching.
+    const queries = queriesFromSearchString(searchString);
+    // Set the new query.
+    dispatch(
+      thunkStartNewQuery({
+        query: queries,
+        orderings: [{ field: Field.CAPTURE_DATE, ascending: false }],
+      })
+    );
+  };
+}
+
 /**
  * Thunk for clearing a loaded full-sized image. It will
  * handle releasing the memory.
@@ -399,6 +419,9 @@ export const thumbnailGridSlice = createSlice({
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
     builder.addCase(thunkStartNewQuery.pending, (state) => {
+      // Remove the current images, which will now be out-of-date.
+      thumbnailGridAdapter.removeAll(state);
+
       state.currentQueryState = RequestState.LOADING;
     });
 

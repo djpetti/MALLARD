@@ -11,6 +11,7 @@ import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import { clearAutocomplete, thunkDoAutocomplete } from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
+import KeyPressEvent = JQuery.KeyPressEvent;
 
 /**
  * Main search box in the MALLARD app.
@@ -111,6 +112,15 @@ export class SearchBox extends LitElement {
   }
 
   /**
+   * Run whenever a key is pressed while the search box is active.
+   * @param {KeyPressEvent} event The event that occurred.
+   * @private
+   */
+  private onKeyPress(event: KeyPressEvent): void {
+    console.log(event.key);
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
@@ -124,6 +134,7 @@ export class SearchBox extends LitElement {
           label="Search"
           icon="search"
           @input="${this.onTextChange}"
+          @keypress="${this.onKeyPress}"
         >
         </mwc-textfield>
         ${this.showClear

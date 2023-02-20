@@ -8,6 +8,7 @@ import thumbnailGridReducer, {
   thumbnailGridSlice,
   thunkClearFullSizedImage,
   thunkContinueQuery,
+  thunkDoAutocomplete,
   thunkLoadImage,
   thunkLoadMetadata,
   thunkLoadThumbnail,
@@ -28,17 +29,17 @@ import {
 } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
+import {
+  getMetadata,
+  loadImage,
+  loadThumbnail,
+  queryImages,
+} from "../api-client";
+import { requestAutocomplete } from "../autocomplete";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
 const faker = require("faker");
-
-// Using older require syntax here so we get the correct mock type.
-const apiClient = require("../api-client");
-const mockQueryImages: jest.Mock = apiClient.queryImages;
-const mockLoadThumbnail: jest.Mock = apiClient.loadThumbnail;
-const mockLoadImage: jest.Mock = apiClient.loadImage;
-const mockGetMetadata: jest.Mock = apiClient.getMetadata;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -47,6 +48,20 @@ jest.mock("../api-client", () => ({
   loadImage: jest.fn(),
   getMetadata: jest.fn(),
 }));
+
+const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
+const mockLoadThumbnail = loadThumbnail as jest.MockedFn<typeof loadThumbnail>;
+const mockLoadImage = loadImage as jest.MockedFn<typeof loadImage>;
+const mockGetMetadata = getMetadata as jest.MockedFn<typeof getMetadata>;
+
+// Mock out the autocomplete functions.
+jest.mock("../autocomplete", () => ({
+  requestAutocomplete: jest.fn(),
+}));
+
+const mockRequestAutocomplete = requestAutocomplete as jest.MockedFn<
+  typeof requestAutocomplete
+>;
 
 // Mock out `createObjectURL` and `revokeObjectURL`.
 const mockCreateObjectUrl = jest.fn();
@@ -364,6 +379,36 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // It should not have dispatched any actions.
     expect(store.getActions()).toHaveLength(0);
+  });
+
+  it("creates a doAutocomplete action", async () => {
+    // Arrange.
+    // Make it look lit it got some autocomplete suggestions.
+    const suggestions = [faker.lorem.sentence(), faker.lorem.sentence()];
+    mockRequestAutocomplete.mockResolvedValue(suggestions);
+
+    // Initialize the fake store with valid state.
+    const state = fakeState();
+    const store = mockStoreCreator(state);
+
+    // Act.
+    const searchString = faker.lorem.sentence();
+    const numSuggestions = faker.datatype.number();
+    await thunkDoAutocomplete({
+      searchString: searchString,
+      numSuggestions: numSuggestions,
+    })(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have performed the autocomplete request.
+    expect(mockRequestAutocomplete).toBeCalledWith(
+      searchString,
+      numSuggestions
+    );
+
+    // It should have dispatched the lifecycle actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
   });
 
   each([

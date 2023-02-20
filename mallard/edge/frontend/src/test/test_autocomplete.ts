@@ -48,6 +48,18 @@ describe("autocomplete", () => {
       "end",
       "...g matches at the end",
     ],
+    [
+      "is very long",
+      "field for search that exceeds the maximum length",
+      "search that exceeds the maximum length",
+      "...search that exceeds the maximum length",
+    ],
+    [
+      "a real-life example (1)",
+      "Switchgrass data collected from Dr. Devos",
+      "switchgrass data",
+      "Switchgrass data col...",
+    ],
   ]).it(
     "gets autocomplete suggestions when the search string %s",
     async (_, fieldValue: string, searchString: string, suggestion: string) => {

@@ -7,6 +7,7 @@ import { RootState } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, finishUpload } from "../upload-slice";
+import { clearImageView } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -30,6 +31,9 @@ jest.mock("../store", () => ({
 
 const mockDialogOpened = dialogOpened as jest.MockedFn<typeof dialogOpened>;
 const mockFinishUpload = finishUpload as jest.MockedFn<typeof finishUpload>;
+const mockClearImageView = clearImageView as jest.MockedFn<
+  typeof clearImageView
+>;
 
 describe("mallard-app", () => {
   /** Internal MallardApp to use for testing. */
@@ -195,6 +199,7 @@ describe("mallard-app", () => {
       expect(eventMap).toHaveProperty(
         ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE
       );
+      expect(eventMap).toHaveProperty(ConnectedMallardApp.REFRESH_EVENT_NAME);
     });
 
     each([
@@ -222,5 +227,18 @@ describe("mallard-app", () => {
         }
       }
     );
+
+    it("uses the correct action creator to refresh the images", () => {
+      // Arrange.
+      const testEvent = { type: ConnectedMallardApp.REFRESH_EVENT_NAME };
+
+      // Act.
+      eventMap[ConnectedMallardApp.REFRESH_EVENT_NAME](
+        testEvent as unknown as Event
+      );
+
+      // Assert.
+      expect(mockClearImageView).toHaveBeenCalledTimes(1);
+    });
   });
 });

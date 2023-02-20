@@ -1,5 +1,5 @@
 import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
-import { fakeState, fakeImageEntity } from "./element-test-utils";
+import { fakeImageEntity, fakeState } from "./element-test-utils";
 import { RootState } from "../types";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
@@ -119,6 +119,23 @@ describe("artifact-thumbnail", () => {
 
     // Act.
     const updates = thumbnailElement.mapState(fakeState());
+
+    // Assert.
+    expect(updates).toEqual({});
+  });
+
+  it("ignores Redux updates when the image ID is invalid", () => {
+    // Arrange.
+    // Set a thumbnail image ID.
+    thumbnailElement.frontendId = faker.datatype.uuid();
+
+    // Create a fake state.
+    const state: RootState = fakeState();
+    // Make it look like this image doesn't exist.
+    state.imageView.ids = [];
+
+    // Act.
+    const updates = thumbnailElement.mapState(state);
 
     // Assert.
     expect(updates).toEqual({});

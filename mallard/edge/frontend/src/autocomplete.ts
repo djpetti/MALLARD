@@ -37,6 +37,19 @@ function findTextInField(
   let endIndex = startIndex + searchString.length + expandBy;
   startIndex -= expandBy;
 
+  startIndex = Math.max(startIndex, 0);
+  endIndex = Math.min(endIndex, fieldText.length);
+
+  // If we still have some more length to fill, try expanding.
+  let lengthBudget = desiredLength - (endIndex - startIndex);
+  if (lengthBudget > 0) {
+    startIndex = Math.max(startIndex - lengthBudget, 0);
+    lengthBudget = desiredLength - endIndex - startIndex;
+  }
+  if (lengthBudget > 0) {
+    endIndex = Math.min(endIndex + lengthBudget, fieldText.length);
+  }
+
   // Add ellipses to indicate to the user that some text is not shown.
   let prefix = "";
   let suffix = "";
@@ -45,18 +58,6 @@ function findTextInField(
   }
   if (endIndex < fieldText.length) {
     suffix = "...";
-  }
-  startIndex = Math.max(startIndex, 0);
-  endIndex = Math.min(endIndex, fieldText.length);
-
-  // If we still have some more length to fill, try expanding.
-  let lengthBudget = desiredLength - (endIndex - startIndex);
-  if (lengthBudget > 0) {
-    startIndex = Math.max(startIndex - lengthBudget, 0);
-    lengthBudget = endIndex - startIndex - desiredLength;
-  }
-  if (lengthBudget > 0) {
-    endIndex = Math.min(endIndex + lengthBudget, fieldText.length);
   }
 
   // Extract the surrounding text.

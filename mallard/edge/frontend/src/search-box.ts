@@ -25,6 +25,7 @@ export class SearchBox extends LitElement {
   static styles = css`
     #search {
       width: 20vw;
+      min-width: 250px;
     }
 
     #clear_button {

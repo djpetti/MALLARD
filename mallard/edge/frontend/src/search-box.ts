@@ -15,7 +15,6 @@ import {
   thunkTextSearch,
 } from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
-import KeyPressEvent = JQuery.KeyPressEvent;
 
 /**
  * Main search box in the MALLARD app.
@@ -133,10 +132,10 @@ export class SearchBox extends LitElement {
 
   /**
    * Run whenever a key is pressed while the search box is active.
-   * @param {KeyPressEvent} event The event that occurred.
+   * @param {KeyboardEvent} event The event that occurred.
    * @private
    */
-  private onKeyPress(event: KeyPressEvent): void {
+  private onKeyPress(event: KeyboardEvent): void {
     if (event.key == "Enter") {
       // We should perform the actual search.
       this.dispatchEvent(

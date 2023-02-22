@@ -1,6 +1,7 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifact,
+  clearAutocomplete,
   clearFullSizedImage,
   clearImageView,
   createImageEntityId,
@@ -13,6 +14,7 @@ import thumbnailGridReducer, {
   thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkStartNewQuery,
+  thunkTextSearch,
 } from "../thumbnail-grid-slice";
 import {
   ImageQuery,
@@ -24,6 +26,7 @@ import {
 import thunk from "redux-thunk";
 import {
   fakeImageEntity,
+  fakeImageQuery,
   fakeObjectRef,
   fakeState,
 } from "./element-test-utils";
@@ -35,7 +38,7 @@ import {
   loadThumbnail,
   queryImages,
 } from "../api-client";
-import { requestAutocomplete } from "../autocomplete";
+import { queriesFromSearchString, requestAutocomplete } from "../autocomplete";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -57,10 +60,14 @@ const mockGetMetadata = getMetadata as jest.MockedFn<typeof getMetadata>;
 // Mock out the autocomplete functions.
 jest.mock("../autocomplete", () => ({
   requestAutocomplete: jest.fn(),
+  queriesFromSearchString: jest.fn(),
 }));
 
 const mockRequestAutocomplete = requestAutocomplete as jest.MockedFn<
   typeof requestAutocomplete
+>;
+const mockQueriesFromSearchString = queriesFromSearchString as jest.MockedFn<
+  typeof queriesFromSearchString
 >;
 
 // Mock out `createObjectURL` and `revokeObjectURL`.
@@ -409,6 +416,57 @@ describe("thumbnail-grid-slice action creators", () => {
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
     expect(actions).toHaveLength(2);
+
+    const pendingAction = actions[0];
+    expect(pendingAction.type).toEqual(
+      thunkDoAutocomplete.typePrefix + "/pending"
+    );
+
+    const fulfilledAction = actions[1];
+    expect(fulfilledAction.type).toEqual(
+      thunkDoAutocomplete.typePrefix + "/fulfilled"
+    );
+    expect(fulfilledAction.payload).toEqual({
+      searchString: searchString,
+      autocompleteSuggestions: suggestions,
+    });
+  });
+
+  it("creates a thunkTextSearch action", () => {
+    // Arrange.
+    // Make it look like we can generate queries.
+    const queries = [fakeImageQuery(), fakeImageQuery()];
+    mockQueriesFromSearchString.mockReturnValue(queries);
+
+    // Initialize the fake store with valid state.
+    const state = fakeState();
+    const store = mockStoreCreator(state);
+
+    // Act.
+    const searchString = faker.lorem.words();
+    thunkTextSearch(searchString)(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have generated the queries.
+    expect(mockQueriesFromSearchString).toBeCalledWith(searchString);
+
+    // It should have dispatched the query action.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(1);
+
+    const startQueryAction = actions[0];
+    expect(startQueryAction.type).toEqual(
+      thunkStartNewQuery.typePrefix + "/pending"
+    );
+
+    expect(startQueryAction.meta.arg).toEqual({
+      query: queries,
+      orderings: expect.anything(),
+    });
   });
 
   each([
@@ -547,6 +605,29 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
   });
 
+  it("handles a clearAutocomplete action", () => {
+    // Arrange.
+    const state: RootState = fakeState();
+    // Make it look like we have some autocomplete suggestions.
+    state.imageView.search.searchString = faker.lorem.words();
+    state.imageView.search.autocompleteSuggestions = [
+      faker.lorem.words(),
+      faker.lorem.words(),
+    ];
+    state.imageView.search.queryState = RequestState.SUCCEEDED;
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      clearAutocomplete(null)
+    );
+
+    // Assert.
+    expect(newImageState.search.searchString).toEqual("");
+    expect(newImageState.search.autocompleteSuggestions).toHaveLength(0);
+    expect(newImageState.search.queryState).toEqual(RequestState.IDLE);
+  });
+
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
@@ -677,6 +758,47 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // It should have updated the page number.
     expect(newState.currentQueryOptions.pageNum).toEqual(pageNum);
+  });
+
+  it(`handles a ${thunkDoAutocomplete.pending.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    state.search.queryState = RequestState.IDLE;
+    state.search.searchString = "";
+
+    // Act.
+    const searchString = faker.lorem.words();
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkDoAutocomplete.pending.type,
+      meta: { arg: { searchString: searchString } },
+    });
+
+    // Assert.
+    // It should have marked the query request as loading.
+    expect(newState.search.queryState).toEqual(RequestState.LOADING);
+    // It should have saved the search string.
+    expect(newState.search.searchString).toEqual(searchString);
+  });
+
+  it(`handles a ${thunkDoAutocomplete.fulfilled.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    state.search.queryState = RequestState.LOADING;
+    state.search.searchString = faker.lorem.words();
+    state.search.autocompleteSuggestions = [];
+
+    // Act.
+    const suggestions = [faker.lorem.words(), faker.lorem.words()];
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkDoAutocomplete.fulfilled.type,
+      payload: { autocompleteSuggestions: suggestions },
+    });
+
+    // Assert.
+    // It should have marked the query request as succeeded.
+    expect(newState.search.queryState).toEqual(RequestState.SUCCEEDED);
+    // It should have saved the suggestions.
+    expect(newState.search.autocompleteSuggestions).toEqual(suggestions);
   });
 
   it("handles a loadThumbnail/fulfilled action", () => {

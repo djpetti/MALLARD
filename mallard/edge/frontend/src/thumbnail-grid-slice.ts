@@ -302,7 +302,7 @@ export const thunkDoAutocomplete = createAsyncThunk(
   "thumbnailGrid/doAutocomplete",
   async ({
     searchString,
-    numSuggestions = 5,
+    numSuggestions,
   }: {
     searchString: string;
     numSuggestions: number;

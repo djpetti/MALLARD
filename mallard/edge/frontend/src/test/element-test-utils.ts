@@ -6,6 +6,7 @@ import {
   FileStatus,
   FrontendFileEntity,
   ImageEntity,
+  ImageQuery,
   ImageStatus,
   MetadataInferenceStatus,
   RequestState,
@@ -207,5 +208,16 @@ export function fakeOrdering(): Ordering {
       Field.SESSION_NUM,
     ]),
     ascending: faker.datatype.boolean(),
+  };
+}
+
+/**
+ * @return {ImageQuery} A fake `ImageQuery` that it created.
+ */
+export function fakeImageQuery(): ImageQuery {
+  return {
+    name: faker.datatype.boolean() ? faker.lorem.words() : undefined,
+    notes: faker.datatype.boolean() ? faker.lorem.sentence() : undefined,
+    camera: faker.datatype.boolean() ? faker.lorem.words() : undefined,
   };
 }

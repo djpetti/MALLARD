@@ -1,5 +1,10 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
-import { ObjectRef, Ordering, UavImageMetadata } from "typescript-axios";
+import {
+  ObjectRef,
+  Ordering,
+  RangeDate,
+  UavImageMetadata,
+} from "typescript-axios";
 
 /**
  * Represents the state of a long-running request.
@@ -27,6 +32,8 @@ export interface ImageQuery {
   notes?: string;
   /** Camera for the images to search for. */
   camera?: string;
+  /** Date range to search for. */
+  captureDates?: RangeDate;
 }
 
 /**

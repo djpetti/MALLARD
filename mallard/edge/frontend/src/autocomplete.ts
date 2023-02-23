@@ -1,9 +1,235 @@
 import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
-import { UavImageMetadata } from "typescript-axios";
+import { RangeDate, UavImageMetadata } from "typescript-axios";
 
 /** Maximum length we allow for autocomplete suggestions. */
 const MAX_AUTOCOMPLETE_LENGTH = 60;
+
+export enum AutocompleteMenu {
+  /** No menu-based suggestions. */
+  NONE,
+  /** Show the date selector. */
+  DATE,
+}
+
+export interface Suggestions {
+  /** The menu-based suggestions. */
+  menu: AutocompleteMenu;
+  /** The text completion suggestions. */
+  textCompletions: string;
+}
+
+/**
+ * Represents a token.
+ */
+class Token {
+  /** The value of the token. */
+  readonly value: string;
+  /** Whether this is the special end token. */
+  readonly isEnd: boolean;
+
+  /**
+   * @param {string} value The value of the token. If not
+   *  provided, it will be assumed to be the special end token.
+   */
+  constructor(value?: string) {
+    this.value = value ?? "";
+    this.isEnd = !!value;
+  }
+}
+
+/** Represents a single parsed predicate from the search. */
+abstract class Predicate {
+  /**
+   * Parses a token from the input, expanding the predicate.
+   * @param {string} token The input token to parse.
+   * @return {boolean} True if it succeeded in parsing the token, false if
+   *  the input is invalid for this token type.
+   */
+  abstract parse(token: Token): boolean;
+
+  /**
+   * @return {boolean} True iff this predicate has been fully matched.
+   */
+  abstract isMatched(): boolean;
+
+  /**
+   * Creates the queries that corresponds to this predicate.
+   * @return {ImageQuery[]} The corresponding queries.
+   */
+  abstract makeQueries(): ImageQuery[];
+}
+
+/** Predicate representing a natural-language search string. */
+class StringPredicate extends Predicate {
+  /** The search string. */
+  searchString: string = "";
+
+  /** Whether we saw the end of this natural-language search string. */
+  reachedEnd: boolean = false;
+
+  /**
+   * @inheritDoc
+   */
+  override parse(token: Token): boolean {
+    if (token.isEnd || token.value.includes(":")) {
+      // This is actually a "special" token, not natural language.
+      this.reachedEnd = true;
+      return token.isEnd;
+    }
+
+    // Append the string to whatever we parsed already.
+    this.searchString += token;
+    return true;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override isMatched(): boolean {
+    return this.reachedEnd;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override makeQueries(): ImageQuery[] {
+    return [
+      { name: this.searchString },
+      { notes: this.searchString },
+      { camera: this.searchString },
+    ];
+  }
+}
+
+/** The condition specified for the date predicate. */
+enum DateCondition {
+  /** We want results before this date. */
+  BEFORE,
+  /** We want results after this date. */
+  AFTER,
+  /** We want results from this exact date. */
+  ON,
+}
+
+/** Predicate representing a boundary on the capture date. */
+class CaptureDatePredicate extends Predicate {
+  /** The condition specified by the user. */
+  condition: DateCondition | null = null;
+  /** The date specified. */
+  date: Date | null = null;
+
+  /**
+   * @inheritDoc
+   */
+  override parse(token: Token): boolean {
+    if (token.isEnd) {
+      return true;
+    }
+
+    if (token.value.startsWith("before:")) {
+      this.condition = DateCondition.BEFORE;
+    } else if (token.value.startsWith("after:")) {
+      this.condition = DateCondition.AFTER;
+    } else if (
+      token.value.startsWith("on:") ||
+      token.value.startsWith("date:")
+    ) {
+      this.condition = DateCondition.ON;
+    } else {
+      // It doesn't match at all.
+      return false;
+    }
+
+    // Parse the matching date.
+    const dateString = token.value.split(":")[1];
+    const unixTime = Date.parse(dateString);
+    if (Number.isNaN(unixTime)) {
+      // Specified date is invalid.
+      return false;
+    }
+    this.date = new Date(unixTime);
+
+    return true;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override isMatched(): boolean {
+    return this.condition !== null && this.date !== null;
+  }
+
+  /**
+   * Generates a RangeDate object corresponding to this particular date and
+   * condition.
+   * @private
+   * @return {RangeDate} The RangeDate it generated.
+   */
+  private getDateRange(): RangeDate {
+    const isoDate = this.date?.toDateString().split("T")[0] as string;
+
+    switch (this.condition) {
+      case DateCondition.BEFORE:
+        return { minValue: "9999-12-31", maxValue: isoDate };
+      case DateCondition.ON:
+        return { minValue: isoDate, maxValue: isoDate };
+      case DateCondition.AFTER:
+        return { minValue: isoDate, maxValue: "9999-12-31" };
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override makeQueries(): ImageQuery[] {
+    return [{ captureDates: this.getDateRange() }];
+  }
+}
+
+/**
+ * Order in which we try to expand predicates when parsing.
+ */
+const PREDICATE_ORDER = [CaptureDatePredicate, StringPredicate];
+
+/**
+ * Parses a search string.
+ * @param {string} searchString The raw search string.
+ * @return {Predicate[]} The associated predicates.
+ */
+function parse(searchString: string): Predicate[] {
+  const tokens = searchString.split(" ").map((t) => new Token(t));
+  // Add special end token.
+  tokens.push(new Token());
+
+  let tokenIndex = 0;
+  let predicateIndex = 0;
+  let currentPredicate: Predicate = new PREDICATE_ORDER[predicateIndex]();
+  const predicates: Predicate[] = [];
+  while (tokenIndex < tokens.length) {
+    if (currentPredicate.parse(tokens[tokenIndex])) {
+      // It consumed this token.
+      ++tokenIndex;
+
+      if (currentPredicate.isMatched()) {
+        // Predicate is fully matched. Start a new one.
+        predicates.push(currentPredicate);
+        predicateIndex = 0;
+        currentPredicate = new PREDICATE_ORDER[predicateIndex]();
+      }
+    } else {
+      // It rejected this token. Try the next predicate.
+      currentPredicate = new PREDICATE_ORDER[++predicateIndex]();
+    }
+  }
+
+  // Check if we have a last matched predicate.
+  if (currentPredicate.isMatched()) {
+    predicates.push(currentPredicate);
+  }
+
+  return predicates;
+}
 
 /**
  * Finds text that matches a search string in the contents of a field. It
@@ -115,6 +341,12 @@ function deDuplicateSuggestions(suggestions: string[]): string[] {
  * @return {ImageQuery[]} The generated query.
  */
 export function queriesFromSearchString(searchString: string): ImageQuery[] {
+  // First, parse the search string.
+  const predicates = parse(searchString);
+
+  // Build the query appropriately.
+  const query = [];
+
   // We will look for the input in all the text fields at once.
   return [
     { name: searchString },

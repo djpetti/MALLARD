@@ -15,12 +15,14 @@ import {
   thunkTextSearch,
 } from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
+import "@material/mwc-button";
+import { AutocompleteMenu } from "./autocomplete";
 
 /**
  * Main search box in the MALLARD app.
  */
 export class SearchBox extends LitElement {
-  static tagName = "search-box";
+  static readonly tagName = "search-box";
 
   static styles = css`
     #search {
@@ -89,6 +91,10 @@ export class SearchBox extends LitElement {
   /** Whether to show the loading indicator. */
   @property({ type: Boolean })
   showProgress: boolean = false;
+
+  /** Which autocomplete menu to show. */
+  @property({ attribute: false })
+  autocompleteMenu: AutocompleteMenu = AutocompleteMenu.DATE;
 
   /** Whether to show the clear button. */
   @state()
@@ -159,6 +165,37 @@ export class SearchBox extends LitElement {
   }
 
   /**
+   * Renders the HTML for the autocomplete menu.
+   * @private
+   * @return {unknown} The HTML that it rendered.
+   */
+  private renderAutocompleteMenu(): unknown {
+    switch (this.autocompleteMenu) {
+      case AutocompleteMenu.HIDDEN:
+        return nothing;
+
+      case AutocompleteMenu.DATE:
+        return html`<mwc-list-item class="center">
+          <mwc-button dense unelevated label="before"></mwc-button>
+          <mwc-button dense unelevated label="date"></mwc-button>
+          <mwc-button dense unelevated label="after"></mwc-button>
+        </mwc-list-item>`;
+    }
+  }
+
+  /**
+   * Determines whether we should be displaying the autocomplete dropdown.
+   * @private
+   * @return {boolean} True if we should show it.
+   */
+  private get showAutocomplete(): boolean {
+    return (
+      this.autocompleteSuggestions.length > 0 ||
+      this.autocompleteMenu != AutocompleteMenu.HIDDEN
+    );
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
@@ -184,8 +221,9 @@ export class SearchBox extends LitElement {
           : nothing}
 
         <div class="autocomplete-background">
-          ${this.autocompleteSuggestions.length > 0
+          ${this.showAutocomplete
             ? html`<mwc-list>
+                ${this.renderAutocompleteMenu()}
                 ${this.autocompleteSuggestions.map(
                   (s) => html`
                 <mwc-list-item>${s}</p></mwc-list-item>

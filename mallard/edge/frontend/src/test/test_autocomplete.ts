@@ -174,7 +174,7 @@ describe("autocomplete", () => {
       // Since we only mocked a single result, we should get a single
       // suggestion.
       expect(suggestions).toHaveLength(1);
-      expect(suggestions[0]).toEqual(suggestion);
+      expect(suggestions.textCompletions[0]).toEqual(suggestion);
     }
   );
 });

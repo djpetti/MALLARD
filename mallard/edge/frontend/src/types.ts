@@ -5,6 +5,7 @@ import {
   RangeDate,
   UavImageMetadata,
 } from "typescript-axios";
+import { Suggestions } from "./autocomplete";
 
 /**
  * Represents the state of a long-running request.
@@ -96,7 +97,7 @@ export interface SearchState {
   /** Current text in the search box. */
   searchString: string;
   /** Current autocomplete suggestions. */
-  autocompleteSuggestions: string[];
+  autocompleteSuggestions: Suggestions;
 
   /** State of the autocomplete query. */
   queryState: RequestState;

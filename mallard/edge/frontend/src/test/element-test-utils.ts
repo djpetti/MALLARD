@@ -21,6 +21,7 @@ import {
   PlatformType,
   UavImageMetadata,
 } from "typescript-axios";
+import { AutocompleteMenu, Suggestions } from "../autocomplete";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -50,7 +51,10 @@ export function fakeState(): RootState {
       entities: {},
       search: {
         searchString: "",
-        autocompleteSuggestions: [],
+        autocompleteSuggestions: {
+          menu: AutocompleteMenu.NONE,
+          textCompletions: [],
+        },
         queryState: RequestState.IDLE,
       },
     },
@@ -219,5 +223,18 @@ export function fakeImageQuery(): ImageQuery {
     name: faker.datatype.boolean() ? faker.lorem.words() : undefined,
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : undefined,
     camera: faker.datatype.boolean() ? faker.lorem.words() : undefined,
+  };
+}
+
+/**
+ * @return {Suggestions} Fake autocomplete suggestions.
+ */
+export function fakeSuggestions(): Suggestions {
+  return {
+    menu: faker.random.arrayElement([
+      AutocompleteMenu.NONE,
+      AutocompleteMenu.DATE,
+    ]),
+    textCompletions: [faker.lorem.words(), faker.lorem.words()],
   };
 }

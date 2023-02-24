@@ -27,7 +27,12 @@ import {
   UavImageMetadata,
 } from "typescript-axios";
 import { ThunkAction } from "redux-thunk";
-import { queriesFromSearchString, requestAutocomplete } from "./autocomplete";
+import {
+  AutocompleteMenu,
+  queriesFromSearchString,
+  requestAutocomplete,
+  Suggestions,
+} from "./autocomplete";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -85,7 +90,7 @@ interface DoAutocompleteReturn {
   /** Current search string. */
   searchString: string;
   /** Current autocomplete suggestions. */
-  autocompleteSuggestions: string[];
+  autocompleteSuggestions: Suggestions;
 }
 
 /**
@@ -125,7 +130,10 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQueryHasMorePages: true,
   search: {
     searchString: "",
-    autocompleteSuggestions: [],
+    autocompleteSuggestions: {
+      menu: AutocompleteMenu.NONE,
+      textCompletions: [],
+    },
     queryState: RequestState.IDLE,
   },
 });
@@ -412,7 +420,10 @@ export const thumbnailGridSlice = createSlice({
     // Removes any current autocomplete suggestions.
     clearAutocomplete(state, _) {
       state.search.searchString = "";
-      state.search.autocompleteSuggestions = [];
+      state.search.autocompleteSuggestions = {
+        menu: AutocompleteMenu.NONE,
+        textCompletions: [],
+      };
       state.search.queryState = RequestState.IDLE;
     },
   },

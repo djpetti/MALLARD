@@ -255,7 +255,7 @@ describe("search-box", () => {
       // Create a fake state.
       const state = fakeState();
       const searchState = state.imageView.search;
-      searchState.autocompleteSuggestions = [
+      searchState.autocompleteSuggestions.textCompletions = [
         faker.lorem.words(),
         faker.lorem.words(),
       ];

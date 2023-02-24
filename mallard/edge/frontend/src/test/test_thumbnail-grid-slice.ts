@@ -29,6 +29,7 @@ import {
   fakeImageQuery,
   fakeObjectRef,
   fakeState,
+  fakeSuggestions,
 } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
 import each from "jest-each";
@@ -38,7 +39,11 @@ import {
   loadThumbnail,
   queryImages,
 } from "../api-client";
-import { queriesFromSearchString, requestAutocomplete } from "../autocomplete";
+import {
+  AutocompleteMenu,
+  queriesFromSearchString,
+  requestAutocomplete,
+} from "../autocomplete";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -391,7 +396,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a doAutocomplete action", async () => {
     // Arrange.
     // Make it look lit it got some autocomplete suggestions.
-    const suggestions = [faker.lorem.sentence(), faker.lorem.sentence()];
+    const suggestions = fakeSuggestions();
     mockRequestAutocomplete.mockResolvedValue(suggestions);
 
     // Initialize the fake store with valid state.
@@ -610,10 +615,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: RootState = fakeState();
     // Make it look like we have some autocomplete suggestions.
     state.imageView.search.searchString = faker.lorem.words();
-    state.imageView.search.autocompleteSuggestions = [
-      faker.lorem.words(),
-      faker.lorem.words(),
-    ];
+    state.imageView.search.autocompleteSuggestions = fakeSuggestions();
     state.imageView.search.queryState = RequestState.SUCCEEDED;
 
     // Act.
@@ -785,13 +787,16 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
     state.search.queryState = RequestState.LOADING;
     state.search.searchString = faker.lorem.words();
-    state.search.autocompleteSuggestions = [];
+    state.search.autocompleteSuggestions.menu = AutocompleteMenu.NONE;
+    state.search.autocompleteSuggestions.textCompletions = [];
 
     // Act.
-    const suggestions = [faker.lorem.words(), faker.lorem.words()];
+    const suggestions = fakeSuggestions();
     const newState: ImageViewState = thumbnailGridReducer(state, {
       type: thunkDoAutocomplete.fulfilled.type,
-      payload: { autocompleteSuggestions: suggestions },
+      payload: {
+        autocompleteSuggestions: suggestions,
+      },
     });
 
     // Assert.

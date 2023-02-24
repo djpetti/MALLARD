@@ -132,7 +132,7 @@ export class SearchBox extends LitElement {
       new CustomEvent<string>(SearchBox.SEARCH_STRING_CHANGED_EVENT_NAME, {
         bubbles: true,
         composed: false,
-        detail: this.searchBox.value,
+        detail: this.searchBox.value.trim(),
       })
     );
   }
@@ -149,7 +149,7 @@ export class SearchBox extends LitElement {
         new CustomEvent<string>(SearchBox.SEARCH_STARTED_EVENT_NAME, {
           bubbles: true,
           composed: false,
-          detail: this.searchBox.value,
+          detail: this.searchBox.value.trim(),
         })
       );
 
@@ -268,7 +268,9 @@ export class ConnectedSearchBox extends connect(store, SearchBox) {
   override mapState(state: RootState): { [p: string]: any } {
     const searchState = state.imageView.search;
     return {
-      autocompleteSuggestions: searchState.autocompleteSuggestions,
+      autocompleteSuggestions:
+        searchState.autocompleteSuggestions.textCompletions,
+      autocompleteMenu: searchState.autocompleteSuggestions.menu,
       showProgress: searchState.queryState == RequestState.LOADING,
     };
   }

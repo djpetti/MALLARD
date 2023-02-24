@@ -17,7 +17,7 @@ export interface Suggestions {
   /** The menu-based suggestions. */
   menu: AutocompleteMenu;
   /** The text completion suggestions. */
-  textCompletions: string;
+  textCompletions: string[];
 }
 
 /**
@@ -42,6 +42,11 @@ class Token {
 /** Represents a single parsed predicate from the search. */
 abstract class Predicate {
   /**
+   * List of directives that this predicate is matching.
+   */
+  static readonly directives: string[] = [];
+
+  /**
    * Parses a token from the input, expanding the predicate.
    * @param {string} token The input token to parse.
    * @return {boolean} True if it succeeded in parsing the token, false if
@@ -59,6 +64,31 @@ abstract class Predicate {
    * @return {ImageQuery[]} The corresponding queries.
    */
   abstract makeQueries(): ImageQuery[];
+
+  /**
+   * Checks if a partially-typed token from the search string could
+   * possibly match one of our directives.
+   * @param {Token} lastToken The last (partial) token from the search string.
+   * @return {boolean} True iff it could possibly match.
+   */
+  static couldMatchDirectives(lastToken: Token): boolean {
+    // If the user has typed more than just the directive, we'll limit
+    // it to that.
+    const userInput = lastToken.value.split(":")[0];
+
+    if (userInput.length < 3) {
+      // Should be at least three characters to show suggestions.
+      return false;
+    }
+
+    for (const directive of this.directives) {
+      if (directive.startsWith(userInput)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }
 
 /** Predicate representing a natural-language search string. */
@@ -127,6 +157,8 @@ class CaptureDatePredicate extends Predicate {
   condition: DateCondition | null = null;
   /** The date specified. */
   date: Date | null = null;
+
+  static override readonly directives = ["before", "after", "on", "date"];
 
   /**
    * @inheritDoc
@@ -201,20 +233,29 @@ class CaptureDatePredicate extends Predicate {
 }
 
 /**
+ * Converts a search string into tokens.
+ * @param {string} searchString The search string.
+ * @return {Token[]} The extracted tokens.
+ */
+function tokenize(searchString: string): Token[] {
+  const tokens = searchString.split(" ").map((t) => new Token(t));
+  // Add special end token.
+  tokens.push(new Token());
+
+  return tokens;
+}
+
+/**
  * Order in which we try to expand predicates when parsing.
  */
 const PREDICATE_ORDER = [CaptureDatePredicate, StringPredicate];
 
 /**
  * Parses a search string.
- * @param {string} searchString The raw search string.
+ * @param {Token[]} tokens The search string tokens.
  * @return {Predicate[]} The associated predicates.
  */
-function parse(searchString: string): Predicate[] {
-  const tokens = searchString.split(" ").map((t) => new Token(t));
-  // Add special end token.
-  tokens.push(new Token());
-
+function parse(tokens: Token[]): Predicate[] {
   let tokenIndex = 0;
   let predicateIndex = 0;
   let currentPredicate: Predicate = new PREDICATE_ORDER[predicateIndex]();
@@ -380,14 +421,11 @@ function mapProduct<T, O>(
 }
 
 /**
- * Generates a set of queries based on the search string a user entered.
- * @param {string} searchString The search string.
- * @return {ImageQuery[]} The generated query.
+ * Generates queries from a parsed search string.
+ * @param {Predicate[]} predicates The parsed Predicates from the search.
+ * @return {ImageQuery[]} The queries that it generated.
  */
-export function queriesFromSearchString(searchString: string): ImageQuery[] {
-  // First, parse the search string.
-  const predicates = parse(searchString);
-
+function queriesFromParsedSearchString(predicates: Predicate[]): ImageQuery[] {
   // Build the query appropriately.
   const queries = [];
   for (const predicate of predicates) {
@@ -408,6 +446,40 @@ export function queriesFromSearchString(searchString: string): ImageQuery[] {
 }
 
 /**
+ * Determines whether to show an autocomplete menu, and which one to show.
+ * @param {Token[]} tokens The tokenized search text.
+ * @return {AutocompleteMenu} Which menu to show.
+ */
+function updateMenu(tokens: Token[]): AutocompleteMenu {
+  if (tokens.length < 2) {
+    // Not enough data to determine if we should show a menu.
+    return AutocompleteMenu.NONE;
+  }
+  // Use the second-to-last token, since the very last one is just the
+  // end token.
+  const lastToken = tokens.at(-2) as Token;
+
+  if (CaptureDatePredicate.couldMatchDirectives(lastToken)) {
+    // Show the date menu.
+    return AutocompleteMenu.DATE;
+  }
+
+  // Default to not showing any menu.
+  return AutocompleteMenu.NONE;
+}
+
+/**
+ * Generates a set of queries based on the search string a user entered.
+ * @param {string} searchString The search string.
+ * @return {ImageQuery[]} The generated query.
+ */
+export function queriesFromSearchString(searchString: string): ImageQuery[] {
+  // First, parse the search string.
+  const predicates = parse(tokenize(searchString));
+  return queriesFromParsedSearchString(predicates);
+}
+
+/**
  * Performs a request to auto-complete a search string.
  * @param {string} searchString The search string to get suggested
  *  completions for.
@@ -420,9 +492,11 @@ export async function requestAutocomplete(
   searchString: string,
   numSuggestions: number = 5,
   desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
-): Promise<string[]> {
+): Promise<Suggestions> {
+  const tokens = tokenize(searchString);
+  const predicates = parse(tokens);
   // Initially, query for any entities that match the search string.
-  const queries = queriesFromSearchString(searchString);
+  const queries = queriesFromParsedSearchString(predicates);
   const matchedEntities = await queryImages(queries, [], numSuggestions);
 
   // Get the metadata for all the matched entities.
@@ -430,9 +504,24 @@ export async function requestAutocomplete(
     matchedEntities.imageIds.map((i) => getMetadata(i))
   );
 
+  // Extract the natural-language text components for text autocomplete.
+  const searchText = [];
+  for (const predicate of predicates) {
+    if (predicate instanceof StringPredicate) {
+      searchText.push(predicate.searchString);
+    }
+  }
+
   // Find the matching text from each item.
-  const suggestions = allMetadata.map((m) =>
-    findSurroundingText(searchString, m, desiredLength)
-  );
-  return deDuplicateSuggestions(suggestions);
+  const suggestions = [];
+  for (const searchTextPart of searchText) {
+    suggestions.push(
+      ...allMetadata.map((m) =>
+        findSurroundingText(searchTextPart, m, desiredLength)
+      )
+    );
+  }
+  const textCompletions = deDuplicateSuggestions(suggestions);
+
+  return { menu: updateMenu(tokens), textCompletions: textCompletions };
 }

@@ -272,9 +272,11 @@ class SqlImageMetadataStore(ImageMetadataStore):
         query: Select,
         column: InstrumentedAttribute,
     ) -> Select:
-        return query.where(
-            column >= value.min_value, column <= value.max_value
-        )
+        if value.min_value is not None:
+            query = query.where(column >= value.min_value)
+        if value.max_value is not None:
+            query = query.where(column <= value.max_value)
+        return query
 
     @staticmethod
     def __update_location_query(

@@ -94,7 +94,7 @@ export class SearchBox extends LitElement {
 
   /** Which autocomplete menu to show. */
   @property({ attribute: false })
-  autocompleteMenu: AutocompleteMenu = AutocompleteMenu.DATE;
+  autocompleteMenu: AutocompleteMenu = AutocompleteMenu.NONE;
 
   /** Whether to show the clear button. */
   @state()
@@ -171,7 +171,7 @@ export class SearchBox extends LitElement {
    */
   private renderAutocompleteMenu(): unknown {
     switch (this.autocompleteMenu) {
-      case AutocompleteMenu.HIDDEN:
+      case AutocompleteMenu.NONE:
         return nothing;
 
       case AutocompleteMenu.DATE:
@@ -191,7 +191,7 @@ export class SearchBox extends LitElement {
   private get showAutocomplete(): boolean {
     return (
       this.autocompleteSuggestions.length > 0 ||
-      this.autocompleteMenu != AutocompleteMenu.HIDDEN
+      this.autocompleteMenu != AutocompleteMenu.NONE
     );
   }
 

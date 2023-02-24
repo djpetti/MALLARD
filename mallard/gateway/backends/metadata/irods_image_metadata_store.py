@@ -7,9 +7,12 @@ from functools import singledispatchmethod
 from pathlib import Path
 from typing import Any, AsyncIterable, Iterable
 
+from aioitertools import chain
+from aioitertools import enumerate as aio_enumerate
 from irods.column import Between, Criterion, In, Like
 from irods.models import Collection, DataObject, DataObjectMeta
 from irods.query import Query
+from loguru import logger
 
 from mallard.gateway.async_utils import make_async_iter
 
@@ -24,8 +27,6 @@ from .schemas import (
     Ordering,
     UavImageMetadata,
 )
-from aioitertools import chain, enumerate as aio_enumerate
-from loguru import logger
 
 
 class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
@@ -128,30 +129,39 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         self, value: ImageQuery.Range[date], name: str, query: Query
     ) -> Query:
         # Convert to a full datetime.
-        min_time = datetime.combine(value.min_value, time(0, 0, 0))
-        max_time = datetime.combine(value.max_value, time(23, 59, 59))
+        if value.min_value is not None:
+            min_time = datetime.combine(value.min_value, time(0, 0, 0))
+            min_time = to_irods_string(min_time)
 
-        min_time = to_irods_string(min_time)
-        max_time = to_irods_string(max_time)
+            query = query.filter(
+                self.__name_criterion(name), DataObjectMeta.value >= min_time
+            )
 
-        return query.filter(
-            self.__name_criterion(name),
-            Between(DataObjectMeta.value, (min_time, max_time)),
-        )
+        if value.max_value is not None:
+            max_time = datetime.combine(value.max_value, time(23, 59, 59))
+            max_time = to_irods_string(max_time)
+
+            query = query.filter(
+                self.__name_criterion(name), DataObjectMeta.value <= max_time
+            )
+
+        return query
 
     @__build_query.register
     def _(self, value: ImageQuery.Range, name: str, query: Query) -> Query:
         # Standard numeric range.
-        return query.filter(
-            self.__name_criterion(name),
-            Between(
-                DataObjectMeta.value,
-                (
-                    to_irods_string(value.min_value),
-                    to_irods_string(value.max_value),
-                ),
-            ),
-        )
+        if value.min_value is not None:
+            query = query.filter(
+                self.__name_criterion(name),
+                DataObjectMeta.value >= to_irods_string(value.min_value),
+            )
+        if value.max_value is not None:
+            query = query.filter(
+                self.__name_criterion(name),
+                DataObjectMeta.value <= to_irods_string(value.max_value),
+            )
+
+        return query
 
     @__build_query.register
     def _(

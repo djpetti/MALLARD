@@ -5,7 +5,6 @@ import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
-  clearImageView,
   thumbnailGridSelectors,
   thunkContinueQuery,
   thunkLoadMetadata,

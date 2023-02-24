@@ -257,8 +257,8 @@ class ImageQuery(ApiModel):
             max_value: The maximum allowed value.
         """
 
-        min_value: RangeType
-        max_value: RangeType
+        min_value: Optional[RangeType] = None
+        max_value: Optional[RangeType] = None
 
         @validator("max_value")
         def min_value_less_than_max(
@@ -276,12 +276,41 @@ class ImageQuery(ApiModel):
                 The validated maximum range value.
 
             """
-            min_value = values["min_value"]
+            min_value = values.get("min_value")
+            if min_value is None or max_value is None:
+                # We did not specify both sides of the range, so this check
+                # is irrelevant.
+                return max_value
+
             assert (
                 min_value <= max_value
             ), "Range min_value cannot be larger than max_value."
 
             return max_value
+
+        @validator("min_value", "max_value")
+        def at_least_one_side_specified(
+            cls, value: RangeType, values: Dict[str, RangeType]
+        ) -> RangeType:  # pragma: no cover
+            """
+            Checks that at least one side of the range is specified.
+
+            Args:
+                value: The new value.
+                values: The previously-validated fields.
+
+            Returns:
+                The validated value.
+
+            """
+            any_specified = False
+            for v in values.values():
+                any_specified = any_specified or (v is not None)
+
+            assert (
+                value is not None or any_specified
+            ), "At least one side of the range must be specified."
+            return value
 
     class BoundingBox(ApiModel):
         """

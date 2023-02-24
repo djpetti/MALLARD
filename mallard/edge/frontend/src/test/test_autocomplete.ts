@@ -2,6 +2,7 @@ import { queriesFromSearchString, requestAutocomplete } from "../autocomplete";
 import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
+import { ImageQuery } from "../types";
 
 const faker = require("faker");
 
@@ -18,20 +19,110 @@ describe("autocomplete", () => {
     faker.seed(1337);
   });
 
-  it("can generate queries from a search string", () => {
-    // Arrange.
-    // Create a fake search string.
-    const searchString = faker.lorem.sentence();
+  each([
+    ["empty", "", [{}]],
+    [
+      "natural language",
+      "this is a string",
+      [
+        { name: "this is a string" },
+        { notes: "this is a string" },
+        { camera: "this is a string" },
+      ],
+    ],
+    [
+      "date (before)",
+      "before:2023-02-24",
+      [{ captureDates: { maxValue: "2023-02-24" } }],
+    ],
+    [
+      "date (after)",
+      "after:1997-07-25",
+      [{ captureDates: { minValue: "1997-07-25" } }],
+    ],
+    [
+      "date range",
+      "after:2022-01-01 before:2022-12-31",
+      [{ captureDates: { minValue: "2022-01-01", maxValue: "2022-12-31" } }],
+    ],
+    [
+      "date (date)",
+      "date:2023-02-24",
+      [{ captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" } }],
+    ],
+    [
+      "date (on)",
+      "on:2023-02-24",
+      [{ captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" } }],
+    ],
+    [
+      "date + natural language",
+      "on:2023-02-24 search string",
+      [
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          name: "search string",
+        },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          notes: "search string",
+        },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          camera: "search string",
+        },
+      ],
+    ],
+    [
+      "date + natural language (reversed)",
+      "search string on:2023-02-24",
+      [
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          name: "search string",
+        },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          notes: "search string",
+        },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          camera: "search string",
+        },
+      ],
+    ],
+    [
+      "invalid directive",
+      "foo:bar search string",
+      [
+        // It should just ignore the invalid token.
+        { name: "search string" },
+        { notes: "search string" },
+        { camera: "search string" },
+      ],
+    ],
+    [
+      "invalid date",
+      "date:invalid",
+      [
+        // It should just ignore the invalid date.
+        {},
+      ],
+    ],
+  ]).it(
+    "can generate queries from a %s search",
+    (_: string, searchString: string, expectedQueries: ImageQuery[]) => {
+      // Act.
+      const queries = queriesFromSearchString(searchString);
 
-    // Act.
-    const queries = queriesFromSearchString(searchString);
-
-    // Assert.
-    // It should have searched the text fields.
-    expect(queries).toContainEqual({ name: searchString });
-    expect(queries).toContainEqual({ notes: searchString });
-    expect(queries).toContainEqual({ camera: searchString });
-  });
+      // Assert.
+      expect(queries).toHaveLength(expectedQueries.length);
+      // The order of the queries doesn't matter.
+      for (const query of expectedQueries) {
+        expect(queries).toContainEqual(query);
+      }
+    }
+  );
 
   each([
     ["is an exact match", "some notes", "some notes", "some notes"],

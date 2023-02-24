@@ -1,6 +1,7 @@
 import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
 import { RangeDate, UavImageMetadata } from "typescript-axios";
+import { merge } from "lodash";
 
 /** Maximum length we allow for autocomplete suggestions. */
 const MAX_AUTOCOMPLETE_LENGTH = 60;
@@ -34,7 +35,7 @@ class Token {
    */
   constructor(value?: string) {
     this.value = value ?? "";
-    this.isEnd = !!value;
+    this.isEnd = !value;
   }
 }
 
@@ -65,21 +66,29 @@ class StringPredicate extends Predicate {
   /** The search string. */
   searchString: string = "";
 
-  /** Whether we saw the end of this natural-language search string. */
-  reachedEnd: boolean = false;
+  /** Whether we have matched a natural-language search string. */
+  matched: boolean = false;
 
   /**
    * @inheritDoc
    */
   override parse(token: Token): boolean {
-    if (token.isEnd || token.value.includes(":")) {
+    if (token.value.includes(":")) {
       // This is actually a "special" token, not natural language.
-      this.reachedEnd = true;
-      return token.isEnd;
+      this.matched = this.searchString.length > 0;
+      return false;
+    }
+    if (token.isEnd) {
+      // We reached the end of the input.
+      this.matched = true;
+      return true;
     }
 
     // Append the string to whatever we parsed already.
-    this.searchString += token;
+    if (this.searchString.length > 0) {
+      this.searchString += " ";
+    }
+    this.searchString += token.value;
     return true;
   }
 
@@ -87,7 +96,7 @@ class StringPredicate extends Predicate {
    * @inheritDoc
    */
   override isMatched(): boolean {
-    return this.reachedEnd;
+    return this.matched;
   }
 
   /**
@@ -167,15 +176,19 @@ class CaptureDatePredicate extends Predicate {
    * @return {RangeDate} The RangeDate it generated.
    */
   private getDateRange(): RangeDate {
-    const isoDate = this.date?.toDateString().split("T")[0] as string;
+    const isoDate = this.date?.toISOString().split("T")[0] as string;
 
     switch (this.condition) {
       case DateCondition.BEFORE:
-        return { minValue: "9999-12-31", maxValue: isoDate };
+        return { maxValue: isoDate };
       case DateCondition.ON:
         return { minValue: isoDate, maxValue: isoDate };
       case DateCondition.AFTER:
-        return { minValue: isoDate, maxValue: "9999-12-31" };
+        return { minValue: isoDate };
+
+      default:
+        /* istanbul ignore next */
+        throw new Error(`Non-existent DateCondition: ${this.condition}`);
     }
   }
 
@@ -210,22 +223,23 @@ function parse(searchString: string): Predicate[] {
     if (currentPredicate.parse(tokens[tokenIndex])) {
       // It consumed this token.
       ++tokenIndex;
-
-      if (currentPredicate.isMatched()) {
-        // Predicate is fully matched. Start a new one.
-        predicates.push(currentPredicate);
-        predicateIndex = 0;
-        currentPredicate = new PREDICATE_ORDER[predicateIndex]();
-      }
-    } else {
+      predicateIndex = 0;
+    } else if (!currentPredicate.isMatched()) {
       // It rejected this token. Try the next predicate.
-      currentPredicate = new PREDICATE_ORDER[++predicateIndex]();
+      ++predicateIndex;
+      if (predicateIndex >= PREDICATE_ORDER.length) {
+        // If nothing accepts the token, just skip it.
+        ++tokenIndex;
+        predicateIndex = 0;
+      }
+      currentPredicate = new PREDICATE_ORDER[predicateIndex]();
     }
-  }
 
-  // Check if we have a last matched predicate.
-  if (currentPredicate.isMatched()) {
-    predicates.push(currentPredicate);
+    if (currentPredicate.isMatched()) {
+      // Predicate is fully matched. Start a new one.
+      predicates.push(currentPredicate);
+      currentPredicate = new PREDICATE_ORDER[predicateIndex]();
+    }
   }
 
   return predicates;
@@ -335,6 +349,36 @@ function deDuplicateSuggestions(suggestions: string[]): string[] {
   return filteredSuggestions;
 }
 
+/** Function to apply to pairs from the cartesian product.
+ * @callback mapProductCallback
+ * @param {T} left_ The item from the first array.
+ * @param {T} right_ The item from the second array.
+ * @return {O} The result.
+ */
+
+/**
+ * Computes the cartesian product of two arrays, and applies a function
+ * to every pair, returning an array of the results.
+ * @param {T[]} left The first array to take the product of.
+ * @param {T[]} right The second array to take the product of.
+ * @param {mapProductCallback} operator The function to apply to each pair.
+ * @return {O[]} The product, with the function applied to each pair.
+ */
+function mapProduct<T, O>(
+  left: T[],
+  right: T[],
+  operator: (left_: T, right_: T) => O
+): O[] {
+  const product: O[] = [];
+  for (const leftItem of left) {
+    for (const rightItem of right) {
+      product.push(operator(leftItem, rightItem));
+    }
+  }
+
+  return product;
+}
+
 /**
  * Generates a set of queries based on the search string a user entered.
  * @param {string} searchString The search string.
@@ -345,14 +389,22 @@ export function queriesFromSearchString(searchString: string): ImageQuery[] {
   const predicates = parse(searchString);
 
   // Build the query appropriately.
-  const query = [];
+  const queries = [];
+  for (const predicate of predicates) {
+    queries.push(predicate.makeQueries());
+  }
 
-  // We will look for the input in all the text fields at once.
-  return [
-    { name: searchString },
-    { notes: searchString },
-    { camera: searchString },
-  ];
+  // We want to AND all our queries together, which in this case means
+  // merging them. You can think of this operation as converting from CNF to
+  // DNF.
+  let merged: ImageQuery[] = [{}];
+  // Merge in a way that copies the objects.
+  const mergeCopy = (l: ImageQuery, r: ImageQuery) => merge({}, l, r);
+  for (const disjunction of queries) {
+    merged = mapProduct(merged, disjunction, mergeCopy);
+  }
+
+  return merged;
 }
 
 /**

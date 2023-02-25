@@ -22,7 +22,7 @@ export class ThumbnailGridSection extends LitElement {
 
     #section_divider {
       background-color: var(--theme-primary);
-      color: var(--theme-blackish);
+      color: var(--theme-whitish);
       padding: 1rem;
       width: 100%;
       border: none;

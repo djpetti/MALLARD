@@ -480,6 +480,38 @@ export function queriesFromSearchString(searchString: string): ImageQuery[] {
 }
 
 /**
+ * Integrates a new token at the end of the current search string, taking into
+ * account the possibility that the user has already partially typed the new
+ * token. If so, it will be merged.
+ *
+ * For instance, if we have a search like "this is a search st", and we want
+ * to add the token "string", it will return "this is a search string".
+ * @param {string} searchString The search string to update.
+ * @param {string} nextToken The new token to add.
+ * @return {string} The updated search string.
+ */
+export function completeToken(searchString: string, nextToken: string): string {
+  const tokens = tokenize(searchString);
+  if (tokens.length < 2) {
+    // Empty string.
+    return nextToken;
+  }
+  const maybePartialToken = (tokens.at(-2) as Token).value;
+
+  // Remove the ending token initially.
+  tokens.pop();
+  // Check if the next token overlaps the partial one.
+  if (nextToken.startsWith(maybePartialToken)) {
+    // It does overlap. Merge them.
+    tokens.pop();
+  }
+
+  const tokenValues = tokens.map((t) => t.value);
+  tokenValues.push(nextToken);
+  return tokenValues.join(" ");
+}
+
+/**
  * Performs a request to auto-complete a search string.
  * @param {string} searchString The search string to get suggested
  *  completions for.

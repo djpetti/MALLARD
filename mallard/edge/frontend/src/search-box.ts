@@ -5,6 +5,7 @@ import { TextField } from "@material/mwc-textfield";
 import "@material/mwc-list/mwc-list.js";
 import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon-button";
+import "@material/mwc-dialog";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { RequestState, RootState } from "./types";
@@ -16,13 +17,35 @@ import {
 } from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
 import "@material/mwc-button";
-import { AutocompleteMenu } from "./autocomplete";
+import { AutocompleteMenu, completeToken } from "./autocomplete";
+import "app-datepicker";
+import { Dialog } from "@material/mwc-dialog";
+import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
+
+/**
+ * Condition specified when searching by dates.
+ */
+enum DateCondition {
+  /** We want results before this date. */
+  BEFORE,
+  /** We want results after this date. */
+  AFTER,
+  /** We want results from this exact date. */
+  ON,
+}
 
 /**
  * Main search box in the MALLARD app.
  */
 export class SearchBox extends LitElement {
   static readonly tagName = "search-box";
+
+  /** Maps date conditions to directives to add to the search. */
+  private static readonly dateConditionToDirective = new Map([
+    [DateCondition.BEFORE, "before"],
+    [DateCondition.ON, "date"],
+    [DateCondition.AFTER, "after"],
+  ]);
 
   static styles = css`
     #search {
@@ -64,6 +87,13 @@ export class SearchBox extends LitElement {
       background-color: var(--theme-secondary-2) !important;
       color: var(--theme-whitish);
     }
+
+    app-date-picker {
+      /* Use matching colors for the date picker. */
+      --app-primary: var(--theme-primary);
+      --app-selected-hover: var(--theme-primary);
+      --app-hover: var(--theme-primary);
+    }
   `;
 
   /**
@@ -102,6 +132,15 @@ export class SearchBox extends LitElement {
 
   @query("#search", true)
   private searchBox!: TextField;
+
+  @query("#date_picker_dialog", true)
+  private datePickerDialog!: Dialog;
+
+  @query("#date_picker", true)
+  private datePicker!: DatePicker;
+
+  /** Keeps track of which date condition the user selected. */
+  private selectedDateCondition: DateCondition = DateCondition.ON;
 
   /**
    * Clears the search box.
@@ -165,6 +204,42 @@ export class SearchBox extends LitElement {
   }
 
   /**
+   * Run whenever a date condition button is clicked.
+   * @param {condition} condition The button that was clicked.
+   * @private
+   */
+  private onDateConditionClick(condition: DateCondition): void {
+    this.selectedDateCondition = condition;
+    this.datePickerDialog.show();
+  }
+
+  /**
+   * Run whenever the user clicks "ok" in the date picker. It modifies
+   * the search correctly for the specified date condition.
+   * @private
+   */
+  private onDateSelected(): void {
+    // Get the current date selection.
+    const selectedDate = this.datePicker.value;
+    // Find the right directive for the date condition.
+    const directive = SearchBox.dateConditionToDirective.get(
+      this.selectedDateCondition
+    );
+
+    // Add it to the search string.
+    const newToken = `${directive}:${selectedDate}`;
+    this.searchBox.value = completeToken(this.searchBox.value, newToken);
+    // Manually fire this event so that it updates the autocomplete.
+    this.dispatchEvent(
+      new CustomEvent<string>(SearchBox.SEARCH_STRING_CHANGED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.searchBox.value.trim(),
+      })
+    );
+  }
+
+  /**
    * Renders the HTML for the autocomplete menu.
    * @private
    * @return {unknown} The HTML that it rendered.
@@ -176,9 +251,24 @@ export class SearchBox extends LitElement {
 
       case AutocompleteMenu.DATE:
         return html`<mwc-list-item class="center">
-          <mwc-button dense unelevated label="before"></mwc-button>
-          <mwc-button dense unelevated label="date"></mwc-button>
-          <mwc-button dense unelevated label="after"></mwc-button>
+          <mwc-button
+            dense
+            unelevated
+            label="before"
+            @click="${() => this.onDateConditionClick(DateCondition.BEFORE)}"
+          ></mwc-button>
+          <mwc-button
+            dense
+            unelevated
+            label="date"
+            @click="${() => this.onDateConditionClick(DateCondition.ON)}"
+          ></mwc-button>
+          <mwc-button
+            dense
+            unelevated
+            label="after"
+            @click="${() => this.onDateConditionClick(DateCondition.AFTER)}"
+          ></mwc-button>
         </mwc-list-item>`;
     }
   }
@@ -212,6 +302,19 @@ export class SearchBox extends LitElement {
           @keypress="${this.onKeyPress}"
         >
         </mwc-textfield>
+        <!-- Dialog for picking dates. -->
+        <mwc-dialog id="date_picker_dialog" heading="Select Date">
+          <app-date-picker min="1970-01-01" id="date_picker"></app-date-picker>
+          <mwc-button
+            slot="primaryAction"
+            dialogAction="ok"
+            @click="${this.onDateSelected}"
+            >OK</mwc-button
+          >
+          <mwc-button slot="secondaryAction" dialogAction="cancel"
+            >Cancel</mwc-button
+          >
+        </mwc-dialog>
         ${this.showClear
           ? html`<mwc-icon-button
               icon="close"

@@ -238,7 +238,9 @@ class CaptureDatePredicate extends Predicate {
  * @return {Token[]} The extracted tokens.
  */
 function tokenize(searchString: string): Token[] {
-  const tokens = searchString.split(" ").map((t) => new Token(t));
+  let tokens = searchString.split(" ").map((t) => new Token(t));
+  // Remove any empty tokens.
+  tokens = tokens.filter((t) => t.value.length > 0);
   // Add special end token.
   tokens.push(new Token());
 

@@ -63,10 +63,15 @@ const mockLoadImage = loadImage as jest.MockedFn<typeof loadImage>;
 const mockGetMetadata = getMetadata as jest.MockedFn<typeof getMetadata>;
 
 // Mock out the autocomplete functions.
-jest.mock("../autocomplete", () => ({
-  requestAutocomplete: jest.fn(),
-  queriesFromSearchString: jest.fn(),
-}));
+jest.mock("../autocomplete", () => {
+  const realAutocomplete = jest.requireActual("../autocomplete");
+
+  return {
+    requestAutocomplete: jest.fn(),
+    queriesFromSearchString: jest.fn(),
+    AutocompleteMenu: realAutocomplete.AutocompleteMenu,
+  };
+});
 
 const mockRequestAutocomplete = requestAutocomplete as jest.MockedFn<
   typeof requestAutocomplete
@@ -626,7 +631,12 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newImageState.search.searchString).toEqual("");
-    expect(newImageState.search.autocompleteSuggestions).toHaveLength(0);
+    expect(newImageState.search.autocompleteSuggestions.menu).toEqual(
+      AutocompleteMenu.NONE
+    );
+    expect(
+      newImageState.search.autocompleteSuggestions.textCompletions
+    ).toHaveLength(0);
     expect(newImageState.search.queryState).toEqual(RequestState.IDLE);
   });
 

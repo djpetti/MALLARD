@@ -1,4 +1,9 @@
-import { queriesFromSearchString, requestAutocomplete } from "../autocomplete";
+import {
+  AutocompleteMenu,
+  completeToken,
+  queriesFromSearchString,
+  requestAutocomplete,
+} from "../autocomplete";
 import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
@@ -173,8 +178,59 @@ describe("autocomplete", () => {
       // Assert.
       // Since we only mocked a single result, we should get a single
       // suggestion.
-      expect(suggestions).toHaveLength(1);
+      expect(suggestions.textCompletions).toHaveLength(1);
       expect(suggestions.textCompletions[0]).toEqual(suggestion);
+    }
+  );
+
+  each([
+    ["is empty", "", AutocompleteMenu.NONE],
+    ["matches before directive", "this befo", AutocompleteMenu.DATE],
+    ["matches after directive", "aft", AutocompleteMenu.DATE],
+    ["completely matches a directive", "date", AutocompleteMenu.DATE],
+    ["has extra characters", "date:2023-02-", AutocompleteMenu.DATE],
+    ["is too short", "be", AutocompleteMenu.NONE],
+  ]).it(
+    "gets correct autocomplete menu suggestions when the search string %s",
+    async (_, searchString: string, menu: AutocompleteMenu) => {
+      // Arrange.
+      // Make it look like the initial queries succeeded.
+      const queryResults = [fakeObjectRef()];
+      mockQueryImages.mockResolvedValue({
+        imageIds: queryResults,
+        pageNum: 1,
+        isLastPage: true,
+      });
+
+      // Make it look like getting the metadata succeeded.
+      const metadata = fakeImageMetadata();
+      mockGetMetadata.mockResolvedValue(metadata);
+
+      // Act.
+      const suggestions = await requestAutocomplete(searchString, 5, 20);
+
+      // Assert.
+      expect(suggestions.menu).toEqual(menu);
+    }
+  );
+
+  each([
+    ["the search string is empty", "", "next", "next"],
+    ["the token overlaps", "date", "date:2022-02-27", "date:2022-02-27"],
+    [
+      "the token does not overlap",
+      "my favorite",
+      "search",
+      "my favorite search",
+    ],
+  ]).it(
+    "can complete partial tokens when %s",
+    (_, searchString: string, nextToken: string, completion: string) => {
+      // Act.
+      const gotCompletion = completeToken(searchString, nextToken);
+
+      // Assert.
+      expect(gotCompletion).toEqual(completion);
     }
   );
 });

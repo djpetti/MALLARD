@@ -5,8 +5,16 @@ import {
 } from "../thumbnail-grid-slice";
 import { ConnectedSearchBox } from "../search-box";
 import each from "jest-each";
-import { fakeState, getShadowRoot } from "./element-test-utils";
+import {
+  fakeState,
+  fakeSuggestions,
+  getShadowRoot,
+} from "./element-test-utils";
 import { RequestState } from "../types";
+import { AutocompleteMenu, completeToken } from "../autocomplete";
+import { AppDatePicker } from "app-datepicker";
+import { Dialog } from "@material/mwc-dialog";
+import { TextField } from "@material/mwc-textfield";
 
 jest.mock("../thumbnail-grid-slice", () => {
   return {
@@ -37,6 +45,16 @@ jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
   configureStore: jest.fn(),
 }));
+
+jest.mock("../autocomplete", () => {
+  const realAutocomplete = jest.requireActual("../autocomplete");
+
+  return {
+    AutocompleteMenu: realAutocomplete.AutocompleteMenu,
+    completeToken: jest.fn(),
+  };
+});
+const mockCompleteToken = completeToken as jest.MockedFn<typeof completeToken>;
 
 describe("search-box", () => {
   /** Internal search-box to use for testing. */
@@ -118,6 +136,28 @@ describe("search-box", () => {
       }
     }
   );
+
+  it("renders the date autocomplete menu", async () => {
+    // Arrange.
+    // Show the menu.
+    searchBoxElement.autocompleteMenu = AutocompleteMenu.DATE;
+
+    // Act.
+    await searchBoxElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedSearchBox.tagName);
+    const autocompleteDiv = root.querySelector(
+      ".autocomplete-background"
+    ) as HTMLElement;
+
+    // It should have rendered the menu.
+    const buttons = autocompleteDiv.querySelectorAll("mwc-button");
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0].label).toEqual("before");
+    expect(buttons[1].label).toEqual("date");
+    expect(buttons[2].label).toEqual("after");
+  });
 
   it("fires an event when the user types something", async () => {
     // Arrange.
@@ -246,6 +286,72 @@ describe("search-box", () => {
   });
 
   each([
+    ["before", 0, "before"],
+    ["date", 1, "date"],
+    ["after", 2, "after"],
+  ]).it(
+    "goes through the date selection workflow when we click the %s button",
+    async (_, buttonIndex: number, directive: string) => {
+      // Arrange.
+      // Show the date menu.
+      searchBoxElement.autocompleteMenu = AutocompleteMenu.DATE;
+      await searchBoxElement.updateComplete;
+
+      // Find the button.
+      const root = getShadowRoot(ConnectedSearchBox.tagName);
+      const autocompleteDiv = root.querySelector(
+        ".autocomplete-background"
+      ) as HTMLElement;
+      const button =
+        autocompleteDiv.querySelectorAll("mwc-button")[buttonIndex];
+
+      // Add a listener for the event signaling that the search string has
+      // changed.
+      const searchStringChangedListener = jest.fn();
+      searchBoxElement.addEventListener(
+        ConnectedSearchBox.SEARCH_STRING_CHANGED_EVENT_NAME,
+        searchStringChangedListener
+      );
+
+      // Set a value for the date picker.
+      const selectedDate = faker.date.past().toISOString();
+      const datePicker = root.querySelector("#date_picker") as AppDatePicker;
+      datePicker.value = selectedDate;
+
+      // Find the date picker dialog button.
+      const datePickerDialog = root.querySelector(
+        "#date_picker_dialog"
+      ) as Dialog;
+      const dialogCloseButton =
+        datePickerDialog.querySelectorAll("mwc-button")[0];
+
+      // Make it look like completing the token works.
+      const searchBox = root.querySelector("#search") as TextField;
+      const initialSearchString = faker.lorem.words();
+      const completedSearchString = faker.lorem.words();
+      searchBox.value = initialSearchString;
+      mockCompleteToken.mockReturnValue(completedSearchString);
+
+      // Act.
+      // Simulate a click on the button.
+      button.dispatchEvent(new MouseEvent("click", {}));
+      // Simulate a click on the dialog OK button.
+      dialogCloseButton.dispatchEvent(new MouseEvent("click", {}));
+
+      // Assert.
+      // It should have fired the event.
+      expect(searchStringChangedListener).toBeCalledTimes(1);
+
+      // It should have added the proper directive to the search string.
+      expect(searchBox.value).toEqual(completedSearchString);
+      expect(mockCompleteToken).toBeCalledWith(
+        initialSearchString,
+        `${directive}:${selectedDate}`
+      );
+    }
+  );
+
+  each([
     ["running", RequestState.LOADING],
     ["finished", RequestState.SUCCEEDED],
   ]).it(
@@ -255,10 +361,7 @@ describe("search-box", () => {
       // Create a fake state.
       const state = fakeState();
       const searchState = state.imageView.search;
-      searchState.autocompleteSuggestions.textCompletions = [
-        faker.lorem.words(),
-        faker.lorem.words(),
-      ];
+      searchState.autocompleteSuggestions = fakeSuggestions();
       searchState.queryState = queryState;
 
       // Act.
@@ -268,7 +371,10 @@ describe("search-box", () => {
       // It should have gotten the correct updates.
       expect(updates).toHaveProperty("autocompleteSuggestions");
       expect(updates["autocompleteSuggestions"]).toEqual(
-        searchState.autocompleteSuggestions
+        searchState.autocompleteSuggestions.textCompletions
+      );
+      expect(updates["autocompleteMenu"]).toEqual(
+        searchState.autocompleteSuggestions.menu
       );
 
       expect(updates).toHaveProperty("showProgress");

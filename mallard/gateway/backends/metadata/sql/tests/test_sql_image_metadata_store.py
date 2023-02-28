@@ -647,7 +647,18 @@ class TestSqlImageMetadataStore:
                 orderings=(Ordering(field=Ordering.Field.SEQUENCE_NUM),),
             )
         ]
-        session_0_frame_0 = [
+        session_0_frame_0_1_sided = [
+            r
+            async for r in store.query(
+                [
+                    ImageQuery(
+                        sessions={"a"},
+                        sequence_numbers=ImageQuery.Range(max_value=0),
+                    )
+                ]
+            )
+        ]
+        session_0_frame_0_2_sided = [
             r
             async for r in store.query(
                 [
@@ -681,6 +692,7 @@ class TestSqlImageMetadataStore:
         # Check that we got the correct results.
         assert {object_id1, object_id2, object_id3} == set(everything)
         assert session_0 == [object_id1, object_id2]
-        assert session_0_frame_0 == [object_id1]
+        assert session_0_frame_0_1_sided == [object_id1]
+        assert session_0_frame_0_2_sided == [object_id1]
         assert first_images == [object_id1, object_id3]
         assert {object_id1, object_id2} == set(disjunction)

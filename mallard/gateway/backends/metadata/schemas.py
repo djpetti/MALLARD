@@ -10,7 +10,7 @@ import enum
 from datetime import date
 from typing import Dict, Generic, Optional, Set, TypeVar
 
-from pydantic import validator
+from pydantic import root_validator, validator
 
 from ...fastapi_utils import as_form
 from ...schemas import ApiModel, GenericApiModel
@@ -288,15 +288,14 @@ class ImageQuery(ApiModel):
 
             return max_value
 
-        @validator("min_value", "max_value")
+        @root_validator()
         def at_least_one_side_specified(
-            cls, value: RangeType, values: Dict[str, RangeType]
+            cls, values: Dict[str, RangeType]
         ) -> RangeType:  # pragma: no cover
             """
             Checks that at least one side of the range is specified.
 
             Args:
-                value: The new value.
                 values: The previously-validated fields.
 
             Returns:
@@ -308,9 +307,9 @@ class ImageQuery(ApiModel):
                 any_specified = any_specified or (v is not None)
 
             assert (
-                value is not None or any_specified
+                any_specified
             ), "At least one side of the range must be specified."
-            return value
+            return values
 
     class BoundingBox(ApiModel):
         """

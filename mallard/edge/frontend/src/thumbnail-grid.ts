@@ -187,7 +187,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         ${this.groupedArtifacts.map(
           (e) => html`
             <thumbnail-grid-section
-              .sectionHeader=${e.captureDate.toDateString()}
+              .sectionHeader=${e.captureDate.toISOString().split("T")[0]}
               .displayedArtifacts=${e.imageIds}
             ></thumbnail-grid-section>
           `

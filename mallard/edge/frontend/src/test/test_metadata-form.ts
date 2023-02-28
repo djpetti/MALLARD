@@ -191,13 +191,23 @@ describe("metadata-form", () => {
   );
 
   each([
-    ["Session Name", "session_name", "sessionName"],
-    ["Capture Date", "capture_date", "captureDate"],
-    ["Camera", "camera", "camera"],
-    ["Notes", "notes", "notes"],
+    ["Session Name", "session_name", "sessionName", faker.lorem.word()],
+    [
+      "Capture Date",
+      "capture_date",
+      "captureDate",
+      faker.date.past().toISOString(),
+    ],
+    ["Camera", "camera", "camera", faker.lorem.word()],
+    ["Notes", "notes", "notes", faker.lorem.word()],
   ]).it(
     "handles a change to the %s field",
-    async (_: string, id: string, metadataProperty: keyof UavImageMetadata) => {
+    async (
+      _: string,
+      id: string,
+      metadataProperty: keyof UavImageMetadata,
+      fakeValue: string
+    ) => {
       // Arrange.
       // Set some initial metadata to be updated.
       metadataForm.metadata = fakeImageMetadata();
@@ -208,8 +218,7 @@ describe("metadata-form", () => {
       const textField = mainDiv.querySelector(`#${id}`) as HTMLInputElement;
 
       // Set some fake input.
-      const textInput = faker.lorem.word();
-      textField.value = textInput;
+      textField.value = fakeValue;
 
       textField.dispatchEvent(new Event("change"));
 
@@ -217,7 +226,7 @@ describe("metadata-form", () => {
 
       // Assert.
       // It should have updated the internal metadata.
-      expect(metadataForm.metadata[metadataProperty]).toEqual(textInput);
+      expect(metadataForm.metadata[metadataProperty]).toEqual(fakeValue);
     }
   );
 

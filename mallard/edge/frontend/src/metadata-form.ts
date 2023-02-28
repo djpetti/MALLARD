@@ -67,18 +67,13 @@ export class MetadataForm extends LitElement {
    * Safely extracts the capture date from the local metadata, in a format
    * that can be used in a date input. If the date is not supplied, it returns
    * the current date.
-   * @return {string} The extracted date, in ISO format (but local time).
+   * @return {string} The extracted date, in ISO format.
    * @private
    */
   private extractCaptureDate(): string {
     // If we don't have a date, use the current one.
     const date = new Date(this.metadata?.captureDate ?? Date());
-
-    // Convert to ISO format. We need this as a local date, which is one
-    // reason we can't simply use toISOString().
-    const paddedMonth = (date.getMonth() + 1).toString().padStart(2, "0");
-    const paddedDate = date.getDate().toString().padStart(2, "0");
-    return `${date.getFullYear()}-${paddedMonth}-${paddedDate}`;
+    return date.toISOString().split("T")[0];
   }
 
   /**

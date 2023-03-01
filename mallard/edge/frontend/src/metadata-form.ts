@@ -319,6 +319,8 @@ export class ConnectedMetadataForm extends connect(store, MetadataForm) {
     return {
       metadata: showMetadata,
       state: toFormState.get(state.uploads.metadataStatus),
+      // Don't track user updates if the dialog is closed.
+      userModified: state.uploads.dialogOpen ? this.userModified : false,
     };
   }
 

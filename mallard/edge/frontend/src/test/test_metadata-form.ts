@@ -292,11 +292,12 @@ describe("metadata-form", () => {
   });
 
   each([
-    ["before", false],
-    ["after", true],
+    ["no user modifications", false, true],
+    ["user modifications", true, true],
+    ["user modifications and the dialog closed", true, false],
   ]).it(
-    "updates the properties from the Redux state %s user modification",
-    (_: string, userModified: boolean) => {
+    "updates the properties from the Redux state with %s",
+    (_: string, userModified: boolean, dialogOpen: boolean) => {
       // Arrange.
       // Set some initial metadata.
       const oldMetadata = fakeImageMetadata();
@@ -322,6 +323,7 @@ describe("metadata-form", () => {
         MetadataInferenceStatus.LOADING,
         MetadataInferenceStatus.COMPLETE,
       ]);
+      state.uploads.dialogOpen = dialogOpen;
 
       // Act.
       const updates = metadataForm.mapState(state);
@@ -337,6 +339,13 @@ describe("metadata-form", () => {
 
       // The element state should have been set.
       expect(updates.state).toEqual(state.uploads.metadataStatus);
+
+      if (dialogOpen) {
+        expect(updates.userModified).toEqual(userModified);
+      } else {
+        // It should not track user updates when the dialog is closed.
+        expect(updates.userModified).toEqual(false);
+      }
     }
   );
 

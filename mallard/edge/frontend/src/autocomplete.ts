@@ -544,7 +544,7 @@ export function completeSearch(
 
   // Check if the completion overlaps with the search string of this predicate.
   if (
-    completion.toLowerCase().startsWith(maybePartialSearchString.toLowerCase())
+    completion.toLowerCase().includes(maybePartialSearchString.toLowerCase())
   ) {
     // It does overlap. Merge them.
     searchStrings.pop();

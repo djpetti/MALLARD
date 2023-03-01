@@ -250,6 +250,12 @@ describe("autocomplete", () => {
       "date:2022-03-01 search string",
     ],
     [
+      "the suggestion is a superstring",
+      "date:2023-03-01 aerial",
+      "m100 aerial data",
+      "date:2023-03-01 m100 aerial data",
+    ],
+    [
       "the suggestion does not overlap",
       "my favorite",
       "search",

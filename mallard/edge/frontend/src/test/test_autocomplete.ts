@@ -1,5 +1,6 @@
 import {
   AutocompleteMenu,
+  completeSearch,
   completeToken,
   queriesFromSearchString,
   requestAutocomplete,
@@ -228,6 +229,38 @@ describe("autocomplete", () => {
     (_, searchString: string, nextToken: string, completion: string) => {
       // Act.
       const gotCompletion = completeToken(searchString, nextToken);
+
+      // Assert.
+      expect(gotCompletion).toEqual(completion);
+    }
+  );
+
+  each([
+    ["the search string is empty", "", "next", "next"],
+    [
+      "the suggestion overlaps (1)",
+      "search str",
+      "search string here",
+      "search string here",
+    ],
+    [
+      "the suggestion overlaps (2)",
+      "date:2022-03-01 sea",
+      "search string",
+      "date:2022-03-01 search string",
+    ],
+    [
+      "the suggestion does not overlap",
+      "my favorite",
+      "search",
+      "my favorite search",
+    ],
+    ["the cases don't match", "dan", "Daniel", "Daniel"],
+  ]).it(
+    "can complete search strings when %s",
+    (_, searchString: string, suggestion: string, completion: string) => {
+      // Act.
+      const gotCompletion = completeSearch(searchString, suggestion);
 
       // Assert.
       expect(gotCompletion).toEqual(completion);

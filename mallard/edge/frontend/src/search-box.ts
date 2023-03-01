@@ -17,10 +17,15 @@ import {
 } from "./thumbnail-grid-slice";
 import "@material/mwc-circular-progress";
 import "@material/mwc-button";
-import { AutocompleteMenu, completeToken } from "./autocomplete";
+import {
+  AutocompleteMenu,
+  completeSearch,
+  completeToken,
+} from "./autocomplete";
 import "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
 import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
+import { trim } from "lodash";
 
 /**
  * Condition specified when searching by dates.
@@ -80,6 +85,8 @@ export class SearchBox extends LitElement {
 
     .autocomplete-background {
       background-color: var(--theme-whitish);
+      width: 20vw;
+      min-width: 250px;
     }
 
     .autocomplete-active {
@@ -177,6 +184,29 @@ export class SearchBox extends LitElement {
   }
 
   /**
+   * Performs a search by firing the proper events.
+   * @private
+   */
+  private startSearch(): void {
+    this.dispatchEvent(
+      new CustomEvent<string>(SearchBox.SEARCH_STARTED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.searchBox.value.trim(),
+      })
+    );
+
+    // Also, once the search has been run, we should not show suggestions
+    // anymore.
+    this.dispatchEvent(
+      new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
    * Run whenever a key is pressed while the search box is active.
    * @param {KeyboardEvent} event The event that occurred.
    * @private
@@ -184,22 +214,7 @@ export class SearchBox extends LitElement {
   private onKeyPress(event: KeyboardEvent): void {
     if (event.key == "Enter") {
       // We should perform the actual search.
-      this.dispatchEvent(
-        new CustomEvent<string>(SearchBox.SEARCH_STARTED_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-          detail: this.searchBox.value.trim(),
-        })
-      );
-
-      // Also, once the search has been run, we should not show suggestions
-      // anymore.
-      this.dispatchEvent(
-        new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-        })
-      );
+      this.startSearch();
     }
   }
 
@@ -237,6 +252,21 @@ export class SearchBox extends LitElement {
         detail: this.searchBox.value.trim(),
       })
     );
+  }
+
+  /**
+   * Run whenever the user clicks on an autocomplete suggestion.
+   * @param {MouseEvent} event The click event.
+   * @private
+   */
+  private onSuggestionClicked(event: MouseEvent): void {
+    let suggestion = (event.target as HTMLElement).innerText;
+    // Remove any ellipses.
+    suggestion = trim(suggestion, ".");
+
+    // Perform the search.
+    this.searchBox.value = completeSearch(this.searchBox.value, suggestion);
+    this.startSearch();
   }
 
   /**
@@ -329,7 +359,7 @@ export class SearchBox extends LitElement {
                 ${this.renderAutocompleteMenu()}
                 ${this.autocompleteSuggestions.map(
                   (s) => html`
-                <mwc-list-item>${s}</p></mwc-list-item>
+                <mwc-list-item @click="${this.onSuggestionClicked}">${s}</p></mwc-list-item>
             `
                 )}
               </mwc-list>`

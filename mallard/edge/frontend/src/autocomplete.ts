@@ -47,6 +47,11 @@ abstract class Predicate {
   static readonly directives: string[] = [];
 
   /**
+   * The portion of the search string associated with this predicate.
+   */
+  searchString: string = "";
+
+  /**
    * Parses a token from the input, expanding the predicate.
    * @param {string} token The input token to parse.
    * @return {boolean} True if it succeeded in parsing the token, false if
@@ -93,9 +98,6 @@ abstract class Predicate {
 
 /** Predicate representing a natural-language search string. */
 class StringPredicate extends Predicate {
-  /** The search string. */
-  searchString: string = "";
-
   /** Whether we have matched a natural-language search string. */
   matched: boolean = false;
 
@@ -190,6 +192,8 @@ class CaptureDatePredicate extends Predicate {
       return false;
     }
     this.date = new Date(unixTime);
+
+    this.searchString = token.value;
 
     return true;
   }
@@ -511,6 +515,43 @@ export function completeToken(searchString: string, nextToken: string): string {
   const tokenValues = tokens.map((t) => t.value);
   tokenValues.push(nextToken);
   return tokenValues.join(" ");
+}
+
+/**
+ * Integrates a new search completion at the end of the current search string,
+ * taking into account the possibility that the user has already partially
+ * typed the completion. If so, it will be merged.
+ *
+ * For instance, if we have a search like "before:2022-03-01 sea", and we
+ * have the completion "search string", it will return "before:2022-03-01
+ * search string".
+ * @param {string} searchString The search string to update.
+ * @param {string} completion The new token to add.
+ * @return {string} The updated search string.
+ */
+export function completeSearch(
+  searchString: string,
+  completion: string
+): string {
+  const predicates = parse(tokenize(searchString));
+  if (predicates.length < 1) {
+    // Empty search string.
+    return completion;
+  }
+
+  const searchStrings = predicates.map((p) => p.searchString);
+  const maybePartialSearchString = searchStrings.at(-1) as string;
+
+  // Check if the completion overlaps with the search string of this predicate.
+  if (
+    completion.toLowerCase().startsWith(maybePartialSearchString.toLowerCase())
+  ) {
+    // It does overlap. Merge them.
+    searchStrings.pop();
+  }
+  searchStrings.push(completion);
+
+  return searchStrings.join(" ");
 }
 
 /**

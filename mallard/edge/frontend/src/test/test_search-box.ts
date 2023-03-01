@@ -11,7 +11,11 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import { RequestState } from "../types";
-import { AutocompleteMenu, completeToken } from "../autocomplete";
+import {
+  AutocompleteMenu,
+  completeSearch,
+  completeToken,
+} from "../autocomplete";
 import { AppDatePicker } from "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
 import { TextField } from "@material/mwc-textfield";
@@ -52,9 +56,13 @@ jest.mock("../autocomplete", () => {
   return {
     AutocompleteMenu: realAutocomplete.AutocompleteMenu,
     completeToken: jest.fn(),
+    completeSearch: jest.fn(),
   };
 });
 const mockCompleteToken = completeToken as jest.MockedFn<typeof completeToken>;
+const mockCompleteSearch = completeSearch as jest.MockedFn<
+  typeof completeSearch
+>;
 
 describe("search-box", () => {
   /** Internal search-box to use for testing. */
@@ -252,6 +260,73 @@ describe("search-box", () => {
     expect(searchBeginHandler).not.toBeCalled();
     expect(clearHandler).not.toBeCalled();
   });
+
+  each([
+    ["with ellipses", "..."],
+    ["without ellipses", ""],
+  ]).it(
+    "starts a search when we click on a suggestion %s",
+    async (_, padding: string) => {
+      // Arrange.
+      // Add some suggestions.
+      const firstSuggestion = faker.lorem.words();
+      const paddedFirstSuggestion = `${padding}${firstSuggestion}${padding}`;
+      searchBoxElement.autocompleteSuggestions = [
+        paddedFirstSuggestion,
+        faker.lorem.words(),
+      ];
+      searchBoxElement.autocompleteMenu = AutocompleteMenu.NONE;
+      await searchBoxElement.updateComplete;
+
+      // Set an existing search string.
+      const root = getShadowRoot(ConnectedSearchBox.tagName);
+      const searchBox = root.querySelector("#search") as TextField;
+      const initialSearchString = faker.lorem.words();
+      searchBox.value = initialSearchString;
+
+      // Make it look like the search completion works.
+      const completedSearch = faker.lorem.words();
+      mockCompleteSearch.mockReturnValue(completedSearch);
+
+      // Listen for the search events.
+      const searchStartedEventListener = jest.fn();
+      const clearedAutocompleteEventListener = jest.fn();
+      searchBoxElement.addEventListener(
+        ConnectedSearchBox.SEARCH_STARTED_EVENT_NAME,
+        searchStartedEventListener
+      );
+      searchBoxElement.addEventListener(
+        ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME,
+        clearedAutocompleteEventListener
+      );
+
+      // Act.
+      // Simulate a click on the suggestion.
+      const suggestionListElement = root.querySelector(
+        "mwc-list"
+      ) as HTMLElement;
+      const listElements =
+        suggestionListElement.querySelectorAll("mwc-list-item");
+
+      expect(listElements).toHaveLength(2);
+      const firstElement = listElements[0];
+      // For some reason, this has to be set manually to show up in the event
+      // target. Idiosyncrasy with JSDom?
+      firstElement.innerText = paddedFirstSuggestion;
+      firstElement.dispatchEvent(new MouseEvent("click", {}));
+
+      // It should have started the search.
+      expect(searchStartedEventListener).toBeCalledTimes(1);
+      expect(clearedAutocompleteEventListener).toBeCalledTimes(1);
+
+      // It should have used the correct search string.
+      expect(mockCompleteSearch).toBeCalledWith(
+        initialSearchString,
+        firstSuggestion
+      );
+      expect(searchBox.value).toEqual(completedSearch);
+    }
+  );
 
   it("clears any text when we click the clear button", async () => {
     // Arrange.

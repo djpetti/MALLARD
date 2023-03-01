@@ -34,6 +34,7 @@ describe("autocomplete", () => {
         { name: "this is a string" },
         { notes: "this is a string" },
         { camera: "this is a string" },
+        { session: "this is a string" },
       ],
     ],
     [
@@ -77,6 +78,10 @@ describe("autocomplete", () => {
           captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
           camera: "search string",
         },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          session: "search string",
+        },
       ],
     ],
     [
@@ -95,6 +100,10 @@ describe("autocomplete", () => {
           captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
           camera: "search string",
         },
+        {
+          captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" },
+          session: "search string",
+        },
       ],
     ],
     [
@@ -105,6 +114,7 @@ describe("autocomplete", () => {
         { name: "search string" },
         { notes: "search string" },
         { camera: "search string" },
+        { session: "search string" },
       ],
     ],
     [

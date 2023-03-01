@@ -33,6 +33,8 @@ export interface ImageQuery {
   notes?: string;
   /** Camera for the images to search for. */
   camera?: string;
+  /** Session for the images to search for. */
+  session?: string;
   /** Date range to search for. */
   captureDates?: RangeDate;
 }

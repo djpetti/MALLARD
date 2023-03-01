@@ -39,7 +39,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         "name": "name",
         "notes": "notes",
         "camera": "camera",
-        "sessions": "session_name",
+        "session": "session_name",
         "sequence_numbers": "sequence_number",
         "capture_dates": "capture_date",
         "bounding_box": "location",

@@ -643,7 +643,7 @@ class TestSqlImageMetadataStore:
         session_0 = [
             r
             async for r in store.query(
-                [ImageQuery(sessions={"a"})],
+                [ImageQuery(session="a")],
                 orderings=(Ordering(field=Ordering.Field.SEQUENCE_NUM),),
             )
         ]
@@ -652,7 +652,7 @@ class TestSqlImageMetadataStore:
             async for r in store.query(
                 [
                     ImageQuery(
-                        sessions={"a"},
+                        session="a",
                         sequence_numbers=ImageQuery.Range(max_value=0),
                     )
                 ]
@@ -663,7 +663,7 @@ class TestSqlImageMetadataStore:
             async for r in store.query(
                 [
                     ImageQuery(
-                        sessions={"a"},
+                        session="a",
                         sequence_numbers=ImageQuery.Range(
                             min_value=0, max_value=0
                         ),
@@ -682,8 +682,8 @@ class TestSqlImageMetadataStore:
             r
             async for r in store.query(
                 [
-                    ImageQuery(name="first", sessions={"a"}),
-                    ImageQuery(name="second", sessions={"a"}),
+                    ImageQuery(name="first", session="a"),
+                    ImageQuery(name="second", session="a"),
                 ]
             )
         ]

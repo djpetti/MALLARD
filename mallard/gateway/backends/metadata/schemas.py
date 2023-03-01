@@ -8,7 +8,7 @@ this representation allows things to remain flexible.
 
 import enum
 from datetime import date
-from typing import Dict, Generic, Optional, Set, TypeVar
+from typing import Dict, Generic, Optional, TypeVar
 
 from pydantic import root_validator, validator
 
@@ -233,7 +233,7 @@ class ImageQuery(ApiModel):
         notes: Partial-text search query for image notes.
         camera: Partial-text search query for camera models.
 
-        sessions: Look for images from these sessions.
+        session: Partial-text search query for session names.
         sequence_numbers: Look for images with these sequence numbers.
         capture_dates: Look for images with these capture dates.
 
@@ -328,7 +328,7 @@ class ImageQuery(ApiModel):
     notes: Optional[str] = None
     camera: Optional[str] = None
 
-    sessions: Optional[Set[str]] = None
+    session: Optional[str] = None
     sequence_numbers: Optional[Range[int]] = None
     capture_dates: Optional[Range[date]] = None
 

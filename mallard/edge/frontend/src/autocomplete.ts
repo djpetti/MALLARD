@@ -139,6 +139,7 @@ class StringPredicate extends Predicate {
       { name: this.searchString },
       { notes: this.searchString },
       { camera: this.searchString },
+      { session: this.searchString },
     ];
   }
 }
@@ -373,6 +374,7 @@ function findSurroundingText(
   matchText = searchField(metadata.name);
   matchText = searchField(metadata.notes);
   matchText = searchField(metadata.camera);
+  matchText = searchField(metadata.sessionName);
 
   return matchText as string;
 }

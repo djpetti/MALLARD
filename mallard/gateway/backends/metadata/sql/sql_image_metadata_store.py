@@ -334,7 +334,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
                 (value.name, Image.name),
                 (value.notes, Image.notes),
                 (value.camera, Image.camera),
-                (value.sessions, Image.session_name),
+                (value.session, Image.session_name),
                 (value.sequence_numbers, Image.sequence_number),
                 (value.capture_dates, Image.capture_date),
                 (value.location_description, Image.location_description),

@@ -91,6 +91,7 @@ describe("thumbnail-grid", () => {
       {
         imageIds: artifactIds,
         captureDate: faker.date.past(),
+        session: faker.lorem.words(),
       },
     ];
 
@@ -329,29 +330,43 @@ describe("thumbnail-grid", () => {
     const imageId1 = faker.datatype.uuid();
     const imageId2 = faker.datatype.uuid();
     const imageId3 = faker.datatype.uuid();
+    const imageId4 = faker.datatype.uuid();
 
     // Create a fake state.
     const state: RootState = fakeState();
-    state.imageView.ids = [imageId1, imageId2, imageId3];
+    state.imageView.ids = [imageId1, imageId2, imageId3, imageId4];
 
     // Make it look like the capture date is the same for two of them.
     const captureDate1 = faker.date.past();
     // Make sure one date is a day before the other.
     const captureDate2 = new Date(captureDate1.getTime() - 1000 * 60 * 60 * 24);
+    // Make it look like there are two sessions.
+    const session1 = "a" + faker.lorem.words();
+    const session2 = "b" + faker.lorem.words();
+
     state.imageView.entities[imageId1] = fakeImageEntity(
       true,
       undefined,
-      captureDate1
+      captureDate1,
+      session1
     );
     state.imageView.entities[imageId2] = fakeImageEntity(
       true,
       undefined,
-      captureDate1
+      captureDate1,
+      session1
     );
     state.imageView.entities[imageId3] = fakeImageEntity(
       true,
       undefined,
-      captureDate2
+      captureDate2,
+      session1
+    );
+    state.imageView.entities[imageId4] = fakeImageEntity(
+      true,
+      undefined,
+      captureDate2,
+      session2
     );
 
     // Act.
@@ -365,14 +380,17 @@ describe("thumbnail-grid", () => {
     // It should have grouped things correctly.
     expect(updates).toHaveProperty("groupedArtifacts");
     const groups = updates["groupedArtifacts"];
-    expect(groups).toHaveLength(2);
+    expect(groups).toHaveLength(3);
 
     // They should be sorted in order by date, descending.
+    expect(groups[0].captureDate).toEqual(captureDate1);
+    expect(groups[0].imageIds).toEqual([imageId1, imageId2]);
+
     expect(groups[1].captureDate).toEqual(captureDate2);
     expect(groups[1].imageIds).toEqual([imageId3]);
 
-    expect(groups[0].captureDate).toEqual(captureDate1);
-    expect(groups[0].imageIds).toEqual([imageId1, imageId2]);
+    expect(groups[2].captureDate).toEqual(captureDate2);
+    expect(groups[2].imageIds).toEqual([imageId4]);
   });
 
   it("maps the correct actions to the images-changed event", () => {

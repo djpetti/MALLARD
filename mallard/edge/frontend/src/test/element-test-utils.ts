@@ -80,12 +80,14 @@ export function fakeState(): RootState {
  * @param {boolean} imageLoaded Specify whether to simulate that a particular
  *  image has finished loading. If not specified, it will be set randomly.
  * @param {Date} captureDate Specify a specific capture date for this entity.
+ * @param {string} sessionName Specify a specific session name for this entity.
  * @return {ImageEntity} The entity that it created.
  */
 export function fakeImageEntity(
   thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
-  captureDate?: Date
+  captureDate?: Date,
+  sessionName?: string
 ): ImageEntity {
   // Determine whether we should simulate a loaded image or not.
   if (thumbnailLoaded == undefined) {
@@ -98,6 +100,9 @@ export function fakeImageEntity(
   if (captureDate == undefined) {
     captureDate = faker.date.past();
   }
+  if (sessionName == undefined) {
+    sessionName = faker.lorem.words();
+  }
 
   let thumbnailStatus: ImageStatus = ImageStatus.LOADING;
   let imageStatus: ImageStatus = ImageStatus.LOADING;
@@ -108,13 +113,19 @@ export function fakeImageEntity(
     // Simulate a loaded thumbnail.
     thumbnailStatus = ImageStatus.VISIBLE;
     thumbnailUrl = faker.image.dataUri();
-    metadata = { captureDate: captureDate.toISOString() };
+    metadata = {
+      captureDate: captureDate.toISOString(),
+      sessionName: sessionName,
+    };
   }
   if (imageLoaded) {
     // Simulate a loaded image.
     imageStatus = ImageStatus.VISIBLE;
     imageUrl = faker.image.dataUri();
-    metadata = { captureDate: captureDate.toISOString() };
+    metadata = {
+      captureDate: captureDate.toISOString(),
+      sessionName: sessionName,
+    };
   }
 
   return {

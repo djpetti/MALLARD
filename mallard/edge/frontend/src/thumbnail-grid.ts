@@ -24,18 +24,26 @@ interface GroupedImages {
   imageIds: string[];
   /** The capture data for these images. */
   captureDate: Date;
+  /** The session for these images. */
+  session: string;
 }
 
 /**
- * Groups a series of images by their capture dates.
+ * Groups a series of images by their capture dates and sessions.
  * @param {string[]} imageIds The IDs of the images to group.
  * @param {RootState} state The Redux state that contains the image metadata.
  * @return {GroupedImages[]} The same image IDs, but grouped with corresponding
  *  capture dates.
  */
-function groupByDate(imageIds: string[], state: RootState): GroupedImages[] {
+function groupByDateAndSession(
+  imageIds: string[],
+  state: RootState
+): GroupedImages[] {
   // Maps date strings to image IDs with that capture data.
-  const datesToImages = new Map<string, string[]>();
+  const keysToImages = new Map<
+    string,
+    { date: string; session: string; images: string[] }
+  >();
 
   for (const imageId of imageIds) {
     const entity = thumbnailGridSelectors.selectById(
@@ -47,18 +55,28 @@ function groupByDate(imageIds: string[], state: RootState): GroupedImages[] {
       continue;
     }
 
-    const captureDate: string = entity.metadata.captureDate as string;
-    if (!datesToImages.has(captureDate)) {
+    const captureDate = entity.metadata.captureDate as string;
+    const session = entity.metadata.sessionName as string;
+    const key = captureDate + session;
+    if (!keysToImages.has(key)) {
       // Add the empty group.
-      datesToImages.set(captureDate, []);
+      keysToImages.set(key, {
+        date: captureDate,
+        session: session,
+        images: [],
+      });
     }
-    (datesToImages.get(captureDate) as string[]).push(imageId);
+    (keysToImages.get(key)?.images as string[]).push(imageId);
   }
 
   // Convert to the final return type.
   const imageGroups: GroupedImages[] = [];
-  for (const [date, images] of datesToImages) {
-    imageGroups.push({ imageIds: images, captureDate: new Date(date) });
+  for (const value of keysToImages.values()) {
+    imageGroups.push({
+      imageIds: value.images,
+      captureDate: new Date(value.date),
+      session: value.session,
+    });
   }
   return imageGroups;
 }
@@ -157,6 +175,17 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   }
 
   /**
+   * Generates a name for a section of the thumbnail grid.
+   * @param {GroupedImages} group The group associated with this section.
+   * @return {string} The name for the section.
+   * @private
+   */
+  private makeSectionName(group: GroupedImages): string {
+    const date = group.captureDate.toISOString().split("T")[0];
+    return `${group.session} (${date})`;
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render() {
@@ -185,10 +214,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
 
       <div class="thumbnail_grid ${contentVisibility}">
         ${this.groupedArtifacts.map(
-          (e) => html`
+          (g) => html`
             <thumbnail-grid-section
-              .sectionHeader=${e.captureDate.toISOString().split("T")[0]}
-              .displayedArtifacts=${e.imageIds}
+              .sectionHeader=${this.makeSectionName(g)}
+              .displayedArtifacts=${g.imageIds}
             ></thumbnail-grid-section>
           `
         )}
@@ -278,11 +307,17 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     ) as string[];
 
     // Group the artifacts by date.
-    const grouped = groupByDate(allIds, state);
+    const grouped = groupByDateAndSession(allIds, state);
 
-    // Sort grouped images by date, descending.
+    // Sort grouped images by date, descending, and then by session name.
     grouped.sort((a, b): number => {
-      return b.captureDate.getTime() - a.captureDate.getTime();
+      const timeDiff = b.captureDate.getTime() - a.captureDate.getTime();
+      if (timeDiff == 0) {
+        // Sort by session as a secondary key.
+        return a.session > b.session ? 1 : a.session < b.session ? -1 : 0;
+      }
+
+      return timeDiff;
     });
 
     // Determine the loading status.

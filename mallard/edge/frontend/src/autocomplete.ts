@@ -1,6 +1,6 @@
 import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
-import { RangeDate, UavImageMetadata } from "typescript-axios";
+import { PlatformType, RangeDate, UavImageMetadata } from "typescript-axios";
 import { merge } from "lodash";
 
 /** Maximum length we allow for autocomplete suggestions. */
@@ -11,6 +11,8 @@ export enum AutocompleteMenu {
   NONE,
   /** Show the date selector. */
   DATE,
+  /** Show the platform type selector. */
+  PLATFORM,
 }
 
 export interface Suggestions {
@@ -45,17 +47,14 @@ abstract class Predicate {
    * List of directives that this predicate is matching.
    */
   static readonly directives: string[] = [];
-
-  /**
-   * The portion of the search string associated with this predicate.
-   */
-  searchString: string = "";
+  /** Autocomplete menu corresponding to this predicate. */
+  static readonly menu: AutocompleteMenu = AutocompleteMenu.NONE;
 
   /**
    * Parses a token from the input, expanding the predicate.
    * @param {string} token The input token to parse.
    * @return {boolean} True if it succeeded in parsing the token, false if
-   *  the input is invalid for this token type.
+   *  the token was rejected.
    */
   abstract parse(token: Token): boolean;
 
@@ -63,6 +62,11 @@ abstract class Predicate {
    * @return {boolean} True iff this predicate has been fully matched.
    */
   abstract isMatched(): boolean;
+
+  /**
+   * @return The portion of the search string associated with this predicate.
+   */
+  abstract get searchString(): string;
 
   /**
    * Creates the queries that corresponds to this predicate.
@@ -101,6 +105,9 @@ class StringPredicate extends Predicate {
   /** Whether we have matched a natural-language search string. */
   matched: boolean = false;
 
+  /** Search string associated with the predicate. */
+  private _searchString: string = "";
+
   /**
    * @inheritDoc
    */
@@ -118,9 +125,9 @@ class StringPredicate extends Predicate {
 
     // Append the string to whatever we parsed already.
     if (this.searchString.length > 0) {
-      this.searchString += " ";
+      this._searchString += " ";
     }
-    this.searchString += token.value;
+    this._searchString += token.value;
     return true;
   }
 
@@ -129,6 +136,13 @@ class StringPredicate extends Predicate {
    */
   override isMatched(): boolean {
     return this.matched;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override get searchString(): string {
+    return this._searchString;
   }
 
   /**
@@ -161,7 +175,11 @@ class CaptureDatePredicate extends Predicate {
   /** The date specified. */
   date: Date | null = null;
 
+  /** Search string associated with the predicate. */
+  private _searchString: string = "";
+
   static override readonly directives = ["before", "after", "on", "date"];
+  static override readonly menu = AutocompleteMenu.DATE;
 
   /**
    * @inheritDoc
@@ -194,7 +212,7 @@ class CaptureDatePredicate extends Predicate {
     }
     this.date = new Date(unixTime);
 
-    this.searchString = token.value;
+    this._searchString = token.value;
 
     return true;
   }
@@ -204,6 +222,13 @@ class CaptureDatePredicate extends Predicate {
    */
   override isMatched(): boolean {
     return this.condition !== null && this.date !== null;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override get searchString(): string {
+    return this._searchString;
   }
 
   /**
@@ -238,6 +263,77 @@ class CaptureDatePredicate extends Predicate {
 }
 
 /**
+ * Predicate representing a condition on the platform type.
+ */
+class PlatformPredicate extends Predicate {
+  /** The platform type specified by the user. */
+  platform: PlatformType | null = null;
+
+  /** Maps platform type directives to enum values. */
+  private static readonly platformTypeValues = new Map([
+    ["ground", PlatformType.GROUND],
+    ["aerial", PlatformType.AERIAL],
+  ]);
+
+  /** Search string associated with the predicate. */
+  private _searchString: string = "";
+
+  static override readonly directives = ["platform"];
+  static override readonly menu = AutocompleteMenu.PLATFORM;
+
+  /**
+   * @inheritDoc
+   */
+  override parse(token: Token): boolean {
+    // This is actually hard to cover, because all predicates will
+    // generally consume an end token.
+    if (token.isEnd) {
+      /* istanbul ignore next */
+      return true;
+    }
+
+    if (!token.value.startsWith("platform:")) {
+      // It doesn't match at all.
+      return false;
+    }
+
+    const platformType = token.value.split(":")[1];
+    if (!PlatformPredicate.platformTypeValues.has(platformType)) {
+      // This isn't a valid platform type directive.
+      return false;
+    }
+    this.platform = PlatformPredicate.platformTypeValues.get(
+      platformType
+    ) as PlatformType;
+
+    this._searchString = token.value;
+
+    return true;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override isMatched(): boolean {
+    return this.platform !== null;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override get searchString(): string {
+    return this._searchString;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override makeQueries(): ImageQuery[] {
+    return [{ platformType: this.platform as PlatformType }];
+  }
+}
+
+/**
  * Converts a search string into tokens.
  * @param {string} searchString The search string.
  * @return {Token[]} The extracted tokens.
@@ -255,7 +351,11 @@ function tokenize(searchString: string): Token[] {
 /**
  * Order in which we try to expand predicates when parsing.
  */
-const PREDICATE_ORDER = [CaptureDatePredicate, StringPredicate];
+const PREDICATE_ORDER = [
+  CaptureDatePredicate,
+  PlatformPredicate,
+  StringPredicate,
+];
 
 /**
  * Parses a search string.
@@ -467,9 +567,10 @@ function updateMenu(tokens: Token[]): AutocompleteMenu {
   // end token.
   const lastToken = tokens.at(-2) as Token;
 
-  if (CaptureDatePredicate.couldMatchDirectives(lastToken)) {
-    // Show the date menu.
-    return AutocompleteMenu.DATE;
+  for (const predicate of PREDICATE_ORDER) {
+    if (predicate.couldMatchDirectives(lastToken)) {
+      return predicate.menu;
+    }
   }
 
   // Default to not showing any menu.

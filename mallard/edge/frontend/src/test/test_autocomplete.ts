@@ -9,6 +9,7 @@ import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { ImageQuery } from "../types";
+import { PlatformType } from "typescript-axios";
 
 const faker = require("faker");
 
@@ -61,6 +62,17 @@ describe("autocomplete", () => {
       "date (on)",
       "on:2023-02-24",
       [{ captureDates: { minValue: "2023-02-24", maxValue: "2023-02-24" } }],
+    ],
+    ["platform", "platform:ground", [{ platformType: PlatformType.GROUND }]],
+    [
+      "platform + date",
+      "platform:aerial date:2023-03-02",
+      [
+        {
+          platformType: PlatformType.AERIAL,
+          captureDates: { minValue: "2023-03-02", maxValue: "2023-03-02" },
+        },
+      ],
     ],
     [
       "date + natural language",
@@ -125,6 +137,7 @@ describe("autocomplete", () => {
         {},
       ],
     ],
+    ["invalid platform", "platform:invalid", [{}]],
   ]).it(
     "can generate queries from a %s search",
     (_: string, searchString: string, expectedQueries: ImageQuery[]) => {
@@ -198,6 +211,7 @@ describe("autocomplete", () => {
     ["is empty", "", AutocompleteMenu.NONE],
     ["matches before directive", "this befo", AutocompleteMenu.DATE],
     ["matches after directive", "aft", AutocompleteMenu.DATE],
+    ["matches platform directive", "foo plat", AutocompleteMenu.PLATFORM],
     ["completely matches a directive", "date", AutocompleteMenu.DATE],
     ["has extra characters", "date:2023-02-", AutocompleteMenu.DATE],
     ["is too short", "be", AutocompleteMenu.NONE],
@@ -272,6 +286,12 @@ describe("autocomplete", () => {
       "my favorite search",
     ],
     ["the cases don't match", "dan", "Daniel", "Daniel"],
+    [
+      "the search has a platform directive",
+      "date:2023-03-02 platform:ground sea",
+      "search string",
+      "date:2023-03-02 platform:ground search string",
+    ],
   ]).it(
     "can complete search strings when %s",
     (_, searchString: string, suggestion: string, completion: string) => {

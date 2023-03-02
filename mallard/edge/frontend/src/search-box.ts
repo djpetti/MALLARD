@@ -26,6 +26,7 @@ import "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
 import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
 import { trim } from "lodash";
+import { PlatformType } from "typescript-axios";
 
 /**
  * Condition specified when searching by dates.
@@ -50,6 +51,13 @@ export class SearchBox extends LitElement {
     [DateCondition.BEFORE, "before"],
     [DateCondition.ON, "date"],
     [DateCondition.AFTER, "after"],
+  ]);
+
+  /** Maps platform conditions to the strings that we can use in the
+   *  platform directive. */
+  private static readonly platformToDirectiveChoice = new Map([
+    [PlatformType.GROUND, "ground"],
+    [PlatformType.AERIAL, "aerial"],
   ]);
 
   static styles = css`
@@ -229,6 +237,37 @@ export class SearchBox extends LitElement {
   }
 
   /**
+   * Adds a new token to the end of the current search string.
+   * @param {string} newToken The new token to add.
+   * @private
+   */
+  private addTokenToSearchString(newToken: string): void {
+    this.searchBox.value = completeToken(this.searchBox.value, newToken);
+    // Manually fire this event so that it updates the autocomplete.
+    this.dispatchEvent(
+      new CustomEvent<string>(SearchBox.SEARCH_STRING_CHANGED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.searchBox.value.trim(),
+      })
+    );
+  }
+
+  /**
+   * Runs whenever a platform condition button is clicked.
+   * @param {PlatformType} platform The button that was clicked.
+   * @private
+   */
+  private onPlatformConditionClick(platform: PlatformType): void {
+    // Find the right directive for the platform condition.
+    const platformName = SearchBox.platformToDirectiveChoice.get(platform);
+
+    // Add it to the search string.
+    const newToken = `platform:${platformName}`;
+    this.addTokenToSearchString(newToken);
+  }
+
+  /**
    * Run whenever the user clicks "ok" in the date picker. It modifies
    * the search correctly for the specified date condition.
    * @private
@@ -243,15 +282,7 @@ export class SearchBox extends LitElement {
 
     // Add it to the search string.
     const newToken = `${directive}:${selectedDate}`;
-    this.searchBox.value = completeToken(this.searchBox.value, newToken);
-    // Manually fire this event so that it updates the autocomplete.
-    this.dispatchEvent(
-      new CustomEvent<string>(SearchBox.SEARCH_STRING_CHANGED_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: this.searchBox.value.trim(),
-      })
-    );
+    this.addTokenToSearchString(newToken);
   }
 
   /**
@@ -298,6 +329,22 @@ export class SearchBox extends LitElement {
             unelevated
             label="after"
             @click="${() => this.onDateConditionClick(DateCondition.AFTER)}"
+          ></mwc-button>
+        </mwc-list-item>`;
+
+      case AutocompleteMenu.PLATFORM:
+        return html`<mwc-list-item class="center">
+          <mwc-button
+            dense
+            unelevated
+            label="ground"
+            @click="${() => this.onPlatformConditionClick(PlatformType.GROUND)}"
+          ></mwc-button>
+          <mwc-button
+            dense
+            unelevated
+            label="aerial"
+            @click="${() => this.onPlatformConditionClick(PlatformType.AERIAL)}"
           ></mwc-button>
         </mwc-list-item>`;
     }

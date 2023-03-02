@@ -167,6 +167,27 @@ describe("search-box", () => {
     expect(buttons[2].label).toEqual("after");
   });
 
+  it("renders the platform autocomplete menu", async () => {
+    // Arrange.
+    // Show the menu.
+    searchBoxElement.autocompleteMenu = AutocompleteMenu.PLATFORM;
+
+    // Act.
+    await searchBoxElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedSearchBox.tagName);
+    const autocompleteDiv = root.querySelector(
+      ".autocomplete-background"
+    ) as HTMLElement;
+
+    // It should have rendered the menu.
+    const buttons = autocompleteDiv.querySelectorAll("mwc-button");
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].label).toEqual("ground");
+    expect(buttons[1].label).toEqual("aerial");
+  });
+
   it("fires an event when the user types something", async () => {
     // Arrange.
     // Listen for the event.
@@ -422,6 +443,57 @@ describe("search-box", () => {
       expect(mockCompleteToken).toBeCalledWith(
         initialSearchString,
         `${directive}:${selectedDate}`
+      );
+    }
+  );
+
+  each([
+    ["ground", 0, "ground"],
+    ["aerial", 1, "aerial"],
+  ]).it(
+    "adds a platform directive when we click the %s button",
+    async (_, buttonIndex: number, condition: string) => {
+      // Arrange.
+      // Show the platform menu.
+      searchBoxElement.autocompleteMenu = AutocompleteMenu.PLATFORM;
+      await searchBoxElement.updateComplete;
+
+      // Find the button.
+      const root = getShadowRoot(ConnectedSearchBox.tagName);
+      const autocompleteDiv = root.querySelector(
+        ".autocomplete-background"
+      ) as HTMLElement;
+      const button =
+        autocompleteDiv.querySelectorAll("mwc-button")[buttonIndex];
+
+      // Add a listener for the event signaling that the search string has
+      // changed.
+      const searchStringChangedListener = jest.fn();
+      searchBoxElement.addEventListener(
+        ConnectedSearchBox.SEARCH_STRING_CHANGED_EVENT_NAME,
+        searchStringChangedListener
+      );
+
+      // Make it look like completing the token works.
+      const searchBox = root.querySelector("#search") as TextField;
+      const initialSearchString = faker.lorem.words();
+      const completedSearchString = faker.lorem.words();
+      searchBox.value = initialSearchString;
+      mockCompleteToken.mockReturnValue(completedSearchString);
+
+      // Act.
+      // Simulate a click on the button.
+      button.dispatchEvent(new MouseEvent("click", {}));
+
+      // Assert.
+      // It should have fired the event.
+      expect(searchStringChangedListener).toBeCalledTimes(1);
+
+      // It should have added the proper directive to the search string.
+      expect(searchBox.value).toEqual(completedSearchString);
+      expect(mockCompleteToken).toBeCalledWith(
+        initialSearchString,
+        `platform:${condition}`
       );
     }
   );

@@ -2,6 +2,7 @@ import { Dictionary, EntityId } from "@reduxjs/toolkit";
 import {
   ObjectRef,
   Ordering,
+  PlatformType,
   RangeDate,
   UavImageMetadata,
 } from "typescript-axios";
@@ -37,6 +38,8 @@ export interface ImageQuery {
   session?: string;
   /** Date range to search for. */
   captureDates?: RangeDate;
+  /** The type of platform to search for. */
+  platformType?: PlatformType;
 }
 
 /**

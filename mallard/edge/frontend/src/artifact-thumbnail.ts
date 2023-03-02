@@ -1,4 +1,4 @@
-import { css } from "lit";
+import { css, html, PropertyValues } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";
@@ -8,6 +8,7 @@ import {
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import { ImageChangedEvent, ImageDisplay } from "./image-display";
+import "@material/mwc-icon-button";
 
 /**
  * Thumbnail representation of an uploaded artifact.
@@ -20,16 +21,49 @@ export class ArtifactThumbnail extends ImageDisplay {
       margin: 0.5rem;
       min-width: 128px;
       min-height: 80px;
+      position: relative;
     }
 
     .placeholder {
       height: 100%;
     }
 
+    #select_button {
+      position: absolute;
+      z-index: 99;
+      top: -10px;
+      right: -10px;
+      color: var(--theme-whitish);
+    }
+
     ${ImageDisplay.styles}
   `;
 
   static tagName: string = "artifact-thumbnail";
+
+  /**
+   * @inheritDoc
+   */
+  protected override render() {
+    const baseHtml = super.render();
+
+    return html` <div>
+      ${baseHtml}
+      <mwc-icon-button
+        id="select_button"
+        icon="radio_button_unchecked"
+        slot="actionItems"
+      ></mwc-icon-button>
+    </div>`;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override firstUpdated(_: PropertyValues) {
+    // Add a handler for mousing over the image, so we can show the
+    // selection button.
+  }
 }
 
 /**

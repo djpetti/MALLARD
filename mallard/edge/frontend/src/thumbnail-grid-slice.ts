@@ -115,6 +115,7 @@ function createDefaultEntity(backendId: ObjectRef): ImageEntity {
     thumbnailUrl: null,
     imageUrl: null,
     metadata: null,
+    isSelected: false,
   };
 }
 
@@ -426,6 +427,15 @@ export const thumbnailGridSlice = createSlice({
       };
       state.search.queryState = RequestState.IDLE;
     },
+    // Selects or deselects images.
+    selectImages(state, action) {
+      const imageIds = action.payload.imageIds;
+      const updates = imageIds.map((id: string) => ({
+        id: id,
+        changes: { isSelected: action.payload.select },
+      }));
+      thumbnailGridAdapter.updateMany(state, updates);
+    },
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
@@ -524,5 +534,6 @@ export const {
   addArtifact,
   clearImageView,
   clearAutocomplete,
+  selectImages,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

@@ -93,6 +93,9 @@ export interface ImageEntity {
 
   /** The metadata associated with the image. */
   metadata: UavImageMetadata | null;
+
+  /** Whether this image is currently selected. */
+  isSelected: boolean;
 }
 
 /**

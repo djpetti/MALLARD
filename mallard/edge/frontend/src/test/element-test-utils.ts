@@ -135,6 +135,7 @@ export function fakeImageEntity(
     thumbnailUrl: thumbnailUrl,
     imageUrl: imageUrl,
     metadata: metadata,
+    isSelected: faker.datatype.boolean(),
   };
 }
 

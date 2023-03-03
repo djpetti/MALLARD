@@ -1,8 +1,10 @@
-import { css, html, PropertyValues } from "lit";
+import { css, html, nothing, PropertyValues } from "lit";
+import { state, property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";
 import {
+  selectImages,
   thumbnailGridSelectors,
   thunkLoadThumbnail,
 } from "./thumbnail-grid-slice";
@@ -10,12 +12,31 @@ import { Action } from "redux";
 import { ImageChangedEvent, ImageDisplay } from "./image-display";
 import "@material/mwc-icon-button";
 
+/** Custom event indicating that the selection status has changed. */
+type SelectedEvent = CustomEvent<boolean>;
+
 /**
  * Thumbnail representation of an uploaded artifact.
  * @customElement artifact-thumbnail
  */
 export class ArtifactThumbnail extends ImageDisplay {
   static styles = css`
+    /* Animation for the padding. */
+    @keyframes shrink {
+      from {
+        padding: 0px;
+      }
+      to {
+        padding: 10px;
+      }
+    }
+
+    .padded {
+      animation-name: shrink;
+      animation-duration: 0.25s;
+      padding: 10px;
+    }
+
     :host {
       display: inline-block;
       margin: 0.5rem;
@@ -28,12 +49,31 @@ export class ArtifactThumbnail extends ImageDisplay {
       height: 100%;
     }
 
+    /* Fade animation for the select button. */
+    @keyframes fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
     #select_button {
       position: absolute;
       z-index: 99;
       top: -10px;
       right: -10px;
+      animation-name: fade;
+      animation-duration: 0.25s;
+    }
+
+    .button-unselected {
       color: var(--theme-whitish);
+    }
+
+    .button-selected {
+      color: var(--theme-secondary-1-light);
     }
 
     ${ImageDisplay.styles}
@@ -41,28 +81,96 @@ export class ArtifactThumbnail extends ImageDisplay {
 
   static tagName: string = "artifact-thumbnail";
 
+  /** Event indicating that the selection status has changed. */
+  protected static readonly SELECTED_EVENT_NAME = `${ArtifactThumbnail.tagName}-selected`;
+
+  /** Whether this thumbnail is selected. */
+  @property({ type: Boolean })
+  selected: boolean = false;
+
+  /** Whether we should show the select button. */
+  @state()
+  private showSelectButton: boolean = false;
+
+  /**
+   * Run whenever the select button is clicked.
+   * @private
+   */
+  private onSelect(): void {
+    this.selected = !this.selected;
+    if (this.selected) {
+      // Show the select button permanently.
+      this.showSelectButton = true;
+    }
+  }
+
+  /**
+   * Run whenever we stop mousing over this element.
+   * @private
+   */
+  private onMouseLeave(): void {
+    if (!this.selected) {
+      // If it's not selected, we can hide the selection button.
+      this.showSelectButton = false;
+    }
+  }
+
   /**
    * @inheritDoc
    */
   protected override render() {
-    const baseHtml = super.render();
+    // Icon to use for the select button.
+    const selectIcon = this.selected
+      ? "check_circle"
+      : "radio_button_unchecked";
+    const selectClass = this.selected ? "button-selected" : "button-unselected";
+    // Whether to show extra padding.
+    const paddingClass = this.selected ? "padded" : "";
 
+    const baseHtml = super.render();
     return html` <div>
-      ${baseHtml}
-      <mwc-icon-button
-        id="select_button"
-        icon="radio_button_unchecked"
-        slot="actionItems"
-      ></mwc-icon-button>
+      <div class=${paddingClass}>${baseHtml}</div>
+      <!-- Selection button -->
+      ${this.showSelectButton
+        ? html`<mwc-icon-button
+            id="select_button"
+            icon="${selectIcon}"
+            slot="actionItems"
+            class="${selectClass}"
+            @click="${this.onSelect}"
+          ></mwc-icon-button>`
+        : nothing}
     </div>`;
   }
 
   /**
    * @inheritDoc
    */
-  protected override firstUpdated(_: PropertyValues) {
+  protected override firstUpdated(_changedProperties: PropertyValues) {
+    super.firstUpdated(_changedProperties);
+
     // Add a handler for mousing over the image, so we can show the
     // selection button.
+    this.addEventListener("mouseenter", () => (this.showSelectButton = true));
+    this.addEventListener("mouseleave", this.onMouseLeave);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    if (_changedProperties.has("selected")) {
+      // Indicate that the selection status changed.
+      this.dispatchEvent(
+        new CustomEvent<boolean>(ArtifactThumbnail.SELECTED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+          detail: this.selected,
+        })
+      );
+    }
   }
 }
 
@@ -109,6 +217,7 @@ export class ConnectedArtifactThumbnail extends connect(
 
     return {
       imageUrl: imageEntity.thumbnailUrl,
+      selected: imageEntity.isSelected,
       imageLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
     };
   }
@@ -128,6 +237,11 @@ export class ConnectedArtifactThumbnail extends connect(
       thunkLoadThumbnail(
         (event as ImageChangedEvent).detail.frontendId as string
       ) as unknown as Action;
+    handlers[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME] = (event: Event) =>
+      selectImages({
+        imageIds: [this.frontendId],
+        select: (event as SelectedEvent).detail,
+      });
     return handlers;
   }
 }

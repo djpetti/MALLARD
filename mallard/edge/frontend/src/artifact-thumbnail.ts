@@ -24,7 +24,7 @@ export class ArtifactThumbnail extends ImageDisplay {
     /* Animation for the padding. */
     @keyframes shrink {
       from {
-        padding: 0px;
+        padding: 0;
       }
       to {
         padding: 10px;

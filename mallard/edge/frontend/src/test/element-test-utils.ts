@@ -57,6 +57,7 @@ export function fakeState(): RootState {
         },
         queryState: RequestState.IDLE,
       },
+      numItemsSelected: 0,
     },
     uploads: {
       dialogOpen: false,

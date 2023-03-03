@@ -137,6 +137,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
     },
     queryState: RequestState.IDLE,
   },
+  numItemsSelected: 0,
 });
 
 /** Memoized selectors for the state. */
@@ -430,11 +431,28 @@ export const thumbnailGridSlice = createSlice({
     // Selects or deselects images.
     selectImages(state, action) {
       const imageIds = action.payload.imageIds;
-      const updates = imageIds.map((id: string) => ({
+
+      // Filter out updates that won't actually change anything.
+      const updateIds = [];
+      for (const id of imageIds) {
+        const entity = state.entities[id] as ImageEntity;
+        if (entity.isSelected != action.payload.select) {
+          updateIds.push(id);
+        }
+      }
+
+      const updates = updateIds.map((id: string) => ({
         id: id,
         changes: { isSelected: action.payload.select },
       }));
       thumbnailGridAdapter.updateMany(state, updates);
+
+      // Update the number of selected items.
+      if (action.payload.select) {
+        state.numItemsSelected += updateIds.length;
+      } else {
+        state.numItemsSelected -= updateIds.length;
+      }
     },
   },
   extraReducers: (builder) => {

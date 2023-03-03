@@ -1,9 +1,12 @@
-import { css, html, LitElement } from "lit";
+import { css, html, LitElement, nothing } from "lit";
 import { property } from "lit/decorators.js";
+import { connect } from "@captaincodeman/redux-connect-element";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
 import "./search-box";
+import store from "./store";
+import { RootState } from "./types";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -15,8 +18,18 @@ export class TopNavBar extends LitElement {
       display: none;
     }
 
-    #app_bar {
+    .normal {
       --mdc-theme-primary: var(--theme-secondary-2);
+    }
+
+    .selection-mode {
+      /* Change the color slightly in selection mode to provide a cue to the
+      user.
+       */
+      --mdc-theme-primary: var(--theme-secondary-1);
+    }
+
+    #app_bar {
       --mdc-theme-on-primary: var(--theme-whitish);
 
       overflow-x: hidden;
@@ -45,14 +58,21 @@ export class TopNavBar extends LitElement {
   title: string = "";
 
   /**
+   * Whether to enable the "selected items" state.
+   */
+  @property({ type: Boolean })
+  itemsSelected: boolean = false;
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
     // Only show the back button if that's been requested.
     const backButtonClass = this.showBack ? "" : "hidden";
+    const topBarClass = this.itemsSelected ? "selection-mode" : "normal";
 
     return html`
-      <mwc-top-app-bar-fixed id="app_bar">
+      <mwc-top-app-bar-fixed id="app_bar" class="${topBarClass}">
         <!-- Back button -->
         <mwc-icon-button
           class="${backButtonClass}"
@@ -66,6 +86,14 @@ export class TopNavBar extends LitElement {
         <!-- Search box. -->
         <search-box id="search"></search-box>
 
+        <!-- Action items. -->
+        ${this.itemsSelected
+          ? html` <mwc-icon-button
+              icon="download"
+              slot="actionItems"
+            ></mwc-icon-button>`
+          : nothing}
+
         <slot></slot>
       </mwc-top-app-bar-fixed>
     `;
@@ -74,4 +102,18 @@ export class TopNavBar extends LitElement {
   /**
    * @inheritDoc
    */
+}
+
+/**
+ * Extension of `TopNavBar` that connects to Redux.
+ */
+export class ConnectedTopNavBar extends connect(store, TopNavBar) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: RootState): { [p: string]: any } {
+    return {
+      itemsSelected: state.imageView.numItemsSelected > 0,
+    };
+  }
 }

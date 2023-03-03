@@ -131,6 +131,9 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
 
   /** State of the search interface. */
   search: SearchState;
+
+  /** Keeps track of the total number of items selected. */
+  numItemsSelected: number;
 }
 
 /**

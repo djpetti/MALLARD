@@ -93,6 +93,9 @@ interface DoAutocompleteReturn {
   autocompleteSuggestions: Suggestions;
 }
 
+// Downzip object to use for bulk downloads.
+const downZip = new Down();
+
 /**
  * Creates a unique ID to use for an image based on the backend ID.
  * @param {ObjectRef} backendId The ID used by the backend.

@@ -1,8 +1,9 @@
 {
-  "npmName": "typescript-axios",
+  "npmName": "mallard-api",
   "npmVersion": "0.1.0",
   "snapshot": false,
   "supportsES6": true,
+  "useSingleRequestParameter": false,
   "modelPropertyNaming": "camelCase",
   "enumPropertyNaming": "UPPERCASE"
 }

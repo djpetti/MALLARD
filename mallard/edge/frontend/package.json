@@ -12,7 +12,7 @@
     "lint:lit-analyzer": "lit-analyzer",
     "format": "prettier src/**.ts src/**/*.ts --write",
     "bundle": "rollup -c",
-    "api": "rm -rf gen/api && openapi-generator-cli generate -i http://127.0.0.1:8000/openapi.json --generator-name typescript-axios -o gen/api --config api.json && cd gen/api && npm install && npm run build"
+    "api": "rm -rf gen/api && openapi-generator-cli generate -i http://127.0.0.1:8000/openapi.json --generator-name typescript-fetch -o gen/api --config api.json && cd gen/api && npm install && npm run build"
   },
   "repository": {
     "type": "git",
@@ -53,6 +53,7 @@
     "redux-mock-store": "^1.5.4",
     "rollup": "^3.12.0",
     "rollup-jest": "^3.1.0",
+    "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-polyfill-node": "^0.12.0",
     "rollup-plugin-scss": "^4.0.0",
     "rollup-plugin-sourcemaps": "^0.6.3",
@@ -83,12 +84,14 @@
     "@types/lodash": "^4.14.178",
     "@types/uuid": "^8.3.1",
     "app-datepicker": "^6.0.0-rc.32",
+    "client-zip": "^2.3.0",
     "jquery": "^3.6.0",
     "lit": "^2.6.1",
     "lodash": "^4.17.21",
+    "native-file-system-adapter": "^3.0.0",
     "uuid": "^9.0.0"
   },
   "optionalDependencies": {
-    "typescript-axios": "file:gen/api"
+    "mallard-api": "file:gen/api"
   }
 }

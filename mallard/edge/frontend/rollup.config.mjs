@@ -5,6 +5,7 @@ import json from "@rollup/plugin-json";
 import nodePolyfills from 'rollup-plugin-polyfill-node';
 import sourcemaps from "rollup-plugin-sourcemaps";
 import scss from "rollup-plugin-scss";
+import copy from "rollup-plugin-copy";
 
 export default {
     input: 'build/index.js',
@@ -36,5 +37,11 @@ export default {
         }
     },
     plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
-              scss({fileName: "mallard-edge.css"})],
+        scss({fileName: "mallard-edge.css"}),
+        copy({
+            targets: [{
+                src: 'node_modules/client-zip/worker.js',
+                dest: 'bundled/'
+            }]
+        })],
 };

@@ -7,7 +7,7 @@ import {
   PlatformType,
   QueryResponse,
   UavImageMetadata,
-} from "typescript-axios";
+} from "mallard-api";
 import { ImageQuery } from "./types";
 
 // This global variable is expected to be pre-set by an external script.
@@ -91,7 +91,7 @@ export async function queryImages(
   resultsPerPage?: number,
   pageNum: number = 1
 ): Promise<QueryResponse> {
-  const response = await api
+  return await api
     .queryImagesImagesQueryPost(resultsPerPage, pageNum, {
       queries: query,
       orderings: orderings,
@@ -100,8 +100,6 @@ export async function queryImages(
       console.error(error.toJSON());
       throw error;
     });
-
-  return response.data;
 }
 
 /**
@@ -111,16 +109,31 @@ export async function queryImages(
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const response = await api
-    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
-      responseType: "blob",
-    })
+    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name)
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
     });
-
-  return response.data;
+  // OpenAPI for some reason treats this as text instead of a blob by default.
+  return new Blob(response);
 }
+
+// /**
+//  * Same as `loadImage`, but returns the raw response instead of the blob.
+//  * @param {ObjectRef} imageId The ID of the image to load.
+//  * @return {Response} The image response.
+//  */
+// export async function loadImageResponse(imageId: ObjectRef): Promise<Response> {
+//   const response = await api
+//       .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
+//         responseType: "blob",
+//       })
+//       .catch(function (error) {
+//         console.error(error.toJSON());
+//         throw error;
+//       });
+//   return response.
+// }
 
 /**
  * Loads a specific image.

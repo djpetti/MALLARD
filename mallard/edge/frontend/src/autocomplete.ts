@@ -1,6 +1,6 @@
 import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
-import { PlatformType, RangeDate, UavImageMetadata } from "typescript-axios";
+import { PlatformType, RangeDate, UavImageMetadata } from "mallard-api";
 import { merge } from "lodash";
 
 /** Maximum length we allow for autocomplete suggestions. */

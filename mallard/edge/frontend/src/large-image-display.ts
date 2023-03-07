@@ -16,7 +16,7 @@ import {
   thunkLoadImage,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import { ObjectRef } from "typescript-axios";
+import { ObjectRef } from "mallard-api";
 
 /**
  * An element for displaying a full-sized image.

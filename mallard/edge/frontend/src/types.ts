@@ -5,7 +5,7 @@ import {
   PlatformType,
   RangeDate,
   UavImageMetadata,
-} from "typescript-axios";
+} from "mallard-api";
 import { Suggestions } from "./autocomplete";
 
 /**

@@ -15,7 +15,7 @@ import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
 import { ThunkAction } from "redux-thunk";
-import { ObjectRef, UavImageMetadata } from "typescript-axios";
+import { ObjectRef, UavImageMetadata } from "mallard-api";
 
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;

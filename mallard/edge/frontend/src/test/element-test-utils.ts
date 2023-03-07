@@ -20,7 +20,7 @@ import {
   Ordering,
   PlatformType,
   UavImageMetadata,
-} from "typescript-axios";
+} from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
 
 /**

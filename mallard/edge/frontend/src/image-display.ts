@@ -1,7 +1,7 @@
 import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
-import { ObjectRef } from "typescript-axios";
+import { ObjectRef } from "mallard-api";
 import { PageManager } from "./page-manager";
 
 /** Type of click handler functions. */
@@ -21,6 +21,7 @@ export class ImageDisplay extends LitElement {
     .placeholder {
       background-color: var(--theme-gray);
       width: 100%;
+      height: 100%;
     }
 
     .centered {

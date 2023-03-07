@@ -9,7 +9,7 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import each from "jest-each";
-import { PlatformType, UavImageMetadata } from "typescript-axios";
+import { PlatformType, UavImageMetadata } from "mallard-api";
 import { MetadataInferenceStatus, RootState } from "../types";
 import { Action } from "redux";
 

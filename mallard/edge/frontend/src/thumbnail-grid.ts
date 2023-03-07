@@ -13,7 +13,7 @@ import {
 import { Action } from "redux";
 import "@material/mwc-circular-progress";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
-import { Field, Ordering } from "typescript-axios";
+import { Field, Ordering } from "mallard-api";
 import { isEqual } from "lodash";
 
 /**

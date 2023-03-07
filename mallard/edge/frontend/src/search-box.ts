@@ -26,7 +26,7 @@ import "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
 import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
 import { trim } from "lodash";
-import { PlatformType } from "typescript-axios";
+import { PlatformType } from "mallard-api";
 
 /**
  * Condition specified when searching by dates.

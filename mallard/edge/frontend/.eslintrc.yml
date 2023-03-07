@@ -26,6 +26,8 @@ rules:
     - capIsNewExceptions:
       - Set
       - Map
+      - UavImageMetadataFromJSON
+      - UavImageMetadataToJSON
 ignorePatterns:
   # Generated type files.
   - "*.d.ts"

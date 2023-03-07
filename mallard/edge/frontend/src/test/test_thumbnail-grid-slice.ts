@@ -31,7 +31,7 @@ import {
   fakeState,
   fakeSuggestions,
 } from "./element-test-utils";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "typescript-axios";
+import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
 import each from "jest-each";
 import {
   getMetadata,

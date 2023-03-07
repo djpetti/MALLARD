@@ -8,7 +8,7 @@ import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { PlatformType, UavImageMetadata } from "typescript-axios";
+import { PlatformType, UavImageMetadata } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
 

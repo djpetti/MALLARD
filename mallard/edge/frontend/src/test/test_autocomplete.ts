@@ -9,7 +9,7 @@ import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { ImageQuery } from "../types";
-import { PlatformType } from "typescript-axios";
+import { PlatformType } from "mallard-api";
 
 const faker = require("faker");
 

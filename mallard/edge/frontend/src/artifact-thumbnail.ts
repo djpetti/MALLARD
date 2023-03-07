@@ -45,7 +45,8 @@ export class ArtifactThumbnail extends ImageDisplay {
       position: relative;
     }
 
-    .placeholder {
+    .parent-size {
+      width: 100%;
       height: 100%;
     }
 
@@ -128,8 +129,8 @@ export class ArtifactThumbnail extends ImageDisplay {
     const paddingClass = this.selected ? "padded" : "";
 
     const baseHtml = super.render();
-    return html` <div>
-      <div class=${paddingClass}>${baseHtml}</div>
+    return html` <div class="parent-size">
+      <div class="${paddingClass} parent-size">${baseHtml}</div>
       <!-- Selection button -->
       ${this.showSelectButton
         ? html`<mwc-icon-button

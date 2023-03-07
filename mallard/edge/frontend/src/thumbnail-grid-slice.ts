@@ -25,7 +25,7 @@ import {
   Ordering,
   QueryResponse,
   UavImageMetadata,
-} from "typescript-axios";
+} from "mallard-api";
 import { ThunkAction } from "redux-thunk";
 import {
   AutocompleteMenu,
@@ -92,9 +92,6 @@ interface DoAutocompleteReturn {
   /** Current autocomplete suggestions. */
   autocompleteSuggestions: Suggestions;
 }
-
-// Downzip object to use for bulk downloads.
-const downZip = new Down();
 
 /**
  * Creates a unique ID to use for an image based on the backend ID.
@@ -515,6 +512,10 @@ export const thumbnailGridSlice = createSlice({
       });
     });
 
+    builder.addCase(thunkLoadThumbnail.rejected, (state, action) => {
+      console.error(action.error);
+    });
+
     // Add results from image loading.
     builder.addCase(thunkLoadImage.fulfilled, (state, action) => {
       // Transition images from LOADING to VISIBLE, and save the image URL.
@@ -541,7 +542,10 @@ export const thumbnailGridSlice = createSlice({
         (imageId: string, index: number) => {
           // Get corresponding metadata.
           const metadata = action.payload.metadata[index];
-          return { id: imageId, changes: { metadata: metadata } };
+          return {
+            id: imageId,
+            changes: { metadata: metadata },
+          };
         }
       );
 

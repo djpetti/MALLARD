@@ -91,7 +91,7 @@ export async function queryImages(
   resultsPerPage?: number,
   pageNum: number = 1
 ): Promise<QueryResponse> {
-  return await api
+  const response = await api
     .queryImagesImagesQueryPost(resultsPerPage, pageNum, {
       queries: query,
       orderings: orderings,
@@ -100,6 +100,7 @@ export async function queryImages(
       console.error(error.toJSON());
       throw error;
     });
+  return response.data;
 }
 
 /**
@@ -109,31 +110,16 @@ export async function queryImages(
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const response = await api
-    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name)
+    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
+      responseType: "blob",
+    })
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
     });
   // OpenAPI for some reason treats this as text instead of a blob by default.
-  return new Blob(response);
+  return response.data;
 }
-
-// /**
-//  * Same as `loadImage`, but returns the raw response instead of the blob.
-//  * @param {ObjectRef} imageId The ID of the image to load.
-//  * @return {Response} The image response.
-//  */
-// export async function loadImageResponse(imageId: ObjectRef): Promise<Response> {
-//   const response = await api
-//       .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
-//         responseType: "blob",
-//       })
-//       .catch(function (error) {
-//         console.error(error.toJSON());
-//         throw error;
-//       });
-//   return response.
-// }
 
 /**
  * Loads a specific image.
@@ -187,7 +173,7 @@ export async function createImage(
   const response = await api
     .createUavImageImagesCreateUavPost(
       offset,
-      imageData,
+      new File([imageData], "image"),
       ...metadataToForm(metadata)
     )
     .catch(function (error) {
@@ -218,7 +204,7 @@ export async function inferMetadata(
   const response = await api
     .inferImageMetadataImagesMetadataInferPost(
       offset,
-      imageData,
+      new File([imageData], "image"),
       ...metadataToForm(knownMetadata)
     )
     .catch(function (error) {

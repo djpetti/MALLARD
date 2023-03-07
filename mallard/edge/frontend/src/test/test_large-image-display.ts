@@ -10,7 +10,7 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import each from "jest-each";
-import { ObjectRef } from "typescript-axios";
+import { ObjectRef } from "mallard-api";
 import { ImageIdentifier } from "../image-display";
 import {
   createImageEntityId,

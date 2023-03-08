@@ -33,6 +33,7 @@ import {
   requestAutocomplete,
   Suggestions,
 } from "./autocomplete";
+import { downloadImageZip } from "./downloads";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -138,6 +139,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
     queryState: RequestState.IDLE,
   },
   numItemsSelected: 0,
+  bulkDownloadState: RequestState.IDLE,
 });
 
 /** Memoized selectors for the state. */
@@ -301,6 +303,24 @@ export const thunkLoadMetadata = createAsyncThunk(
         ) as ImageEntity;
         return imageEntity.metadata != null;
       });
+    },
+  }
+);
+
+/**
+ * Action creator that downloads a zip file of specified images.
+ */
+export const bulkDownload = createAsyncThunk(
+  "thumbnailGrid/bulkDownload",
+  async (imageIds: string[], {getState}): Promise<void> => {
+    // Start the download.
+    await downloadImageZip(imageIds);
+  },
+  {
+    condition: (imageIds: string[], { getState }): boolean => {
+      const state = getState() as RootState;
+      // Don't allow it to run multiple bulk downloads at once.
+      return state.imageView.bulkDownloadState != RequestState.LOADING;
     },
   }
 );

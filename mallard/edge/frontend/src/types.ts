@@ -134,6 +134,8 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
 
   /** Keeps track of the total number of items selected. */
   numItemsSelected: number;
+  /** State of the image bulk download request. */
+  bulkDownloadState: RequestState;
 }
 
 /**

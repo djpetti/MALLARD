@@ -310,11 +310,16 @@ export const thunkLoadMetadata = createAsyncThunk(
 /**
  * Action creator that downloads a zip file of specified images.
  */
-export const bulkDownload = createAsyncThunk(
+export const thunkBulkDownload = createAsyncThunk(
   "thumbnailGrid/bulkDownload",
-  async (imageIds: string[], {getState}): Promise<void> => {
+  async (imageIds: string[], { getState }): Promise<void> => {
     // Start the download.
-    await downloadImageZip(imageIds);
+    const state = getState() as RootState;
+    const backendIds = imageIds.map(
+      (id) =>
+        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
+    );
+    await downloadImageZip(backendIds);
   },
   {
     condition: (imageIds: string[], { getState }): boolean => {
@@ -504,6 +509,16 @@ export const thumbnailGridSlice = createSlice({
 
       // Keep the current page number up-to-date.
       state.currentQueryOptions.pageNum = action.payload.pageNum;
+    });
+
+    // We initiated a bulk download.
+    builder.addCase(thunkBulkDownload.pending, (state) => {
+      state.bulkDownloadState = RequestState.LOADING;
+    });
+
+    // We completed a bulk download.
+    builder.addCase(thunkBulkDownload.fulfilled, (state) => {
+      state.bulkDownloadState = RequestState.SUCCEEDED;
     });
 
     // We initiated a new autocomplete query.

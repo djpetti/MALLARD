@@ -1,18 +1,11 @@
 import { ObjectRef } from "mallard-api";
 import { downloadZip, InputWithMeta } from "client-zip";
-import { showSaveFilePicker } from "native-file-system-adapter";
+import { fileSave } from "browser-fs-access";
+import urlJoin from "url-join";
+import { getMetadata } from "./api-client";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
-
-// /** Maps MIME types to file extensions. */
-// const MIME_TO_EXT = new Map<string, string>([
-//   ["image/gif", "gif"],
-//   ["image/tiff", "tiff"],
-//   ["image/jpeg", "jpg"],
-//   ["image/bmp", "bmp"],
-//   ["image/png", "png"],
-// ]);
 
 /**
  * Fetches a single image.
@@ -22,9 +15,11 @@ declare const API_BASE_URL: string;
 async function fetchImage(imageId: ObjectRef): Promise<Response> {
   // We can't use the API client, unfortunately, because we need raw
   // `Response` objects.
-  const imageUrl = new URL(
-    `images/${imageId.bucket}/${imageId.name}`,
-    API_BASE_URL
+  const imageUrl = urlJoin(
+    API_BASE_URL,
+    "images",
+    imageId.bucket,
+    imageId.name
   );
   return await fetch(imageUrl);
 }
@@ -39,7 +34,12 @@ async function* fetchImages(
   imageIds: ObjectRef[]
 ): AsyncGenerator<InputWithMeta, void, void> {
   for (const imageId of imageIds) {
-    yield await fetchImage(imageId);
+    const [metadata, response] = await Promise.all([
+      getMetadata(imageId),
+      fetchImage(imageId),
+    ]);
+
+    yield { name: metadata.name, input: response };
   }
 }
 
@@ -59,15 +59,10 @@ function streamImages(imageIds: ObjectRef[]): Response {
  * @param {ObjectRef[]} imageIds The IDs of the images to download.
  */
 export async function downloadImageZip(imageIds: ObjectRef[]): Promise<void> {
-  // Allow the user to select a place to save the file.
-  const fileHandle = await showSaveFilePicker({
-    _preferPolyfill: false,
-    suggestedName: "artifacts.zip",
-    excludeAcceptAllOption: false,
-  });
-
   const zipResponse = streamImages(imageIds);
-
   // Save the file.
-  await zipResponse.body?.pipeTo(await fileHandle.createWritable());
+  await fileSave(zipResponse, {
+    fileName: "artifacts.zip",
+    extensions: [".zip"],
+  });
 }

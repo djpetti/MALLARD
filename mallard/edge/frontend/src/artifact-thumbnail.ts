@@ -46,7 +46,6 @@ export class ArtifactThumbnail extends ImageDisplay {
     }
 
     .parent-size {
-      width: 100%;
       height: 100%;
     }
 
@@ -132,7 +131,7 @@ export class ArtifactThumbnail extends ImageDisplay {
     return html` <div class="parent-size">
       <div class="${paddingClass} parent-size">${baseHtml}</div>
       <!-- Selection button -->
-      ${this.showSelectButton
+      ${this.showSelectButton || this.selected
         ? html`<mwc-icon-button
             id="select_button"
             icon="${selectIcon}"

@@ -1,6 +1,12 @@
 import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
-import { fakeImageEntity, fakeState } from "./element-test-utils";
+import {
+  fakeImageEntity,
+  fakeState,
+  getShadowRoot,
+} from "./element-test-utils";
 import { RootState } from "../types";
+import { IconButton } from "@material/mwc-icon-button";
+import { thunkContinueQuery } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -60,9 +66,97 @@ describe("artifact-thumbnail", () => {
       .remove();
   });
 
-  it("can be instantiated", () => {
+  it("renders correctly by default", async () => {
+    // Act.
+    await thumbnailElement.updateComplete;
+
     // Assert.
     expect(thumbnailElement.frontendId).toBeUndefined();
+
+    // It should default to not showing the select button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    expect(root.querySelector("#select_button")).toBeNull();
+  });
+
+  it("handles mouseenter events", async () => {
+    // Arrange.
+    // The event handlers will be added on the first update.
+    await thumbnailElement.updateComplete;
+
+    // Act.
+    // Simulate a mouseenter event.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should be showing the selected button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    const selectButton = root.querySelector("#select_button") as IconButton;
+    expect(selectButton).not.toBeNull();
+  });
+
+  it("handles mouseleave events", async () => {
+    // Arrange.
+    // The event handlers will be added on the first update.
+    await thumbnailElement.updateComplete;
+
+    // Act.
+    // Simulate a mouseenter event.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+    await thumbnailElement.updateComplete;
+
+    // Simulate a mouseleave event.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseleave"));
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should not be showing the select button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    expect(root.querySelector("#select_button")).toBeNull();
+  });
+
+  it("allows the user to select the thumbnail", async () => {
+    // Arrange.
+    // The event handlers will be added on the first update.
+    await thumbnailElement.updateComplete;
+
+    // Simulate a mouseover to show the select button.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+    await thumbnailElement.updateComplete;
+
+    // Act.
+    // Find the select button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    const selectButton = root.querySelector("#select_button") as IconButton;
+
+    // Simulate a click.
+    selectButton.dispatchEvent(new MouseEvent("click"));
+
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should be set as selected.
+    expect(thumbnailElement.selected).toEqual(true);
+    // It should be showing as selected.
+    expect(selectButton.icon).toEqual("check_circle");
+  });
+
+  it("permanently shows the select button when the thumbnail is selected", async () => {
+    // Arrange.
+    // Select it.
+    thumbnailElement.selected = true;
+    await thumbnailElement.updateComplete;
+
+    // Act.
+    // Simulate the user mousing away.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseleave"));
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should still be showing the select button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    const selectButton = root.querySelector("#select_button") as IconButton;
+    expect(selectButton).not.toBeNull();
   });
 
   it("maps the correct actions to events", () => {

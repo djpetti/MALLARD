@@ -24,7 +24,8 @@
           // the "ConnectectedX" pattern that we're using to
           // link the elements to Redux state.
           "thumbnail-grid",
-          "file-uploader"
+          "file-uploader",
+          "search-box"
         ]
       }
     ]

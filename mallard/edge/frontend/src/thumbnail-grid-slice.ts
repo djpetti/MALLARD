@@ -308,21 +308,34 @@ export const thunkLoadMetadata = createAsyncThunk(
 );
 
 /**
- * Action creator that downloads a zip file of specified images.
+ * Action creator that downloads a zip file of all currently-selected images.
  */
-export const thunkBulkDownload = createAsyncThunk(
-  "thumbnailGrid/bulkDownload",
-  async (imageIds: string[], { getState }): Promise<void> => {
-    // Start the download.
+export const thunkBulkDownloadSelected = createAsyncThunk(
+  "thumbnailGrid/bulkDownloadSelected",
+  async (_, { getState, dispatch }): Promise<void> => {
+    // Determine which images are selected.
     const state = getState() as RootState;
-    const backendIds = imageIds.map(
+    const selectedIds = thumbnailGridSelectors
+      .selectIds(state)
+      .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
+    const selectedBackendEds = selectedIds.map(
       (id) =>
         thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
     );
-    await downloadImageZip(backendIds);
+
+    // Start the download.
+    await downloadImageZip(selectedBackendEds);
+
+    // When the download is finished, clear the selected images.
+    dispatch(
+      thumbnailGridSlice.actions.selectImages({
+        imageIds: selectedIds,
+        select: false,
+      })
+    );
   },
   {
-    condition: (imageIds: string[], { getState }): boolean => {
+    condition: (_, { getState }): boolean => {
       const state = getState() as RootState;
       // Don't allow it to run multiple bulk downloads at once.
       return state.imageView.bulkDownloadState != RequestState.LOADING;
@@ -512,13 +525,17 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We initiated a bulk download.
-    builder.addCase(thunkBulkDownload.pending, (state) => {
+    builder.addCase(thunkBulkDownloadSelected.pending, (state) => {
       state.bulkDownloadState = RequestState.LOADING;
     });
 
     // We completed a bulk download.
-    builder.addCase(thunkBulkDownload.fulfilled, (state) => {
+    builder.addCase(thunkBulkDownloadSelected.fulfilled, (state) => {
       state.bulkDownloadState = RequestState.SUCCEEDED;
+    });
+
+    builder.addCase(thunkBulkDownloadSelected.rejected, (_, action) => {
+      console.error(action.error);
     });
 
     // We initiated a new autocomplete query.

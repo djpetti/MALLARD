@@ -7,6 +7,8 @@ import "@material/mwc-textfield";
 import "./search-box";
 import store from "./store";
 import { RootState } from "./types";
+import { Action } from "redux";
+import { thunkBulkDownloadSelected } from "./thumbnail-grid-slice";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -46,6 +48,11 @@ export class TopNavBar extends LitElement {
   `;
 
   /**
+   * The name of the event to fire when the download button is clicked.
+   */
+  static DOWNLOAD_STARTED_EVENT_NAME = `${TopNavBar.tagName}-download-started`;
+
+  /**
    * If true, it will show the back button on the left.
    */
   @property({ type: Boolean })
@@ -62,6 +69,20 @@ export class TopNavBar extends LitElement {
    */
   @property({ type: Boolean })
   itemsSelected: boolean = false;
+
+  /**
+   * Run when the download button is clicked.
+   * @private
+   */
+  private onDownloadClick(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<void>(TopNavBar.DOWNLOAD_STARTED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
 
   /**
    * @inheritDoc
@@ -91,6 +112,7 @@ export class TopNavBar extends LitElement {
           ? html` <mwc-icon-button
               icon="download"
               slot="actionItems"
+              @click="${this.onDownloadClick}"
             ></mwc-icon-button>`
           : nothing}
 
@@ -115,5 +137,21 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
     return {
       itemsSelected: state.imageView.numItemsSelected > 0,
     };
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    const handlers: { [p: string]: (event: Event) => Action } = {};
+
+    // The fancy casting here is a hack to deal with the fact that
+    // thunkBulkDownload produces an AsyncThunkAction but mapEvents is typed
+    // as requiring an Action. However, it still works just fine with an
+    // AsyncThunkAction.
+    handlers[ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME] = (_) =>
+      thunkBulkDownloadSelected() as unknown as Action;
+
+    return handlers;
   }
 }

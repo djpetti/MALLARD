@@ -6,7 +6,6 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
-import { thunkContinueQuery } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.

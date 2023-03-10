@@ -1,4 +1,18 @@
 ####
+# proxy image is used for the reverse proxy.
+####
+FROM nginx AS proxy
+
+# Install dependencies.
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Configure SSL.
+RUN openssl req -x509 -nodes -days 365 -subj "/C=US/ST=FL/O=BSAIL/CN=ugabsail.net" \
+    -addext "subjectAltName=DNS:ugabsail.net" -newkey rsa:2048  \
+    -keyout /etc/ssl/private/nginx-selfsigned.key  \
+    -out /etc/ssl/certs/nginx-selfsigned.crt
+
+####
 # gateway_builder image is used for building the gateway service dependencies.
 ####
 FROM python:3.11.1-slim AS gateway_builder

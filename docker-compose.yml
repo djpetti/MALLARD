@@ -50,7 +50,10 @@ services:
   # Reverse-proxy service. This should be the only service with
   # publicly-exposed ports.
   proxy:
-    image: nginx
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: proxy
     volumes:
       - ./config/local/nginx:/etc/nginx
     networks:

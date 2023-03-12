@@ -1,8 +1,8 @@
 import { ObjectRef } from "mallard-api";
 import { downloadZip, InputWithMeta } from "client-zip";
-import { fileSave } from "browser-fs-access";
 import urlJoin from "url-join";
 import { getMetadata } from "./api-client";
+import streamSaver from "streamsaver";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
@@ -60,9 +60,22 @@ function streamImages(imageIds: ObjectRef[]): Response {
  */
 export async function downloadImageZip(imageIds: ObjectRef[]): Promise<void> {
   const zipResponse = streamImages(imageIds);
+
   // Save the file.
-  await fileSave(zipResponse, {
-    fileName: "artifacts.zip",
-    extensions: [".zip"],
-  });
+  const zipName = "artifacts.zip";
+  let fileStream: WritableStream | null = null;
+  try {
+    // For browsers that support the FS Access API, use that.
+    const fileHandle = await showSaveFilePicker({
+      suggestedName: zipName,
+      types: [
+        { description: ".zip file", accept: { "application/zip": [".zip"] } },
+      ],
+    });
+    fileStream = await fileHandle.createWritable();
+  } catch (ReferenceError) {
+    // Otherwise, fall back to StreamSaver.js.
+    fileStream = streamSaver.createWriteStream(zipName);
+  }
+  await zipResponse.body?.pipeTo(fileStream);
 }

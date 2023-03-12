@@ -57,6 +57,9 @@ describe("artifact-thumbnail", () => {
       ConnectedArtifactThumbnail.tagName
     ) as ConnectedArtifactThumbnail;
     document.body.appendChild(thumbnailElement);
+
+    // Make it look like we have an image.
+    thumbnailElement.imageUrl = faker.image.imageUrl();
   });
 
   afterEach(() => {
@@ -158,6 +161,22 @@ describe("artifact-thumbnail", () => {
     expect(selectButton).not.toBeNull();
   });
 
+  it("never shows the select button when we have no image", async () => {
+    // Arrange.
+    // Make it look like it has no image.
+    thumbnailElement.imageUrl = undefined;
+
+    // Act.
+    // Simulate the user hovering.
+    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should not be showing the select button.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    expect(root.querySelector("#select_button")).toBeNull();
+  });
+
   it("maps the correct actions to events", () => {
     // Act.
     const eventMap = thumbnailElement.mapEvents();
@@ -199,6 +218,10 @@ describe("artifact-thumbnail", () => {
     expect(updates["imageUrl"]).toEqual(
       state.imageView.entities[imageId]?.thumbnailUrl
     );
+
+    // It should have set the selection status.
+    expect(updates).toHaveProperty("selected");
+    expect(updates["selected"]).toEqual(imageEntity.isSelected);
 
     // It should have set a link to the image details.
     expect(updates).toHaveProperty("imageLink");

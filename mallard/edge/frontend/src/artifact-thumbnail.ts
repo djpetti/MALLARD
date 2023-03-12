@@ -88,9 +88,9 @@ export class ArtifactThumbnail extends ImageDisplay {
   @property({ type: Boolean })
   selected: boolean = false;
 
-  /** Whether we should show the select button. */
+  /** Whether we are currently hovering over the thumbnail. */
   @state()
-  private showSelectButton: boolean = false;
+  private isHovering: boolean = false;
 
   /**
    * Run whenever the select button is clicked.
@@ -98,21 +98,6 @@ export class ArtifactThumbnail extends ImageDisplay {
    */
   private onSelect(): void {
     this.selected = !this.selected;
-    if (this.selected) {
-      // Show the select button permanently.
-      this.showSelectButton = true;
-    }
-  }
-
-  /**
-   * Run whenever we stop mousing over this element.
-   * @private
-   */
-  private onMouseLeave(): void {
-    if (!this.selected) {
-      // If it's not selected, we can hide the selection button.
-      this.showSelectButton = false;
-    }
   }
 
   /**
@@ -131,7 +116,7 @@ export class ArtifactThumbnail extends ImageDisplay {
     return html` <div class="parent-size">
       <div class="${paddingClass} parent-size">${baseHtml}</div>
       <!-- Selection button -->
-      ${this.showSelectButton || this.selected
+      ${(this.isHovering || this.selected) && this.hasImage
         ? html`<mwc-icon-button
             id="select_button"
             icon="${selectIcon}"
@@ -151,8 +136,8 @@ export class ArtifactThumbnail extends ImageDisplay {
 
     // Add a handler for mousing over the image, so we can show the
     // selection button.
-    this.addEventListener("mouseenter", () => (this.showSelectButton = true));
-    this.addEventListener("mouseleave", this.onMouseLeave);
+    this.addEventListener("mouseenter", () => (this.isHovering = true));
+    this.addEventListener("mouseleave", () => (this.isHovering = false));
   }
 
   /**

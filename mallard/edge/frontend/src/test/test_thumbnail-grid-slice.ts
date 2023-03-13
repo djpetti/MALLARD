@@ -5,8 +5,10 @@ import thumbnailGridReducer, {
   clearFullSizedImage,
   clearImageView,
   createImageEntityId,
+  selectImages,
   thumbnailGridSelectors,
   thumbnailGridSlice,
+  thunkBulkDownloadSelected,
   thunkClearFullSizedImage,
   thunkContinueQuery,
   thunkDoAutocomplete,
@@ -44,6 +46,7 @@ import {
   queriesFromSearchString,
   requestAutocomplete,
 } from "../autocomplete";
+import { downloadImageZip } from "../downloads";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -78,6 +81,15 @@ const mockRequestAutocomplete = requestAutocomplete as jest.MockedFn<
 >;
 const mockQueriesFromSearchString = queriesFromSearchString as jest.MockedFn<
   typeof queriesFromSearchString
+>;
+
+// Mock out the download functions.
+jest.mock("../downloads", () => ({
+  downloadImageZip: jest.fn(),
+}));
+
+const mockDownloadImageZip = downloadImageZip as jest.MockedFn<
+  typeof downloadImageZip
 >;
 
 // Mock out `createObjectURL` and `revokeObjectURL`.
@@ -398,6 +410,96 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(store.getActions()).toHaveLength(0);
   });
 
+  it("creates a BulkDownloadSelected action", async () => {
+    // Arrange.
+    // Make it look like some items are selected.
+    const state = fakeState();
+    const imageView = state.imageView;
+    const selectedImage1 = fakeImageEntity();
+    const selectedImage2 = fakeImageEntity();
+    selectedImage1.isSelected = true;
+    selectedImage2.isSelected = true;
+    const unselectedImage = fakeImageEntity();
+    unselectedImage.isSelected = false;
+
+    imageView.ids = [
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+    ];
+    imageView.entities[imageView.ids[0]] = selectedImage1;
+    imageView.entities[imageView.ids[1]] = selectedImage2;
+    imageView.entities[imageView.ids[2]] = unselectedImage;
+
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have downloaded the selected items.
+    expect(mockDownloadImageZip).toBeCalledTimes(1);
+    const downloadList = mockDownloadImageZip.mock.calls[0][0];
+    expect(downloadList).toHaveLength(2);
+    expect(downloadList).toContainEqual({
+      id: selectedImage1.backendId,
+      metadata: selectedImage1.metadata,
+    });
+    expect(downloadList).toContainEqual({
+      id: selectedImage2.backendId,
+      metadata: selectedImage2.metadata,
+    });
+
+    const actions = store.getActions();
+    expect(actions).toHaveLength(3);
+
+    // It should have dispatched the pending action first.
+    const pendingAction = actions[0];
+    expect(pendingAction.type).toEqual(
+      thunkBulkDownloadSelected.typePrefix + "/pending"
+    );
+
+    // It should have dispatched an action to clear the selected items.
+    const clearAction = actions[1];
+    expect(clearAction.type).toEqual(
+      thumbnailGridSlice.actions.selectImages.type
+    );
+    // It should clear only the items that were selected.
+    expect(clearAction.payload.imageIds).toHaveLength(2);
+    expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[0]);
+    expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[1]);
+    expect(clearAction.payload.select).toEqual(false);
+
+    // It should have dispatched the fulfilled action.
+    const fulfilledAction = actions[2];
+    expect(fulfilledAction.type).toEqual(
+      thunkBulkDownloadSelected.typePrefix + "/fulfilled"
+    );
+  });
+
+  it("does not try to perform two bulk downloads at once", async () => {
+    // Arrange.
+    const state = fakeState();
+    const imageView = state.imageView;
+    // Make it look like a bulk download is already running.
+    imageView.bulkDownloadState = RequestState.LOADING;
+
+    // Make it look like we still have at least 1 selected image.
+    imageView.ids = [faker.datatype.uuid()];
+    const selectedImage = fakeImageEntity();
+    selectedImage.isSelected = true;
+    imageView.entities[imageView.ids[0]] = selectedImage;
+
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should not have run any downloads.
+    expect(mockDownloadImageZip).not.toBeCalled();
+  });
+
   it("creates a doAutocomplete action", async () => {
     // Arrange.
     // Make it look lit it got some autocomplete suggestions.
@@ -640,6 +742,52 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newImageState.search.queryState).toEqual(RequestState.IDLE);
   });
 
+  it("handles a selectImages action", () => {
+    // Arrange.
+    const state = fakeState().imageView;
+    // Make it look like some images are selected.
+    const selectedImage1 = fakeImageEntity();
+    selectedImage1.isSelected = true;
+    const selectedImage2 = fakeImageEntity();
+    selectedImage2.isSelected = true;
+    const unselectedImage1 = fakeImageEntity();
+    unselectedImage1.isSelected = false;
+    const unselectedImage2 = fakeImageEntity();
+    unselectedImage2.isSelected = false;
+
+    const selectedImage1Id = faker.uuid();
+    const selectedImage2Id = faker.uuid();
+    const unselectedImage1Id = faker.uuid();
+    const unselectedImage2Id = faker.uuid();
+    state.ids = [
+      selectedImage1Id,
+      selectedImage2Id,
+      unselectedImage1Id,
+      unselectedImage2Id,
+    ];
+    state.entities[selectedImage1Id] = selectedImage1;
+    state.entities[selectedImage2Id] = selectedImage2;
+    state.entities[unselectedImage1Id] = unselectedImage1;
+    state.entities[unselectedImage2Id] = unselectedImage2;
+
+    // Act.
+    // Attempt to change the selection status on some images.
+    const stateAfterSelect = thumbnailGridSlice.reducer(
+      state,
+      selectImages({
+        imageIds: [selectedImage1Id, unselectedImage1Id],
+        select: true,
+      })
+    );
+    const stateAfterDeselect = thumbnailGridSlice.reducer(
+      state,
+      selectImages({
+        imageIds: [selectedImage2Id, unselectedImage2Id],
+        select: false,
+      })
+    );
+  });
+
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
@@ -770,6 +918,36 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // It should have updated the page number.
     expect(newState.currentQueryOptions.pageNum).toEqual(pageNum);
+  });
+
+  it(`handles a ${thunkBulkDownloadSelected.pending.type} action`, () => {
+    // Arrange.
+    const state = fakeState().imageView;
+    state.bulkDownloadState = RequestState.IDLE;
+
+    // Act.
+    const newState = thumbnailGridReducer(state, {
+      type: thunkBulkDownloadSelected.pending.type,
+    });
+
+    // Assert.
+    // It should have marked the bulk download as running.
+    expect(newState.bulkDownloadState).toEqual(RequestState.LOADING);
+  });
+
+  it(`handles a ${thunkBulkDownloadSelected.fulfilled.type} action`, () => {
+    // Arrange.
+    const state = fakeState().imageView;
+    state.bulkDownloadState = RequestState.LOADING;
+
+    // Act.
+    const newState = thumbnailGridReducer(state, {
+      type: thunkBulkDownloadSelected.fulfilled.type,
+    });
+
+    // Assert.
+    // It should have marked the bulk download as complete.
+    expect(newState.bulkDownloadState).toEqual(RequestState.SUCCEEDED);
   });
 
   it(`handles a ${thunkDoAutocomplete.pending.type} action`, () => {

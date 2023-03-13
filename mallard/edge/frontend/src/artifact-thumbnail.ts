@@ -82,7 +82,7 @@ export class ArtifactThumbnail extends ImageDisplay {
   static tagName: string = "artifact-thumbnail";
 
   /** Event indicating that the selection status has changed. */
-  protected static readonly SELECTED_EVENT_NAME = `${ArtifactThumbnail.tagName}-selected`;
+  static readonly SELECTED_EVENT_NAME = `${ArtifactThumbnail.tagName}-selected`;
 
   /** Whether this thumbnail is selected. */
   @property({ type: Boolean })
@@ -186,7 +186,6 @@ export class ConnectedArtifactThumbnail extends connect(
       return {};
     }
 
-    // This should never be undefined, because that means our image ID is invalid.
     const imageEntity = thumbnailGridSelectors.selectById(
       state,
       this.frontendId

@@ -1,18 +1,33 @@
-import { TopNavBar } from "../top-nav-bar";
-import { getShadowRoot } from "./element-test-utils";
+import { ConnectedTopNavBar } from "../top-nav-bar";
+import { fakeState, getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
+import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
+import { IconButton } from "@material/mwc-icon-button";
+import { thunkBulkDownloadSelected } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
+// Create the mocks.
+jest.mock("../thumbnail-grid-slice", () => ({
+  thunkBulkDownloadSelected: jest.fn(),
+}));
+const mockThunkBulkDownloadSelected =
+  thunkBulkDownloadSelected as jest.MockedFn<typeof thunkBulkDownloadSelected>;
+
+jest.mock("@captaincodeman/redux-connect-element", () => ({
+  // Turn connect() into a pass-through.
+  connect: jest.fn((_, elementClass) => elementClass),
+}));
+
 describe("top-nav-bar", () => {
   /** Internal top-nav-bar to use for testing. */
-  let navBarElement: TopNavBar;
+  let navBarElement: ConnectedTopNavBar;
 
   beforeAll(() => {
     // Manually register the custom element.
-    customElements.define(TopNavBar.tagName, TopNavBar);
+    customElements.define(ConnectedTopNavBar.tagName, ConnectedTopNavBar);
   });
 
   beforeEach(() => {
@@ -20,13 +35,13 @@ describe("top-nav-bar", () => {
     faker.seed(1337);
 
     navBarElement = window.document.createElement(
-      TopNavBar.tagName
-    ) as TopNavBar;
+      ConnectedTopNavBar.tagName
+    ) as ConnectedTopNavBar;
     document.body.appendChild(navBarElement);
   });
 
   afterEach(() => {
-    document.body.getElementsByTagName(TopNavBar.tagName)[0].remove();
+    document.body.getElementsByTagName(ConnectedTopNavBar.tagName)[0].remove();
   });
 
   it("renders the title correctly", async () => {
@@ -39,7 +54,7 @@ describe("top-nav-bar", () => {
     await navBarElement.updateComplete;
 
     // Assert.
-    const root = getShadowRoot(TopNavBar.tagName);
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
     const topBar = root.querySelector("#app_bar");
     expect(topBar).not.toBe(null);
 
@@ -47,6 +62,50 @@ describe("top-nav-bar", () => {
     const titleDiv = topBar?.querySelector("span");
     expect(titleDiv).not.toBe(null);
     expect(titleDiv?.textContent).toEqual(fakeTitle);
+  });
+
+  it("shows the download button when items are selected", async () => {
+    // Act.
+    // Make it look like items are selected.
+    navBarElement.itemsSelected = true;
+    await navBarElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar");
+    expect(topBar).not.toBeNull();
+
+    // It should have rendered the download button.
+    const downloadButton = topBar?.querySelector("#download_button");
+    expect(downloadButton).not.toBeNull();
+  });
+
+  it("dispatches an event when the download button is clicked", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.itemsSelected = true;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const downloadHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME,
+      downloadHandler
+    );
+
+    // Act.
+    // Simulate a click on the download button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const downloadButton = topBar.querySelector(
+      "#download_button"
+    ) as IconButton;
+
+    downloadButton.dispatchEvent(new MouseEvent("click"));
+
+    // Assert.
+    // It should have fired the event.
+    expect(downloadHandler).toBeCalledTimes(1);
   });
 
   each([
@@ -60,7 +119,7 @@ describe("top-nav-bar", () => {
       await navBarElement.updateComplete;
 
       // Assert.
-      const root = getShadowRoot(TopNavBar.tagName);
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
 
       // Check the status of the back button.
       const backButton = root.querySelector("#back_button");
@@ -86,7 +145,7 @@ describe("top-nav-bar", () => {
     backSpy.mockClear();
 
     // Act.
-    const root = getShadowRoot(TopNavBar.tagName);
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
 
     // Make it look like the button was clicked.
     const backButton = root.querySelector("#back_button") as HTMLElement;
@@ -95,5 +154,51 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have gone back.
     expect(backSpy).toBeCalledTimes(1);
+  });
+
+  each([
+    ["items selected", 3],
+    ["no items selected", 0],
+  ]).it(
+    "updates the properties from the Redux state when there are %s",
+    (_, numItemsSelected: number) => {
+      // Arrange.
+      // Create a fake state.
+      const state = fakeState();
+      const imageView = state.imageView;
+      imageView.numItemsSelected = numItemsSelected;
+
+      // Act.
+      const updates = navBarElement.mapState(state);
+
+      // Assert.
+      // It should have updated the selection state.
+      expect(updates).toHaveProperty("itemsSelected");
+      expect(updates.itemsSelected).toEqual(numItemsSelected > 0);
+    }
+  );
+
+  it("maps the correct actions to events", () => {
+    // Act.
+    const eventMap = navBarElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME
+    );
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME)
+    );
+
+    // It should have used the correct action creator.
+    expect(mockThunkBulkDownloadSelected).toBeCalledTimes(1);
   });
 });

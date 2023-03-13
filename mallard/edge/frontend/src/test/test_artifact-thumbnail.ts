@@ -6,26 +6,32 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
+import { selectImages, thunkLoadThumbnail } from "../thumbnail-grid-slice";
+import each from "jest-each";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
-// Using older require syntax here so that we get the correct mock type.
-const thumbnailGridSlice = require("../thumbnail-grid-slice");
-const mockThunkLoadThumbnail = thumbnailGridSlice.thunkLoadThumbnail;
-const mockThumbnailGridSelectors = thumbnailGridSlice.thumbnailGridSelectors;
-const { thumbnailGridSelectors } = jest.requireActual(
-  "../thumbnail-grid-slice"
-);
+jest.mock("../thumbnail-grid-slice", () => {
+  const actualSlice = jest.requireActual("../thumbnail-grid-slice");
+  return {
+    thunkLoadThumbnail: jest.fn(),
+    selectImages: jest.fn(),
+    // Use the actual implementation for this function.
+    thumbnailGridSelectors: {
+      selectById: actualSlice.thumbnailGridSelectors.selectById,
+    },
+  };
+});
+const mockThunkLoadThumbnail = thunkLoadThumbnail as jest.MockedFn<
+  typeof thunkLoadThumbnail
+>;
+const mockSelectImages = selectImages as jest.MockedFn<typeof selectImages>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
   connect: jest.fn((_, elementClass) => elementClass),
-}));
-jest.mock("../thumbnail-grid-slice", () => ({
-  thunkLoadThumbnail: jest.fn(),
-  thumbnailGridSelectors: { selectById: jest.fn() },
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -47,11 +53,6 @@ describe("artifact-thumbnail", () => {
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
-
-    // Use the actual implementation for this function.
-    mockThumbnailGridSelectors.selectById.mockImplementation(
-      thumbnailGridSelectors.selectById
-    );
 
     thumbnailElement = window.document.createElement(
       ConnectedArtifactThumbnail.tagName
@@ -117,10 +118,22 @@ describe("artifact-thumbnail", () => {
     expect(root.querySelector("#select_button")).toBeNull();
   });
 
-  it("allows the user to select the thumbnail", async () => {
+  each([
+    ["select", true],
+    ["de-select", false],
+  ]).it("allows the user to %s the thumbnail", async (_, select: boolean) => {
     // Arrange.
+    // Initially set the state to the opposite of what we're changing it to.
+    thumbnailElement.selected = !select;
     // The event handlers will be added on the first update.
     await thumbnailElement.updateComplete;
+
+    // Add a handler for the selected event.
+    const selectEventHandler = jest.fn();
+    thumbnailElement.addEventListener(
+      ConnectedArtifactThumbnail.SELECTED_EVENT_NAME,
+      selectEventHandler
+    );
 
     // Simulate a mouseover to show the select button.
     thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
@@ -137,10 +150,15 @@ describe("artifact-thumbnail", () => {
     await thumbnailElement.updateComplete;
 
     // Assert.
-    // It should be set as selected.
-    expect(thumbnailElement.selected).toEqual(true);
-    // It should be showing as selected.
-    expect(selectButton.icon).toEqual("check_circle");
+    // The state should be updated.
+    expect(thumbnailElement.selected).toEqual(select);
+    // It should be displaying correctly.
+    expect(selectButton.icon).toEqual(
+      select ? "check_circle" : "radio_button_unchecked"
+    );
+
+    // It should have dispatched the selected event.
+    expect(selectEventHandler).toBeCalledTimes(1);
   });
 
   it("permanently shows the select button when the thumbnail is selected", async () => {
@@ -177,7 +195,7 @@ describe("artifact-thumbnail", () => {
     expect(root.querySelector("#select_button")).toBeNull();
   });
 
-  it("maps the correct actions to events", () => {
+  it(`maps the correct action to the ${ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME} event`, () => {
     // Act.
     const eventMap = thumbnailElement.mapEvents();
 
@@ -195,6 +213,31 @@ describe("artifact-thumbnail", () => {
 
     expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
     expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail.frontendId);
+  });
+
+  it(`maps the correct action to the ${ConnectedArtifactThumbnail.SELECTED_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = thumbnailElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedArtifactThumbnail.SELECTED_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const selected = faker.datatype.boolean();
+    eventMap[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME](
+      new CustomEvent<boolean>(ConnectedArtifactThumbnail.SELECTED_EVENT_NAME, {
+        detail: selected,
+      })
+    );
+
+    // It should fire the appropriate action creator.
+    expect(mockSelectImages).toBeCalledWith({
+      imageIds: [thumbnailElement.frontendId],
+      select: selected,
+    });
   });
 
   it("updates the properties from the Redux state", () => {

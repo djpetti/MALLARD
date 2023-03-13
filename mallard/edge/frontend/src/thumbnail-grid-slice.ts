@@ -318,13 +318,16 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
     const selectedIds = thumbnailGridSelectors
       .selectIds(state)
       .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
-    const selectedBackendEds = selectedIds.map(
-      (id) =>
-        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
-    );
+    const selectedImageInfo = selectedIds.map((id) => {
+      const entity = thumbnailGridSelectors.selectById(state, id);
+      return {
+        id: entity?.backendId as ObjectRef,
+        metadata: entity?.metadata as UavImageMetadata,
+      };
+    });
 
     // Start the download.
-    await downloadImageZip(selectedBackendEds);
+    await downloadImageZip(selectedImageInfo);
 
     // When the download is finished, clear the selected images.
     dispatch(
@@ -534,10 +537,6 @@ export const thumbnailGridSlice = createSlice({
       state.bulkDownloadState = RequestState.SUCCEEDED;
     });
 
-    builder.addCase(thunkBulkDownloadSelected.rejected, (_, action) => {
-      console.error(action.error);
-    });
-
     // We initiated a new autocomplete query.
     builder.addCase(thunkDoAutocomplete.pending, (state, action) => {
       state.search.queryState = RequestState.LOADING;
@@ -562,10 +561,6 @@ export const thumbnailGridSlice = createSlice({
           thumbnailUrl: action.payload.imageUrl,
         },
       });
-    });
-
-    builder.addCase(thunkLoadThumbnail.rejected, (state, action) => {
-      console.error(action.error);
     });
 
     // Add results from image loading.

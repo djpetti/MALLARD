@@ -112,6 +112,7 @@ export class TopNavBar extends LitElement {
           ? html` <mwc-icon-button
               icon="download"
               slot="actionItems"
+              id="download_button"
               @click="${this.onDownloadClick}"
             ></mwc-icon-button>`
           : nothing}

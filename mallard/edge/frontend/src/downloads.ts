@@ -1,11 +1,18 @@
-import { ObjectRef } from "mallard-api";
+import { ObjectRef, UavImageMetadata } from "mallard-api";
 import { downloadZip, InputWithMeta } from "client-zip";
 import urlJoin from "url-join";
-import { getMetadata } from "./api-client";
 import streamSaver from "streamsaver";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
+
+/**
+ * Combines an image with associated metadata.
+ */
+export interface ImageWithMeta {
+  id: ObjectRef;
+  metadata: UavImageMetadata;
+}
 
 /**
  * Fetches a single image.
@@ -26,40 +33,37 @@ async function fetchImage(imageId: ObjectRef): Promise<Response> {
 
 /**
  * Generator that fetches a series of images asynchronously.
- * @param {ObjectRef[]} imageIds The IDs of the images to fetch.
+ * @param {ObjectRef[]} images The info for the images to download.
  * @return {AsyncGenerator} A generator that yields `Response` objects from
  *  the image requests.
  */
 async function* fetchImages(
-  imageIds: ObjectRef[]
+  images: ImageWithMeta[]
 ): AsyncGenerator<InputWithMeta, void, void> {
-  for (const imageId of imageIds) {
-    const [metadata, response] = await Promise.all([
-      getMetadata(imageId),
-      fetchImage(imageId),
-    ]);
+  for (const image of images) {
+    const imageResponse = await fetchImage(image.id);
 
-    yield { name: metadata.name, input: response };
+    yield { name: image.metadata.name, input: imageResponse };
   }
 }
 
 /**
  * Initiates the download of a zip file containing images.
- * @param {ObjectRef[]} imageIds The IDs of the images to download.
+ * @param {ObjectRef[]} imageInfo The info for the images to download.
  * @return {Response} The response containing the downloaded zip file.
  */
-function streamImages(imageIds: ObjectRef[]): Response {
+function streamImages(imageInfo: ImageWithMeta[]): Response {
   // Get all the underlying images.
-  const images = fetchImages(imageIds);
+  const images = fetchImages(imageInfo);
   return downloadZip(images);
 }
 
 /**
  * Downloads a zip file containing the selected images.
- * @param {ObjectRef[]} imageIds The IDs of the images to download.
+ * @param {ObjectRef[]} images The info for the images to download.
  */
-export async function downloadImageZip(imageIds: ObjectRef[]): Promise<void> {
-  const zipResponse = streamImages(imageIds);
+export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
+  const zipResponse = streamImages(images);
 
   // Save the file.
   const zipName = "artifacts.zip";

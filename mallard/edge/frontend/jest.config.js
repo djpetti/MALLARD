@@ -7,7 +7,7 @@ module.exports = {
   testRegex: "src/.*test/test_.*\\.(ts|tsx)$",
   moduleFileExtensions: ["ts", "js"],
   transformIgnorePatterns: [
-    "node_modules/(?!(lit|@lit|lit-element|lit-html|@material|app-datepicker|nodemod|client-zip|url-join)/)",
+    "node_modules/(?!(lit|@lit|lit-element|lit-html|@material|app-datepicker|nodemod|client-zip|url-join|to-readable-stream)/)",
   ],
   collectCoverageFrom: ["src/**/{!(index|elements|element-test-utils),}.ts"],
   globals: {

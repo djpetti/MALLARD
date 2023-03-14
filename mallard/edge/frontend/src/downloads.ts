@@ -77,9 +77,16 @@ export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
       ],
     });
     fileStream = await fileHandle.createWritable();
-  } catch (ReferenceError) {
+  } catch {
     // Otherwise, fall back to StreamSaver.js.
     fileStream = streamSaver.createWriteStream(zipName);
   }
+
+  // Abort when the user closes the page so we don't end up with a stuck
+  // download.
+  window.onunload = () => {
+    /* istanbul ignore next */
+    fileStream?.abort();
+  };
   await zipResponse.body?.pipeTo(fileStream);
 }

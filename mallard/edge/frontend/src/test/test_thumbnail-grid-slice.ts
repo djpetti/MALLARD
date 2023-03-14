@@ -755,10 +755,10 @@ describe("thumbnail-grid-slice reducers", () => {
     const unselectedImage2 = fakeImageEntity();
     unselectedImage2.isSelected = false;
 
-    const selectedImage1Id = faker.uuid();
-    const selectedImage2Id = faker.uuid();
-    const unselectedImage1Id = faker.uuid();
-    const unselectedImage2Id = faker.uuid();
+    const selectedImage1Id = createImageEntityId(selectedImage1.backendId);
+    const selectedImage2Id = createImageEntityId(selectedImage2.backendId);
+    const unselectedImage1Id = createImageEntityId(unselectedImage1.backendId);
+    const unselectedImage2Id = createImageEntityId(unselectedImage2.backendId);
     state.ids = [
       selectedImage1Id,
       selectedImage2Id,
@@ -785,6 +785,34 @@ describe("thumbnail-grid-slice reducers", () => {
         imageIds: [selectedImage2Id, unselectedImage2Id],
         select: false,
       })
+    );
+
+    // Assert.
+    // It should have selected the correct images.
+    expect(stateAfterSelect.entities[selectedImage1Id]?.isSelected).toEqual(
+      true
+    );
+    expect(stateAfterSelect.entities[selectedImage2Id]?.isSelected).toEqual(
+      true
+    );
+    expect(stateAfterSelect.entities[unselectedImage1Id]?.isSelected).toEqual(
+      true
+    );
+    expect(stateAfterSelect.entities[unselectedImage2Id]?.isSelected).toEqual(
+      false
+    );
+
+    expect(stateAfterDeselect.entities[selectedImage1Id]?.isSelected).toEqual(
+      true
+    );
+    expect(stateAfterDeselect.entities[selectedImage2Id]?.isSelected).toEqual(
+      false
+    );
+    expect(stateAfterDeselect.entities[unselectedImage1Id]?.isSelected).toEqual(
+      false
+    );
+    expect(stateAfterDeselect.entities[unselectedImage2Id]?.isSelected).toEqual(
+      false
     );
   });
 

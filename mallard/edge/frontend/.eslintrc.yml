@@ -18,7 +18,7 @@ rules:
       "argsIgnorePattern": "^_",
       # It seems to have trouble with these specific
       # imports, so we ignore them manually.
-      "varsIgnorePattern": "^property$|^query$|^isEqual$"
+      "varsIgnorePattern": "^property$|^query$|^isEqual$|^_"
     }
   ]
   new-cap:

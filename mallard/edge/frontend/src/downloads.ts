@@ -1,5 +1,5 @@
 import { ObjectRef, UavImageMetadata } from "mallard-api";
-import { downloadZip, InputWithMeta } from "client-zip";
+import { downloadZip, InputWithMeta, predictLength } from "client-zip";
 import urlJoin from "url-join";
 import streamSaver from "streamsaver";
 
@@ -43,19 +43,37 @@ async function* fetchImages(
   for (const image of images) {
     const imageResponse = await fetchImage(image.id);
 
-    yield { name: image.metadata.name, input: imageResponse };
+    yield {
+      name: image.metadata.name,
+      lastModified: image.metadata.captureDate,
+      input: imageResponse,
+    };
   }
+}
+
+/**
+ * Pre-computes the size of the zip file.
+ * @param {ImageWithMeta} images The info for the images to download.
+ * @return {bigint} The size of the zip file.
+ */
+function computeLength(images: ImageWithMeta[]): bigint {
+  const metadata = images.map((i) => ({
+    name: i.metadata.name,
+    size: BigInt(i.metadata.size as number),
+  }));
+  return predictLength(metadata);
 }
 
 /**
  * Initiates the download of a zip file containing images.
  * @param {ObjectRef[]} imageInfo The info for the images to download.
+ * @param {bigint} length The predicted length of the zip file.
  * @return {Response} The response containing the downloaded zip file.
  */
-function streamImages(imageInfo: ImageWithMeta[]): Response {
+function streamImages(imageInfo: ImageWithMeta[], length: bigint): Response {
   // Get all the underlying images.
   const images = fetchImages(imageInfo);
-  return downloadZip(images);
+  return downloadZip(images, { length: length });
 }
 
 /**
@@ -63,7 +81,8 @@ function streamImages(imageInfo: ImageWithMeta[]): Response {
  * @param {ObjectRef[]} images The info for the images to download.
  */
 export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
-  const zipResponse = streamImages(images);
+  const zipLength = computeLength(images);
+  const zipResponse = streamImages(images, zipLength);
 
   // Save the file.
   const zipName = "artifacts.zip";
@@ -79,7 +98,11 @@ export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
     fileStream = await fileHandle.createWritable();
   } catch {
     // Otherwise, fall back to StreamSaver.js.
-    fileStream = streamSaver.createWriteStream(zipName);
+    fileStream = streamSaver.createWriteStream(zipName, {
+      // It's not typed to accept bigints, but it doesn't seem to care
+      // when you pass them.
+      size: zipLength as unknown as number,
+    });
   }
 
   // Abort when the user closes the page so we don't end up with a stuck

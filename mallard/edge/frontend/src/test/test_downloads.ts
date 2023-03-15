@@ -1,4 +1,4 @@
-import { downloadZip } from "client-zip";
+import { downloadZip, predictLength } from "client-zip";
 import MockedFn = jest.MockedFn;
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { downloadImageZip } from "../downloads";
@@ -9,8 +9,10 @@ const faker = require("faker");
 
 jest.mock("client-zip", () => ({
   downloadZip: jest.fn(),
+  predictLength: jest.fn(),
 }));
 const mockDownloadZip = downloadZip as MockedFn<typeof downloadZip>;
+const mockPredictLength = predictLength as MockedFn<typeof predictLength>;
 
 jest.mock("streamsaver", () => ({
   createWriteStream: jest.fn(),
@@ -75,6 +77,10 @@ describe("downloads", () => {
         { id: image2, metadata: metadata2 },
       ];
 
+      // Make it look like we can predict the length.
+      const zipLength = faker.datatype.number({ min: 0 });
+      mockPredictLength.mockReturnValue(zipLength);
+
       // Create some sort of fake file stream for it to write to.
       const fakeFileStream = {};
       mockCreateWriteStream.mockReturnValue(fakeFileStream as WritableStream);
@@ -104,7 +110,14 @@ describe("downloads", () => {
       }
 
       // Assert.
+      // It should have predicted the length.
+      expect(mockPredictLength).toBeCalledTimes(1);
+
       expect(mockDownloadZip).toBeCalledTimes(1);
+      // It should have specified the correct length.
+      expect(mockDownloadZip).toBeCalledWith(expect.anything(), {
+        length: zipLength,
+      });
 
       // It should have fetched the images.
       expect(mockFetch).toBeCalledTimes(2);
@@ -122,6 +135,9 @@ describe("downloads", () => {
         expect(mockShowSaveFilePicker).toBeCalledTimes(1);
       } else {
         expect(mockCreateWriteStream).toBeCalledTimes(1);
+        expect(mockCreateWriteStream).toBeCalledWith(expect.anything(), {
+          size: zipLength,
+        });
       }
       expect(mockPipeTo).toBeCalledWith(fakeFileStream);
     }

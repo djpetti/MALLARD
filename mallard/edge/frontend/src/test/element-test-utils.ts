@@ -186,6 +186,7 @@ export function fakeObjectRef(): ObjectRef {
  */
 export function fakeImageMetadata(notes?: string): UavImageMetadata {
   return {
+    size: faker.datatype.number({ min: 0 }),
     name: faker.system.fileName(),
     format: faker.random.arrayElement([
       ImageFormat.GIF,

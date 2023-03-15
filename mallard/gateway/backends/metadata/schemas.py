@@ -19,10 +19,15 @@ from ...schemas import ApiModel, GenericApiModel
 class Metadata(ApiModel):
     """
     Represents a row in a metadata table.
+
+    Attributes:
+        size: The size of the artifact, in bytes.
     """
 
     class Config(ApiModel.Config):
         orm_mode = True
+
+    size: Optional[int] = None
 
 
 @as_form

@@ -437,6 +437,7 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
     )
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "metadata",
     (
@@ -447,10 +448,11 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
             camera="camera",
             location=GeoPoint(latitude_deg=32, longitude_deg=-114),
         ),
+        ImageMetadata(size=1337),
     ),
-    ids=("empty_metadata", "populated_metadata"),
+    ids=("empty_metadata", "populated_metadata", "size_from_meta"),
 )
-def test_fill_metadata(
+async def test_fill_metadata(
     fill_meta_config: FillMetadataConfig,
     metadata: ImageMetadata,
     local_tz: timezone,
@@ -464,8 +466,13 @@ def test_fill_metadata(
         local_tz: The local timezone to use.
 
     """
+    # Arrange.
+    if metadata.size is not None:
+        # In this case, simulate the absense of the content-length header.
+        fill_meta_config.mock_upload_file.headers = {}
+
     # Act.
-    got_metadata = image_metadata.fill_metadata(
+    got_metadata = await image_metadata.fill_metadata(
         metadata, image=fill_meta_config.mock_upload_file, local_tz=local_tz
     )
 
@@ -479,8 +486,20 @@ def test_fill_metadata(
     # The format should have been correctly deduced.
     assert got_metadata.format == fill_meta_config.image_format
 
+    # The size should have been set correctly.
+    if metadata.size is not None:
+        assert got_metadata.size == metadata.size
+    else:
+        assert (
+            got_metadata.size
+            == fill_meta_config.mock_upload_file.headers["content-length"]
+        )
 
-def test_fill_metadata_naughty_jpeg(local_tz: timezone, faker: Faker) -> None:
+
+@pytest.mark.asyncio
+async def test_fill_metadata_naughty_jpeg(
+    local_tz: timezone, faker: Faker
+) -> None:
     """
     Tests that `fill_metadata` works when we give it a JPEG image that
     `imghdr` does not support out-of-the-box.
@@ -494,16 +513,43 @@ def test_fill_metadata_naughty_jpeg(local_tz: timezone, faker: Faker) -> None:
     # Create some fake JPEG-looking data.
     jpeg_header = b"\xff\xd8\xff"
     jpeg_contents = jpeg_header + faker.binary()
-    fake_jpeg = faker.upload_file(category="image", contents=jpeg_contents)
+    fake_jpeg = faker.upload_file(
+        category="image",
+        contents=jpeg_contents,
+    )
 
     # Act.
-    got_metadata = image_metadata.fill_metadata(
+    got_metadata = await image_metadata.fill_metadata(
         ImageMetadata(), image=fake_jpeg, local_tz=local_tz
     )
 
     # Assert.
     # It should have correctly determined the JPEG format.
     assert got_metadata.format == ImageFormat.JPEG
+
+
+@pytest.mark.asyncio
+async def test_fill_metadata_missing_length(
+    fill_meta_config: FillMetadataConfig, local_tz: timezone
+) -> None:
+    """
+    Tests that `fill_metadata` fails if it can't determine the size of the file.
+
+    Args:
+        fill_meta_config: The configuration to use for testing.
+
+    """
+    # Arrange.
+    # Make it look like the length is not specified.
+    fill_meta_config.mock_upload_file.headers = {}
+
+    # Act and assert.
+    with pytest.raises(image_metadata.MissingLengthError):
+        await image_metadata.fill_metadata(
+            ImageMetadata(),
+            image=fill_meta_config.mock_upload_file,
+            local_tz=local_tz,
+        )
 
 
 @enum.unique
@@ -526,10 +572,11 @@ class FormatError(enum.IntEnum):
     """
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "format_error", FormatError, ids=(e.name for e in FormatError)
 )
-def test_fill_metadata_invalid_format(
+async def test_fill_metadata_invalid_format(
     fill_meta_config: FillMetadataConfig,
     local_tz: timezone,
     format_error: FormatError,
@@ -563,7 +610,7 @@ def test_fill_metadata_invalid_format(
 
     # Act and assert.
     with pytest.raises(image_metadata.InvalidImageError, match=expected_error):
-        image_metadata.fill_metadata(
+        await image_metadata.fill_metadata(
             ImageMetadata(format=expected_format),
             image=fill_meta_config.mock_upload_file,
             local_tz=local_tz,

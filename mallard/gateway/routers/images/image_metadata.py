@@ -22,6 +22,13 @@ class InvalidImageError(Exception):
     """
 
 
+class MissingLengthError(Exception):
+    """
+    Raised when the file length is not specified,
+    and the content-length header is missing.
+    """
+
+
 class ExifReader:
     """
     Extracts EXIF data from images.
@@ -220,7 +227,9 @@ imghdr.tests.append(_test_jpeg)
 MetadataType = TypeVar("MetadataType", bound=ImageMetadata)
 
 
-def _check_format(metadata: MetadataType, *, image: UploadFile) -> ImageFormat:
+async def _check_format(
+    metadata: MetadataType, *, image: UploadFile
+) -> ImageFormat:
     """
     Checks the format of an image.
 
@@ -240,7 +249,7 @@ def _check_format(metadata: MetadataType, *, image: UploadFile) -> ImageFormat:
     logger.debug("Got format for image {}: '{}'", image.filename, format_str)
 
     # Reset the image file after reading data.
-    image.file.seek(0)
+    await image.seek(0)
 
     try:
         image_format = ImageFormat(format_str)
@@ -256,7 +265,7 @@ def _check_format(metadata: MetadataType, *, image: UploadFile) -> ImageFormat:
     return image_format
 
 
-def fill_metadata(
+async def fill_metadata(
     metadata: MetadataType, *, image: UploadFile, local_tz: tzinfo
 ) -> MetadataType:
     """
@@ -272,6 +281,12 @@ def fill_metadata(
 
     """
     # Fill in missing fields.
+    size = metadata.size
+    if size is None:
+        size = image.headers.get("content-length")
+    if size is None:
+        raise MissingLengthError("No size specified for image upload.")
+
     name = metadata.name
     if name is None:
         name = image.filename
@@ -279,7 +294,7 @@ def fill_metadata(
     exif = ExifReader(image, local_tz=local_tz)
 
     # Reset the image file after reading the EXIF data.
-    image.file.seek(0)
+    await image.seek(0)
 
     capture_date = metadata.capture_date
     if capture_date is None:
@@ -292,11 +307,12 @@ def fill_metadata(
         location = exif.location
 
     update_fields = dict(
+        size=size,
         name=name,
         capture_date=capture_date,
         camera=camera,
         location=location,
-        format=_check_format(metadata, image=image),
+        format=await _check_format(metadata, image=image),
     )
     logger.debug("Updating metadata with fields {}.", update_fields)
     return metadata.copy(update=update_fields)

@@ -24,7 +24,11 @@ from mallard.gateway.backends.metadata.schemas import (
 )
 from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
 from mallard.gateway.backends.objects.models import ObjectRef
-from mallard.gateway.routers.images import InvalidImageError, endpoints
+from mallard.gateway.routers.images import (
+    InvalidImageError,
+    MissingLengthError,
+    endpoints,
+)
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
@@ -722,7 +726,8 @@ def test_user_timezone(faker: Faker) -> None:
     assert got_timezone.utcoffset(None) == timedelta(hours=offset)
 
 
-def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
+@pytest.mark.asyncio
+async def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
     """
     Tests that the `filled_uav_metadata` dependency function works.
 
@@ -740,7 +745,7 @@ def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
     mock_fill_metadata = mocker.patch(endpoints.__name__ + ".fill_metadata")
 
     # Act.
-    got_metadata = endpoints.filled_uav_metadata(
+    got_metadata = await endpoints.filled_uav_metadata(
         metadata=mock_metadata,
         image_data=mock_image_data,
         local_tz=mock_timezone,
@@ -751,8 +756,14 @@ def test_filled_uav_metadata(mocker: MockFixture, faker: Faker) -> None:
     assert got_metadata == mock_fill_metadata.return_value
 
 
-def test_filled_uav_metadata_invalid(
-    mocker: MockFixture, faker: Faker
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [InvalidImageError, MissingLengthError],
+    ids=["invalid_image", "missing_length"],
+)
+async def test_filled_uav_metadata_invalid(
+    mocker: MockFixture, faker: Faker, error: type
 ) -> None:
     """
     Tests that `filled_uav_metadata` works when the image is invalid.
@@ -760,6 +771,7 @@ def test_filled_uav_metadata_invalid(
     Args:
         mocker: The fixture to use for mocking.
         faker: The fixture to use for generating fake data.
+        error: The type of error we want to simulate.
 
     """
     # Arrange.
@@ -769,11 +781,11 @@ def test_filled_uav_metadata_invalid(
 
     # Mock the underlying function that it calls.
     mock_fill_metadata = mocker.patch(endpoints.__name__ + ".fill_metadata")
-    mock_fill_metadata.side_effect = InvalidImageError
+    mock_fill_metadata.side_effect = error
 
     # Act and assert.
     with pytest.raises(HTTPException):
-        endpoints.filled_uav_metadata(
+        await endpoints.filled_uav_metadata(
             metadata=mock_metadata,
             image_data=mock_image_data,
             local_tz=mock_timezone,

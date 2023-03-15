@@ -61,6 +61,7 @@ function responseToMetadata(response: UavImageMetadata): UavImageMetadata {
  */
 function metadataToForm(metadata: UavImageMetadata): any[] {
   return [
+    metadata.size,
     metadata.name,
     metadata.format,
     metadata.platformType,
@@ -170,6 +171,9 @@ export async function createImage(
 ): Promise<ObjectRef> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
+  // Set the size based on the image to upload.
+  metadata.size = imageData.size;
+
   const response = await api
     .createUavImageImagesCreateUavPost(
       offset,
@@ -200,6 +204,8 @@ export async function inferMetadata(
 ): Promise<UavImageMetadata> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
+  // Set the size based on the image to upload.
+  knownMetadata.size = imageData.size;
 
   const response = await api
     .inferImageMetadataImagesMetadataInferPost(

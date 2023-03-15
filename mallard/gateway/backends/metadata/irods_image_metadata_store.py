@@ -117,14 +117,6 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
         )
 
     @__build_query.register
-    def _(self, value: set, name: str, query: Query) -> Query:
-        # Match any of the tags.
-        return query.filter(
-            self.__name_criterion(name),
-            In(DataObjectMeta.value, value),
-        )
-
-    @__build_query.register
     def _(
         self, value: ImageQuery.Range[date], name: str, query: Query
     ) -> Query:

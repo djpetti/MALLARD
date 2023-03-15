@@ -256,17 +256,6 @@ class SqlImageMetadataStore(ImageMetadataStore):
     @__update_query.register
     def _(
         self,
-        value: set,
-        *,
-        query: Select,
-        column: InstrumentedAttribute,
-    ) -> Select:
-        # Match any of the tags.
-        return query.where(column.in_(value))
-
-    @__update_query.register
-    def _(
-        self,
         value: ImageQuery.Range,
         *,
         query: Select,

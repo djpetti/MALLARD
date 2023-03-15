@@ -2,10 +2,9 @@
 Contains custom `Faker` providers.
 """
 
-
 import unittest.mock as mock
 from tempfile import SpooledTemporaryFile
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from faker import Faker
 from faker.providers import BaseProvider
@@ -23,7 +22,10 @@ class FastApiProvider(BaseProvider):
         self.__faker = Faker()
 
     def upload_file(
-        self, category: Optional[str] = None, contents: Optional[bytes] = None
+        self,
+        category: Optional[str] = None,
+        contents: Optional[bytes] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> UploadFile:
         """
         Creates a fake `UploadFile` object.
@@ -32,6 +34,8 @@ class FastApiProvider(BaseProvider):
             category: The category for the fake file. See the `Faker`
                 documentation for valid values.
             contents: Specific file contents to simulate.
+            headers: HTTP headers to use for the file. If not specified,
+                it will default to adding a content-length header.
 
         Returns:
             The mock `UploadFile` that it created.
@@ -54,5 +58,12 @@ class FastApiProvider(BaseProvider):
 
         # Make it look like the file contains some data.
         upload_file.read.side_effect = underlying_file.read
+        upload_file.seek.side_effect = underlying_file.seek
+
+        # Make it look like the file has headers.
+        if headers is None:
+            # Add a valid content-length by default.
+            headers = {"content-length": len(contents)}
+        upload_file.headers = headers.copy()
 
         return upload_file

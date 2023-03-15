@@ -23,6 +23,8 @@ class Image(Base):
             store.
         key: The key of this image in the object store.
 
+        size: The size of the image, in bytes.
+
         name: A human-readable name for the image. If not provided, it will be
             inferred from the image filename.
         format: The format that the image is in. This will be deduced
@@ -59,6 +61,8 @@ class Image(Base):
 
     bucket = Column(String(50), primary_key=True)
     key = Column(String(50), primary_key=True)
+
+    size = Column(Integer)
 
     name = Column(String(100))
     format = Column(Enum(ImageFormat))

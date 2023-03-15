@@ -38,7 +38,11 @@ from ...backends.metadata.schemas import (
 )
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef
-from .image_metadata import InvalidImageError, fill_metadata
+from .image_metadata import (
+    InvalidImageError,
+    MissingLengthError,
+    fill_metadata,
+)
 from .schemas import CreateResponse, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -158,7 +162,7 @@ def user_timezone(tz: float = Query(..., ge=-24, le=24)) -> timezone:
     return timezone(timedelta(hours=tz))
 
 
-def filled_uav_metadata(
+async def filled_uav_metadata(
     metadata: UavImageMetadata = Depends(UavImageMetadata.as_form),
     image_data: UploadFile = File(...),
     local_tz: timezone = Depends(user_timezone),
@@ -180,12 +184,20 @@ def filled_uav_metadata(
 
     """
     try:
-        return fill_metadata(metadata, local_tz=local_tz, image=image_data)
+        return await fill_metadata(
+            metadata, local_tz=local_tz, image=image_data
+        )
     except InvalidImageError:
         raise HTTPException(
             status_code=415,
             detail="The uploaded image has an invalid format, or does not "
             "match the specified format.",
+        )
+    except MissingLengthError:
+        raise HTTPException(
+            status_code=411,
+            detail="You must provide a size for the uploaded image, either in "
+            "the metadata, or in the content-length header.",
         )
 
 

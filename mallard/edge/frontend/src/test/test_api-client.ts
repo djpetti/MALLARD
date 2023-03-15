@@ -249,7 +249,7 @@ describe("api-client", () => {
     const artifactId = fakeObjectRef();
     mockUavImageCreate.mockResolvedValue({ data: { imageId: artifactId } });
 
-    const imageData = faker.datatype.string();
+    const imageData = new Blob([faker.datatype.string()]);
     const metadata = fakeImageMetadata();
     if (!hasLocation) {
       // Remove location data.
@@ -260,8 +260,10 @@ describe("api-client", () => {
     const result: ObjectRef = await createImage(imageData, metadata);
 
     // Assert.
-    // It should have created the image.'
+    // It should have created the image.
     expect(mockUavImageCreate).toBeCalledTimes(1);
+    // It should have specified the size in the metadata.
+    expect(mockUavImageCreate.mock.calls[0][2]).toEqual(imageData.size);
 
     // It should have returned the ID of the artifact it created.
     expect(result).toEqual(artifactId);
@@ -300,7 +302,7 @@ describe("api-client", () => {
       mockImagesApiClass.prototype.inferImageMetadataImagesMetadataInferPost;
     mockMetadataInfer.mockResolvedValue({ data: response });
 
-    const imageData = faker.datatype.string();
+    const imageData = new Blob([faker.datatype.string()]);
     const initialMetadata = fakeImageMetadata();
 
     // Act.
@@ -311,6 +313,8 @@ describe("api-client", () => {
 
     // Assert.
     expect(mockMetadataInfer).toBeCalledTimes(1);
+    // It should have specified the size in the metadata.
+    expect(mockMetadataInfer.mock.calls[0][2]).toEqual(imageData.size);
 
     // It should have inferred the metadata.
     expect(result).toEqual(expectedResponse);

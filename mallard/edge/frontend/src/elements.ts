@@ -1,4 +1,3 @@
-import { ThumbnailGridSection } from "./thumbnail-grid-section";
 import { LitElement } from "lit";
 import { ConnectedArtifactThumbnail } from "./artifact-thumbnail";
 import { ConnectedThumbnailGrid } from "./thumbnail-grid";
@@ -9,6 +8,7 @@ import { ConnectedLargeImageDisplay } from "./large-image-display";
 import { ConnectedMallardApp } from "./mallard-app";
 import { ConnectedSearchBox } from "./search-box";
 import { ConnectedTopNavBar } from "./top-nav-bar";
+import { ConnectedThumbnailGridSection } from "./thumbnail-grid-section";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -18,7 +18,7 @@ interface ComponentType extends LitElementType {
 
 /** List of all custom elements. */
 const componentClasses: ComponentType[] = [
-  ThumbnailGridSection,
+  ConnectedThumbnailGridSection,
   ConnectedThumbnailGrid,
   ConnectedArtifactThumbnail,
   ConnectedFileUploader,

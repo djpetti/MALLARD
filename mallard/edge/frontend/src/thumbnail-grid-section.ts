@@ -1,16 +1,28 @@
 import { LitElement, css, html } from "lit";
 import { property } from "lit/decorators.js";
-import "@material/mwc-top-app-bar";
+import "@material/mwc-icon-button";
 import "./artifact-thumbnail";
+import { connect } from "@captaincodeman/redux-connect-element";
+import store from "./store";
+import { RootState } from "./types";
+import { selectImages, thumbnailGridSelectors } from "./thumbnail-grid-slice";
+import { Action } from "redux";
+
+/** Custom event indicating that the selection status has changed. */
+type SelectedEvent = CustomEvent<boolean>;
 
 /**
  * A grid of thumbnails with a section header.
  * @customElement thumbnail-grid-section
  */
 export class ThumbnailGridSection extends LitElement {
+  /** Tag name for this element. */
+  static readonly tagName: string = "thumbnail-grid-section";
+
   static styles = css`
     :host {
       display: block;
+      position: relative;
     }
 
     #section_contents {
@@ -31,10 +43,18 @@ export class ThumbnailGridSection extends LitElement {
       font-family: "Roboto";
       font-style: normal;
     }
+
+    #select_button {
+      position: absolute;
+      z-index: 99;
+      top: 0;
+      right: 0;
+      color: var(--theme-whitish);
+    }
   `;
 
-  /** Tag name for this element. */
-  static tagName: string = "thumbnail-grid-section";
+  /** Event indicating that the user has clicked the select button. */
+  static readonly SELECT_TOGGLED_EVENT_NAME = `${ThumbnailGridSection.tagName}-selected`;
 
   /**
    * The header to use for this section.
@@ -48,13 +68,47 @@ export class ThumbnailGridSection extends LitElement {
   @property({ type: Array })
   displayedArtifacts: string[] = [];
 
+  /** Whether this section is selected. */
+  @property({ type: Boolean })
+  selected: boolean = false;
+
+  /**
+   * Run whenever the select button is clicked.
+   * @private
+   */
+  private onSelect(): void {
+    this.selected = !this.selected;
+
+    // Indicate that the selection status changed.
+    this.dispatchEvent(
+      new CustomEvent<boolean>(ThumbnailGridSection.SELECT_TOGGLED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.selected,
+      })
+    );
+  }
+
   /**
    * @inheritDoc
    */
   protected render() {
+    // Icon to use for the select button.
+    const selectIcon = this.selected
+      ? "check_circle"
+      : "radio_button_unchecked";
+
     return html`
       ${this.displayedArtifacts.length > 0
-        ? html` <div id="section_divider">${this.sectionHeader}</div>`
+        ? html` <div id="section_divider">
+            ${this.sectionHeader}
+            <!-- Selection button -->
+            <mwc-icon-button
+              id="select_button"
+              icon="${selectIcon}"
+              @click="${this.onSelect}"
+            ></mwc-icon-button>
+          </div>`
         : html``}
       <div id="section_contents">
         ${this.displayedArtifacts.map(
@@ -63,5 +117,46 @@ export class ThumbnailGridSection extends LitElement {
         )}
       </div>
     `;
+  }
+}
+
+/**
+ * Extension of `ThumbnailGridSection` that connects to Redux.
+ */
+export class ConnectedThumbnailGridSection extends connect(
+  store,
+  ThumbnailGridSection
+) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: RootState): { [p: string]: any } {
+    // Check to see if all of our images are selected.
+    let allSelected = true;
+    for (const imageId of this.displayedArtifacts) {
+      if (!thumbnailGridSelectors.selectById(state, imageId)?.isSelected) {
+        allSelected = false;
+        break;
+      }
+    }
+
+    return { selected: allSelected };
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    const handlers: { [p: string]: (event: Event) => Action } = {};
+
+    handlers[ConnectedThumbnailGridSection.SELECT_TOGGLED_EVENT_NAME] = (
+      event: Event
+    ) =>
+      selectImages({
+        imageIds: this.displayedArtifacts,
+        select: (event as SelectedEvent).detail,
+      });
+
+    return handlers;
   }
 }

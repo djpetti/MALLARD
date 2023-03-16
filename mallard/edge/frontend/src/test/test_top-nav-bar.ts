@@ -3,22 +3,39 @@ import { fakeState, getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
 import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
 import { IconButton } from "@material/mwc-icon-button";
-import { thunkBulkDownloadSelected } from "../thumbnail-grid-slice";
+import {
+  thunkBulkDownloadSelected,
+  thunkSelectAll,
+} from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
 const faker = require("faker");
 
 // Create the mocks.
-jest.mock("../thumbnail-grid-slice", () => ({
-  thunkBulkDownloadSelected: jest.fn(),
-}));
+jest.mock("../thumbnail-grid-slice", () => {
+  const actualSlice = jest.requireActual("../thumbnail-grid-slice");
+  return {
+    thunkBulkDownloadSelected: jest.fn(),
+    thunkSelectAll: jest.fn(),
+
+    // Use the actual implementation for this function.
+    thumbnailGridSelectors: {
+      selectIds: actualSlice.thumbnailGridSelectors.selectIds,
+    },
+  };
+});
 const mockThunkBulkDownloadSelected =
   thunkBulkDownloadSelected as jest.MockedFn<typeof thunkBulkDownloadSelected>;
+const mockSelectAll = thunkSelectAll as jest.MockedFn<typeof thunkSelectAll>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
   connect: jest.fn((_, elementClass) => elementClass),
+}));
+jest.mock("../store", () => ({
+  // Mock this to avoid an annoying spurious console error from Redux.
+  configureStore: jest.fn(),
 }));
 
 describe("top-nav-bar", () => {
@@ -61,13 +78,13 @@ describe("top-nav-bar", () => {
     // It should have rendered the title.
     const titleDiv = topBar?.querySelector("span");
     expect(titleDiv).not.toBe(null);
-    expect(titleDiv?.textContent).toEqual(fakeTitle);
+    expect(titleDiv?.textContent).toContain(fakeTitle);
   });
 
-  it("shows the download button when items are selected", async () => {
+  it("renders correctly when items are selected", async () => {
     // Act.
     // Make it look like items are selected.
-    navBarElement.itemsSelected = true;
+    navBarElement.numItemsSelected = faker.datatype.number({ min: 1 });
     await navBarElement.updateComplete;
 
     // Assert.
@@ -78,12 +95,27 @@ describe("top-nav-bar", () => {
     // It should have rendered the download button.
     const downloadButton = topBar?.querySelector("#download_button");
     expect(downloadButton).not.toBeNull();
+
+    // It should have rendered a message about the number of items selected.
+    const title = topBar?.querySelector("#title") as HTMLElement;
+    expect(title.innerHTML).toContain(
+      `${navBarElement.numItemsSelected} Selected`
+    );
+
+    // It should also show a button to cancel the selection.
+    const cancelButton = topBar?.querySelector(
+      "#cancel_selection"
+    ) as IconButton;
+    expect(cancelButton).not.toBeNull();
+
+    // It should not show the search box in this mode.
+    expect(topBar?.querySelector("#search")).toBeNull();
   });
 
   it("dispatches an event when the download button is clicked", async () => {
     // Arrange.
     // Make it look like items are selected.
-    navBarElement.itemsSelected = true;
+    navBarElement.numItemsSelected = 3;
     await navBarElement.updateComplete;
 
     // Add a handler for the event.
@@ -106,6 +138,34 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have fired the event.
     expect(downloadHandler).toBeCalledTimes(1);
+  });
+
+  it("dispatches an event when the cancel selection button is clicked", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const cancelHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME,
+      cancelHandler
+    );
+
+    // Act.
+    // Simulate a click on the cancel button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const cancelButton = topBar.querySelector(
+      "#cancel_selection"
+    ) as IconButton;
+
+    cancelButton.dispatchEvent(new MouseEvent("click"));
+
+    // Assert.
+    // It should have fired the event.
+    expect(cancelHandler).toBeCalledTimes(1);
   });
 
   each([
@@ -156,37 +216,20 @@ describe("top-nav-bar", () => {
     expect(backSpy).toBeCalledTimes(1);
   });
 
-  each([
-    ["items selected", 3],
-    ["no items selected", 0],
-  ]).it(
-    "updates the properties from the Redux state when there are %s",
-    (_, numItemsSelected: number) => {
-      // Arrange.
-      // Create a fake state.
-      const state = fakeState();
-      const imageView = state.imageView;
-      imageView.numItemsSelected = numItemsSelected;
+  it("updates the properties from the Redux state", () => {
+    // Arrange.
+    // Create a fake state.
+    const state = fakeState();
+    const imageView = state.imageView;
+    imageView.numItemsSelected = faker.datatype.number();
 
-      // Act.
-      const updates = navBarElement.mapState(state);
-
-      // Assert.
-      // It should have updated the selection state.
-      expect(updates).toHaveProperty("itemsSelected");
-      expect(updates.itemsSelected).toEqual(numItemsSelected > 0);
-    }
-  );
-
-  it("maps the correct actions to events", () => {
     // Act.
-    const eventMap = navBarElement.mapEvents();
+    const updates = navBarElement.mapState(state);
 
     // Assert.
-    // It should have a mapping for the event.
-    expect(eventMap).toHaveProperty(
-      ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME
-    );
+    // It should have updated the selection state.
+    expect(updates).toHaveProperty("numItemsSelected");
+    expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
   });
 
   it(`fires the correct action creator for the ${ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME} event`, () => {
@@ -198,7 +241,32 @@ describe("top-nav-bar", () => {
       new CustomEvent<void>(ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME)
     );
 
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME
+    );
+
     // It should have used the correct action creator.
     expect(mockThunkBulkDownloadSelected).toBeCalledTimes(1);
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME)
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME
+    );
+
+    // It should have used the correct action creator.
+    expect(mockSelectAll).toBeCalledWith(false);
   });
 });

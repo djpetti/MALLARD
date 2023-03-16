@@ -15,6 +15,7 @@ import thumbnailGridReducer, {
   thunkLoadImage,
   thunkLoadMetadata,
   thunkLoadThumbnail,
+  thunkSelectAll,
   thunkStartNewQuery,
   thunkTextSearch,
 } from "../thumbnail-grid-slice";
@@ -639,6 +640,38 @@ describe("thumbnail-grid-slice action creators", () => {
     // It should have done nothing.
     expect(mockRevokeObjectUrl).not.toBeCalled();
     expect(store.getActions()).toHaveLength(0);
+  });
+
+  it("can select/deselect all the images", () => {
+    // Arrange.
+    // Make it look like there are various images.
+    const state = fakeState();
+    state.imageView.ids = [faker.datatype.uuid(), faker.datatype.uuid()];
+
+    const store = mockStoreCreator(state);
+
+    const select = faker.datatype.boolean();
+
+    // Act.
+    thunkSelectAll(select)(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have dispatched the action.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(1);
+
+    const selectAction = actions[0];
+    expect(selectAction.type).toEqual(
+      thumbnailGridSlice.actions.selectImages.type
+    );
+    expect(selectAction.payload).toEqual({
+      imageIds: state.imageView.ids,
+      select: select,
+    });
   });
 });
 

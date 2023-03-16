@@ -8,7 +8,10 @@ import "./search-box";
 import store from "./store";
 import { RootState } from "./types";
 import { Action } from "redux";
-import { thunkBulkDownloadSelected } from "./thumbnail-grid-slice";
+import {
+  thunkBulkDownloadSelected,
+  thunkSelectAll,
+} from "./thumbnail-grid-slice";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -29,6 +32,11 @@ export class TopNavBar extends LitElement {
       user.
        */
       --mdc-theme-primary: var(--theme-secondary-1);
+    }
+
+    .vertical-centered {
+      display: flex;
+      align-items: center;
     }
 
     #app_bar {
@@ -53,6 +61,11 @@ export class TopNavBar extends LitElement {
   static DOWNLOAD_STARTED_EVENT_NAME = `${TopNavBar.tagName}-download-started`;
 
   /**
+   * THe name of the event to fire when the cancel selection button is clicked.
+   */
+  static SELECT_CANCEL_EVENT_NAME = `${TopNavBar.tagName}-select-cancel`;
+
+  /**
    * If true, it will show the back button on the left.
    */
   @property({ type: Boolean })
@@ -65,10 +78,10 @@ export class TopNavBar extends LitElement {
   title: string = "";
 
   /**
-   * Whether to enable the "selected items" state.
+   * Total number of items that are selected.
    */
-  @property({ type: Boolean })
-  itemsSelected: boolean = false;
+  @property({ type: Number })
+  numItemsSelected: number = 0;
 
   /**
    * Run when the download button is clicked.
@@ -85,12 +98,38 @@ export class TopNavBar extends LitElement {
   }
 
   /**
+   * Run when the cancel selection button is clicked.
+   * @private
+   */
+  private onCancelSelectionClick(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<void>(TopNavBar.SELECT_CANCEL_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
     // Only show the back button if that's been requested.
     const backButtonClass = this.showBack ? "" : "hidden";
-    const topBarClass = this.itemsSelected ? "selection-mode" : "normal";
+    const topBarClass = this.numItemsSelected ? "selection-mode" : "normal";
+
+    // If we have items selected, show a message about that instead of the
+    // normal title.
+    const title =
+      this.numItemsSelected > 0
+        ? html`<mwc-icon-button
+              icon="close"
+              id="cancel_selection"
+              @click="${this.onCancelSelectionClick}"
+            ></mwc-icon-button>
+            ${this.numItemsSelected} Selected`
+        : html`${this.title}`;
 
     return html`
       <mwc-top-app-bar-fixed id="app_bar" class="${topBarClass}">
@@ -103,12 +142,16 @@ export class TopNavBar extends LitElement {
           @click="${() => history.back()}"
         ></mwc-icon-button>
         <!-- Title -->
-        <span slot="title">${this.title}</span>
-        <!-- Search box. -->
-        <search-box id="search"></search-box>
+        <span slot="title" class="vertical-centered" id="title">
+          ${title}
+        </span>
+        ${this.numItemsSelected == 0
+          ? html` <!-- Search box. -->
+              <search-box id="search"></search-box>`
+          : nothing}
 
         <!-- Action items. -->
-        ${this.itemsSelected
+        ${this.numItemsSelected > 0
           ? html` <mwc-icon-button
               icon="download"
               slot="actionItems"
@@ -136,7 +179,7 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
    */
   mapState(state: RootState): { [p: string]: any } {
     return {
-      itemsSelected: state.imageView.numItemsSelected > 0,
+      numItemsSelected: state.imageView.numItemsSelected,
     };
   }
 
@@ -152,6 +195,8 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
     // AsyncThunkAction.
     handlers[ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME] = (_) =>
       thunkBulkDownloadSelected() as unknown as Action;
+    handlers[ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME] = (_) =>
+      thunkSelectAll(false) as unknown as Action;
 
     return handlers;
   }

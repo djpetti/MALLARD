@@ -414,6 +414,20 @@ export function thunkClearFullSizedImage(imageId?: string): ThunkResult<void> {
 }
 
 /**
+ * Thunk for selecting/deselecting all the images at once.
+ * @param {boolean} select Whether to select or deselect.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkSelectAll(select: boolean): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Get all the images.
+    const imageIds = thumbnailGridSelectors.selectIds(getState());
+    dispatch(selectImages({ imageIds: imageIds, select: select }));
+  };
+}
+
+/**
  * Common reducer logic for updating the state after a query completes.
  * @param {Draft<ImageViewState>} state The state to update.
  * @param {QueryResponse} queryResults The results from the query.

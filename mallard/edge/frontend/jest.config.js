@@ -9,7 +9,9 @@ module.exports = {
   transformIgnorePatterns: [
     "node_modules/(?!(lit|@lit|lit-element|lit-html|@material|app-datepicker|nodemod|client-zip|url-join|to-readable-stream)/)",
   ],
-  collectCoverageFrom: ["src/**/{!(index|elements|element-test-utils),}.ts"],
+  collectCoverageFrom: [
+    "src/**/{!(index|elements|element-test-utils|store),}.ts",
+  ],
   globals: {
     // This is normally set in HTML by the web server. For testing,
     // it needs to be set manually.

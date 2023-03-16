@@ -59,7 +59,7 @@ async function* fetchImages(
 function computeLength(images: ImageWithMeta[]): bigint {
   const metadata = images.map((i) => ({
     name: i.metadata.name,
-    size: BigInt(i.metadata.size as number),
+    size: BigInt(i.metadata.size ?? 0),
   }));
   return predictLength(metadata);
 }

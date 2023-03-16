@@ -28,7 +28,7 @@ First, you will need to figure out the name of the `gateway` service container,
 using `docker ps`. Most likely, it will be `mallard_gateway_1`. Then, to initialize
 the database, run:
 ```bash
-docker exec mallard_gateway_1 /init_db.sh
+docker exec mallard-gateway-1 /init_db.sh
 ```
 
 This only has to be done once, unless you delete the MALLARD Docker volumes. On

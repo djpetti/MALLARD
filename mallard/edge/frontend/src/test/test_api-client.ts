@@ -256,12 +256,19 @@ describe("api-client", () => {
       metadata.location = undefined;
     }
 
+    const fileName = faker.system.fileName();
+
     // Act.
-    const result: ObjectRef = await createImage(imageData, metadata);
+    const result: ObjectRef = await createImage(imageData, {
+      name: fileName,
+      metadata: metadata,
+    });
 
     // Assert.
     // It should have created the image.
     expect(mockUavImageCreate).toBeCalledTimes(1);
+    // It should have specified the file name.
+    expect(mockUavImageCreate.mock.calls[0][1].name).toEqual(fileName);
     // It should have specified the size in the metadata.
     expect(mockUavImageCreate.mock.calls[0][2]).toEqual(imageData.size);
 
@@ -281,9 +288,12 @@ describe("api-client", () => {
     const metadata = fakeImageMetadata();
 
     // Act and assert.
-    await expect(createImage(imageData, metadata)).rejects.toThrow(
-      FakeAxiosError
-    );
+    await expect(
+      createImage(imageData, {
+        name: faker.system.fileName(),
+        metadata: metadata,
+      })
+    ).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);
@@ -305,14 +315,18 @@ describe("api-client", () => {
     const imageData = new Blob([faker.datatype.string()]);
     const initialMetadata = fakeImageMetadata();
 
+    const fileName = faker.system.fileName();
+
     // Act.
-    const result: UavImageMetadata = await inferMetadata(
-      imageData,
-      initialMetadata
-    );
+    const result: UavImageMetadata = await inferMetadata(imageData, {
+      name: fileName,
+      knownMetadata: initialMetadata,
+    });
 
     // Assert.
     expect(mockMetadataInfer).toBeCalledTimes(1);
+    // It should have specified the file name.
+    expect(mockMetadataInfer.mock.calls[0][1].name).toEqual(fileName);
     // It should have specified the size in the metadata.
     expect(mockMetadataInfer.mock.calls[0][2]).toEqual(imageData.size);
 
@@ -332,9 +346,12 @@ describe("api-client", () => {
     const metadata = fakeImageMetadata();
 
     // Act and assert.
-    await expect(inferMetadata(imageData, metadata)).rejects.toThrow(
-      FakeAxiosError
-    );
+    await expect(
+      inferMetadata(imageData, {
+        name: faker.system.fileName(),
+        knownMetadata: metadata,
+      })
+    ).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

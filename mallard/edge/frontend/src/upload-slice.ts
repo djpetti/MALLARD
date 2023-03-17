@@ -16,6 +16,7 @@ import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
 import { ThunkAction } from "redux-thunk";
 import { ObjectRef, UavImageMetadata } from "mallard-api";
+import { cloneDeep } from "lodash";
 
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
@@ -81,9 +82,11 @@ export const thunkUploadFile = createAsyncThunk(
     const uploadFile = await getUploadFile(fileId, state);
 
     // Upload all the files.
-    const metadata: UavImageMetadata = { name: uploadFile.name };
     // File should always be loaded at the time we perform this action.
-    return await createImage(uploadFile.contents, metadata);
+    return await createImage(uploadFile.contents, {
+      name: uploadFile.name,
+      metadata: {},
+    });
   }
 );
 
@@ -98,7 +101,10 @@ export const thunkInferMetadata = createAsyncThunk(
     const uploadFile = await getUploadFile(fileId, state);
 
     // Infer the metadata.
-    return await inferMetadata(uploadFile.contents, {});
+    return await inferMetadata(uploadFile.contents, {
+      name: uploadFile.name,
+      knownMetadata: {},
+    });
   },
   {
     condition: (fileId: string, { getState }) => {
@@ -130,11 +136,15 @@ export const thunkUpdateMetadata = createAsyncThunk(
       return file.backendRef as ObjectRef;
     });
 
+    // Do not specify names, because we want these to be inferred so that
+    // they're all unique.
+    const useMetadata = cloneDeep(state.uploads.metadata);
+    if (useMetadata !== null) {
+      useMetadata.name = undefined;
+    }
+
     // Perform the updates.
-    await batchUpdateMetadata(
-      state.uploads.metadata as UavImageMetadata,
-      objectRefs
-    );
+    await batchUpdateMetadata(useMetadata as UavImageMetadata, objectRefs);
   }
 );
 

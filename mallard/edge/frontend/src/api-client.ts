@@ -162,12 +162,13 @@ export async function getMetadata(
 /**
  * Uploads a new image.
  * @param {Blob} imageData The raw image data.
+ * @param {string} name The name to use for the uploaded file.
  * @param {UavImageMetadata} metadata The associated metadata for the image.
  * @return {ObjectRef} The ID of the new artifact that it created.
  */
 export async function createImage(
   imageData: Blob,
-  metadata: UavImageMetadata
+  { name, metadata }: { name: string; metadata: UavImageMetadata }
 ): Promise<ObjectRef> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
@@ -177,7 +178,7 @@ export async function createImage(
   const response = await api
     .createUavImageImagesCreateUavPost(
       offset,
-      new File([imageData], "image"),
+      new File([imageData], name),
       ...metadataToForm(metadata)
     )
     .catch(function (error) {
@@ -195,12 +196,13 @@ export async function createImage(
 /**
  * Infers metadata from a provided image.
  * @param {Blob} imageData The image to infer metadata from.
+ * @param {name} The name to use for the image file.
  * @param {UavImageMetadata} knownMetadata Any previously-known metadata.
  * @return {UavImageMetadata} The inferred metadata.
  */
 export async function inferMetadata(
   imageData: Blob,
-  knownMetadata: UavImageMetadata
+  { name, knownMetadata }: { name: string; knownMetadata: UavImageMetadata }
 ): Promise<UavImageMetadata> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
@@ -210,7 +212,7 @@ export async function inferMetadata(
   const response = await api
     .inferImageMetadataImagesMetadataInferPost(
       offset,
-      new File([imageData], "image"),
+      new File([imageData], name),
       ...metadataToForm(knownMetadata)
     )
     .catch(function (error) {

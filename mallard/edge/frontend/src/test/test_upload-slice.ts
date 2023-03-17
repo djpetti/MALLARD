@@ -28,6 +28,8 @@ import {
 } from "../types";
 import { AsyncThunk } from "@reduxjs/toolkit";
 import each from "jest-each";
+import { cloneDeep } from "lodash";
+import { UavImageMetadata } from "mallard-api";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -185,33 +187,49 @@ describe("upload-slice action creators", () => {
       expect(store.getActions()).toHaveLength(0);
     });
 
-    it("creates an updateMetadata action", async () => {
-      // Arrange.
-      // Make sure the state contains the backend ID for our image.
-      uploadFile.backendRef = fakeObjectRef();
-      state.uploads.entities[uploadFile.id] = uploadFile;
-      // Add fake metadata to the state.
-      state.uploads.metadata = fakeImageMetadata();
+    each([
+      ["there is metadata", fakeImageMetadata()],
+      ["there is no metadata", null],
+    ]).it(
+      "creates an updateMetadata action when %s",
+      async (_, metadata: UavImageMetadata | null) => {
+        // Arrange.
+        // Make sure the state contains the backend ID for our image.
+        uploadFile.backendRef = fakeObjectRef();
+        state.uploads.entities[uploadFile.id] = uploadFile;
+        // Add fake metadata to the state.
+        state.uploads.metadata = metadata;
 
-      // Make it look like the update request succeeds.
-      mockUpdateMetadata.mockResolvedValue({});
+        // Make it look like the update request succeeds.
+        mockUpdateMetadata.mockResolvedValue({});
 
-      // Act.
-      await thunkUpdateMetadata([uploadFile.id])(
-        store.dispatch,
-        store.getState,
-        {}
-      );
+        // Act.
+        await thunkUpdateMetadata([uploadFile.id])(
+          store.dispatch,
+          store.getState,
+          {}
+        );
 
-      // Assert.
-      // It should have dispatched the lifecycle actions.
-      checkDispatchedActions(thunkUpdateMetadata);
+        // Assert.
+        // It should have dispatched the lifecycle actions.
+        checkDispatchedActions(thunkUpdateMetadata);
 
-      // It should have performed the request.
-      expect(mockUpdateMetadata).toHaveBeenCalledWith(state.uploads.metadata, [
-        uploadFile.backendRef,
-      ]);
-    });
+        if (metadata !== null) {
+          // It should not have sent the metadata name.
+          const expectedMetadata = cloneDeep(state.uploads.metadata);
+          (expectedMetadata as UavImageMetadata).name = undefined;
+          // It should have performed the request.
+          expect(mockUpdateMetadata).toHaveBeenCalledWith(expectedMetadata, [
+            uploadFile.backendRef,
+          ]);
+        } else {
+          // It should have just used the empty metadata.
+          expect(mockUpdateMetadata).toHaveBeenCalledWith(null, [
+            uploadFile.backendRef,
+          ]);
+        }
+      }
+    );
   });
 
   it("creates a processSelectedFiles action", () => {

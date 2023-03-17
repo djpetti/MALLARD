@@ -25,7 +25,7 @@ interface GroupedImages {
   /** The capture data for these images. */
   captureDate: Date;
   /** The session for these images. */
-  session: string;
+  session?: string;
 }
 
 /**
@@ -42,7 +42,7 @@ function groupByDateAndSession(
   // Maps date strings to image IDs with that capture data.
   const keysToImages = new Map<
     string,
-    { date: string; session: string; images: string[] }
+    { date: string; session: string | undefined; images: string[] }
   >();
 
   for (const imageId of imageIds) {
@@ -56,8 +56,8 @@ function groupByDateAndSession(
     }
 
     const captureDate = entity.metadata.captureDate as string;
-    const session = entity.metadata.sessionName as string;
-    const key = captureDate + session;
+    const session = entity.metadata.sessionName;
+    const key = captureDate + session ?? "";
     if (!keysToImages.has(key)) {
       // Add the empty group.
       keysToImages.set(key, {
@@ -182,7 +182,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   private makeSectionName(group: GroupedImages): string {
     const date = group.captureDate.toISOString().split("T")[0];
-    return `${group.session} (${date})`;
+    if (!group.session) {
+      // If we have no session name, just show the date.
+      return date;
+    } else {
+      return `${group.session} (${date})`;
+    }
   }
 
   /**
@@ -314,7 +319,9 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       const timeDiff = b.captureDate.getTime() - a.captureDate.getTime();
       if (timeDiff == 0) {
         // Sort by session as a secondary key.
-        return a.session > b.session ? 1 : a.session < b.session ? -1 : 0;
+        const aSession = a.session ?? "";
+        const bSession = b.session ?? "";
+        return aSession > bSession ? 1 : aSession < bSession ? -1 : 0;
       }
 
       return timeDiff;

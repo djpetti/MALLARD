@@ -83,15 +83,19 @@ describe("thumbnail-grid", () => {
       .remove();
   });
 
-  it("renders thumbnails correctly", async () => {
+  each([
+    ["with a session name", faker.lorem.words()],
+    ["without a session name", undefined],
+  ]).it("renders thumbnails correctly %s", async (_, session?: string) => {
     // Arrange.
     // Add some fake artifacts.
     const artifactIds = [faker.datatype.uuid(), faker.datatype.uuid()];
+    const captureDate = faker.date.past();
     gridElement.groupedArtifacts = [
       {
         imageIds: artifactIds,
-        captureDate: faker.date.past(),
-        session: faker.lorem.words(),
+        captureDate: captureDate,
+        session: session,
       },
     ];
 
@@ -108,6 +112,18 @@ describe("thumbnail-grid", () => {
     // It should have set the correct thumbnails.
     const gridSection = gridDiv.children[0] as ThumbnailGridSection;
     expect(gridSection.displayedArtifacts).toEqual(artifactIds);
+    // It should have set the section header.
+    expect(gridSection.sectionHeader).toContain(
+      captureDate.toISOString().split("T")[0]
+    );
+    if (session !== undefined) {
+      // Date should be in parentheses.
+      expect(gridSection.sectionHeader).toContain("(");
+      expect(gridSection.sectionHeader).toContain(session);
+    } else {
+      // It should show just the date.
+      expect(gridSection.sectionHeader).not.toContain("(");
+    }
 
     // It should not be showing the "no data" message.
     const emptyMessage = root.querySelector("#empty_message") as HTMLElement;

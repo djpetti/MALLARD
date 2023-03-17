@@ -7,7 +7,6 @@ import { RootState } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, finishUpload } from "../upload-slice";
-import { clearImageView } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -21,9 +20,6 @@ jest.mock("../upload-slice", () => ({
   dialogOpened: jest.fn(),
   finishUpload: jest.fn(),
 }));
-jest.mock("../thumbnail-grid-slice", () => ({
-  clearImageView: jest.fn(),
-}));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
   configureStore: jest.fn(),
@@ -31,9 +27,6 @@ jest.mock("../store", () => ({
 
 const mockDialogOpened = dialogOpened as jest.MockedFn<typeof dialogOpened>;
 const mockFinishUpload = finishUpload as jest.MockedFn<typeof finishUpload>;
-const mockClearImageView = clearImageView as jest.MockedFn<
-  typeof clearImageView
->;
 
 describe("mallard-app", () => {
   /** Internal MallardApp to use for testing. */
@@ -142,27 +135,17 @@ describe("mallard-app", () => {
     expect(app.uploadModalOpen).toBe(false);
   });
 
-  it("refreshes the thumbnails when uploads finish", async () => {
-    // Arrange.
+  it("does not allow the upload modal to be closed while uploading", async () => {
+    // Act.
     // Make it look like some uploads are in-progress.
     app.uploadsInProgress = true;
     await app.updateComplete;
 
-    // Listen for the refresh event.
-    const refreshEventHandler = jest.fn();
-    app.addEventListener(
-      ConnectedMallardApp.REFRESH_EVENT_NAME,
-      refreshEventHandler
-    );
-
-    // Act.
-    // Now, make it look like they are finished.
-    app.uploadsInProgress = false;
-    await app.updateComplete;
-
     // Assert.
-    // It should have refreshed the thumbnails.
-    expect(refreshEventHandler).toBeCalledTimes(1);
+    // It should disable the close button on the modal.
+    const root = getShadowRoot(app.tagName);
+    const doneButton = root.querySelector("#done_button") as Button;
+    expect(doneButton.disabled).toEqual(true);
   });
 
   it("updates the properties from the Redux state", () => {
@@ -199,7 +182,6 @@ describe("mallard-app", () => {
       expect(eventMap).toHaveProperty(
         ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE
       );
-      expect(eventMap).toHaveProperty(ConnectedMallardApp.REFRESH_EVENT_NAME);
     });
 
     each([
@@ -227,18 +209,5 @@ describe("mallard-app", () => {
         }
       }
     );
-
-    it("uses the correct action creator to refresh the images", () => {
-      // Arrange.
-      const testEvent = { type: ConnectedMallardApp.REFRESH_EVENT_NAME };
-
-      // Act.
-      eventMap[ConnectedMallardApp.REFRESH_EVENT_NAME](
-        testEvent as unknown as Event
-      );
-
-      // Assert.
-      expect(mockClearImageView).toHaveBeenCalledTimes(1);
-    });
   });
 });

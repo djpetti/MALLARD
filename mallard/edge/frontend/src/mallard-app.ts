@@ -12,7 +12,6 @@ import { Action } from "redux";
 import { finishUpload, dialogOpened } from "./upload-slice";
 import { RootState } from "./types";
 import { ThumbnailGrid } from "./thumbnail-grid";
-import { clearImageView } from "./thumbnail-grid-slice";
 
 /**
  * This is the root element that controls the behavior of the main page of
@@ -59,11 +58,6 @@ export class MallardApp extends LitElement {
    */
   static UPLOAD_MODAL_STATE_CHANGE = `${MallardApp.tagName}-upload-modal-state-change`;
 
-  /** Name for the custom event signaling that we want to reset the current
-   *  artifact display.
-   */
-  static REFRESH_EVENT_NAME = `${MallardApp.tagName}-refresh`;
-
   /** Indicates whether the upload modal should be open. */
   @property()
   uploadModalOpen: boolean = false;
@@ -95,6 +89,8 @@ export class MallardApp extends LitElement {
       <mwc-dialog
         id="upload_modal"
         heading="Upload Data"
+        scrimClickAction=""
+        escapeKeyAction=""
         ?open="${this.uploadModalOpen}"
       >
         <div class="row" id="upload_row">
@@ -109,6 +105,7 @@ export class MallardApp extends LitElement {
         <mwc-button
           id="done_button"
           slot="primaryAction"
+          ?disabled="${this.uploadsInProgress}"
           @click="${() => {
             this.uploadModalOpen = false;
           }}"
@@ -132,20 +129,6 @@ export class MallardApp extends LitElement {
           bubbles: true,
           composed: false,
           detail: this.uploadModalOpen,
-        })
-      );
-    }
-
-    if (
-      _changedProperties.get("uploadsInProgress") === true &&
-      !this.uploadsInProgress
-    ) {
-      // If we finished some pending uploads, we should force a refresh of the
-      // thumbnail grid in order to capture any new data.
-      this.dispatchEvent(
-        new CustomEvent(MallardApp.REFRESH_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
         })
       );
     }
@@ -187,8 +170,6 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
         : // If it's closed, finalize the upload.
           (finishUpload() as unknown as Action);
     };
-    handlers[ConnectedMallardApp.REFRESH_EVENT_NAME] = (_: Event) =>
-      clearImageView(null);
     return handlers;
   }
 }

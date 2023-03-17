@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ThunkAction } from "redux-thunk";
 import { ObjectRef, UavImageMetadata } from "mallard-api";
 import { cloneDeep } from "lodash";
+import { thumbnailGridSlice } from "./thumbnail-grid-slice";
 
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
@@ -206,6 +207,8 @@ export function finishUpload(): ThunkResult<void> {
     }
 
     dispatch(uploadSlice.actions.dialogClosed(null));
+    // Force a refresh of the thumbnail grid to display new uploaded data.
+    dispatch(thumbnailGridSlice.actions.clearImageView(null));
   };
 }
 

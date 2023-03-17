@@ -30,6 +30,7 @@ import { AsyncThunk } from "@reduxjs/toolkit";
 import each from "jest-each";
 import { cloneDeep } from "lodash";
 import { UavImageMetadata } from "mallard-api";
+import { clearImageView } from "../thumbnail-grid-slice";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -270,7 +271,7 @@ describe("upload-slice action creators", () => {
     ["changed metadata", true],
     ["unchanged metadata", false],
   ]).it(
-    "creates a dialogClosed action with %s",
+    "finalizes the upload with %s",
     (_: string, hasNewMetadata: boolean) => {
       // Arrange.
       const state = fakeState();
@@ -292,8 +293,9 @@ describe("upload-slice action creators", () => {
 
       // It should have dispatched the action.
       const actions = store.getActions();
-      expect(actions).toHaveLength(hasNewMetadata ? 2 : 1);
-      expect(actions[actions.length - 1].type).toEqual(dialogClosed.type);
+      expect(actions).toHaveLength(hasNewMetadata ? 3 : 2);
+      expect(actions[actions.length - 2].type).toEqual(dialogClosed.type);
+      expect(actions[actions.length - 1].type).toEqual(clearImageView.type);
 
       if (hasNewMetadata) {
         // It should have dispatched an additional action to update the

@@ -1,5 +1,5 @@
 import { css, html, PropertyValues } from "lit";
-import { property } from "lit/decorators.js";
+import { property, queryAll } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
@@ -15,6 +15,7 @@ import "@material/mwc-circular-progress";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
 import { Field, Ordering } from "mallard-api";
 import { isEqual } from "lodash";
+import { ThumbnailGridSection } from "./thumbnail-grid-section";
 
 /**
  * Encapsulates image IDs grouped with corresponding metadata.
@@ -146,6 +147,9 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   @property()
   public hasMorePages: boolean = true;
 
+  @queryAll("thumbnail-grid-section")
+  private sections!: ThumbnailGridSection[];
+
   /**
    * @inheritDoc
    */
@@ -241,7 +245,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * @inheritDoc
    */
-  protected override updated(_changedProperties: PropertyValues) {
+  protected override async updated(_changedProperties: PropertyValues) {
+    // It shouldn't be considered updated until all the sections are updated.
+    for (const section of this.sections) {
+      await section.updateComplete;
+    }
+
     super.updated(_changedProperties);
 
     if (_changedProperties.has("displayedArtifacts")) {

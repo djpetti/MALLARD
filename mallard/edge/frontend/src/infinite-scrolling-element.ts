@@ -73,11 +73,6 @@ export abstract class InfiniteScrollingElement extends LitElement {
     // Add a handler for scroll events which loads more
     // content if needed.
     this.addEventListener("scroll", (_) => this.loadContentWhileNeeded());
-
-    // Go ahead and load the first section of data. It is guaranteed to load
-    // at least some.
-    this.loadNextSection();
-    this.loadContentWhileNeeded();
   }
 
   /**

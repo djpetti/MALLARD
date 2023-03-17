@@ -59,7 +59,7 @@ export class MallardApp extends LitElement {
   static UPLOAD_MODAL_STATE_CHANGE = `${MallardApp.tagName}-upload-modal-state-change`;
 
   /** Indicates whether the upload modal should be open. */
-  @property()
+  @property({ type: Boolean })
   uploadModalOpen: boolean = false;
 
   /** Keeps track of whether any uploads are currently in-progress. */
@@ -122,7 +122,7 @@ export class MallardApp extends LitElement {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.has("uploadModalOpen")) {
+    if (_changedProperties.get("uploadModalOpen") !== undefined) {
       // The upload modal state has changed.
       this.dispatchEvent(
         new CustomEvent<boolean>(MallardApp.UPLOAD_MODAL_STATE_CHANGE, {

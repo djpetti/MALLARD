@@ -22,7 +22,8 @@ services:
     << : *local_volumes
 
   proxy:
-    # We need to manually specify ports because they're not specified in the
-    # base config.
-    ports:
-      - "8081:8081"
+    extends:
+      # Override file won't be included automatically when we use this one,
+      # specify it manually.
+      file: docker-compose.override.yml
+      service: proxy

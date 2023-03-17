@@ -1,4 +1,4 @@
-# Default override for docker-compose.
+# Override for disabling SSL.
 version: '3.8'
 
 services:
@@ -9,4 +9,4 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./config/local/nginx/conf.d/sites-available/mallard.conf:/local-sites-enabled/mallard.conf
+      - ./config/local/nginx/conf.d/sites-available/mallard-no-ssl.conf:/local-sites-enabled/mallard.conf

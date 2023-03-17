@@ -4,9 +4,9 @@
 
 {% block main %}
 
-<large-image-display
-        backendBucket="{{ image_bucket }}"
-        backendName="{{ image_name }}">
-</large-image-display>
+    <artifact-details
+            backendBucket="{{ image_bucket }}"
+            backendName="{{ image_name }}">
+    </artifact-details>
 
 {% endblock %}

@@ -9,6 +9,7 @@ import { ConnectedMallardApp } from "./mallard-app";
 import { ConnectedSearchBox } from "./search-box";
 import { ConnectedTopNavBar } from "./top-nav-bar";
 import { ConnectedThumbnailGridSection } from "./thumbnail-grid-section";
+import { ArtifactDetails } from "./artifact-details";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -28,6 +29,7 @@ const componentClasses: ComponentType[] = [
   ConnectedMallardApp,
   ConnectedSearchBox,
   ConnectedTopNavBar,
+  ArtifactDetails,
 ];
 
 /**

@@ -211,7 +211,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     const contentVisibility = this.groupedArtifacts.length == 0 ? "hidden" : "";
 
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css" />
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <!-- Show a message if we have no data. -->
       <h1

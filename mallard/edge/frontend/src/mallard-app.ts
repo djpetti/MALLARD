@@ -74,7 +74,7 @@ export class MallardApp extends LitElement {
    */
   protected override render() {
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css" />
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <thumbnail-grid id="thumbnails"></thumbnail-grid>
       <mwc-fab

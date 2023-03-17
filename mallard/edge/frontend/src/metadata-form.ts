@@ -186,7 +186,7 @@ export class MetadataForm extends LitElement {
     `;
 
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css" />
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
       <div id="main" class="${elementVisibility}">
         <!-- Loading indicator. -->
         <mwc-circular-progress

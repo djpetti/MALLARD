@@ -1,6 +1,9 @@
 @use "@material/elevation/mdc-elevation";
 @use "multi_column";
 @use "colors";
+@use "@material/card";
+
+@include card.core-styles;
 
 body {
   background-color: var(--theme-background);

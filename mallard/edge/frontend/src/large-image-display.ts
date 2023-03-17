@@ -53,7 +53,7 @@ export class LargeImageDisplay extends ImageDisplay {
 
   /**
    * The UUID of this image on the backend. Useful for displaying
-   * images that have already been loaded by the frontend.
+   * images that have not already been loaded by the frontend.
    */
   @property({ type: String })
   backendName?: string;

@@ -367,7 +367,7 @@ export class SearchBox extends LitElement {
    */
   protected override render(): unknown {
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css" />
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <div class="autocomplete">
         <mwc-textfield

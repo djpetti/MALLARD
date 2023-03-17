@@ -25,7 +25,8 @@
           // link the elements to Redux state.
           "thumbnail-grid",
           "file-uploader",
-          "search-box"
+          "search-box",
+          "large-image-display"
         ]
       }
     ]

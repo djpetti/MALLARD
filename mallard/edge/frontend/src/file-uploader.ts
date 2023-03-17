@@ -191,7 +191,7 @@ export class FileUploader extends LitElement {
     const dropZoneClass: string = this.isDragging ? "active_drag" : "no_drag";
 
     return html`
-      <link rel="stylesheet" href="./static/mallard-edge.css" />
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <!-- File input to use for manually selecting files. -->
       <input

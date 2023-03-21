@@ -63,6 +63,11 @@ export class LargeImageDisplay extends ImageDisplay {
   showLoadingAnimation = true;
 
   /**
+   * Observer for resize events on the image.
+   */
+  private resizeObserver!: ResizeObserver;
+
+  /**
    * Adjusts the size of the image so that it takes up the maximum amount of
    * screen real-estate without overflowing.
    * @private
@@ -84,6 +89,10 @@ export class LargeImageDisplay extends ImageDisplay {
    */
   protected override firstUpdated(_changedProperties: PropertyValues) {
     super.firstUpdated(_changedProperties);
+
+    // Add event handlers for window resizing.
+    this.resizeObserver = new ResizeObserver(() => this.adjustSizes());
+    this.resizeObserver.observe(this);
 
     // Always resize after the first rendering.
     this.adjustSizes();

@@ -41,6 +41,8 @@ export class ImageDisplay extends LitElement {
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
+      position: relative;
+      object-position: 50% top;
     }
   `;
 

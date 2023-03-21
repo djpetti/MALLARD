@@ -10,6 +10,8 @@ import { ConnectedSearchBox } from "./search-box";
 import { ConnectedTopNavBar } from "./top-nav-bar";
 import { ConnectedThumbnailGridSection } from "./thumbnail-grid-section";
 import { ArtifactDetails } from "./artifact-details";
+import { MetadataCard } from "./metadata-card";
+import { NotesCard } from "./notes-card";
 
 type LitElementType = typeof LitElement;
 interface ComponentType extends LitElementType {
@@ -30,6 +32,8 @@ const componentClasses: ComponentType[] = [
   ConnectedSearchBox,
   ConnectedTopNavBar,
   ArtifactDetails,
+  MetadataCard,
+  NotesCard,
 ];
 
 /**

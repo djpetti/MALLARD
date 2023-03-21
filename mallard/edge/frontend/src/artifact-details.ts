@@ -1,12 +1,14 @@
 import { css, html, LitElement } from "lit";
 import { property } from "lit/decorators.js";
+import "@material/mwc-icon/mwc-icon.js";
+import "@material/mwc-list";
 import "./large-image-display";
 
 /**
  * This is the main element for the details page.
  */
 export class ArtifactDetails extends LitElement {
-  static tagName: string = "artifact-details";
+  static readonly tagName: string = "artifact-details";
 
   static styles = css`
     .grid-layout {
@@ -23,6 +25,7 @@ export class ArtifactDetails extends LitElement {
     .side-panel {
       grid-column-start: 3;
       grid-column-end: 4;
+      max-width: 25vw;
     }
   `;
 
@@ -48,7 +51,6 @@ export class ArtifactDetails extends LitElement {
     }
 
     return html`
-      <link rel="stylesheet" href="/static/mallard-edge.css" />
       <div class="grid-layout">
         <div class="main-panel">
           <large-image-display
@@ -57,7 +59,8 @@ export class ArtifactDetails extends LitElement {
           ></large-image-display>
         </div>
         <div class="side-panel">
-          <div class="mdc-card">This is a card.</div>
+          <metadata-card></metadata-card>
+          <notes-card></notes-card>
         </div>
       </div>
     `;

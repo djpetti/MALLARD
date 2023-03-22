@@ -48,7 +48,7 @@ export class TopNavBar extends LitElement {
     #search {
       margin-left: 200px;
       margin-top: 5px;
-      position: absolute;
+      position: fixed;
       /* Put the search box on top of the navigation bar. */
       top: 0;
       z-index: 10;

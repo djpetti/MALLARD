@@ -27,7 +27,8 @@ export class LargeImageDisplay extends ImageDisplay {
     :host {
       display: block;
       width: 100%;
-      height: 100vh;
+      /* Extra 64px leaves room for the navigation bar. */
+      height: calc(100vh - 64px);
     }
 
     .placeholder {
@@ -41,7 +42,14 @@ export class LargeImageDisplay extends ImageDisplay {
     ${ImageDisplay.styles}
   `;
 
-  static tagName = "large-image-display";
+  static readonly tagName = "large-image-display";
+
+  /**
+   * How much space to leave below the image when setting the height.
+   * This is to make sure the image doesn't get cut off on certain
+   * screen sizes.
+   */
+  static readonly IMAGE_BOTTOM_MARGIN_PX = 0;
 
   /**
    * The bucket that this image is in on the backend. Useful

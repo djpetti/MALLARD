@@ -26,6 +26,9 @@ export class ArtifactDetails extends LitElement {
       grid-column-start: 3;
       grid-column-end: 4;
       max-width: 25vw;
+      overflow: auto;
+      /* Extra 64px leaves room for the navigation bar. */
+      height: calc(100vh - 64px);
     }
   `;
 

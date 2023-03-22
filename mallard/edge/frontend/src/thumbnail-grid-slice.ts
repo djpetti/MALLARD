@@ -111,8 +111,9 @@ export function createImageEntityId(backendId: ObjectRef): string {
 function createDefaultEntity(backendId: ObjectRef): ImageEntity {
   return {
     backendId: backendId,
-    thumbnailStatus: ImageStatus.LOADING,
-    imageStatus: ImageStatus.LOADING,
+    thumbnailStatus: ImageStatus.NOT_LOADED,
+    imageStatus: ImageStatus.NOT_LOADED,
+    metadataStatus: ImageStatus.NOT_LOADED,
     thumbnailUrl: null,
     imageUrl: null,
     metadata: null,
@@ -138,6 +139,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
     },
     queryState: RequestState.IDLE,
   },
+  details: { frontendId: null },
   numItemsSelected: 0,
   bulkDownloadState: RequestState.IDLE,
 });
@@ -238,7 +240,7 @@ export const thunkLoadThumbnail = createAsyncThunk(
         imageId
       ) as ImageEntity;
       // If the thumbnail is already loaded, we don't need to re-load it.
-      return imageEntity.thumbnailStatus != ImageStatus.VISIBLE;
+      return imageEntity.thumbnailStatus == ImageStatus.NOT_LOADED;
     },
   }
 );
@@ -266,7 +268,7 @@ export const thunkLoadImage = createAsyncThunk(
         imageId
       ) as ImageEntity;
       // If the image is already loaded, we don't need to re-load it.
-      return imageEntity.imageStatus != ImageStatus.VISIBLE;
+      return imageEntity.imageStatus == ImageStatus.NOT_LOADED;
     },
   }
 );
@@ -301,7 +303,7 @@ export const thunkLoadMetadata = createAsyncThunk(
           state,
           id
         ) as ImageEntity;
-        return imageEntity.metadata != null;
+        return imageEntity.metadataStatus != ImageStatus.NOT_LOADED;
       });
     },
   }
@@ -428,6 +430,30 @@ export function thunkSelectAll(select: boolean): ThunkResult<void> {
 }
 
 /**
+ * Thunk that handles displaying the details view for an image. It handles
+ * all the tasks including registering the image in the state (if needed),
+ * and loading the image and metadata.
+ * @param {ObjectRef} backendId The ID of the image on the backend.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkShowDetails(backendId: ObjectRef): ThunkResult<void> {
+  return (dispatch, getState) => {
+    const state = getState();
+
+    // Check if the image is registered in the state.
+    const frontendId = createImageEntityId(backendId);
+    if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
+      // We need to register it.
+      dispatch(addArtifact(backendId));
+    }
+
+    // Mark this as the image displayed on the details page.
+    dispatch(showDetails(frontendId));
+  };
+}
+
+/**
  * Common reducer logic for updating the state after a query completes.
  * @param {Draft<ImageViewState>} state The state to update.
  * @param {QueryResponse} queryResults The results from the query.
@@ -459,7 +485,7 @@ export const thumbnailGridSlice = createSlice({
     clearFullSizedImage(state, action) {
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload,
-        changes: { imageUrl: null, imageStatus: ImageStatus.LOADING },
+        changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
       });
     },
     // Completely resets the current image view, removing all loaded images.
@@ -508,6 +534,10 @@ export const thumbnailGridSlice = createSlice({
       } else {
         state.numItemsSelected -= updateIds.length;
       }
+    },
+    // Marks an image as the one being displayed on the details page.
+    showDetails(state, action) {
+      state.details.frontendId = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -565,14 +595,34 @@ export const thumbnailGridSlice = createSlice({
         action.payload.autocompleteSuggestions;
     });
 
+    // We initiated thumbnail loading.
+    builder.addCase(thunkLoadThumbnail.pending, (state, action) => {
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: {
+          thumbnailStatus: ImageStatus.LOADING,
+        },
+      });
+    });
+
     // Add results from thumbnail loading.
     builder.addCase(thunkLoadThumbnail.fulfilled, (state, action) => {
       // Transition images from LOADING to VISIBLE, and save the image URL.
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload.imageId,
         changes: {
-          thumbnailStatus: ImageStatus.VISIBLE,
+          thumbnailStatus: ImageStatus.LOADED,
           thumbnailUrl: action.payload.imageUrl,
+        },
+      });
+    });
+
+    // We initiated image loading.
+    builder.addCase(thunkLoadImage.pending, (state, action) => {
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: {
+          imageStatus: ImageStatus.LOADING,
         },
       });
     });
@@ -583,15 +633,21 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload.imageId,
         changes: {
-          imageStatus: ImageStatus.VISIBLE,
+          imageStatus: ImageStatus.LOADED,
           imageUrl: action.payload.imageUrl,
         },
       });
     });
 
     // We initiated a new request for metadata.
-    builder.addCase(thunkLoadMetadata.pending, (state, _) => {
+    builder.addCase(thunkLoadMetadata.pending, (state, action) => {
       state.metadataLoadingState = RequestState.LOADING;
+
+      const updates = action.meta.arg.map((imageId: string) => ({
+        id: imageId,
+        changes: { metadataStatus: ImageStatus.LOADING },
+      }));
+      thumbnailGridAdapter.updateMany(state, updates);
     });
 
     // Add results from metadata loading.
@@ -605,7 +661,7 @@ export const thumbnailGridSlice = createSlice({
           const metadata = action.payload.metadata[index];
           return {
             id: imageId,
-            changes: { metadata: metadata },
+            changes: { metadata: metadata, metadataStatus: ImageStatus.LOADED },
           };
         }
       );
@@ -621,5 +677,6 @@ export const {
   clearImageView,
   clearAutocomplete,
   selectImages,
+  showDetails,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

@@ -146,7 +146,7 @@ export class ImageDisplay extends LitElement {
   protected override updated(_changedProperties: PropertyValues) {
     if (_changedProperties.has("frontendId")) {
       // The image ID has changed. We need to fire an event for this to kick
-      // off the actual thumbnail load.
+      // off the actual image loading.
       this.dispatchEvent(
         new CustomEvent<ImageIdentifier>(
           ImageDisplay.IMAGE_CHANGED_EVENT_NAME,

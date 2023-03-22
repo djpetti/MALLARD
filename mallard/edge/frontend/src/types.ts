@@ -68,10 +68,12 @@ interface NormalizedState<EntityType> {
  * The loading status of images.
  */
 export enum ImageStatus {
+  /** Image has not been loaded yet. */
+  NOT_LOADED,
   /** Image is loading. */
   LOADING,
   /** Image is loaded and displayed. */
-  VISIBLE,
+  LOADED,
 }
 
 /**
@@ -85,6 +87,8 @@ export interface ImageEntity {
   thumbnailStatus: ImageStatus;
   /** Status of loading the full image. */
   imageStatus: ImageStatus;
+  /** Status of loading the metadata. */
+  metadataStatus: ImageStatus;
 
   /** The object URL of the image thumbnail. */
   thumbnailUrl: string | null;
@@ -101,7 +105,7 @@ export interface ImageEntity {
 /**
  * Represents the state of the search interface.
  */
-export interface SearchState {
+interface SearchState {
   /** Current text in the search box. */
   searchString: string;
   /** Current autocomplete suggestions. */
@@ -109,6 +113,14 @@ export interface SearchState {
 
   /** State of the autocomplete query. */
   queryState: RequestState;
+}
+
+/**
+ * Represents state specific to the details page.
+ */
+interface DetailsState {
+  /** The frontend ID of the image being displayed on the details page. */
+  frontendId: string | null;
 }
 
 /**
@@ -131,6 +143,8 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
 
   /** State of the search interface. */
   search: SearchState;
+  /** State of the details page. */
+  details: DetailsState;
 
   /** Keeps track of the total number of items selected. */
   numItemsSelected: number;

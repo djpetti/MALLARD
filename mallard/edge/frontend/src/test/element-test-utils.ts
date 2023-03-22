@@ -57,6 +57,7 @@ export function fakeState(): RootState {
         },
         queryState: RequestState.IDLE,
       },
+      details: { frontendId: null },
       numItemsSelected: 0,
       bulkDownloadState: RequestState.IDLE,
     },
@@ -106,14 +107,15 @@ export function fakeImageEntity(
     sessionName = faker.lorem.words();
   }
 
-  let thumbnailStatus: ImageStatus = ImageStatus.LOADING;
-  let imageStatus: ImageStatus = ImageStatus.LOADING;
+  let thumbnailStatus: ImageStatus = ImageStatus.NOT_LOADED;
+  let imageStatus: ImageStatus = ImageStatus.NOT_LOADED;
+  let metdataStatus: ImageStatus = ImageStatus.NOT_LOADED;
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let metadata: UavImageMetadata | null = null;
   if (thumbnailLoaded) {
     // Simulate a loaded thumbnail.
-    thumbnailStatus = ImageStatus.VISIBLE;
+    thumbnailStatus = ImageStatus.LOADED;
     thumbnailUrl = faker.image.dataUri();
     metadata = {
       captureDate: captureDate.toISOString(),
@@ -122,7 +124,8 @@ export function fakeImageEntity(
   }
   if (imageLoaded) {
     // Simulate a loaded image.
-    imageStatus = ImageStatus.VISIBLE;
+    imageStatus = ImageStatus.LOADED;
+    metdataStatus = ImageStatus.LOADED;
     imageUrl = faker.image.dataUri();
     metadata = {
       captureDate: captureDate.toISOString(),
@@ -134,6 +137,7 @@ export function fakeImageEntity(
     backendId: fakeObjectRef(),
     thumbnailStatus: thumbnailStatus,
     imageStatus: imageStatus,
+    metadataStatus: metdataStatus,
     thumbnailUrl: thumbnailUrl,
     imageUrl: imageUrl,
     metadata: metadata,

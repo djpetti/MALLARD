@@ -1,8 +1,14 @@
-import { css, html, LitElement } from "lit";
-import { property } from "lit/decorators.js";
+import { css, html, LitElement, PropertyValues } from "lit";
+import { property, state } from "lit/decorators.js";
+import { ifDefined } from "lit/directives/if-defined.js";
 import "@material/mwc-icon/mwc-icon.js";
 import "@material/mwc-list";
 import "./large-image-display";
+import { connect } from "@captaincodeman/redux-connect-element";
+import store from "./store";
+import { Action } from "redux";
+import { ObjectRef } from "mallard-api";
+import { thunkShowDetails } from "./thumbnail-grid-slice";
 
 /**
  * This is the main element for the details page.
@@ -25,12 +31,17 @@ export class ArtifactDetails extends LitElement {
     .side-panel {
       grid-column-start: 3;
       grid-column-end: 4;
-      max-width: 25vw;
+      width: 25vw;
       overflow: auto;
       /* Extra 64px leaves room for the navigation bar. */
       height: calc(100vh - 64px);
     }
   `;
+
+  /**
+   * Name for the custom event signaling that the displayed image has changed.
+   */
+  static readonly IMAGE_CHANGED_EVENT_NAME = `${ArtifactDetails.tagName}-image-changed`;
 
   /**
    * The bucket that this image is in on the backend.
@@ -45,6 +56,13 @@ export class ArtifactDetails extends LitElement {
   backendName?: string;
 
   /**
+   * The frontend ID of the image we are displaying details for.
+   * @protected
+   */
+  @state()
+  protected frontendId?: string;
+
+  /**
    * @inheritDoc
    */
   protected override render() {
@@ -57,15 +75,70 @@ export class ArtifactDetails extends LitElement {
       <div class="grid-layout">
         <div class="main-panel">
           <large-image-display
-            backendBucket="${this.backendBucket}"
-            backendName="${this.backendName}"
+            frontendId="${ifDefined(this.frontendId)}"
           ></large-image-display>
         </div>
         <div class="side-panel">
-          <metadata-card></metadata-card>
-          <notes-card></notes-card>
+          <metadata-card
+            frontendId="${ifDefined(this.frontendId)}"
+          ></metadata-card>
+          <notes-card frontendId="${ifDefined(this.frontendId)}"></notes-card>
         </div>
       </div>
     `;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    if (
+      (_changedProperties.has("backendBucket") ||
+        _changedProperties.has("backendName")) &&
+      this.backendBucket !== undefined &&
+      this.backendName !== undefined
+    ) {
+      // The image was changed. Dispatch the event.
+      this.dispatchEvent(
+        new CustomEvent<ObjectRef>(ArtifactDetails.IMAGE_CHANGED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+          detail: { bucket: this.backendBucket, name: this.backendName },
+        })
+      );
+    }
+  }
+}
+
+/**
+ * Extension of `ArtifactDetails` that connects to Redux.
+ */
+export class ConnectedArtifactDetails extends connect(store, ArtifactDetails) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: any): { [p: string]: any } {
+    return { frontendId: state.imageView.details.frontendId ?? undefined };
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    const handlers: { [p: string]: (event: Event) => Action } = {};
+
+    // The fancy casting here is a hack to deal with the fact that
+    // thunkShowDetails produces an ThunkResult but mapEvents is typed
+    // as requiring an Action.
+    // However, it still works just fine with a ThunkResult.
+    handlers[ConnectedArtifactDetails.IMAGE_CHANGED_EVENT_NAME] = (
+      event: Event
+    ) =>
+      thunkShowDetails(
+        (event as CustomEvent<ObjectRef>).detail
+      ) as unknown as Action;
+    return handlers;
   }
 }

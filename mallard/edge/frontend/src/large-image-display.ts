@@ -1,22 +1,14 @@
-import {
-  ImageChangedEvent,
-  ImageDisplay,
-  ImageIdentifier,
-} from "./image-display";
+import { ImageChangedEvent, ImageDisplay } from "./image-display";
 import { css, PropertyValues } from "lit";
-import { property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageStatus } from "./types";
 import {
-  addArtifact,
-  thunkClearFullSizedImage,
-  createImageEntityId,
   thumbnailGridSelectors,
+  thunkClearFullSizedImage,
   thunkLoadImage,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import { ObjectRef } from "mallard-api";
 
 /**
  * An element for displaying a full-sized image.
@@ -43,28 +35,6 @@ export class LargeImageDisplay extends ImageDisplay {
   `;
 
   static readonly tagName = "large-image-display";
-
-  /**
-   * How much space to leave below the image when setting the height.
-   * This is to make sure the image doesn't get cut off on certain
-   * screen sizes.
-   */
-  static readonly IMAGE_BOTTOM_MARGIN_PX = 0;
-
-  /**
-   * The bucket that this image is in on the backend. Useful
-   * for displaying images that have not already been loaded
-   * by the frontend.
-   */
-  @property({ type: String })
-  backendBucket?: string;
-
-  /**
-   * The UUID of this image on the backend. Useful for displaying
-   * images that have not already been loaded by the frontend.
-   */
-  @property({ type: String })
-  backendName?: string;
 
   // Default to showing the animation for large images, which might
   // take a while to load.
@@ -111,27 +81,6 @@ export class LargeImageDisplay extends ImageDisplay {
    */
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
-
-    if (
-      (_changedProperties.has("backendBucket") ||
-        _changedProperties.has("backendName")) &&
-      this.backendBucket &&
-      this.backendName
-    ) {
-      // Dispatch an event indicating that an image was set.
-      this.dispatchEvent(
-        new CustomEvent<ImageIdentifier>(
-          LargeImageDisplay.IMAGE_CHANGED_EVENT_NAME,
-          {
-            bubbles: true,
-            composed: false,
-            detail: {
-              backendId: { bucket: this.backendBucket, name: this.backendName },
-            },
-          }
-        )
-      );
-    }
 
     if (_changedProperties.has("imageUrl")) {
       this.adjustSizes();
@@ -186,29 +135,19 @@ export class ConnectedLargeImageDisplay extends connect(
    * @inheritDoc
    */
   mapState(state: any): { [p: string]: any } {
-    let frontendId = this.frontendId;
-    if (!frontendId) {
-      if (this.backendBucket && this.backendName) {
-        // Try setting the image ID based on the backend ID.
-        frontendId = createImageEntityId({
-          bucket: this.backendBucket,
-          name: this.backendName,
-        });
-      } else {
-        // We don't have any image specified, so we can't do anything.
-        return {};
-      }
-    }
-
-    const imageEntity = thumbnailGridSelectors.selectById(state, frontendId);
-    if (!imageEntity) {
-      // Image loading has not been started yet.
+    const frontendId = this.frontendId;
+    if (!this.frontendId) {
+      // We don't have any image specified, so we can't do anything.
       return {};
     }
-    if (imageEntity.imageStatus != ImageStatus.VISIBLE) {
-      // The image is has not been loaded yet, but it is registered in the
-      // frontend, so we can set the frontend ID.
-      return { frontendId: frontendId };
+
+    const imageEntity = thumbnailGridSelectors.selectById(
+      state,
+      frontendId as string
+    );
+    if (!imageEntity || imageEntity.imageStatus != ImageStatus.LOADED) {
+      // Image loading has not completed yet.
+      return {};
     }
 
     return { imageUrl: imageEntity.imageUrl };
@@ -225,18 +164,10 @@ export class ConnectedLargeImageDisplay extends connect(
     // However, it still works just fine with an AsyncThunkAction.
     handlers[ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME] = (
       event: Event
-    ) => {
-      const imageEvent = event as ImageChangedEvent;
-      if (imageEvent.detail.frontendId) {
-        // Image has already been registered on the frontend.
-        return thunkLoadImage(
-          imageEvent.detail.frontendId
-        ) as unknown as Action;
-      } else {
-        // Register the image manually.
-        return addArtifact(imageEvent.detail.backendId as ObjectRef);
-      }
-    };
+    ) =>
+      thunkLoadImage(
+        (event as ImageChangedEvent).detail.frontendId as string
+      ) as unknown as Action;
     handlers[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME] = (
       event: Event
     ) =>

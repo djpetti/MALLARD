@@ -10,14 +10,12 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import each from "jest-each";
-import { ObjectRef } from "mallard-api";
 import { ImageIdentifier } from "../image-display";
 import {
   createImageEntityId,
   thunkLoadImage,
   addArtifact,
   thunkClearFullSizedImage,
-  thumbnailGridSelectors,
 } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
@@ -80,9 +78,6 @@ describe("large-image-display", () => {
 
   it("fires an event when the image is updated", async () => {
     // Arrange.
-    // Fake image ID to use for testing.
-    const fakeBackendId = fakeObjectRef();
-
     // Setup a fake handler for our event.
     const handler = jest.fn();
     imageElement.addEventListener(
@@ -91,8 +86,7 @@ describe("large-image-display", () => {
     );
 
     // Act.
-    imageElement.backendBucket = fakeBackendId.bucket;
-    imageElement.backendName = fakeBackendId.name;
+    imageElement.frontendId = faker.datatype.uuid();
 
     await imageElement.updateComplete;
 
@@ -127,47 +121,10 @@ describe("large-image-display", () => {
     expect(internalImage.style.height).toEqual(`${screenHeight}px`);
   });
 
-  each([
-    ["the backend ID is not set", undefined],
-    ["the backend ID is set", fakeObjectRef()],
-  ]).it(
-    "updates from the Redux state when no image is registered and %s",
-    (_: string, backendId?: ObjectRef) => {
-      // Arrange.
-      if (backendId) {
-        // Set the backend ID if we have it.
-        imageElement.backendBucket = backendId.bucket;
-        imageElement.backendName = backendId.name;
-      }
-
-      // Create a fake state.
-      const state: RootState = fakeState();
-
-      // Set up the frontend ID.
-      (
-        createImageEntityId as jest.MockedFn<typeof createImageEntityId>
-      ).mockReturnValue(faker.datatype.uuid());
-
-      // Act.
-      const updates = imageElement.mapState(state);
-
-      // Assert.
-      // It should have changed nothing.
-      expect(updates).toEqual({});
-
-      if (backendId) {
-        // It should have checked the frontend state.
-        expect(thumbnailGridSelectors.selectById).toBeCalledTimes(1);
-      }
-    }
-  );
-
   it("updates from the Redux state when the image is not loaded", () => {
     // Arrange.
-    // Set the backend ID.
-    const backendId = fakeObjectRef();
-    imageElement.backendBucket = backendId.bucket;
-    imageElement.backendName = backendId.name;
+    // Set the image ID.
+    imageElement.frontendId = faker.datatype.uuid();
 
     // Create a fake state.
     const state: RootState = fakeState();

@@ -1081,7 +1081,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have updated the entity for the image.
     const imageEntity = newState.entities[imageId];
-    expect(imageEntity?.thumbnailStatus).toEqual(ImageStatus.VISIBLE);
+    expect(imageEntity?.thumbnailStatus).toEqual(ImageStatus.LOADED);
     expect(imageEntity?.thumbnailUrl).toEqual(imageInfo.imageUrl);
   });
 
@@ -1111,7 +1111,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have updated the entity for the image.
     const imageEntity = newState.entities[imageId];
-    expect(imageEntity?.imageStatus).toEqual(ImageStatus.VISIBLE);
+    expect(imageEntity?.imageStatus).toEqual(ImageStatus.LOADED);
     expect(imageEntity?.imageUrl).toEqual(imageInfo.imageUrl);
   });
 

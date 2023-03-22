@@ -194,7 +194,7 @@ export class ConnectedArtifactThumbnail extends connect(
       // The frontendId that was set is apparently invalid.
       return {};
     }
-    if (imageEntity.thumbnailStatus != ImageStatus.VISIBLE) {
+    if (imageEntity.thumbnailStatus != ImageStatus.LOADED) {
       // The thumbnail image is has not been loaded yet.
       return {};
     }

@@ -9,7 +9,7 @@ import {
   thunkLoadThumbnail,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import { ImageChangedEvent, ImageDisplay } from "./image-display";
+import { ImageDisplay } from "./image-display";
 import "@material/mwc-icon-button";
 
 /** Custom event indicating that the selection status has changed. */
@@ -215,11 +215,11 @@ export class ConnectedArtifactThumbnail extends connect(
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME] = (
+    handlers[ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME] = (
       event: Event
     ) =>
       thunkLoadThumbnail(
-        (event as ImageChangedEvent).detail.frontendId as string
+        (event as CustomEvent<string>).detail
       ) as unknown as Action;
     handlers[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME] = (event: Event) =>
       selectImages({

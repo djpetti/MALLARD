@@ -4,19 +4,15 @@ import {
 } from "../large-image-display";
 import {
   fakeImageEntity,
-  fakeObjectRef,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
 import { RootState } from "../types";
-import each from "jest-each";
-import { ImageIdentifier } from "../image-display";
 import {
-  createImageEntityId,
   thunkLoadImage,
-  addArtifact,
   thunkClearFullSizedImage,
 } from "../thumbnail-grid-slice";
+import each from "jest-each";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -45,6 +41,14 @@ jest.mock("../store", () => ({
   configureStore: jest.fn(),
 }));
 
+// Mock the ResizeObserver class, because JSDom doesn't implement it.
+const mockResizeObserver = jest.fn(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+global.ResizeObserver = mockResizeObserver;
+
 describe("large-image-display", () => {
   /** Internal large-image-display to use for testing. */
   let imageElement: ConnectedLargeImageDisplay;
@@ -71,9 +75,17 @@ describe("large-image-display", () => {
     document.body.getElementsByTagName(LargeImageDisplay.tagName)[0].remove();
   });
 
-  it("can be instantiated", () => {
+  it("can be rendered", async () => {
+    // Act.
+    await imageElement.updateComplete;
+
     // Assert.
     expect(imageElement.frontendId).toBeUndefined();
+
+    // It should have added the ResizeObserver.
+    expect(mockResizeObserver).toBeCalledTimes(1);
+    const mockResizeObserverInstance = mockResizeObserver.mock.results[0].value;
+    expect(mockResizeObserverInstance.observe).toBeCalledWith(imageElement);
   });
 
   it("fires an event when the image is updated", async () => {
@@ -81,7 +93,7 @@ describe("large-image-display", () => {
     // Setup a fake handler for our event.
     const handler = jest.fn();
     imageElement.addEventListener(
-      ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME,
+      ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME,
       handler
     );
 
@@ -121,31 +133,31 @@ describe("large-image-display", () => {
     expect(internalImage.style.height).toEqual(`${screenHeight}px`);
   });
 
-  it("updates from the Redux state when the image is not loaded", () => {
-    // Arrange.
-    // Set the image ID.
-    imageElement.frontendId = faker.datatype.uuid();
+  each([
+    ["not specified", undefined],
+    ["not loaded", faker.datatype.uuid()],
+  ]).it(
+    "updates from the Redux state when the image is %s",
+    (_, frontendId: string) => {
+      // Arrange.
+      // Set the image ID.
+      imageElement.frontendId = frontendId;
 
-    // Create a fake state.
-    const state: RootState = fakeState();
-    // Make it look like the image is not loaded.
-    const imageEntity = fakeImageEntity(undefined, false);
-    const imageId = faker.datatype.uuid();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = imageEntity;
+      // Create a fake state.
+      const state: RootState = fakeState();
+      // Make it look like the image is not loaded.
+      const imageEntity = fakeImageEntity(undefined, false);
+      state.imageView.ids = [frontendId];
+      state.imageView.entities[frontendId] = imageEntity;
 
-    // Set up the frontend ID.
-    (
-      createImageEntityId as jest.MockedFn<typeof createImageEntityId>
-    ).mockReturnValue(imageId);
+      // Act.
+      const updates = imageElement.mapState(state);
 
-    // Act.
-    const updates = imageElement.mapState(state);
-
-    // Assert.
-    // It should have set the frontend ID.
-    expect(updates).toEqual({ frontendId: imageId });
-  });
+      // Assert.
+      // It should have set the frontend ID.
+      expect(updates).toEqual({});
+    }
+  );
 
   it("updates from the Redux state when the image is loaded", () => {
     // Arrange.
@@ -168,39 +180,29 @@ describe("large-image-display", () => {
     expect(updates).toEqual({ imageUrl: imageEntity.imageUrl });
   });
 
-  each([
-    ["image is registered", { frontendId: faker.datatype.uuid() }],
-    ["image is not registered", { backendId: fakeObjectRef() }],
-  ]).it(
-    "maps the correct actions to the image changed event when the %s",
-    (_: string, imageId: ImageIdentifier) => {
-      // Act.
-      const eventMap = imageElement.mapEvents();
+  it("maps the correct actions to the image changed event", () => {
+    // Arrange.
+    const imageId = faker.datatype.uuid();
 
-      // Assert.
-      // It should have a mapping for the proper events.
-      expect(eventMap).toHaveProperty(
-        ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME
-      );
+    // Act.
+    const eventMap = imageElement.mapEvents();
 
-      // This should fire the appropriate action creator.
-      const testEvent = { detail: imageId };
-      eventMap[ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME](
-        testEvent as unknown as Event
-      );
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME
+    );
 
-      // Check image changed event.
-      if (imageId.frontendId) {
-        // Image is registered.
-        expect(thunkLoadImage).toBeCalledTimes(1);
-        expect(thunkLoadImage).toBeCalledWith(testEvent.detail.frontendId);
-      } else {
-        // Image is not registered.
-        expect(addArtifact).toBeCalledTimes(1);
-        expect(addArtifact).toBeCalledWith(testEvent.detail.backendId);
-      }
-    }
-  );
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: imageId };
+    eventMap[ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    // Check image changed event.
+    expect(thunkLoadImage).toBeCalledTimes(1);
+    expect(thunkLoadImage).toBeCalledWith(testEvent.detail);
+  });
 
   it("maps the correct action to the disconnected event", () => {
     // Act.

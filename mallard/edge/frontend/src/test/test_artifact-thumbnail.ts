@@ -195,24 +195,24 @@ describe("artifact-thumbnail", () => {
     expect(root.querySelector("#select_button")).toBeNull();
   });
 
-  it(`maps the correct action to the ${ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME} event`, () => {
+  it(`maps the correct action to the ${ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME} event`, () => {
     // Act.
     const eventMap = thumbnailElement.mapEvents();
 
     // Assert.
     // It should have a mapping for the proper events.
     expect(eventMap).toHaveProperty(
-      ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME
+      ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME
     );
 
     // This should fire the appropriate action creator.
-    const testEvent = { detail: { frontendId: faker.datatype.uuid() } };
-    eventMap[ConnectedArtifactThumbnail.IMAGE_CHANGED_EVENT_NAME](
+    const testEvent = { detail: faker.datatype.uuid() };
+    eventMap[ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME](
       testEvent as unknown as Event
     );
 
     expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
-    expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail.frontendId);
+    expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail);
   });
 
   it(`maps the correct action to the ${ConnectedArtifactThumbnail.SELECTED_EVENT_NAME} event`, () => {

@@ -6,6 +6,7 @@ import thumbnailGridReducer, {
   clearImageView,
   createImageEntityId,
   selectImages,
+  showDetails,
   thumbnailGridSelectors,
   thumbnailGridSlice,
   thunkBulkDownloadSelected,
@@ -16,10 +17,12 @@ import thumbnailGridReducer, {
   thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkSelectAll,
+  thunkShowDetails,
   thunkStartNewQuery,
   thunkTextSearch,
 } from "../thumbnail-grid-slice";
 import {
+  ImageEntity,
   ImageQuery,
   ImageStatus,
   ImageViewState,
@@ -545,7 +548,7 @@ describe("thumbnail-grid-slice action creators", () => {
     });
   });
 
-  it("creates a thunkTextSearch action", () => {
+  it("can start queries with thunkTextSearch", () => {
     // Arrange.
     // Make it look like we can generate queries.
     const queries = [fakeImageQuery(), fakeImageQuery()];
@@ -673,6 +676,52 @@ describe("thumbnail-grid-slice action creators", () => {
       select: select,
     });
   });
+
+  each([
+    ["is not registered", undefined],
+    ["is registered", fakeImageEntity()],
+  ]).it(
+    "can set a new image to show details for when the image %s",
+    (_, imageEntity?: ImageEntity) => {
+      // Arrange.
+      // Create a fake image.
+      const backendId = imageEntity?.backendId ?? fakeObjectRef();
+      const frontendId = createImageEntityId(backendId);
+
+      const state = fakeState();
+      if (imageEntity) {
+        // Make it look lie this image exists.
+        state.imageView.ids = [frontendId];
+        state.imageView.entities[frontendId] = imageEntity;
+      }
+      const store = mockStoreCreator(state);
+
+      // Act.
+      thunkShowDetails(backendId)(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
+
+      // Assert.
+      // It should have dispatched actions.
+      const actions = store.getActions();
+      expect(actions).toHaveLength(imageEntity ? 1 : 2);
+
+      if (!imageEntity) {
+        // There will be one extra action to register the artifact
+        const registerAction = actions[0];
+        expect(registerAction.type).toEqual(addArtifact.type);
+        expect(registerAction.payload).toEqual(backendId);
+      }
+
+      // There should be an action to update which image we are showing
+      // details of.
+      const detailsAction = actions[actions.length - 1];
+      expect(detailsAction.type).toEqual(showDetails.type);
+      expect(detailsAction.payload).toEqual(frontendId);
+    }
+  );
 });
 
 describe("thumbnail-grid-slice reducers", () => {
@@ -717,7 +766,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const imageEntities = thumbnailGridSelectors.selectAll(newState);
     expect(imageEntities).toHaveLength(1);
     expect(imageEntities[0].imageUrl).toBeNull();
-    expect(imageEntities[0].imageStatus).toEqual(ImageStatus.LOADING);
+    expect(imageEntities[0].imageStatus).toEqual(ImageStatus.NOT_LOADED);
   });
 
   it("handles a clearImageView action", () => {
@@ -849,6 +898,20 @@ describe("thumbnail-grid-slice reducers", () => {
     );
   });
 
+  it("handles a showDetails action", () => {
+    // Arrange.
+    const state = fakeState().imageView;
+    state.details.frontendId = null;
+
+    const imageId = faker.datatype.uuid();
+
+    // Act.
+    const newState = thumbnailGridReducer(state, showDetails(imageId));
+
+    // Assert.
+    expect(newState.details.frontendId).toEqual(imageId);
+  });
+
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
@@ -908,7 +971,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
     expect(imageEntities).toHaveLength(1);
     expect(imageEntities[0].backendId).toEqual(fakeImage);
-    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.LOADING);
+    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
     expect(imageEntities[0].thumbnailUrl).toBe(null);
     // The query should have been preserved so that we can re-run it.
     expect(newState.currentQuery).toEqual(query);
@@ -974,7 +1037,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
     expect(imageEntities).toHaveLength(1);
     expect(imageEntities[0].backendId).toEqual(fakeImage);
-    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.LOADING);
+    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
     expect(imageEntities[0].thumbnailUrl).toBe(null);
 
     // It should have updated the page number.
@@ -1055,7 +1118,32 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.search.autocompleteSuggestions).toEqual(suggestions);
   });
 
-  it("handles a loadThumbnail/fulfilled action", () => {
+  it(`handles a ${thunkLoadThumbnail.pending.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+
+    // Image IDs that we are loading metadata for.
+    const imageEntity = fakeImageEntity();
+    const imageId = createImageEntityId(imageEntity.backendId);
+    state.ids = [imageId];
+    state.entities[imageId] = imageEntity;
+
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkLoadThumbnail.pending,
+      meta: {
+        arg: imageId,
+      },
+    });
+
+    // Assert.
+    // It should have updated the loading status.
+    expect(newState.entities[imageId]?.thumbnailStatus).toEqual(
+      ImageStatus.LOADING
+    );
+  });
+
+  it(`handles a ${thunkLoadThumbnail.fulfilled.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
@@ -1085,7 +1173,32 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(imageEntity?.thumbnailUrl).toEqual(imageInfo.imageUrl);
   });
 
-  it("handles a loadImage/fulfilled action", () => {
+  it(`handles a ${thunkLoadImage.pending.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+
+    // Image IDs that we are loading metadata for.
+    const imageEntity = fakeImageEntity();
+    const imageId = createImageEntityId(imageEntity.backendId);
+    state.ids = [imageId];
+    state.entities[imageId] = imageEntity;
+
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkLoadImage.pending,
+      meta: {
+        arg: imageId,
+      },
+    });
+
+    // Assert.
+    // It should have updated the loading status.
+    expect(newState.entities[imageId]?.imageStatus).toEqual(
+      ImageStatus.LOADING
+    );
+  });
+
+  it(`handles a ${thunkLoadImage.fulfilled.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
@@ -1115,22 +1228,38 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(imageEntity?.imageUrl).toEqual(imageInfo.imageUrl);
   });
 
-  it("handles a loadMetadata/pending action", () => {
+  it(`handles a ${thunkLoadMetadata.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
     state.metadataLoadingState = RequestState.IDLE;
 
+    // Image IDs that we are loading metadata for.
+    const imageEntities = [fakeImageEntity(), fakeImageEntity()];
+    state.ids = imageEntities.map((e) => createImageEntityId(e.backendId));
+    state.entities[state.ids[0]] = imageEntities[0];
+    state.entities[state.ids[1]] = imageEntities[1];
+
     // Act.
     const newState: ImageViewState = thumbnailGridReducer(state, {
-      type: thunkLoadMetadata.typePrefix + "/pending",
+      type: thunkLoadMetadata.pending,
+      meta: {
+        arg: state.ids,
+      },
     });
 
     // Assert.
     // It should have marked the metadata as loading.
     expect(newState.metadataLoadingState).toEqual(RequestState.LOADING);
+
+    // It should have updated the loading status.
+    for (const imageId of state.ids) {
+      expect(newState.entities[imageId]?.metadataStatus).toEqual(
+        ImageStatus.LOADING
+      );
+    }
   });
 
-  it("handles a loadMetadata/fulfilled action", () => {
+  it(`handles a ${thunkLoadMetadata.fulfilled.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 

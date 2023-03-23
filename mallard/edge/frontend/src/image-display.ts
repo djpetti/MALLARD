@@ -1,8 +1,9 @@
-import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
+import { css, html, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
 import { ObjectRef } from "mallard-api";
 import { PageManager } from "./page-manager";
+import { ArtifactInfoBase } from "./artifact-info-base";
 
 /** Type of click handler functions. */
 type ClickHandler = (_: Event) => any;
@@ -11,7 +12,7 @@ type ClickHandler = (_: Event) => any;
  * A generic element for displaying images.
  * @customElement image-display
  */
-export class ImageDisplay extends LitElement {
+export class ImageDisplay extends ArtifactInfoBase {
   static tagName = "image-display";
   static styles = css`
     :host {
@@ -45,17 +46,6 @@ export class ImageDisplay extends LitElement {
       object-position: 50% top;
     }
   `;
-
-  /**
-   * The name of the event to fire when the `imageId` property is changed.
-   */
-  static IMAGE_CHANGED_EVENT_NAME = `${ImageDisplay.tagName}-image-changed`;
-
-  /**
-   * The unique ID of the artifact being displayed here.
-   */
-  @property({ type: String })
-  frontendId?: string;
 
   /**
    * If true, it will show a loading indicator while the image loads.
@@ -144,20 +134,7 @@ export class ImageDisplay extends LitElement {
    * @inheritDoc
    */
   protected override updated(_changedProperties: PropertyValues) {
-    if (_changedProperties.has("frontendId")) {
-      // The image ID has changed. We need to fire an event for this to kick
-      // off the actual image loading.
-      this.dispatchEvent(
-        new CustomEvent<ImageIdentifier>(
-          ImageDisplay.IMAGE_CHANGED_EVENT_NAME,
-          {
-            bubbles: true,
-            composed: false,
-            detail: { frontendId: this.frontendId },
-          }
-        )
-      );
-    }
+    super.updated(_changedProperties);
 
     if (_changedProperties.has("imageLink") && this.hasImage) {
       const clickHandler = (_: Event) =>
@@ -186,12 +163,4 @@ export class ImageDisplay extends LitElement {
 export interface ImageIdentifier {
   frontendId?: string;
   backendId?: ObjectRef;
-}
-
-/**
- * Interface for the custom event we dispatch when the image
- * is changed.
- */
-export interface ImageChangedEvent extends Event {
-  detail: ImageIdentifier;
 }

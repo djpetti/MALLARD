@@ -1,13 +1,18 @@
-import { css, html, LitElement } from "lit";
-import { property } from "lit/decorators.js";
+import { css, html } from "lit";
+import { property, state } from "lit/decorators.js";
 import { UavImageMetadata } from "mallard-api";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
+import { ArtifactInfoBase } from "./artifact-info-base";
+import { connect } from "@captaincodeman/redux-connect-element";
+import store from "./store";
+import { RootState } from "./types";
+import { Action } from "redux";
 
 /**
  * Card that shows detailed notes for an image.
  */
-export class NotesCard extends LitElement {
+export class NotesCard extends ArtifactInfoBase {
   static readonly tagName = "notes-card";
 
   static styles = css`
@@ -50,18 +55,23 @@ export class NotesCard extends LitElement {
   /**
    * Metadata structure to display information from.
    */
-  @property({ attribute: false })
-  metadata: UavImageMetadata | null = null;
+  @state()
+  metadata?: UavImageMetadata;
 
   /**
    * @inheritDoc
    */
   protected override render(): unknown {
+    let notes = this.metadata?.notes;
+    if (!notes) {
+      notes = "No notes.";
+    }
+
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
       <div class="mdc-card card">
         <div class="card-content">
-          ${this.metadata == null
+          ${this.metadata === undefined
             ? html` <!-- Show the loading indicator. -->
                 <mwc-circular-progress
                   class="vertical-center"
@@ -73,12 +83,28 @@ export class NotesCard extends LitElement {
                   >
                   <h2 class="card-title-element">Notes</h2>
                 </div>
-                <p id="note_text">
-                  These are some example notes. They could potentially be rather
-                  long.
-                </p>`}
+                <p id="note_text">${notes}</p>`}
         </div>
       </div>
     `;
+  }
+}
+
+/**
+ * Extension of `NotesCard` that connects to Redux.
+ */
+export class ConnectedNotesCard extends connect(store, NotesCard) {
+  /**
+   * @inheritDoc
+   */
+  mapState(state: any): { [p: string]: any } {
+    return this.metadataUpdatesFromState(state as RootState);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  mapEvents(): { [p: string]: (event: Event) => Action } {
+    return this.metadataLoadEventHandlers();
   }
 }

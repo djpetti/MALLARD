@@ -185,7 +185,7 @@ describe("image-display", () => {
     // Setup a fake handler for our event.
     const handler = jest.fn();
     imageElement.addEventListener(
-      ImageDisplay.IMAGE_CHANGED_EVENT_NAME,
+      ImageDisplay.ARTIFACT_CHANGED_EVENT_NAME,
       handler
     );
 

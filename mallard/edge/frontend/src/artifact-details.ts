@@ -17,6 +17,16 @@ export class ArtifactDetails extends LitElement {
   static readonly tagName: string = "artifact-details";
 
   static styles = css`
+    /* Animation for flying in from the right. */
+    @keyframes fly-in-right {
+      from {
+        left: 100%;
+      }
+      to {
+        left: 0;
+      }
+    }
+
     .grid-layout {
       display: grid;
     }
@@ -35,6 +45,14 @@ export class ArtifactDetails extends LitElement {
       overflow: auto;
       /* Extra 64px leaves room for the navigation bar. */
       height: calc(100vh - 64px);
+
+      /** Start all the way off to the side. */
+      position: relative;
+      left: 100%;
+      animation-name: fly-in-right;
+      animation-duration: 0.25s;
+      animation-delay: 0.5s;
+      animation-fill-mode: forwards;
     }
   `;
 

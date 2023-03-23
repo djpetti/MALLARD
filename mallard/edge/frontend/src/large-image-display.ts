@@ -1,4 +1,4 @@
-import { ImageChangedEvent, ImageDisplay } from "./image-display";
+import { ImageDisplay } from "./image-display";
 import { css, PropertyValues } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
@@ -162,11 +162,11 @@ export class ConnectedLargeImageDisplay extends connect(
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedLargeImageDisplay.IMAGE_CHANGED_EVENT_NAME] = (
+    handlers[ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME] = (
       event: Event
     ) =>
       thunkLoadImage(
-        (event as ImageChangedEvent).detail.frontendId as string
+        (event as CustomEvent<string>).detail
       ) as unknown as Action;
     handlers[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME] = (
       event: Event

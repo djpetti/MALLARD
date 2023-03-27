@@ -1,9 +1,10 @@
 import { css, html, LitElement, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
-import { ifDefined } from "lit/directives/if-defined.js";
 import "@material/mwc-icon/mwc-icon.js";
 import "@material/mwc-list";
 import "./large-image-display";
+import "./metadata-card";
+import "./notes-card";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
@@ -93,14 +94,14 @@ export class ArtifactDetails extends LitElement {
       <div class="grid-layout">
         <div class="main-panel">
           <large-image-display
-            frontendId="${ifDefined(this.frontendId)}"
+            .frontendId=${this.frontendId}
           ></large-image-display>
         </div>
         <div class="side-panel">
           <metadata-card
-            frontendId="${ifDefined(this.frontendId)}"
+            .frontendId=${this.frontendId}
           ></metadata-card>
-          <notes-card frontendId="${ifDefined(this.frontendId)}"></notes-card>
+          <notes-card .frontendId=${this.frontendId}></notes-card>
         </div>
       </div>
     `;

@@ -26,7 +26,9 @@
           "thumbnail-grid",
           "file-uploader",
           "search-box",
-          "large-image-display"
+          "large-image-display",
+          "metadata-card",
+          "notes-card"
         ]
       }
     ]

@@ -1,9 +1,11 @@
 import { ConnectedArtifactDetails } from "../artifact-details";
 import each from "jest-each";
-import { fakeObjectRef, getShadowRoot } from "./element-test-utils";
+import { fakeObjectRef, fakeState, getShadowRoot } from "./element-test-utils";
 import { ConnectedLargeImageDisplay } from "../large-image-display";
 import { ConnectedMetadataCard } from "../metadata-card";
 import { ConnectedNotesCard } from "../notes-card";
+import { ObjectRef } from "mallard-api";
+import { thunkShowDetails } from "../thumbnail-grid-slice";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -12,6 +14,10 @@ const faker = require("faker");
 jest.mock("../thumbnail-grid-slice", () => ({
   thunkShowDetails: jest.fn(),
 }));
+
+const mockThunkShowDetails = thunkShowDetails as jest.MockedFn<
+  typeof thunkShowDetails
+>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -100,5 +106,76 @@ describe("artifact-details", () => {
 
     expect(notesCard).not.toBeNull();
     expect(notesCard.frontendId).toEqual(frontendId);
+  });
+
+  it("fires an event when the image is changed", async () => {
+    // Arrange.
+    // Set up an event handler.
+    const imageChangedEventHandler = jest.fn();
+    detailsElement.addEventListener(
+      TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME,
+      imageChangedEventHandler
+    );
+
+    const imageId = fakeObjectRef();
+
+    // Act.
+    // Set the new image ID.
+    detailsElement.backendBucket = imageId.bucket;
+    detailsElement.backendName = imageId.name;
+
+    await detailsElement.updateComplete;
+
+    // Also try setting them back, which should not fire an event.
+    detailsElement.backendBucket = undefined;
+    detailsElement.backendName = undefined;
+
+    await detailsElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event.
+    expect(imageChangedEventHandler).toBeCalledTimes(1);
+  });
+
+  it("updates the properties based on the Redux state", () => {
+    // Arrange.
+    // Create the state.
+    const state = fakeState();
+    // Make it look like we have a new image being displayed on the details
+    // page.
+    state.imageView.details.frontendId = faker.datatype.uuid();
+
+    // Act.
+    const gotUpdates = detailsElement.mapState(state);
+
+    // Assert.
+    // It should have updated the frontend ID.
+    expect(gotUpdates).toHaveProperty("frontendId");
+    expect(gotUpdates.frontendId).toEqual(state.imageView.details.frontendId);
+  });
+
+  it(`dispatches the correct action when the ${TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME} is fired`, () => {
+    // Arrange.
+    // Get the mapping of events to actions.
+    const eventMap = detailsElement.mapEvents();
+
+    const backendId = fakeObjectRef();
+
+    // Act.
+    // Simulate the event being fired.
+    expect(eventMap).toHaveProperty(
+      TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME
+    );
+    eventMap[TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME](
+      new CustomEvent<ObjectRef>(TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: backendId,
+      })
+    );
+
+    // Assert.
+    // It should have called the action creator.
+    expect(mockThunkShowDetails).toBeCalledWith(backendId);
   });
 });

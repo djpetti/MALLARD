@@ -1,5 +1,5 @@
 import { css, html } from "lit";
-import { property, state } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { UavImageMetadata } from "mallard-api";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
@@ -55,7 +55,7 @@ export class NotesCard extends ArtifactInfoBase {
   /**
    * Metadata structure to display information from.
    */
-  @state()
+  @property({ type: Object, attribute: false })
   metadata?: UavImageMetadata;
 
   /**

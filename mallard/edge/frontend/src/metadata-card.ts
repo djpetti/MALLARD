@@ -1,5 +1,5 @@
 import { css, html, nothing } from "lit";
-import { property, state } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { PlatformType, UavImageMetadata } from "mallard-api";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item.js";
@@ -42,7 +42,7 @@ export class MetadataCard extends ArtifactInfoBase {
   /**
    * Metadata structure to display information from.
    */
-  @state()
+  @property({ type: Object, attribute: false })
   metadata?: UavImageMetadata;
 
   /**

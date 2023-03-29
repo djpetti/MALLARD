@@ -292,18 +292,29 @@ async def delete_images(
     """
     logger.info("Deleting images {}.", images)
 
-    tasks = []
-    for image in images:
-        tasks.append(asyncio.create_task(object_store.delete_object(image)))
-        tasks.append(asyncio.create_task(metadata_store.delete(image)))
-
     try:
-        await asyncio.gather(*tasks)
-    except KeyError:
-        # The image doesn't exist.
-        raise HTTPException(
-            status_code=404, detail="Requested image could not be found."
-        )
+        async with asyncio.TaskGroup() as tasks:
+            for image in images:
+                tasks.create_task(object_store.delete_object(image))
+                tasks.create_task(metadata_store.delete(image))
+
+    except ExceptionGroup as ex_group:
+        # Check for key errors, which are raised when the images do not
+        # exist. We have a standard HTTP error for that.
+        key_errors, others = ex_group.split(KeyError)
+
+        if key_errors is not None:
+            error_messages = [f"\t-{e}" for e in key_errors.exceptions]
+            combined_error = "\n".join(error_messages)
+            raise HTTPException(
+                status_code=404,
+                detail=f"Some of the images could not be "
+                f"found:\n{combined_error}",
+            )
+
+        if others is not None:
+            # Otherwise, just raise it again.
+            raise others
 
 
 @router.get("/{bucket}/{name}")

@@ -1,15 +1,5 @@
 import { ConnectedNotesCard } from "../notes-card";
-import {
-  fakeImageEntity,
-  fakeImageMetadata,
-  fakeState,
-} from "./element-test-utils";
-import {
-  createImageEntityId,
-  thunkLoadMetadata,
-} from "../thumbnail-grid-slice";
-import each from "jest-each";
-import { ImageEntity, ImageStatus } from "../types";
+import { fakeImageMetadata } from "./element-test-utils";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -28,10 +18,6 @@ jest.mock("../thumbnail-grid-slice", () => {
     createImageEntityId: actualThumbnailGrid.createImageEntityId,
   };
 });
-
-const mockThunkLoadMetadata = thunkLoadMetadata as jest.MockedFn<
-  typeof thunkLoadMetadata
->;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

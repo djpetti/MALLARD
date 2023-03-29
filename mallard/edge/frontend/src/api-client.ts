@@ -194,6 +194,17 @@ export async function createImage(
 }
 
 /**
+ * Deletes the specified images.
+ * @param {ObjectRef[]} images The images to delete.
+ */
+export async function deleteImages(images: ObjectRef[]): Promise<void> {
+  await api.deleteImagesImagesDeleteDelete(images).catch(function (error) {
+    console.error(error.toJSON());
+    throw error;
+  });
+}
+
+/**
  * Infers metadata from a provided image.
  * @param {Blob} imageData The image to infer metadata from.
  * @param {name} The name to use for the image file.

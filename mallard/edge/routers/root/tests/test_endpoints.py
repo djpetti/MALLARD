@@ -133,7 +133,7 @@ async def test_get_details(faker: Faker, config: ConfigForTests) -> None:
     # Assert.
     # It should have filled in the template.
     assert "</html>" in got_response
-    assert "</large-image-display>" in got_response
+    assert "</artifact-details>" in got_response
     assert bucket in got_response
     assert name in got_response
 

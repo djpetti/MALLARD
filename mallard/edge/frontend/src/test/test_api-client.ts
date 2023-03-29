@@ -13,17 +13,21 @@ import {
   fakeImageMetadata,
   fakeOrdering,
 } from "./element-test-utils";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
+import {
+  ObjectRef,
+  QueryResponse,
+  UavImageMetadata,
+  ImagesApi,
+} from "mallard-api";
 import each from "jest-each";
 
 const faker = require("faker");
 
-// Using older require syntax here so we get the correct mock type.
-const axios = require("mallard-api");
-const mockImagesApiClass: jest.Mock = axios.ImagesApi;
-
 // Mock out the gateway API.
 jest.mock("mallard-api");
+// Deliberately using `any` here so we can make the API return any type of
+// object instead of having to tediously simulate AxiosResponse.
+const mockImagesApiClass = ImagesApi as jest.MockedClass<any>;
 
 describe("api-client", () => {
   beforeEach(() => {

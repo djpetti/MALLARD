@@ -237,9 +237,9 @@ async def test_create_uav_image_write_failure(
 
 
 @pytest.mark.asyncio
-async def test_delete_image(config: ConfigForTests, faker: Faker) -> None:
+async def test_delete_images(config: ConfigForTests, faker: Faker) -> None:
     """
-    Tests that the `delete_image` endpoint works.
+    Tests that the `delete_images` endpoint works.
 
     Args:
         config: The configuration to use for testing.
@@ -247,31 +247,32 @@ async def test_delete_image(config: ConfigForTests, faker: Faker) -> None:
 
     """
     # Arrange.
-    # Generate fake bucket and image names.
-    bucket = faker.pystr()
-    image_name = faker.pystr()
+    # Generate fake objects.
+    num_to_delete = faker.random_int(min=1, max=10)
+    object_refs = [faker.object_ref() for _ in range(num_to_delete)]
 
     # Act.
     await endpoints.delete_images(
-        bucket=bucket,
-        name=image_name,
+        images=object_refs,
         object_store=config.mock_object_store,
         metadata_store=config.mock_metadata_store,
     )
 
     # Assert.
     # It should have deleted the corresponding items in both databases.
-    object_id = ObjectRef(bucket=bucket, name=image_name)
-    config.mock_object_store.delete_object.assert_called_once_with(object_id)
-    config.mock_metadata_store.delete.assert_called_once_with(object_id)
+    assert config.mock_object_store.delete_object.call_count == num_to_delete
+    assert config.mock_metadata_store.delete.call_count == num_to_delete
+    for object_ref in object_refs:
+        config.mock_object_store.delete_object.assert_any_call(object_ref)
+        config.mock_metadata_store.delete.assert_any_call(object_ref)
 
 
 @pytest.mark.asyncio
-async def test_delete_image_nonexistent(
+async def test_delete_images_nonexistent(
     config: ConfigForTests, faker: Faker
 ) -> None:
     """
-    Tests that the `delete_image` endpoint handles the case where the image
+    Tests that the `delete_images` endpoint handles the case where an image
     doesn't exist in the first place.
 
     Args:
@@ -280,22 +281,59 @@ async def test_delete_image_nonexistent(
 
     """
     # Arrange.
-    # Generate fake bucket and image names.
-    bucket = faker.pystr()
-    image_name = faker.pystr()
+    # Generate fake objects to try deleting.
+    num_successful = faker.random_int(max=10)
+    num_failed = faker.random_int(min=1, max=10)
+    successful_objects = [faker.object_ref() for _ in range(num_successful)]
+    failed_objects = [faker.object_ref() for _ in range(num_failed)]
 
-    # Make it look like the image was not found.
-    config.mock_object_store.delete_object.side_effect = KeyError
-    config.mock_metadata_store.delete.side_effect = KeyError
+    # Make it look like at least one image was not found.
+    return_values = [mock.DEFAULT for _ in range(num_successful)] + [
+        KeyError for _ in range(num_failed)
+    ]
+    config.mock_object_store.delete_object.side_effect = return_values
+    config.mock_metadata_store.delete.side_effect = return_values
 
     # Act and assert.
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as error:
         await endpoints.delete_images(
-            bucket=bucket,
-            name=image_name,
+            images=successful_objects + failed_objects,
             object_store=config.mock_object_store,
             metadata_store=config.mock_metadata_store,
         )
+
+        # It should have specified the failed objects in the error message.
+        error_message = str(error.value)
+        for object_ref in failed_objects:
+            assert object_ref.bucket in error_message
+            assert object_ref.name in error_message
+
+
+@pytest.mark.asyncio
+async def test_delete_images_other_error(config: ConfigForTests, faker: Faker):
+    """
+    Tests that the `delete_images` endpoint handles the case where some
+    unexpected error occurs.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    object_id = faker.object_ref()
+    config.mock_object_store.delete_object.side_effect = ValueError
+
+    # Act and assert.
+    with pytest.raises(ExceptionGroup) as errors:
+        await endpoints.delete_images(
+            images=[object_id],
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
+        )
+        assert errors.value.subgroup(KeyError) is not None
+
+    config.mock_object_store.delete_object.assert_called_once_with(object_id)
 
 
 @pytest.mark.asyncio

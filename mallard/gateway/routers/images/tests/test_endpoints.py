@@ -252,7 +252,7 @@ async def test_delete_image(config: ConfigForTests, faker: Faker) -> None:
     image_name = faker.pystr()
 
     # Act.
-    await endpoints.delete_image(
+    await endpoints.delete_images(
         bucket=bucket,
         name=image_name,
         object_store=config.mock_object_store,
@@ -290,7 +290,7 @@ async def test_delete_image_nonexistent(
 
     # Act and assert.
     with pytest.raises(HTTPException):
-        await endpoints.delete_image(
+        await endpoints.delete_images(
             bucket=bucket,
             name=image_name,
             object_store=config.mock_object_store,

@@ -1,6 +1,8 @@
 import { css, html, LitElement, nothing } from "lit";
-import { property } from "lit/decorators.js";
+import { property, query } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
+import "@material/mwc-button";
+import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
@@ -12,6 +14,7 @@ import {
   thunkBulkDownloadSelected,
   thunkSelectAll,
 } from "./thumbnail-grid-slice";
+import { Dialog } from "@material/mwc-dialog";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -61,6 +64,11 @@ export class TopNavBar extends LitElement {
   static DOWNLOAD_STARTED_EVENT_NAME = `${TopNavBar.tagName}-download-started`;
 
   /**
+   * The name of the event to fire when the delete button is clicked.
+   */
+  static DELETE_EVENT_NAME = `${TopNavBar.tagName}-delete`;
+
+  /**
    * THe name of the event to fire when the cancel selection button is clicked.
    */
   static SELECT_CANCEL_EVENT_NAME = `${TopNavBar.tagName}-select-cancel`;
@@ -84,6 +92,12 @@ export class TopNavBar extends LitElement {
   numItemsSelected: number = 0;
 
   /**
+   * The deletion confirmation modal.
+   */
+  @query("#confirm_delete_dialog", true)
+  private confirmDeleteDialog!: Dialog;
+
+  /**
    * Run when the download button is clicked.
    * @private
    */
@@ -91,6 +105,20 @@ export class TopNavBar extends LitElement {
     // Dispatch the event.
     this.dispatchEvent(
       new CustomEvent<void>(TopNavBar.DOWNLOAD_STARTED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
+   * Run when the delete button is clicked.
+   * @private
+   */
+  private onDeleteClick(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<void>(TopNavBar.DELETE_EVENT_NAME, {
         bubbles: true,
         composed: false,
       })
@@ -153,12 +181,35 @@ export class TopNavBar extends LitElement {
         <!-- Action items. -->
         ${this.numItemsSelected > 0
           ? html` <mwc-icon-button
-              icon="download"
-              slot="actionItems"
-              id="download_button"
-              @click="${this.onDownloadClick}"
-            ></mwc-icon-button>`
+                icon="download"
+                slot="actionItems"
+                id="download_button"
+                @click="${this.onDownloadClick}"
+              ></mwc-icon-button>
+              <mwc-icon-button
+                icon="delete_outline"
+                slot="actionItems"
+                id="delete_button"
+                @click="${() => this.confirmDeleteDialog.show()}"
+              >
+              </mwc-icon-button>`
           : nothing}
+
+        <!-- Deletion confirmation dialog. -->
+        <mwc-dialog heading="Confirm Deletion" id="confirm_delete_dialog">
+          <div>
+            Are you sure you want to delete ${this.numItemsSelected} item(s)?
+          </div>
+          <mwc-button
+            slot="primaryAction"
+            icon="delete"
+            @click="${this.onDeleteClick}"
+            >Delete</mwc-button
+          >
+          <mwc-button slot="secondaryAction" dialogAction="cancel"
+            >Cancel</mwc-button
+          >
+        </mwc-dialog>
 
         <slot></slot>
       </mwc-top-app-bar-fixed>

@@ -275,31 +275,30 @@ async def create_uav_image(
     return CreateResponse(image_id=object_id)
 
 
-@router.delete("/delete/{bucket}/{name}")
-async def delete_image(
-    bucket: str,
-    name: str,
+@router.delete("/delete")
+async def delete_images(
+    images: List[ObjectRef] = Body(...),
     object_store: ObjectStore = Depends(backends.object_store),
     metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> None:
     """
-    Deletes an existing image from the server.
+    Deletes existing images from the server.
 
     Args:
-        bucket: The bucket that the image is in.
-        name: The name of the image.
+        images: The images to delete.
         object_store: The object store to use.
         metadata_store: The metadata store to use.
 
     """
-    logger.info("Deleting image {} in bucket {}.", name, bucket)
-    object_id = ObjectRef(bucket=bucket, name=name)
+    logger.info("Deleting images {}.", images)
 
-    object_task = asyncio.create_task(object_store.delete_object(object_id))
-    metadata_task = asyncio.create_task(metadata_store.delete(object_id))
+    tasks = []
+    for image in images:
+        tasks.append(asyncio.create_task(object_store.delete_object(image)))
+        tasks.append(asyncio.create_task(metadata_store.delete(image)))
 
     try:
-        await asyncio.gather(object_task, metadata_task)
+        await asyncio.gather(*tasks)
     except KeyError:
         # The image doesn't exist.
         raise HTTPException(

@@ -98,9 +98,7 @@ export class ArtifactDetails extends LitElement {
           ></large-image-display>
         </div>
         <div class="side-panel">
-          <metadata-card
-            .frontendId=${this.frontendId}
-          ></metadata-card>
+          <metadata-card .frontendId=${this.frontendId}></metadata-card>
           <notes-card .frontendId=${this.frontendId}></notes-card>
         </div>
       </div>

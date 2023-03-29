@@ -14,7 +14,7 @@ import { ConnectedMetadataCard } from "./metadata-card";
 import { ConnectedNotesCard } from "./notes-card";
 
 type LitElementType = typeof LitElement;
-interface ComponentType extends LitElementType {
+export interface ComponentType extends LitElementType {
   /** Name of the element tag. */
   tagName: string;
 }

@@ -11,6 +11,9 @@ import {
 import each from "jest-each";
 import { ImageEntity, ImageStatus } from "../types";
 import { ConnectedMetadataCard } from "../metadata-card";
+import {ComponentType} from "../elements";
+import {ArtifactInfoBase} from "../artifact-info-base";
+import {Action} from "redux";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -43,15 +46,23 @@ jest.mock("../store", () => ({
   configureStore: jest.fn(),
 }));
 
+/**
+ * Interface for components that have been connected to Redux.
+ */
+interface ConnectedComponentType extends ComponentType {
+  mapState: (state: any) => { [p: string]: any},
+  mapEvents: () => { [p: string]: (event: Event) => Action }
+}
+
 each([
   ["NotesCard", ConnectedNotesCard],
   ["MetadataCard", ConnectedMetadataCard],
-]).describe("%s (base class methods)", (_, elementClass) => {
-  let notesCardElement: ConnectedNotesCard;
+]).describe("%s (base class methods)", (_, elementClass: ConnectedComponentType & typeof ArtifactInfoBase) => {
+  let element: ArtifactInfoBase & ConnectedComponentType;
 
   beforeAll(() => {
     // Manually register the custom element.
-    customElements.define(ConnectedNotesCard.tagName, ConnectedNotesCard);
+    customElements.define(elementClass.tagName, elementClass);
   });
 
   beforeEach(() => {
@@ -61,30 +72,30 @@ each([
     // Reset mocks.
     jest.clearAllMocks();
 
-    notesCardElement = window.document.createElement(
-      ConnectedNotesCard.tagName
-    ) as ConnectedNotesCard;
-    document.body.appendChild(notesCardElement);
+    element = window.document.createElement(
+      elementClass.tagName
+    ) as ArtifactInfoBase & ConnectedComponentType;
+    document.body.appendChild(element);
   });
 
   afterEach(() => {
-    document.body.getElementsByTagName(ConnectedNotesCard.tagName)[0].remove();
+    document.body.getElementsByTagName(elementClass.tagName)[0].remove();
   });
 
   it("fires an event when the frontend ID changes", async () => {
     // Arrange.
     // Add a fake handler for the event.
     const artifactChangedEventHandler = jest.fn();
-    notesCardElement.addEventListener(
-      ConnectedNotesCard.ARTIFACT_CHANGED_EVENT_NAME,
+    element.addEventListener(
+      elementClass.ARTIFACT_CHANGED_EVENT_NAME,
       artifactChangedEventHandler
     );
 
     const frontendId = faker.datatype.uuid();
 
     // Act.
-    notesCardElement.frontendId = frontendId;
-    await notesCardElement.updateComplete;
+    element.frontendId = frontendId;
+    await element.updateComplete;
 
     // Assert.
     // It should have fired the event.
@@ -97,12 +108,12 @@ each([
   describe("mapState()", () => {
     it("does not update when there is no frontendId", () => {
       // Arrange.
-      notesCardElement.frontendId = undefined;
+      element.frontendId = undefined;
 
       const state = fakeState();
 
       // Act.
-      const gotUpdates = notesCardElement.mapState(state);
+      const gotUpdates = element.mapState(state);
 
       // Assert.
       expect(gotUpdates).toEqual({});
@@ -116,7 +127,7 @@ each([
       (_, metadataStatus: ImageStatus, imageEntity?: ImageEntity) => {
         // Arrange.
         // Set a fake frontend ID.
-        notesCardElement.frontendId = faker.datatype.uuid();
+        element.frontendId = faker.datatype.uuid();
 
         const state = fakeState();
         // Add the entity if necessary.
@@ -130,7 +141,7 @@ each([
         }
 
         // Act.
-        const gotUpdates = notesCardElement.mapState(state);
+        const gotUpdates = element.mapState(state);
 
         // Assert.
         // It should not have updated.
@@ -149,10 +160,10 @@ each([
       state.imageView.entities[imageId] = imageEntity;
 
       // Set a fake frontend ID.
-      notesCardElement.frontendId = imageId;
+      element.frontendId = imageId;
 
       // Act.
-      const gotUpdates = notesCardElement.mapState(state);
+      const gotUpdates = element.mapState(state);
 
       // Assert.
       expect(gotUpdates).toHaveProperty("metadata");
@@ -160,20 +171,20 @@ each([
     });
   });
 
-  it(`dispatches the proper action creator for the ${ConnectedNotesCard.ARTIFACT_CHANGED_EVENT_NAME} event`, () => {
+  it(`dispatches the proper action creator for the ${elementClass.ARTIFACT_CHANGED_EVENT_NAME} event`, () => {
     // Arrange.
     // Get the event mapping.
-    const eventMap = notesCardElement.mapEvents();
+    const eventMap = element.mapEvents();
 
     const frontendId = faker.datatype.uuid();
 
     // Act.
     // Call the event handler.
     expect(eventMap).toHaveProperty(
-      ConnectedNotesCard.ARTIFACT_CHANGED_EVENT_NAME
+      elementClass.ARTIFACT_CHANGED_EVENT_NAME
     );
-    eventMap[ConnectedNotesCard.ARTIFACT_CHANGED_EVENT_NAME](
-      new CustomEvent<string>(ConnectedNotesCard.ARTIFACT_CHANGED_EVENT_NAME, {
+    eventMap[elementClass.ARTIFACT_CHANGED_EVENT_NAME](
+      new CustomEvent<string>(elementClass.ARTIFACT_CHANGED_EVENT_NAME, {
         bubbles: true,
         composed: false,
         detail: frontendId,

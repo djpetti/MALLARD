@@ -5,8 +5,12 @@ import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
 import { IconButton } from "@material/mwc-icon-button";
 import {
   thunkBulkDownloadSelected,
+  thunkDeleteSelected,
   thunkSelectAll,
 } from "../thumbnail-grid-slice";
+import { Dialog } from "@material/mwc-dialog";
+import { Button } from "@material/mwc-button";
+import { RequestState } from "../types";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -17,6 +21,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
     thunkBulkDownloadSelected: jest.fn(),
+    thunkDeleteSelected: jest.fn(),
     thunkSelectAll: jest.fn(),
 
     // Use the actual implementation for this function.
@@ -27,6 +32,9 @@ jest.mock("../thumbnail-grid-slice", () => {
 });
 const mockThunkBulkDownloadSelected =
   thunkBulkDownloadSelected as jest.MockedFn<typeof thunkBulkDownloadSelected>;
+const mockThunkDeleteSelected = thunkDeleteSelected as jest.MockedFn<
+  typeof thunkDeleteSelected
+>;
 const mockSelectAll = thunkSelectAll as jest.MockedFn<typeof thunkSelectAll>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -61,7 +69,7 @@ describe("top-nav-bar", () => {
     document.body.getElementsByTagName(ConnectedTopNavBar.tagName)[0].remove();
   });
 
-  it("renders the title correctly", async () => {
+  it("renders correctly by default", async () => {
     // Arrange.
     // Set the title.
     const fakeTitle = faker.lorem.sentence();
@@ -79,6 +87,49 @@ describe("top-nav-bar", () => {
     const titleDiv = topBar?.querySelector("span");
     expect(titleDiv).not.toBe(null);
     expect(titleDiv?.textContent).toContain(fakeTitle);
+
+    // It should have rendered the dialog, but not opened it.
+    const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
+    expect(deleteConfirmDialog).not.toBeNull();
+    expect((deleteConfirmDialog as Dialog).open).toEqual(false);
+
+    // Both buttons should be visible and enabled.
+    const buttons = deleteConfirmDialog?.querySelectorAll(
+      "mwc-button"
+    ) as NodeListOf<Button>;
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(button.disabled).toEqual(false);
+    }
+  });
+
+  it("renders when showing the deletion progress indicator", async () => {
+    // Arrange.
+    // Show the progress indicator.
+    navBarElement.showDeletionProgress = true;
+
+    // Act.
+    await navBarElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar");
+    expect(topBar).not.toBe(null);
+
+    // It should have rendered the dialog.
+    const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
+    expect(deleteConfirmDialog).not.toBeNull();
+
+    // Only the cancel button should be visible and disabled.
+    const buttons = deleteConfirmDialog?.querySelectorAll(
+      "mwc-button"
+    ) as NodeListOf<Button>;
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].disabled).toEqual(true);
+
+    // The delete button should have been replaced by a loading indicator.
+    const loader = root.querySelector("mwc-circular-progress");
+    expect(loader).not.toBeNull();
   });
 
   it("renders correctly when items are selected", async () => {
@@ -138,6 +189,57 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have fired the event.
     expect(downloadHandler).toBeCalledTimes(1);
+  });
+
+  it("opens the confirmation when the delete button is clicked", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Act.
+    // Simulate a click on the delete button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const deleteButton = topBar.querySelector("#delete_button") as IconButton;
+
+    deleteButton.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have opened the confirmation dialog.
+    const dialog = root.querySelector("#confirm_delete_dialog");
+    expect(dialog).not.toBeNull();
+    expect((dialog as Dialog).open).toEqual(true);
+  });
+
+  it("dispatches an event when the user confirms the deletion", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const deleteHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.DELETE_EVENT_NAME,
+      deleteHandler
+    );
+
+    // Act.
+    // Simulate a click on the delete button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const deleteButton = root.querySelector("#delete_confirm_button") as Button;
+    expect(deleteButton).not.toBeNull();
+
+    deleteButton.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event.
+    expect(deleteHandler).toBeCalledTimes(1);
   });
 
   it("dispatches an event when the cancel selection button is clicked", async () => {
@@ -216,21 +318,56 @@ describe("top-nav-bar", () => {
     expect(backSpy).toBeCalledTimes(1);
   });
 
-  it("updates the properties from the Redux state", () => {
+  it("closes the dialog when the deletion action completes", async () => {
     // Arrange.
-    // Create a fake state.
-    const state = fakeState();
-    const imageView = state.imageView;
-    imageView.numItemsSelected = faker.datatype.number();
+    // Initially, make it look like deletion is in-progress.
+    navBarElement.showDeletionProgress = true;
+
+    // Open the dialog.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const dialog = root.querySelector("#confirm_delete_dialog") as Dialog;
+    dialog.show();
+
+    await navBarElement.updateComplete;
 
     // Act.
-    const updates = navBarElement.mapState(state);
+    // Make it look like the deletion action finished.
+    navBarElement.showDeletionProgress = false;
+    await navBarElement.updateComplete;
 
     // Assert.
-    // It should have updated the selection state.
-    expect(updates).toHaveProperty("numItemsSelected");
-    expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
+    // It should have closed the dialog.
+    expect(dialog.open).toEqual(false);
   });
+
+  each([
+    ["deletion is running", RequestState.LOADING],
+    ["deletion is finished", RequestState.SUCCEEDED],
+  ]).it(
+    "updates the properties from the Redux state when %s",
+    (_, deletionState: RequestState) => {
+      // Arrange.
+      // Create a fake state.
+      const state = fakeState();
+      const imageView = state.imageView;
+      imageView.numItemsSelected = faker.datatype.number();
+      imageView.imageDeletionState = deletionState;
+
+      // Act.
+      const updates = navBarElement.mapState(state);
+
+      // Assert.
+      // It should have updated the selection state.
+      expect(updates).toHaveProperty("numItemsSelected");
+      expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
+
+      // It should have updated the deletion state.
+      expect(updates).toHaveProperty("showDeletionProgress");
+      expect(updates.showDeletionProgress).toEqual(
+        deletionState == RequestState.LOADING
+      );
+    }
+  );
 
   it(`fires the correct action creator for the ${ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME} event`, () => {
     // Arrange.
@@ -268,5 +405,22 @@ describe("top-nav-bar", () => {
 
     // It should have used the correct action creator.
     expect(mockSelectAll).toBeCalledWith(false);
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.DELETE_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.DELETE_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.DELETE_EVENT_NAME)
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(ConnectedTopNavBar.DELETE_EVENT_NAME);
+
+    // It should have used the correct action creator.
+    expect(mockThunkDeleteSelected).toBeCalledWith();
   });
 });

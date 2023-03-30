@@ -14,6 +14,7 @@ import {
   RootState,
 } from "./types";
 import {
+  deleteImages,
   getMetadata,
   loadImage,
   loadThumbnail,
@@ -129,6 +130,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQueryOptions: {},
   currentQueryState: RequestState.IDLE,
   metadataLoadingState: RequestState.IDLE,
+  imageDeletionState: RequestState.IDLE,
   currentQueryError: null,
   currentQueryHasMorePages: true,
   search: {
@@ -345,6 +347,29 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
       // Don't allow it to run multiple bulk downloads at once.
       return state.imageView.bulkDownloadState != RequestState.LOADING;
     },
+  }
+);
+
+/**
+ * Action creator that starts a new request to delete the selected images.
+ */
+export const thunkDeleteSelected = createAsyncThunk(
+  "thumbnailGrid/deleteImages",
+  async (_, { getState }): Promise<string[]> => {
+    // Get the backend IDs for the images.
+    const state = getState() as RootState;
+    const selectedIds = thumbnailGridSelectors
+      .selectIds(state)
+      .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
+    const backendIds = selectedIds.map(
+      (id) =>
+        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
+    );
+
+    // Delete all the images.
+    await deleteImages(backendIds);
+
+    return selectedIds as string[];
   }
 );
 
@@ -637,6 +662,21 @@ export const thumbnailGridSlice = createSlice({
           imageUrl: action.payload.imageUrl,
         },
       });
+    });
+
+    // We initiated image deletion.
+    builder.addCase(thunkDeleteSelected.pending, (state, _) => {
+      state.imageDeletionState = RequestState.LOADING;
+    });
+
+    // We finished deleting images.
+    builder.addCase(thunkDeleteSelected.fulfilled, (state, action) => {
+      state.imageDeletionState = RequestState.SUCCEEDED;
+      // Remove the deleted images from the frontend state.
+      thumbnailGridAdapter.removeMany(state, action.payload);
+
+      // Since we deleted all the selected items, there are no items selected.
+      state.numItemsSelected = 0;
     });
 
     // We initiated a new request for metadata.

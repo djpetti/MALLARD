@@ -12,6 +12,7 @@ import thumbnailGridReducer, {
   thunkBulkDownloadSelected,
   thunkClearFullSizedImage,
   thunkContinueQuery,
+  thunkDeleteSelected,
   thunkDoAutocomplete,
   thunkLoadImage,
   thunkLoadMetadata,
@@ -40,6 +41,7 @@ import {
 import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
 import each from "jest-each";
 import {
+  deleteImages,
   getMetadata,
   loadImage,
   loadThumbnail,
@@ -61,6 +63,7 @@ jest.mock("../api-client", () => ({
   queryImages: jest.fn(),
   loadThumbnail: jest.fn(),
   loadImage: jest.fn(),
+  deleteImages: jest.fn(),
   getMetadata: jest.fn(),
 }));
 
@@ -68,6 +71,7 @@ const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
 const mockLoadThumbnail = loadThumbnail as jest.MockedFn<typeof loadThumbnail>;
 const mockLoadImage = loadImage as jest.MockedFn<typeof loadImage>;
 const mockGetMetadata = getMetadata as jest.MockedFn<typeof getMetadata>;
+const mockDeleteImages = deleteImages as jest.MockedFn<typeof deleteImages>;
 
 // Mock out the autocomplete functions.
 jest.mock("../autocomplete", () => {
@@ -502,6 +506,77 @@ describe("thumbnail-grid-slice action creators", () => {
     // Assert.
     // It should not have run any downloads.
     expect(mockDownloadImageZip).not.toBeCalled();
+  });
+
+  describe("thunkDeleteSelected", () => {
+    it("should delete selected images and return their IDs", async () => {
+      // Arrange
+      const imageEntities = [
+        fakeImageEntity(),
+        fakeImageEntity(),
+        fakeImageEntity(),
+      ];
+      const frontendIds = imageEntities.map((e) =>
+        createImageEntityId(e.backendId)
+      );
+      const selectedIds = frontendIds.slice(0, 2);
+
+      // Set up the state correctly.
+      const state = fakeState();
+      state.imageView.ids = frontendIds;
+      for (let i = 0; i < imageEntities.length; ++i) {
+        state.imageView.entities[frontendIds[i]] = imageEntities[i];
+        imageEntities[i].isSelected = false;
+      }
+      // Mark selected images as selected.
+      for (const id of selectedIds) {
+        (state.imageView.entities[id] as ImageEntity).isSelected = true;
+      }
+
+      const store = mockStoreCreator(state);
+      // It doesn't actually have to return anything.
+      mockDeleteImages.mockResolvedValue(undefined);
+
+      // Act
+      const result = await thunkDeleteSelected()(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert
+      // It should have deleted the selected images.
+      const selectedBackendIds = selectedIds.map(
+        (id) => state.imageView.entities[id]?.backendId
+      );
+      expect(mockDeleteImages).toHaveBeenCalledWith(selectedBackendIds);
+      // It should have returned the IDs of the images that it deleted.
+      expect(result.payload).toEqual(selectedIds);
+    });
+
+    it("should do nothing if no images are selected", async () => {
+      // Arrange
+      // We add a single image that is not selected.
+      const state = fakeState();
+      const imageEntity = fakeImageEntity();
+      imageEntity.isSelected = false;
+      const frontendId = createImageEntityId(imageEntity.backendId);
+      state.imageView.ids = [frontendId];
+      state.imageView.entities[frontendId] = imageEntity;
+
+      const store = mockStoreCreator(state);
+
+      // Act
+      const result = await thunkDeleteSelected()(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert
+      expect(mockDeleteImages).toBeCalledWith([]);
+      expect(result.payload).toEqual([]);
+    });
   });
 
   it("creates a doAutocomplete action", async () => {
@@ -1072,6 +1147,62 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have marked the bulk download as complete.
     expect(newState.bulkDownloadState).toEqual(RequestState.SUCCEEDED);
+  });
+
+  it(`handles a ${thunkDeleteSelected.pending.type} action`, () => {
+    // Arrange.
+    const state = fakeState().imageView;
+
+    // Act.
+    const newState = thumbnailGridReducer(state, {
+      type: thunkDeleteSelected.pending.type,
+    });
+
+    // Assert.
+    // It should have changed the imageDeletionState to loading.
+    const expectedState = {
+      ...state,
+      imageDeletionState: RequestState.LOADING,
+    };
+    expect(newState).toEqual(expectedState);
+  });
+
+  it(`handles a ${thunkDeleteSelected.fulfilled.type} action`, () => {
+    // Arrange.
+    // Make it look like there are various images.
+    const image1 = fakeImageEntity();
+    const image2 = fakeImageEntity();
+    image1.isSelected = true;
+    image2.isSelected = true;
+
+    // Create the fake state.
+    const imageIds = [image1, image2].map((e) =>
+      createImageEntityId(e.backendId)
+    );
+    const state = fakeState().imageView;
+    state.ids = imageIds;
+    state.entities[imageIds[0]] = image1;
+    state.entities[imageIds[1]] = image2;
+    state.numItemsSelected = 2;
+
+    // Act.
+    const newState = thumbnailGridReducer(state, {
+      type: thunkDeleteSelected.fulfilled.type,
+      payload: imageIds,
+    });
+
+    // Assert.
+    // It should have changed the imageDeletionState to "succeeded".
+    // It should have removed the deleted images from the frontend state.
+    // It should have reset the number of selected items to 0.
+    const expectedState = {
+      ...state,
+      imageDeletionState: RequestState.SUCCEEDED,
+      ids: [],
+      entities: {},
+      numItemsSelected: 0,
+    };
+    expect(newState).toEqual(expectedState);
   });
 
   it(`handles a ${thunkDoAutocomplete.pending.type} action`, () => {

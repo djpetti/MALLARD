@@ -45,6 +45,7 @@ export function fakeState(): RootState {
       currentQueryOptions: {},
       currentQueryState: RequestState.IDLE,
       metadataLoadingState: RequestState.IDLE,
+      imageDeletionState: RequestState.IDLE,
       currentQueryError: null,
       currentQueryHasMorePages: true,
       ids: [],

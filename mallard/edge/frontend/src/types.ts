@@ -136,6 +136,9 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   currentQueryState: RequestState;
   /** State of the metadata loading. */
   metadataLoadingState: RequestState;
+  /** State of image deletion. */
+  imageDeletionState: RequestState;
+
   /** Error message from the query, if we have one. */
   currentQueryError: string | null;
   /** Whether the last query had more pages. */

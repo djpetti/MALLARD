@@ -2,6 +2,7 @@ import { ImageQuery } from "../types";
 import {
   batchUpdateMetadata,
   createImage,
+  deleteImages,
   getMetadata,
   inferMetadata,
   loadImage,
@@ -298,6 +299,41 @@ describe("api-client", () => {
         metadata: metadata,
       })
     ).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("can delete images", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const mockImageDelete =
+      mockImagesApiClass.prototype.deleteImagesImagesDeleteDelete;
+    mockImageDelete.mockResolvedValue(undefined);
+
+    const artifactIds = [fakeObjectRef(), fakeObjectRef()];
+
+    // Act.
+    await deleteImages(artifactIds);
+
+    // Assert.
+    // It should have deleted the images.
+    expect(mockImageDelete).toBeCalledTimes(1);
+    expect(mockImageDelete).toBeCalledWith(artifactIds);
+  });
+
+  it("handles a failure when deleting images", async () => {
+    // Arrange.
+    // Make it look like deleting the images fails.
+    const mockUavImageDelete =
+      mockImagesApiClass.prototype.deleteImagesImagesDeleteDelete;
+    const fakeError = new FakeAxiosError();
+    mockUavImageDelete.mockRejectedValue(fakeError);
+
+    // Act and assert.
+    await expect(deleteImages([fakeObjectRef()])).rejects.toThrow(
+      FakeAxiosError
+    );
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

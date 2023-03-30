@@ -1,17 +1,19 @@
-import { css, html, LitElement, nothing } from "lit";
+import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import "@material/mwc-button";
+import "@material/mwc-circular-progress";
 import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
 import "./search-box";
 import store from "./store";
-import { RootState } from "./types";
+import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import {
   thunkBulkDownloadSelected,
+  thunkDeleteSelected,
   thunkSelectAll,
 } from "./thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
@@ -24,6 +26,10 @@ export class TopNavBar extends LitElement {
   static styles = css`
     .hidden {
       display: none;
+    }
+
+    .no-overflow {
+      overflow: hidden;
     }
 
     .normal {
@@ -90,6 +96,12 @@ export class TopNavBar extends LitElement {
    */
   @property({ type: Number })
   numItemsSelected: number = 0;
+
+  /**
+   * Whether to show the progress indicator in the deletion modal.
+   */
+  @property({ type: Boolean })
+  showDeletionProgress: boolean = false;
 
   /**
    * The deletion confirmation modal.
@@ -196,17 +208,35 @@ export class TopNavBar extends LitElement {
           : nothing}
 
         <!-- Deletion confirmation dialog. -->
-        <mwc-dialog heading="Confirm Deletion" id="confirm_delete_dialog">
+        <mwc-dialog
+          heading="Confirm Deletion"
+          id="confirm_delete_dialog"
+          scrimClickAction="${this.showDeletionProgress ? "" : "close"}"
+          escKeyAction="${this.showDeletionProgress ? "" : "close"}"
+        >
           <div>
             Are you sure you want to delete ${this.numItemsSelected} item(s)?
           </div>
+          ${this.showDeletionProgress
+            ? html`
+                <div slot="primaryAction" class="no-overflow">
+                  <mwc-circular-progress
+                    indeterminate
+                    density="-4"
+                  ></mwc-circular-progress>
+                </div>
+              `
+            : html` <mwc-button
+                slot="primaryAction"
+                id="delete_confirm_button"
+                icon="delete"
+                @click="${this.onDeleteClick}"
+                >Delete</mwc-button
+              >`}
           <mwc-button
-            slot="primaryAction"
-            icon="delete"
-            @click="${this.onDeleteClick}"
-            >Delete</mwc-button
-          >
-          <mwc-button slot="secondaryAction" dialogAction="cancel"
+            slot="secondaryAction"
+            dialogAction="cancel"
+            ?disabled="${this.showDeletionProgress}"
             >Cancel</mwc-button
           >
         </mwc-dialog>
@@ -219,6 +249,15 @@ export class TopNavBar extends LitElement {
   /**
    * @inheritDoc
    */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    if (_changedProperties.get("showDeletionProgress") === false) {
+      // If we've stopped showing the deletion progress, go ahead and close
+      // the dialog automatically.
+      this.confirmDeleteDialog.close();
+    }
+  }
 }
 
 /**
@@ -231,6 +270,8 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
   mapState(state: RootState): { [p: string]: any } {
     return {
       numItemsSelected: state.imageView.numItemsSelected,
+      showDeletionProgress:
+        state.imageView.imageDeletionState == RequestState.LOADING,
     };
   }
 
@@ -248,6 +289,8 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       thunkBulkDownloadSelected() as unknown as Action;
     handlers[ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME] = (_) =>
       thunkSelectAll(false) as unknown as Action;
+    handlers[ConnectedTopNavBar.DELETE_EVENT_NAME] = (_) =>
+      thunkDeleteSelected() as unknown as Action;
 
     return handlers;
   }

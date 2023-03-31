@@ -126,7 +126,7 @@ export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
  */
 export function makeImageUrlList(imageIds: ObjectRef[]): string {
   // Get the image URLs.
-  const imageUrls = imageIds.map((id) => `${getImageUrl(id)}\n`);
+  const imageUrls = imageIds.map((id) => `${getImageUrl(id)} `);
 
   // Create the list.
   const urlFile = new File(imageUrls, "image_urls.txt", { type: "text/plain" });

@@ -1,4 +1,4 @@
-import { ConnectedTopNavBar } from "../top-nav-bar";
+import { ConnectedTopNavBar, TopNavBar } from "../top-nav-bar";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
 import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
@@ -11,6 +11,8 @@ import {
 import { Dialog } from "@material/mwc-dialog";
 import { Button } from "@material/mwc-button";
 import { RequestState } from "../types";
+import { Menu } from "@material/mwc-menu";
+import { ListItem } from "@material/mwc-list/mwc-list-item";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -161,6 +163,11 @@ describe("top-nav-bar", () => {
 
     // It should not show the search box in this mode.
     expect(topBar?.querySelector("#search")).toBeNull();
+
+    // It should have rendered the overflow menu, but not opened it.
+    const menu = root.querySelector("#more_actions_menu");
+    expect(menu).not.toBeNull();
+    expect((menu as Menu).open).toEqual(false);
   });
 
   it("dispatches an event when the download button is clicked", async () => {
@@ -240,6 +247,65 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have fired the event.
     expect(deleteHandler).toBeCalledTimes(1);
+  });
+
+  it("opens the overflow menu when the button is clicked", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Act.
+    // Simulate a click on the overflow button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const moreActionsButton = topBar.querySelector(
+      "#more_actions_button"
+    ) as IconButton;
+
+    moreActionsButton.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have opened the overflow menu.
+    const menu = root.querySelector("#more_actions_menu") as Menu;
+    expect(menu).not.toBeNull();
+    expect(menu.open).toEqual(true);
+
+    // It should have anchored the menu to the button.
+    expect(menu.anchor).toEqual(moreActionsButton);
+  });
+
+  it("dispatches an event when the user exports a list of URLs", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const exportHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.URL_EXPORT_EVENT_NAME,
+      exportHandler
+    );
+
+    // Act.
+    // Simulate a click on the delete button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const overflowMenu = root.querySelector("#more_actions_menu") as Menu;
+    const exportOption = overflowMenu.querySelectorAll(
+      "mwc-list-item"
+    )[0] as ListItem;
+    expect(exportOption).not.toBeNull();
+
+    exportOption.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event.
+    expect(exportHandler).toBeCalledTimes(1);
   });
 
   it("dispatches an event when the cancel selection button is clicked", async () => {
@@ -338,6 +404,33 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have closed the dialog.
     expect(dialog.open).toEqual(false);
+  });
+
+  it("starts the download when the exported URLs are ready", async () => {
+    // Arrange.
+    // Add a handler for the "export finished" event.
+    const exportFinishedHandler = jest.fn();
+    navBarElement.addEventListener(
+      TopNavBar.URL_EXPORT_FINISHED_EVENT_NAME,
+      exportFinishedHandler
+    );
+
+    const downloadLink = faker.internet.url();
+
+    // Act.
+    // Make it look like the download is ready.
+    navBarElement.exportedUrlFileLink = downloadLink;
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event.
+    expect(exportFinishedHandler).toBeCalledTimes(1);
+
+    // It should have rendered the hidden link.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const link = root.querySelector("#download_link") as HTMLLinkElement;
+    expect(link).not.toBeNull();
+    expect(link.href).toContain(downloadLink);
   });
 
   each([

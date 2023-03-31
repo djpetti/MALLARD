@@ -1,7 +1,7 @@
 import { downloadZip, predictLength } from "client-zip";
 import MockedFn = jest.MockedFn;
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
-import { downloadImageZip } from "../downloads";
+import { downloadImageZip, makeImageUrlList } from "../downloads";
 import streamSaver from "streamsaver";
 import each from "jest-each";
 
@@ -24,6 +24,14 @@ const mockCreateWriteStream = streamSaver.createWriteStream as MockedFn<
 // Mock out `fetch`.
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
+
+// Mock out `createObjectURL`.
+const mockCreateObjectUrl = jest.fn();
+global.URL.createObjectURL = mockCreateObjectUrl;
+
+// Mock out the File API.
+const mockFileConstructor = jest.fn();
+global.File = mockFileConstructor;
 
 describe("downloads", () => {
   /** Set to true once downloadZip has finished executing. */
@@ -142,4 +150,37 @@ describe("downloads", () => {
       expect(mockPipeTo).toBeCalledWith(fakeFileStream);
     }
   );
+
+  it("should create a file containing the list of URLs and return the link", () => {
+    // Arrange
+    const imageIds = [fakeObjectRef(), fakeObjectRef(), fakeObjectRef()];
+
+    // Make sure createObjectUrl produces a valid result.
+    const fakeFileUrl = faker.internet.url();
+    mockCreateObjectUrl.mockReturnValue(fakeFileUrl);
+
+    // Act
+    const gotFileUrl = makeImageUrlList(imageIds);
+
+    // Assert
+    // Verify the returned value is a valid URL.
+    expect(mockCreateObjectUrl).toBeCalledTimes(1);
+    expect(gotFileUrl).toEqual(fakeFileUrl);
+
+    // Check the file metadata.
+    expect(mockFileConstructor).toBeCalledTimes(1);
+    expect(mockFileConstructor).toBeCalledWith(
+      expect.anything(),
+      "image_urls.txt",
+      { type: "text/plain" }
+    );
+
+    // Check the file contents.
+    const actualUrlList = mockFileConstructor.mock.calls[0][0];
+    // The file should contain a list of URLs.
+    for (let i = 0; i < actualUrlList.length; ++i) {
+      expect(actualUrlList[i]).toContain(imageIds[i].bucket);
+      expect(actualUrlList[i]).toContain(imageIds[i].name);
+    }
+  });
 });

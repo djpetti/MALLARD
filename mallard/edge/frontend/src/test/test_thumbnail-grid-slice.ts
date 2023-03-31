@@ -6,14 +6,17 @@ import thumbnailGridReducer, {
   clearImageView,
   createImageEntityId,
   selectImages,
+  setExportedImagesUrl,
   showDetails,
   thumbnailGridSelectors,
   thumbnailGridSlice,
   thunkBulkDownloadSelected,
+  thunkClearExportedImages,
   thunkClearFullSizedImage,
   thunkContinueQuery,
   thunkDeleteSelected,
   thunkDoAutocomplete,
+  thunkExportSelected,
   thunkLoadImage,
   thunkLoadMetadata,
   thunkLoadThumbnail,
@@ -52,7 +55,7 @@ import {
   queriesFromSearchString,
   requestAutocomplete,
 } from "../autocomplete";
-import { downloadImageZip } from "../downloads";
+import { downloadImageZip, makeImageUrlList } from "../downloads";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -94,10 +97,14 @@ const mockQueriesFromSearchString = queriesFromSearchString as jest.MockedFn<
 // Mock out the download functions.
 jest.mock("../downloads", () => ({
   downloadImageZip: jest.fn(),
+  makeImageUrlList: jest.fn(),
 }));
 
 const mockDownloadImageZip = downloadImageZip as jest.MockedFn<
   typeof downloadImageZip
+>;
+const mockMakeImageUrlList = makeImageUrlList as jest.MockedFn<
+  typeof makeImageUrlList
 >;
 
 // Mock out `createObjectURL` and `revokeObjectURL`.
@@ -579,6 +586,111 @@ describe("thumbnail-grid-slice action creators", () => {
     });
   });
 
+  it("can export selected images with thunkExportSelected", () => {
+    // Arrange.
+    const images = [fakeImageEntity(), fakeImageEntity(), fakeImageEntity()];
+    const frontendIds = images.map((e) => createImageEntityId(e.backendId));
+    // Select two of the images.
+    const selectedImages = images.slice(0, 2);
+    for (const image of images) {
+      image.isSelected = false;
+    }
+    for (const image of selectedImages) {
+      image.isSelected = true;
+    }
+
+    // Create the fake state.
+    const state = fakeState();
+    state.imageView.ids = frontendIds;
+    for (let i = 0; i < frontendIds.length; ++i) {
+      state.imageView.entities[frontendIds[i]] = images[i];
+    }
+
+    const store = mockStoreCreator(state);
+    const exportedUrl = faker.internet.url();
+    mockMakeImageUrlList.mockReturnValue(exportedUrl);
+
+    // Act.
+    thunkExportSelected()(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have made the list of URLs.
+    expect(makeImageUrlList).toHaveBeenCalledTimes(1);
+    expect(makeImageUrlList).toHaveBeenCalledWith(
+      selectedImages.map((e) => e.backendId)
+    );
+
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    // It should have set the URL in the state.
+    const setExportedImagesUrlAction = actions[0];
+    expect(setExportedImagesUrlAction.type).toEqual(setExportedImagesUrl.type);
+    expect(setExportedImagesUrlAction.payload).toEqual(exportedUrl);
+
+    // It should have de-selected all the images.
+    const thunkSelectAllAction = actions[1];
+    expect(thunkSelectAllAction.type).toEqual(selectImages.type);
+    expect(thunkSelectAllAction.payload).toEqual({
+      imageIds: expect.anything(),
+      select: false,
+    });
+  });
+
+  it("can clear exported images URL with thunkClearExportedImages", () => {
+    // Arrange.
+    const exportedUrl = faker.internet.url();
+
+    // Create the fake state.
+    const state = fakeState();
+    state.imageView.exportedImagesUrl = exportedUrl;
+
+    const store = mockStoreCreator(state);
+
+    // Act.
+    thunkClearExportedImages()(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have revoked the URL.
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(exportedUrl);
+
+    const actions = store.getActions();
+    expect(actions).toHaveLength(1);
+
+    // It should have cleared the URL in the state.
+    const setExportedImagesUrlAction = actions[0];
+    expect(setExportedImagesUrlAction.type).toEqual(setExportedImagesUrl.type);
+    expect(setExportedImagesUrlAction.payload).toEqual(null);
+  });
+
+  it("does nothing if the exported images URL is null", () => {
+    // Arrange.
+    const store = mockStoreCreator(fakeState());
+
+    // Act.
+    thunkClearExportedImages()(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should not have revoked anything.
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+
+    const actions = store.getActions();
+    expect(actions).toHaveLength(0);
+  });
+
   it("creates a doAutocomplete action", async () => {
     // Arrange.
     // Make it look lit it got some autocomplete suggestions.
@@ -985,6 +1097,21 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newState.details.frontendId).toEqual(imageId);
+  });
+
+  it("handles a setExportedImagesUrl action", () => {
+    // Arrange.
+    const state: RootState = fakeState();
+    const url = faker.internet.url();
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      setExportedImagesUrl(url)
+    );
+
+    // Assert.
+    expect(newImageState.exportedImagesUrl).toEqual(url);
   });
 
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {

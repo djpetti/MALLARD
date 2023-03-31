@@ -3,6 +3,7 @@ import {
   createEntityAdapter,
   createSlice,
   Draft,
+  EntityId,
 } from "@reduxjs/toolkit";
 import {
   ImageEntity,
@@ -34,7 +35,7 @@ import {
   requestAutocomplete,
   Suggestions,
 } from "./autocomplete";
-import { downloadImageZip } from "./downloads";
+import { downloadImageZip, makeImageUrlList } from "./downloads";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -144,6 +145,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   details: { frontendId: null },
   numItemsSelected: 0,
   bulkDownloadState: RequestState.IDLE,
+  exportedImagesUrl: null,
 });
 
 /** Memoized selectors for the state. */
@@ -312,6 +314,17 @@ export const thunkLoadMetadata = createAsyncThunk(
 );
 
 /**
+ * Helper that gets images from the state that are currently selected.
+ * @param {RootState} state The current state.
+ * @return {EntityId[]} The frontend IDs of the selected images.
+ */
+function getSelectedImageIds(state: RootState): EntityId[] {
+  return thumbnailGridSelectors
+    .selectIds(state)
+    .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
+}
+
+/**
  * Action creator that downloads a zip file of all currently-selected images.
  */
 export const thunkBulkDownloadSelected = createAsyncThunk(
@@ -319,9 +332,7 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
   async (_, { getState, dispatch }): Promise<void> => {
     // Determine which images are selected.
     const state = getState() as RootState;
-    const selectedIds = thumbnailGridSelectors
-      .selectIds(state)
-      .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
+    const selectedIds = getSelectedImageIds(state);
     const selectedImageInfo = selectedIds.map((id) => {
       const entity = thumbnailGridSelectors.selectById(state, id);
       return {
@@ -358,9 +369,7 @@ export const thunkDeleteSelected = createAsyncThunk(
   async (_, { getState }): Promise<string[]> => {
     // Get the backend IDs for the images.
     const state = getState() as RootState;
-    const selectedIds = thumbnailGridSelectors
-      .selectIds(state)
-      .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
+    const selectedIds = getSelectedImageIds(state);
     const backendIds = selectedIds.map(
       (id) =>
         thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
@@ -372,6 +381,49 @@ export const thunkDeleteSelected = createAsyncThunk(
     return selectedIds as string[];
   }
 );
+
+/**
+ * Action creator that exports the selected image URLs.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkExportSelected(): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Get the backend IDs for the images.
+    const state = getState();
+    const selectedIds = getSelectedImageIds(state);
+    const backendIds = selectedIds.map(
+      (id) =>
+        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
+    );
+
+    // Create the list of URLs.
+    const listUrl = makeImageUrlList(backendIds);
+
+    // Set it in the state.
+    dispatch(setExportedImagesUrl(listUrl));
+    // Deselect all the images.
+    dispatch(thunkSelectAll(false));
+  };
+}
+
+/**
+ * Action creator that revokes the URL for the exported image list.
+ * @return {ThunkResult} Does not actually return anything, because it
+ * simply dispatches other actions.
+ */
+export function thunkClearExportedImages(): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Revoke the URL.
+    const state = getState();
+    if (state.imageView.exportedImagesUrl !== null) {
+      URL.revokeObjectURL(state.imageView.exportedImagesUrl);
+
+      // Clear it in the state.
+      dispatch(setExportedImagesUrl(null));
+    }
+  };
+}
 
 /**
  * Action creator that starts a new autocomplete request.
@@ -391,7 +443,8 @@ export const thunkDoAutocomplete = createAsyncThunk(
   }
 );
 
-/** Action creator that performs a new text search.
+/**
+ * Action creator that performs a new text search.
  * @param {string} searchString The search string that the user entered.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
@@ -564,6 +617,10 @@ export const thumbnailGridSlice = createSlice({
     showDetails(state, action) {
       state.details.frontendId = action.payload;
     },
+    // Sets the URL for the exported image list.
+    setExportedImagesUrl(state, action) {
+      state.exportedImagesUrl = action.payload;
+    },
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
@@ -718,5 +775,6 @@ export const {
   clearAutocomplete,
   selectImages,
   showDetails,
+  setExportedImagesUrl,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

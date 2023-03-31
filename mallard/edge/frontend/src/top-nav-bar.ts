@@ -7,16 +7,21 @@ import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
+import "@material/mwc-menu";
 import "./search-box";
 import store from "./store";
 import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import {
   thunkBulkDownloadSelected,
+  thunkClearExportedImages,
   thunkDeleteSelected,
+  thunkExportSelected,
   thunkSelectAll,
 } from "./thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
+import { Button } from "@material/mwc-button";
+import { Menu } from "@material/mwc-menu";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -30,6 +35,10 @@ export class TopNavBar extends LitElement {
 
     .no-overflow {
       overflow: hidden;
+    }
+
+    .relative {
+      position: relative;
     }
 
     .normal {
@@ -75,7 +84,17 @@ export class TopNavBar extends LitElement {
   static DELETE_EVENT_NAME = `${TopNavBar.tagName}-delete`;
 
   /**
-   * THe name of the event to fire when the cancel selection button is clicked.
+   * The name of the event to fire when the URL export button is clicked.
+   */
+  static URL_EXPORT_EVENT_NAME = `${TopNavBar.tagName}-url-export`;
+
+  /**
+   * The name of the event to fire when the URL export is finished.
+   */
+  static URL_EXPORT_FINISHED_EVENT_NAME = `${TopNavBar.tagName}-url-export-finished`;
+
+  /**
+   * The name of the event to fire when the cancel selection button is clicked.
    */
   static SELECT_CANCEL_EVENT_NAME = `${TopNavBar.tagName}-select-cancel`;
 
@@ -104,10 +123,34 @@ export class TopNavBar extends LitElement {
   showDeletionProgress: boolean = false;
 
   /**
+   * Link to the exported image URL file, if we have it.
+   */
+  @property({ type: String })
+  exportedUrlFileLink: string | null = null;
+
+  /**
    * The deletion confirmation modal.
    */
   @query("#confirm_delete_dialog", true)
   private confirmDeleteDialog!: Dialog;
+
+  /**
+   * The "more actions" button
+   */
+  @query("#more_actions_button")
+  private moreActionsButton?: Button;
+
+  /**
+   * The overflow actions menu.
+   */
+  @query("#more_actions_menu")
+  private moreActionsMenu?: Menu;
+
+  /**
+   * Hidden link for downloading files.
+   */
+  @query("#download_link")
+  private downloadLink?: HTMLElement;
 
   /**
    * Run when the download button is clicked.
@@ -131,6 +174,20 @@ export class TopNavBar extends LitElement {
     // Dispatch the event.
     this.dispatchEvent(
       new CustomEvent<void>(TopNavBar.DELETE_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
+   * Run when the URL export button is clicked.
+   * @private
+   */
+  private onUrlExportClick(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<void>(TopNavBar.URL_EXPORT_EVENT_NAME, {
         bubbles: true,
         composed: false,
       })
@@ -192,7 +249,8 @@ export class TopNavBar extends LitElement {
 
         <!-- Action items. -->
         ${this.numItemsSelected > 0
-          ? html` <mwc-icon-button
+          ? html`
+              <mwc-icon-button
                 icon="download"
                 slot="actionItems"
                 id="download_button"
@@ -204,7 +262,20 @@ export class TopNavBar extends LitElement {
                 id="delete_button"
                 @click="${() => this.confirmDeleteDialog.show()}"
               >
-              </mwc-icon-button>`
+              </mwc-icon-button>
+              <div class="relative" slot="actionItems">
+                <mwc-icon-button
+                  icon="more_vert"
+                  id="more_actions_button"
+                  @click="${() => this.moreActionsMenu?.show()}"
+                ></mwc-icon-button>
+                <mwc-menu id="more_actions_menu">
+                  <mwc-list-item @click="${this.onUrlExportClick}"
+                    >Export URLs</mwc-list-item
+                  >
+                </mwc-menu>
+              </div>
+            `
           : nothing}
 
         <!-- Deletion confirmation dialog. -->
@@ -241,6 +312,16 @@ export class TopNavBar extends LitElement {
           >
         </mwc-dialog>
 
+        <!-- Hidden link for downloading files. -->
+        ${this.exportedUrlFileLink
+          ? html`<a
+              id="download_link"
+              class="hidden"
+              href="${this.exportedUrlFileLink}"
+              download
+            ></a>`
+          : nothing}
+
         <slot></slot>
       </mwc-top-app-bar-fixed>
     `;
@@ -257,6 +338,23 @@ export class TopNavBar extends LitElement {
       // the dialog automatically.
       this.confirmDeleteDialog.close();
     }
+
+    if (this.moreActionsMenu) {
+      // If we are showing this menu, make sure it is anchored to the button.
+      this.moreActionsMenu.anchor = this.moreActionsButton as Button;
+    }
+
+    if (this.downloadLink) {
+      // If this is rendered, we should start the download.
+      this.downloadLink.click();
+      // Clean up after the download is finished.
+      this.dispatchEvent(
+        new CustomEvent<void>(TopNavBar.URL_EXPORT_FINISHED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+        })
+      );
+    }
   }
 }
 
@@ -272,6 +370,7 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       numItemsSelected: state.imageView.numItemsSelected,
       showDeletionProgress:
         state.imageView.imageDeletionState == RequestState.LOADING,
+      exportedUrlFileLink: state.imageView.exportedImagesUrl,
     };
   }
 
@@ -291,6 +390,10 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       thunkSelectAll(false) as unknown as Action;
     handlers[ConnectedTopNavBar.DELETE_EVENT_NAME] = (_) =>
       thunkDeleteSelected() as unknown as Action;
+    handlers[ConnectedTopNavBar.URL_EXPORT_EVENT_NAME] = (_) =>
+      thunkExportSelected() as unknown as Action;
+    handlers[ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME] = (_) =>
+      thunkClearExportedImages() as unknown as Action;
 
     return handlers;
   }

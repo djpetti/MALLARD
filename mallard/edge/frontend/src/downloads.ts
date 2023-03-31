@@ -15,6 +15,15 @@ export interface ImageWithMeta {
 }
 
 /**
+ * Gets the URL for an image.
+ * @param {ObjectRef} imageId The ID of the image.
+ * @return {string} The image URL.
+ */
+function getImageUrl(imageId: ObjectRef): string {
+  return urlJoin(API_BASE_URL, "images", imageId.bucket, imageId.name);
+}
+
+/**
  * Fetches a single image.
  * @param {ObjectRef} imageId The ID of the image.
  * @return {Response} The `Response` from fetching the image.
@@ -22,13 +31,7 @@ export interface ImageWithMeta {
 async function fetchImage(imageId: ObjectRef): Promise<Response> {
   // We can't use the API client, unfortunately, because we need raw
   // `Response` objects.
-  const imageUrl = urlJoin(
-    API_BASE_URL,
-    "images",
-    imageId.bucket,
-    imageId.name
-  );
-  return await fetch(imageUrl);
+  return await fetch(getImageUrl(imageId));
 }
 
 /**
@@ -112,4 +115,20 @@ export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
     fileStream?.abort();
   };
   await zipResponse.body?.pipeTo(fileStream);
+}
+
+/**
+ * Creates a file containing a list of the URLs for the specified images,
+ * and provides the user a link to it.
+ * @param {ObjectRef[]} imageIds The list of image IDs.
+ * @return {string} The link to the list of images. The user is responsible
+ *  for calling `revokeObjectURL` when done with it.
+ */
+export function makeImageUrlList(imageIds: ObjectRef[]): string {
+  // Get the image URLs.
+  const imageUrls = imageIds.map((id) => `${getImageUrl(id)}\n`);
+
+  // Create the list.
+  const urlFile = new File(imageUrls, "image_urls.txt", { type: "text/plain" });
+  return URL.createObjectURL(urlFile);
 }

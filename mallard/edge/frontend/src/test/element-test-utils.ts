@@ -61,6 +61,7 @@ export function fakeState(): RootState {
       details: { frontendId: null },
       numItemsSelected: 0,
       bulkDownloadState: RequestState.IDLE,
+      exportedImagesUrl: null,
     },
     uploads: {
       dialogOpen: false,

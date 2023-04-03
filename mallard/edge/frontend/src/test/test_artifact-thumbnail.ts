@@ -6,8 +6,13 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
-import { selectImages, thunkLoadThumbnail } from "../thumbnail-grid-slice";
+import {
+  createImageEntityId,
+  selectImages,
+  thunkLoadThumbnail,
+} from "../thumbnail-grid-slice";
 import each from "jest-each";
+import store from "../store";
 
 // I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
 // undefined. I can only assume this is a quirk in Babel.
@@ -18,7 +23,8 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkLoadThumbnail: jest.fn(),
     selectImages: jest.fn(),
-    // Use the actual implementation for this function.
+    // Use the actual implementation for these functions.
+    createImageEntityId: actualSlice.createImageEntityId,
     thumbnailGridSelectors: {
       selectById: actualSlice.thumbnailGridSelectors.selectById,
     },
@@ -33,10 +39,16 @@ jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
   connect: jest.fn((_, elementClass) => elementClass),
 }));
-jest.mock("../store", () => ({
-  // Mock this to avoid an annoying spurious console error from Redux.
-  configureStore: jest.fn(),
-}));
+jest.mock("../store", () => {
+  return {
+    // Mock this function to avoid spurious errors in the console.
+    configureStore: jest.fn(),
+    // By default, just return a blank state, so that at least selectors work.
+    getState: jest.fn(() => fakeState()),
+  };
+});
+
+const mockGetState = store.getState as jest.MockedFn<typeof store.getState>;
 
 describe("artifact-thumbnail", () => {
   /** Internal artifact-thumbnail to use for testing. */
@@ -238,6 +250,29 @@ describe("artifact-thumbnail", () => {
       imageIds: [thumbnailElement.frontendId],
       select: selected,
     });
+  });
+
+  it("updates from the Redux state when the frontend ID changes", async () => {
+    // Arrange.
+    // Make it look like we have a somewhat interesting state.
+    const state = fakeState();
+    const image = fakeImageEntity(true);
+    const frontendId = createImageEntityId(image.backendId);
+    state.imageView.ids = [frontendId];
+    state.imageView.entities[frontendId] = image;
+
+    mockGetState.mockReturnValue(state);
+
+    // Act.
+    // Reset the frontend ID.
+    thumbnailElement.frontendId = frontendId;
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should have updated from the state.
+    expect(thumbnailElement.imageUrl).toEqual(image.thumbnailUrl);
+    expect(thumbnailElement.selected).toEqual(image.isSelected);
+    expect(thumbnailElement.imageLink).not.toBeUndefined();
   });
 
   it("updates the properties from the Redux state", () => {

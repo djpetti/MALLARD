@@ -180,6 +180,20 @@ export class ConnectedArtifactThumbnail extends connect(
   /**
    * @inheritDoc
    */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    // If we set a new frontend ID, we should update the other
+    // properties from the state, even if the state hasn't changed.
+    if (_changedProperties.has("frontendId")) {
+      const state = store.getState();
+      Object.assign(this, this.mapState(state));
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
   mapState(state: RootState): { [p: string]: any } {
     if (!this.frontendId) {
       // No specific thumbnail has been set.

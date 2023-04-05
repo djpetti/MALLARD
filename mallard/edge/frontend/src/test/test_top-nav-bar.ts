@@ -5,7 +5,9 @@ import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
 import { IconButton } from "@material/mwc-icon-button";
 import {
   thunkBulkDownloadSelected,
+  thunkClearExportedImages,
   thunkDeleteSelected,
+  thunkExportSelected,
   thunkSelectAll,
 } from "../thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
@@ -25,6 +27,8 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkBulkDownloadSelected: jest.fn(),
     thunkDeleteSelected: jest.fn(),
     thunkSelectAll: jest.fn(),
+    thunkExportSelected: jest.fn(),
+    thunkClearExportedImages: jest.fn(),
 
     // Use the actual implementation for this function.
     thumbnailGridSelectors: {
@@ -32,12 +36,19 @@ jest.mock("../thumbnail-grid-slice", () => {
     },
   };
 });
-const mockThunkBulkDownloadSelected =
-  thunkBulkDownloadSelected as jest.MockedFn<typeof thunkBulkDownloadSelected>;
-const mockThunkDeleteSelected = thunkDeleteSelected as jest.MockedFn<
+const mockBulkDownloadSelected = thunkBulkDownloadSelected as jest.MockedFn<
+  typeof thunkBulkDownloadSelected
+>;
+const mockDeleteSelected = thunkDeleteSelected as jest.MockedFn<
   typeof thunkDeleteSelected
 >;
 const mockSelectAll = thunkSelectAll as jest.MockedFn<typeof thunkSelectAll>;
+const mockExportSelected = thunkExportSelected as jest.MockedFn<
+  typeof thunkExportSelected
+>;
+const mockClearExportedImages = thunkClearExportedImages as jest.MockedFn<
+  typeof thunkClearExportedImages
+>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -478,7 +489,7 @@ describe("top-nav-bar", () => {
     );
 
     // It should have used the correct action creator.
-    expect(mockThunkBulkDownloadSelected).toBeCalledTimes(1);
+    expect(mockBulkDownloadSelected).toBeCalledTimes(1);
   });
 
   it(`fires the correct action creator for the ${ConnectedTopNavBar.SELECT_CANCEL_EVENT_NAME} event`, () => {
@@ -514,6 +525,42 @@ describe("top-nav-bar", () => {
     expect(eventMap).toHaveProperty(ConnectedTopNavBar.DELETE_EVENT_NAME);
 
     // It should have used the correct action creator.
-    expect(mockThunkDeleteSelected).toBeCalledWith();
+    expect(mockDeleteSelected).toBeCalledWith();
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.URL_EXPORT_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.URL_EXPORT_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.URL_EXPORT_EVENT_NAME)
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(ConnectedTopNavBar.URL_EXPORT_EVENT_NAME);
+
+    // It should have used the correct action creator.
+    expect(mockExportSelected).toBeCalledWith();
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME)
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME
+    );
+
+    // It should have used the correct action creator.
+    expect(mockClearExportedImages).toBeCalledWith();
   });
 });

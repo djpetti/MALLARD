@@ -7,8 +7,8 @@ FROM nginx AS proxy
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Configure SSL.
-RUN openssl req -x509 -nodes -days 365 -subj "/C=US/ST=FL/O=BSAIL/CN=ugabsail.net" \
-    -addext "subjectAltName=DNS:ugabsail.net" -newkey rsa:2048  \
+RUN openssl req -x509 -nodes -days 365 -subj "/C=US/ST=FL/O=BSAIL/CN=uflbsail.net" \
+    -addext "subjectAltName=DNS:uflbsail.net" -newkey rsa:2048  \
     -keyout /etc/ssl/private/nginx-selfsigned.key  \
     -out /etc/ssl/certs/nginx-selfsigned.crt
 
@@ -104,6 +104,7 @@ FROM service_base AS edge
 # Copy frontend package.
 COPY --from=edge_builder /home/gateway/mallard/edge/frontend/bundled \
     /home/gateway/mallard/edge/frontend/bundled
+COPY --from=edge_builder /home/gateway/.config /home/gateway/.config
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
      -k uvicorn.workers.UvicornWorker \

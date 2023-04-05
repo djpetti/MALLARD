@@ -7,15 +7,40 @@ a MariaDB database for metadata, and a MinIO object store for image data.
 Prerequisites:
 - Docker >= 19.03.0
 - `docker-compose`
+- [cookiecutter](https://cookiecutter.readthedocs.io/en/2.0.2/installation.html)
 
-First, you will need to build the docker images:
+Compose files for MALLARD are generated interactively based on your chosen
+configuration. To generate a new compose file, run:
+
 ```bash
-docker-compose build
+cookiecutter cookiecutter-docker/
 ```
 
-After that, you need to start the MALLARD services:
+You will be given the chance to specify the following options:
+- `config_name`: A human-readable name for this configuration.
+- `mode`: The mode to run MALLARD in. Development mode means that the local
+  filesystem will be mounted inside the containers instead of copying the
+  code over, so that you can test new code without rebuilding Docker images.
+  If you are not testing new code, use production mode.
+- `proxy_config`: Specifies the configuration to use for MALLARD's built-in
+  reverse proxy. By default, it will use SSL. Disabling SSL could break
+  things, because MALLARD uses features of modern browsers that only run in
+  a secure context. However, there are legitimate reasons for disabling SSL.
+  For instance, you might wish to run MALLARD behind your own reverse proxy
+  and handle SSL there.
+- `host_port`: The port that MALLARD will listen on for connections.
+
+A `docker-compose` file will be created in the repository root, named based
+on the value you set for `config_name`. For instance, if you set
+`config_name` to "default", it will generate a `docker-compose.default.yml`
+file. To generate multiple configurations, you can re-run the cookiecutter
+command with different `config_name`s.
+
+Once you have the compose file, you can run the following to build the
+images and start the MALLARD services:
 ```bash
-docker-compose up
+docker-compose -f docker-compose.default.yml build
+docker-compose -f docker-compose.default.yml up
 ```
 
 ## Initializing the Database
@@ -37,30 +62,7 @@ subsequent restarts, you should be able to use MALLARD normally without this ste
 ## Accessing the Application
 
 The MALLARD application should be accessible on your local machine at
-http://localhost:8081. The MALLARD API should be accessible at
-http://localhost:8081/api/v1. To access a convenient interface that allows you
-to test the API manually, visit http://localhost:8081/api/v1/docs.
-
-# Advanced
-
-These are advanced settings for MALLARD. You should know what you are doing
-before editing these.
-
-## Disabling SSL
-
-MALLARD uses features of modern browsers that only work in a secure context.
-Therefore, it is configured by default to run with HTTPS. However, it is
-possible that you might want to disable HTTPS, for instance, if you are
-running MALLARD behind your own reverse proxy.
-
-Note that, for this to work, you will have to edit your configuration file
-(generally located at `${HOME}/.config/mallard/config.yml`). In the
-`api_base_url` and `api_origins`, replace "https://" with "http://".
-
-Once this is done, you can run MALLARD like so:
-```bash
-docker-compose -f docker-compose.yml -f docker-compose-no-ssl.yml up
-```
-
-It is important to make sure that `docker-compose-no-ssl.yml` is always the
-last argument, so that it overrides everything else.
+https://localhost:8081 (or whatever you set `host_port` to). The MALLARD API
+should be accessible at https://localhost:8081/api/v1. To access a convenient
+interface that allows you to test the API manually, visit
+https://localhost:8081/api/v1/docs.

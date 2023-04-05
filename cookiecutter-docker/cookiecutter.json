@@ -1,0 +1,6 @@
+{
+  "config_name": "default",
+  "mode": ["production", "development"],
+  "proxy_config": ["ssl", "no_ssl"],
+  "host_port": 8081
+}

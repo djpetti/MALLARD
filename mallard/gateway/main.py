@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from ..config import config
-from .aiohttp_session import init_session, close_session
+from .aiohttp_session import close_session, init_session
 from .authentication import check_auth_token
 from .routers import images
 
@@ -21,9 +21,11 @@ app = FastAPI(debug=True, dependencies=dependencies)
 
 app.include_router(images.router)
 
+allowed_origins = config["security"]["api_origins"].as_str_seq()
+logger.debug("Allowing requests from origins: {}", allowed_origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config["security"]["api_origins"].as_str_seq(),
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

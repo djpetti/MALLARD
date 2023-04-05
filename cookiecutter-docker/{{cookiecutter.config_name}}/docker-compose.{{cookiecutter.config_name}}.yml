@@ -1,5 +1,20 @@
 version: '3.8'
 
+# Volumes that bind to local directories.
+x-local_volumes: &local_volumes
+  {%- if cookiecutter.mode == "development" %}
+  # In dev mode, it mounts the local FS in the containers
+  # instead of copying the code over, so you can easily test
+  # new code.
+  volumes:
+    # Code.
+    - ./mallard:/home/gateway/mallard
+    # Config.
+    - ~/.config/mallard:/home/gateway/.config/mallard
+  {% else %}
+  {}
+  {% endif %}
+
 services:
 
   # Gateway service.
@@ -11,6 +26,8 @@ services:
     hostname: gateway
     networks:
       - mallard
+    << : *local_volumes
+
 
   # Edge service.
   edge:
@@ -21,6 +38,7 @@ services:
     hostname: edge
     networks:
       - mallard
+    << : *local_volumes
 
   # Object storage service.
   object_store:
@@ -40,12 +58,31 @@ services:
     image: mariadb:10.5-focal
     hostname: metadata-store
     volumes:
-    - metadata:/var/lib/mysql
+      - metadata:/var/lib/mysql
     environment:
       MARIADB_ROOT_PASSWORD: TnrHYavLF7WF38
       MARIADB_DATABASE: mallard_meta
     networks:
       - mallard
+
+  # Reverse-proxy service. This should be the only service with
+  # publicly-exposed ports.
+  proxy:
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: proxy
+    networks:
+      - mallard
+    ports:
+      - "{{cookiecutter.host_port}}:8081"
+    volumes:
+      - ./config/local/nginx:/etc/nginx
+      {%- if cookiecutter.proxy_config == "ssl" %}
+      - ./config/local/nginx/conf.d/sites-available/mallard.conf:/local-sites-enabled/mallard.conf
+      {% else %}
+      - ./config/local/nginx/conf.d/sites-available/mallard-no-ssl.conf:/local-sites-enabled/mallard.conf
+      {% endif %}
 
 networks:
   # Internal network

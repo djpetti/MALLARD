@@ -131,5 +131,5 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# This is created by running jobs.
-output_data/
+# Docker-compose files are auto-generated.
+docker-compose*.yml

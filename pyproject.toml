@@ -44,6 +44,7 @@ aiosqlite = "^0.17.0"
 PyMySQL = ">=0.9"
 Faker = "^13.3.4"
 pytest-xdist = "^3.2.0"
+cookiecutter = "^2.1.1"
 
 [tool.black]
 line-length = 79

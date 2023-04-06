@@ -61,7 +61,7 @@ export class ArtifactThumbnail extends ImageDisplay {
 
     #select_button {
       position: absolute;
-      z-index: 99;
+      z-index: 6;
       top: -10px;
       right: -10px;
       animation-name: fade;

@@ -30,7 +30,7 @@ import { AsyncThunk } from "@reduxjs/toolkit";
 import each from "jest-each";
 import { cloneDeep } from "lodash";
 import { UavImageMetadata } from "mallard-api";
-import { clearImageView } from "../thumbnail-grid-slice";
+import { thunkClearImageView } from "../thumbnail-grid-slice";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -41,6 +41,14 @@ const apiClient = require("../api-client");
 const mockCreateImage: jest.Mock = apiClient.createImage;
 const mockInferMetadata: jest.Mock = apiClient.inferMetadata;
 const mockUpdateMetadata: jest.Mock = apiClient.batchUpdateMetadata;
+
+// Mock out the thumbnailGridSlice.
+jest.mock("../thumbnail-grid-slice", () => ({
+  thunkClearImageView: jest.fn(),
+}));
+const mockClearImageView = thunkClearImageView as jest.MockedFn<
+  typeof thunkClearImageView
+>;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -284,6 +292,11 @@ describe("upload-slice action creators", () => {
 
       const store = mockStoreCreator(state);
 
+      // Use a dummy action here to simulate how this thunk works.
+      mockClearImageView.mockReturnValue((dispatch) => {
+        dispatch({ type: "thunkClearImageView", payload: undefined });
+      });
+
       // Act.
       finishUpload()(store.dispatch, store.getState as () => RootState, {});
 
@@ -295,7 +308,7 @@ describe("upload-slice action creators", () => {
       const actions = store.getActions();
       expect(actions).toHaveLength(hasNewMetadata ? 3 : 2);
       expect(actions[actions.length - 2].type).toEqual(dialogClosed.type);
-      expect(actions[actions.length - 1].type).toEqual(clearImageView.type);
+      expect(actions[actions.length - 1].type).toEqual("thunkClearImageView");
 
       if (hasNewMetadata) {
         // It should have dispatched an additional action to update the

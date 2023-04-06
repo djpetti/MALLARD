@@ -542,6 +542,24 @@ export function thunkClearThumbnails(
 }
 
 /**
+ * Thunk for clearing the entire image view state. It will handle releasing
+ * the memory.
+ * @return {ThunkResult} Does not actually return anything, because it
+ * simply dispatches other actions.
+ */
+export function thunkClearImageView(): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Free all the memory associated with the images.
+    const imageIds = thumbnailGridSelectors.selectIds(getState());
+    dispatch(thunkClearThumbnails(imageIds));
+    dispatch(thunkClearFullSizedImages(imageIds));
+
+    // Update the state.
+    dispatch(clearImageView(null));
+  };
+}
+
+/**
  * Thunk for selecting/deselecting all the images at once.
  * @param {boolean} select Whether to select or deselect.
  * @return {ThunkResult} Does not actually return anything, because it

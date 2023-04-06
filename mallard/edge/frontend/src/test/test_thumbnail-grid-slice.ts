@@ -14,6 +14,7 @@ import thumbnailGridReducer, {
   thunkBulkDownloadSelected,
   thunkClearExportedImages,
   thunkClearFullSizedImages,
+  thunkClearImageView,
   thunkClearThumbnails,
   thunkContinueQuery,
   thunkDeleteSelected,
@@ -917,7 +918,7 @@ describe("thumbnail-grid-slice action creators", () => {
     }
   );
 
-  it("Does nothing when no image is passed to clearFullSizedImage", () => {
+  it("Does nothing when no image is passed to clearThumbnails", () => {
     // Arrange.
     const store = mockStoreCreator(fakeState());
 
@@ -939,6 +940,44 @@ describe("thumbnail-grid-slice action creators", () => {
       thumbnailGridSlice.actions.clearThumbnails.type
     );
     expect(clearAction.payload).toEqual([]);
+  });
+
+  it("can clear all the images with thunkClearImageView", () => {
+    // Arrange.
+    const images = fakeImageEntities();
+    const state = fakeState();
+    state.imageView.ids = images.ids;
+    state.imageView.entities = images.entities;
+    const store = mockStoreCreator(state);
+
+    // Act.
+    thunkClearImageView()(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have dispatched the clearThumbnail and clearFullSizeImages actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(3);
+
+    const clearThumbnailAction = actions[0];
+    expect(clearThumbnailAction.type).toEqual(
+      thumbnailGridSlice.actions.clearThumbnails.type
+    );
+    expect(clearThumbnailAction.payload).toEqual(images.ids);
+
+    const clearFullSizeAction = actions[1];
+    expect(clearFullSizeAction.type).toEqual(
+      thumbnailGridSlice.actions.clearFullSizedImages.type
+    );
+    expect(clearFullSizeAction.payload).toEqual(images.ids);
+
+    const clearImageViewAction = actions[2];
+    expect(clearImageViewAction.type).toEqual(
+      thumbnailGridSlice.actions.clearImageView.type
+    );
   });
 
   it("can select/deselect all the images", () => {

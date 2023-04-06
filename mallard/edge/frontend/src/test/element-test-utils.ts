@@ -22,6 +22,8 @@ import {
   UavImageMetadata,
 } from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
+import { EntityId } from "@reduxjs/toolkit";
+import { createImageEntityId } from "../thumbnail-grid-slice";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -145,6 +147,43 @@ export function fakeImageEntity(
     metadata: metadata,
     isSelected: faker.datatype.boolean(),
   };
+}
+
+/**
+ * Contains image entities, and corresponding frontend IDs.
+ */
+interface EntitiesAndIds {
+  ids: EntityId[];
+  entities: { [id: EntityId]: ImageEntity };
+}
+
+/**
+ * @brief Creates a full set if ImageEntities to use for a test. Note that this
+ *  uses `createImageEntityId` internally, so it should not be mocked.
+ * @param {number?} numEntities The number of fake entities to add. If not
+ *  provided it will choose randomly.
+ * @param {any} entityArgs Will be forwarded to `fakeImageEntity`.
+ * @return {EntitiesAndIds} The fake entities that it created.
+ */
+export function fakeImageEntities(
+  numEntities?: number,
+  ...entityArgs: any
+): EntitiesAndIds {
+  if (numEntities === undefined) {
+    // Choose the number of entities randomly.
+    numEntities = faker.datatype.number(15);
+  }
+
+  const state: EntitiesAndIds = { ids: [], entities: {} };
+  for (let i = 0; i < numEntities; ++i) {
+    const entity = fakeImageEntity(...entityArgs);
+    const frontendId = createImageEntityId(entity.backendId);
+
+    state.ids.push(frontendId);
+    state.entities[frontendId] = entity;
+  }
+
+  return state;
 }
 
 /**

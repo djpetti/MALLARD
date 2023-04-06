@@ -5,7 +5,7 @@ import store from "./store";
 import { ImageStatus } from "./types";
 import {
   thumbnailGridSelectors,
-  thunkClearFullSizedImage,
+  thunkClearFullSizedImages,
   thunkLoadImage,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -171,9 +171,9 @@ export class ConnectedLargeImageDisplay extends connect(
     handlers[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME] = (
       event: Event
     ) =>
-      thunkClearFullSizedImage(
-        (event as ConnectionChangedEvent).detail
-      ) as unknown as Action;
+      thunkClearFullSizedImages([
+        (event as ConnectionChangedEvent).detail,
+      ]) as unknown as Action;
     return handlers;
   }
 }

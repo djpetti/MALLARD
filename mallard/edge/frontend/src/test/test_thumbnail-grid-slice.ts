@@ -2,8 +2,9 @@ import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifact,
   clearAutocomplete,
-  clearFullSizedImage,
+  clearFullSizedImages,
   clearImageView,
+  clearThumbnails,
   createImageEntityId,
   selectImages,
   setExportedImagesUrl,
@@ -12,7 +13,8 @@ import thumbnailGridReducer, {
   thumbnailGridSlice,
   thunkBulkDownloadSelected,
   thunkClearExportedImages,
-  thunkClearFullSizedImage,
+  thunkClearFullSizedImages,
+  thunkClearThumbnails,
   thunkContinueQuery,
   thunkDeleteSelected,
   thunkDoAutocomplete,
@@ -35,6 +37,7 @@ import {
 } from "../types";
 import thunk from "redux-thunk";
 import {
+  fakeImageEntities,
   fakeImageEntity,
   fakeImageQuery,
   fakeObjectRef,
@@ -552,6 +555,32 @@ describe("thumbnail-grid-slice action creators", () => {
       );
 
       // Assert
+      const actions = store.getActions();
+      expect(actions).toHaveLength(4);
+
+      // It should have dispatched the pending action.
+      const deletePendingAction = actions[0];
+      expect(deletePendingAction.type).toEqual(
+        thunkDeleteSelected.pending.type
+      );
+
+      // It should have cleared any loaded thumbnails.
+      const thumbnailClearAction = actions[1];
+      expect(thumbnailClearAction.type).toEqual(clearThumbnails.type);
+      expect(thumbnailClearAction.payload).toEqual(selectedIds);
+
+      // It should have cleared any loaded images.
+      const imageClearAction = actions[2];
+      expect(imageClearAction.type).toEqual(clearFullSizedImages.type);
+      expect(imageClearAction.payload).toEqual(selectedIds);
+
+      // It should have dispatched the fulfilled action.
+      const deleteFullfilledAction = actions[3];
+      expect(deleteFullfilledAction.type).toEqual(
+        thunkDeleteSelected.fulfilled.type
+      );
+      expect(deleteFullfilledAction.payload).toEqual(selectedIds);
+
       // It should have deleted the selected images.
       const selectedBackendIds = selectedIds.map(
         (id) => state.imageView.entities[id]?.backendId
@@ -776,19 +805,18 @@ describe("thumbnail-grid-slice action creators", () => {
     ["loaded", true],
     ["not loaded", false],
   ]).it(
-    "creates a clearFullSizedImage action when the image is %s",
+    "creates a clearFullSizedImages action when the image is %s",
     (_: string, imageLoaded: boolean) => {
       // Arrange.
       // Set up the state appropriately.
-      const imageId = faker.datatype.uuid();
+      const images = fakeImageEntities(undefined, undefined, imageLoaded);
       const state = fakeState();
-      state.imageView.ids = [imageId];
-      const fakeEntity = fakeImageEntity(undefined, imageLoaded);
-      state.imageView.entities[imageId] = fakeEntity;
+      state.imageView.ids = images.ids;
+      state.imageView.entities = images.entities;
       const store = mockStoreCreator(state);
 
       // Act.
-      thunkClearFullSizedImage(imageId)(
+      thunkClearFullSizedImages(images.ids)(
         store.dispatch,
         store.getState as () => RootState,
         {}
@@ -797,8 +825,12 @@ describe("thumbnail-grid-slice action creators", () => {
       // Assert.
       if (imageLoaded) {
         // It should have released the loaded image.
-        expect(mockRevokeObjectUrl).toBeCalledTimes(1);
-        expect(mockRevokeObjectUrl).toBeCalledWith(fakeEntity.imageUrl);
+        expect(mockRevokeObjectUrl).toBeCalledTimes(images.ids.length);
+        for (const id of images.ids) {
+          expect(mockRevokeObjectUrl).toBeCalledWith(
+            images.entities[id].imageUrl
+          );
+        }
       } else {
         expect(mockRevokeObjectUrl).not.toBeCalled();
       }
@@ -809,18 +841,18 @@ describe("thumbnail-grid-slice action creators", () => {
 
       const clearAction = actions[0];
       expect(clearAction.type).toEqual(
-        thumbnailGridSlice.actions.clearFullSizedImage.type
+        thumbnailGridSlice.actions.clearFullSizedImages.type
       );
-      expect(clearAction.payload).toEqual(imageId);
+      expect(clearAction.payload).toEqual(images.ids);
     }
   );
 
-  it("Does nothing when no image is passed to clearFullSizedImage", () => {
+  it("Does nothing when no image is passed to clearFullSizedImages", () => {
     // Arrange.
     const store = mockStoreCreator(fakeState());
 
     // Act.
-    thunkClearFullSizedImage(undefined)(
+    thunkClearFullSizedImages([undefined])(
       store.dispatch,
       store.getState as () => RootState,
       {}
@@ -829,7 +861,84 @@ describe("thumbnail-grid-slice action creators", () => {
     // Assert.
     // It should have done nothing.
     expect(mockRevokeObjectUrl).not.toBeCalled();
-    expect(store.getActions()).toHaveLength(0);
+    const actions = store.getActions();
+    expect(actions).toHaveLength(1);
+
+    const clearAction = actions[0];
+    expect(clearAction.type).toEqual(
+      thumbnailGridSlice.actions.clearFullSizedImages.type
+    );
+    expect(clearAction.payload).toEqual([]);
+  });
+
+  each([
+    ["loaded", true],
+    ["not loaded", false],
+  ]).it(
+    "creates a clearThumbnails action when the image is %s",
+    (_: string, thumbnailLoaded: boolean) => {
+      // Arrange.
+      // Set up the state appropriately.
+      const images = fakeImageEntities(undefined, thumbnailLoaded);
+      const state = fakeState();
+      state.imageView.ids = images.ids;
+      state.imageView.entities = images.entities;
+      const store = mockStoreCreator(state);
+
+      // Act.
+      thunkClearThumbnails(images.ids)(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
+
+      // Assert.
+      if (thumbnailLoaded) {
+        // It should have released the loaded thumbnails.
+        expect(mockRevokeObjectUrl).toBeCalledTimes(images.ids.length);
+        for (const id of images.ids) {
+          expect(mockRevokeObjectUrl).toBeCalledWith(
+            images.entities[id].thumbnailUrl
+          );
+        }
+      } else {
+        expect(mockRevokeObjectUrl).not.toBeCalled();
+      }
+
+      // It should have dispatched the action.
+      const actions = store.getActions();
+      expect(actions).toHaveLength(1);
+
+      const clearAction = actions[0];
+      expect(clearAction.type).toEqual(
+        thumbnailGridSlice.actions.clearThumbnails.type
+      );
+      expect(clearAction.payload).toEqual(images.ids);
+    }
+  );
+
+  it("Does nothing when no image is passed to clearFullSizedImage", () => {
+    // Arrange.
+    const store = mockStoreCreator(fakeState());
+
+    // Act.
+    thunkClearThumbnails([undefined])(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Assert.
+    // It should have done nothing.
+    expect(mockRevokeObjectUrl).not.toBeCalled();
+    const actions = store.getActions();
+    expect(actions).toHaveLength(1);
+
+    const clearAction = actions[0];
+    expect(clearAction.type).toEqual(
+      thumbnailGridSlice.actions.clearThumbnails.type
+    );
+    expect(clearAction.payload).toEqual([]);
   });
 
   it("can select/deselect all the images", () => {
@@ -931,18 +1040,23 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
   });
 
-  it("handles a clearFullSizedImage action", () => {
+  it("handles a clearFullSizedImages action", () => {
     // Arrange.
+    // Make it look like one image is loaded and one is not.
+    const loadedImage = fakeImageEntity(undefined, true);
+    const unloadedImage = fakeImageEntity(undefined, false);
+    const loadedImageId = createImageEntityId(loadedImage.backendId);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+
     const state: RootState = fakeState();
-    // Make it look like an image is loaded.
-    const imageId = faker.datatype.uuid();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
+    state.imageView.ids = [loadedImageId, unloadedImageId];
+    state.imageView.entities[loadedImageId] = loadedImage;
+    state.imageView.entities[unloadedImageId] = unloadedImage;
 
     // Act.
     const newImageState = thumbnailGridSlice.reducer(
       state.imageView,
-      clearFullSizedImage(imageId)
+      clearFullSizedImages([loadedImageId, unloadedImageId])
     );
 
     // Assert.
@@ -951,9 +1065,43 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // It should have removed the image.
     const imageEntities = thumbnailGridSelectors.selectAll(newState);
-    expect(imageEntities).toHaveLength(1);
-    expect(imageEntities[0].imageUrl).toBeNull();
-    expect(imageEntities[0].imageStatus).toEqual(ImageStatus.NOT_LOADED);
+    expect(imageEntities).toHaveLength(2);
+    for (const image of imageEntities) {
+      expect(image.imageUrl).toBeNull();
+      expect(image.imageStatus).toEqual(ImageStatus.NOT_LOADED);
+    }
+  });
+
+  it("handles a clearThumbnails action", () => {
+    // Arrange.
+    // Make it look like one image is loaded and one is not.
+    const loadedImage = fakeImageEntity(true);
+    const unloadedImage = fakeImageEntity(false);
+    const loadedImageId = createImageEntityId(loadedImage.backendId);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+
+    const state: RootState = fakeState();
+    state.imageView.ids = [loadedImageId, unloadedImageId];
+    state.imageView.entities[loadedImageId] = loadedImage;
+    state.imageView.entities[unloadedImageId] = unloadedImage;
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      clearThumbnails([loadedImageId, unloadedImageId])
+    );
+
+    // Assert.
+    const newState = fakeState();
+    newState.imageView = newImageState;
+
+    // It should have removed the image.
+    const imageEntities = thumbnailGridSelectors.selectAll(newState);
+    expect(imageEntities).toHaveLength(2);
+    for (const image of imageEntities) {
+      expect(image.thumbnailUrl).toBeNull();
+      expect(image.thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
+    }
   });
 
   it("handles a clearImageView action", () => {

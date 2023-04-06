@@ -1,4 +1,5 @@
 import {
+  AnyAction,
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
@@ -51,7 +52,7 @@ window.process =
       };
 
 /** Type alias to make typing thunks simpler. */
-type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
+type ThunkResult<R> = ThunkAction<R, RootState, any, AnyAction>;
 
 /**
  * Return type for the `thunkStartQuery` creator.
@@ -365,8 +366,8 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
  * Action creator that starts a new request to delete the selected images.
  */
 export const thunkDeleteSelected = createAsyncThunk(
-  "thumbnailGrid/deleteImages",
-  async (_, { getState }): Promise<string[]> => {
+  "thumbnailGrid/deleteSelected",
+  async (_, { dispatch, getState }): Promise<string[]> => {
     // Get the backend IDs for the images.
     const state = getState() as RootState;
     const selectedIds = getSelectedImageIds(state);
@@ -374,6 +375,13 @@ export const thunkDeleteSelected = createAsyncThunk(
       (id) =>
         thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
     );
+
+    // TODO (danielp): Look into this typing issue further. It might be
+    //  a bug in redux-thunk.
+    type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
+    // Release the associated memory.
+    dispatch(thunkClearThumbnails(selectedIds) as ActionType);
+    dispatch(thunkClearFullSizedImages(selectedIds) as ActionType);
 
     // Delete all the images.
     await deleteImages(backendIds);
@@ -464,32 +472,72 @@ export function thunkTextSearch(searchString: string): ThunkResult<void> {
 }
 
 /**
- * Thunk for clearing a loaded full-sized image. It will
+ * Thunk for clearing loaded full-sized images. It will
  * handle releasing the memory.
- * @param {string} imageId The entity ID of the image to clear. If not
- *  provided, it will do nothing.
+ * @param {(EntityId | undefined)[]} imageIds The entity IDs of the images to
+ *  clear.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
  */
-export function thunkClearFullSizedImage(imageId?: string): ThunkResult<void> {
+export function thunkClearFullSizedImages(
+  imageIds: (EntityId | undefined)[]
+): ThunkResult<void> {
   return (dispatch, getState) => {
-    if (!imageId) {
-      // Do nothing.
-      return;
-    }
-
-    // Release the loaded image.
     const state: RootState = getState();
-    const entity = thumbnailGridSelectors.selectById(
-      state,
-      imageId
-    ) as ImageEntity;
-    if (entity.imageUrl) {
-      URL.revokeObjectURL(entity.imageUrl);
+
+    for (const imageId of imageIds) {
+      if (!imageId) {
+        // Do nothing.
+        continue;
+      }
+
+      // Release the loaded image.
+      const entity = thumbnailGridSelectors.selectById(
+        state,
+        imageId
+      ) as ImageEntity;
+      if (entity.imageUrl) {
+        URL.revokeObjectURL(entity.imageUrl);
+      }
     }
 
     // Update the state.
-    dispatch(thumbnailGridSlice.actions.clearFullSizedImage(imageId));
+    dispatch(clearFullSizedImages(imageIds));
+  };
+}
+
+/**
+ * Thunk for clearing loaded thumbnail images. It will handle releasing the
+ * memory.
+ * @param {(EntityId | undefined)[]} imageIds The entity IDs of the image to
+ *  clear.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkClearThumbnails(
+  imageIds: (EntityId | undefined)[]
+): ThunkResult<void> {
+  return (dispatch, getState) => {
+    const state: RootState = getState();
+
+    for (const imageId of imageIds) {
+      if (!imageId) {
+        // Do nothing.
+        continue;
+      }
+
+      // Release the loaded image.
+      const entity = thumbnailGridSelectors.selectById(
+        state,
+        imageId
+      ) as ImageEntity;
+      if (entity.thumbnailUrl) {
+        URL.revokeObjectURL(entity.thumbnailUrl);
+      }
+    }
+
+    // Update the state.
+    dispatch(clearThumbnails(imageIds));
   };
 }
 
@@ -560,11 +608,27 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.addOne(state, createDefaultEntity(action.payload));
     },
     // Clears a loaded full-sized image.
-    clearFullSizedImage(state, action) {
-      thumbnailGridAdapter.updateOne(state, {
-        id: action.payload,
-        changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
-      });
+    clearFullSizedImages(state, action) {
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.payload.map((id: string) => ({
+          id: id,
+          changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
+        }))
+      );
+    },
+    // Clears a loaded thumbnail.
+    clearThumbnails(state, action) {
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.payload.map((id: string) => ({
+          id: id,
+          changes: {
+            thumbnailUrl: null,
+            thumbnailStatus: ImageStatus.NOT_LOADED,
+          },
+        }))
+      );
     },
     // Completely resets the current image view, removing all loaded images.
     clearImageView(state, _) {
@@ -769,7 +833,8 @@ export const thumbnailGridSlice = createSlice({
 });
 
 export const {
-  clearFullSizedImage,
+  clearFullSizedImages,
+  clearThumbnails,
   addArtifact,
   clearImageView,
   clearAutocomplete,

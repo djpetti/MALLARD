@@ -10,7 +10,7 @@ import {
 import { RootState } from "../types";
 import {
   thunkLoadImage,
-  thunkClearFullSizedImage,
+  thunkClearFullSizedImages,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
 
@@ -29,7 +29,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     createImageEntityId: jest.fn(),
     thunkLoadImage: jest.fn(),
     addArtifact: jest.fn(),
-    thunkClearFullSizedImage: jest.fn(),
+    thunkClearFullSizedImages: jest.fn(),
     thumbnailGridSelectors: {
       // Use the actual implementation for this function, but spy on calls.
       selectById: jest.spyOn(actualSlice.thumbnailGridSelectors, "selectById"),
@@ -221,7 +221,7 @@ describe("large-image-display", () => {
     );
 
     // Check disconnected event.
-    expect(thunkClearFullSizedImage).toBeCalledTimes(1);
-    expect(thunkClearFullSizedImage).toBeCalledWith(testEvent.detail);
+    expect(thunkClearFullSizedImages).toBeCalledTimes(1);
+    expect(thunkClearFullSizedImages).toBeCalledWith([testEvent.detail]);
   });
 });

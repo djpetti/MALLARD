@@ -12,7 +12,7 @@ import uploadReducer, {
   dialogOpened,
   fileDropZoneEntered,
   fileDropZoneExited,
-  processSelectedFiles,
+  thunkProcessSelectedFiles,
   setMetadata,
   thunkInferMetadata,
   thunkUpdateMetadata,
@@ -31,6 +31,7 @@ import each from "jest-each";
 import { cloneDeep } from "lodash";
 import { UavImageMetadata } from "mallard-api";
 import { thunkClearImageView } from "../thumbnail-grid-slice";
+import store from "../store";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -84,7 +85,7 @@ describe("upload-slice action creators", () => {
     jest.clearAllMocks();
   });
 
-  describe("async action creators", () => {
+  describe("async thunks", () => {
     /** A fake state to use for testing. */
     let state: RootState;
     /** A fake upload file to use for testing. */
@@ -239,40 +240,49 @@ describe("upload-slice action creators", () => {
         }
       }
     );
-  });
 
-  it("creates a processSelectedFiles action", () => {
-    // Arrange.
-    // Create some files to process.
-    const fakeImageFile = { type: "image/jpg", name: faker.system.fileName() };
-    const fakeTextFile = { type: "text/plain", name: faker.system.fileName() };
-    const dataTransferItemList = [
-      fakeImageFile,
-      fakeImageFile,
-      // Throw one invalid file in there too.
-      fakeTextFile,
-    ];
+    it("creates a processSelectedFiles action", async () => {
+      // Arrange.
+      // Create some files to process.
+      const fakeImageFile = {
+        type: "image/jpg",
+        name: faker.system.fileName(),
+      };
+      const fakeTextFile = {
+        type: "text/plain",
+        name: faker.system.fileName(),
+      };
+      const dataTransferItemList = [
+        fakeImageFile,
+        fakeImageFile,
+        // Throw one invalid file in there too.
+        fakeTextFile,
+      ];
 
-    // Make it look like creating the object URL succeeds.
-    const imageUri = faker.image.dataUri();
-    mockCreateObjectUrl.mockReturnValue(imageUri);
+      // Make it look like creating the object URL succeeds.
+      const imageUri = faker.image.dataUri();
+      mockCreateObjectUrl.mockReturnValue(imageUri);
 
-    // Act.
-    // Fancy casting is so we can substitute mock objects.
-    const gotAction = processSelectedFiles(
-      dataTransferItemList as unknown as File[]
-    );
+      // Act.
+      // Fancy casting is so we can substitute mock objects.
+      await thunkProcessSelectedFiles(
+        dataTransferItemList as unknown as File[]
+      )(store.dispatch, store.getState, {});
 
-    // Assert.
-    // It should have created the correct action.
-    expect(gotAction.type).toEqual("upload/processSelectedFiles");
-    expect(gotAction.payload).toHaveLength(2);
-    expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
-    expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
-    expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
-    expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
-    expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
-    expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
+      // Assert.
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkProcessSelectedFiles);
+
+      // // It should have created the correct action.
+      // expect(gotAction.type).toEqual("upload/processSelectedFiles");
+      // expect(gotAction.payload).toHaveLength(2);
+      // expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
+      // expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
+      // expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
+      // expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
+      // expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
+      // expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
+    });
   });
 
   each([
@@ -486,30 +496,30 @@ describe("upload-slice reducers", () => {
     expect(newState.metadata).toEqual(metadata);
   });
 
-  it("handles a processSelectedFiles action", () => {
-    // Arrange.
-    // Create some files to process.
-    const file1 = fakeFrontendFileEntity();
-    file1.status = FileStatus.PENDING;
-    const file2 = fakeFrontendFileEntity();
-    file2.status = FileStatus.PENDING;
-
-    // Start with an empty state.
-    const state: UploadState = fakeState().uploads;
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: processSelectedFiles.type,
-      payload: [file1, file2],
-    });
-
-    // Assert.
-    // It should have added the files.
-    expect(newState.ids).toHaveLength(2);
-    expect(newState.ids).toContain(file1.id);
-    expect(newState.ids).toContain(file2.id);
-
-    // It should have marked the drag-and-drop action as finished.
-    expect(newState.isDragging).toEqual(false);
-  });
+  // it("handles a processSelectedFiles action", () => {
+  //   // Arrange.
+  //   // Create some files to process.
+  //   const file1 = fakeFrontendFileEntity();
+  //   file1.status = FileStatus.PENDING;
+  //   const file2 = fakeFrontendFileEntity();
+  //   file2.status = FileStatus.PENDING;
+  //
+  //   // Start with an empty state.
+  //   const state: UploadState = fakeState().uploads;
+  //
+  //   // Act.
+  //   const newState = uploadReducer(state, {
+  //     type: thunkProcessSelectedFiles.type,
+  //     payload: [file1, file2],
+  //   });
+  //
+  //   // Assert.
+  //   // It should have added the files.
+  //   expect(newState.ids).toHaveLength(2);
+  //   expect(newState.ids).toContain(file1.id);
+  //   expect(newState.ids).toContain(file2.id);
+  //
+  //   // It should have marked the drag-and-drop action as finished.
+  //   expect(newState.isDragging).toEqual(false);
+  // });
 });

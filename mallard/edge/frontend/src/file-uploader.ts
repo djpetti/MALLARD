@@ -9,7 +9,7 @@ import { FileStatus, FrontendFileEntity, RootState } from "./types";
 import {
   fileDropZoneEntered,
   fileDropZoneExited,
-  processSelectedFiles,
+  thunkProcessSelectedFiles,
   thunkInferMetadata,
   thunkUploadFile,
   uploadSelectors,
@@ -372,6 +372,9 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       (event as CustomEvent<boolean>).detail
         ? fileDropZoneEntered(null)
         : fileDropZoneExited(null);
+    // The fancy casting here is a hack to deal with the fact that thunkReadFiles
+    // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+    // However, it still works just fine with an AsyncThunkAction.
     handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (
       event: Event
     ) => {
@@ -379,22 +382,18 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       // istanbul ignore next
       const fileList =
         (event as CustomEvent<File[]>).detail ?? new DataTransferItemList();
-      return processSelectedFiles(fileList);
+      return thunkProcessSelectedFiles(fileList) as unknown as Action;
     };
-
-    // The fancy casting here is a hack to deal with the fact that thunkReadFiles
-    // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
-    // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
-      thunkUploadFile(
-        (event as CustomEvent<string>).detail
-      ) as unknown as Action;
-    handlers[ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME] = (
-      event: Event
-    ) =>
-      thunkInferMetadata(
-        (event as CustomEvent<string>).detail
-      ) as unknown as Action;
+    // handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
+    //   thunkUploadFile(
+    //     (event as CustomEvent<string>).detail
+    //   ) as unknown as Action;
+    // handlers[ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME] = (
+    //   event: Event
+    // ) =>
+    //   thunkInferMetadata(
+    //     (event as CustomEvent<string>).detail
+    //   ) as unknown as Action;
 
     return handlers;
   }

@@ -6,6 +6,7 @@
     "lib": ["es2017", "dom", "dom.iterable"],
     "rootDir": "./src",
     "outDir": "./build",
+    "typeRoots": ["node_modules/@types", "ambient-types"],
     "experimentalDecorators": true,
     "moduleResolution": "Node",
     "strictNullChecks": true,

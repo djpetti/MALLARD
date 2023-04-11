@@ -17,7 +17,9 @@ import { ThunkAction } from "redux-thunk";
 import { ObjectRef, UavImageMetadata } from "mallard-api";
 import { cloneDeep } from "lodash";
 import { thunkClearImageView } from "./thumbnail-grid-slice";
-import { TransformImage } from "@shellophobia/transform-image-js";
+import pica from "pica";
+import "image-blob-reduce";
+import imageBlobReduce from "image-blob-reduce";
 
 /** Type alias to make typing thunks simpler. */
 type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
@@ -39,6 +41,12 @@ export const uploadSelectors = uploadAdapter.getSelectors<RootState>(
 );
 /** Selectors that work on just the upload slice. */
 const sliceSelectors = uploadAdapter.getSelectors();
+
+/** Pica instance to use. */
+// eslint-disable-next-line new-cap
+const gPica = new pica();
+// eslint-disable-next-line new-cap
+const gBlobReduce = new imageBlobReduce({ pica: gPica });
 
 /**
  * Represents loaded file data.
@@ -171,13 +179,9 @@ export const thunkProcessSelectedFiles = createAsyncThunk(
     const validFiles = files.filter((f: File) => f.type.startsWith("image/"));
 
     // Create thumbnails for the images.
-    const imageTransformer = new TransformImage();
     const fileUrlPromises = validFiles.map(async (file) => {
-      const resizedImage = await imageTransformer.resizeImage(file, {
-        maxWidth: 128,
-        maxHeight: 128,
-      });
-      return URL.createObjectURL(resizedImage.output as Blob);
+      const resizedImage = await gBlobReduce.toBlob(file, { max: 128 });
+      return URL.createObjectURL(resizedImage);
     });
     const fileUrls = await Promise.all(fileUrlPromises);
 

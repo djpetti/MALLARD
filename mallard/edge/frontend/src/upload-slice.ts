@@ -6,13 +6,13 @@ import {
   UploadState,
 } from "./types";
 import {
+  createAction,
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
 } from "@reduxjs/toolkit";
 import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
-import { v4 as uuidv4 } from "uuid";
 import { ThunkAction } from "redux-thunk";
 import { ObjectRef, UavImageMetadata } from "mallard-api";
 import { cloneDeep } from "lodash";
@@ -49,50 +49,109 @@ const gPica = new pica();
 const gBlobReduce = new imageBlobReduce({ pica: gPica });
 
 /**
- * Represents loaded file data.
+ * Action that specifies new files to upload that were
+ * selected by the user and need to be processed.
  */
-interface UploadFileData {
-  /** The actual contents of the file. */
-  contents: Blob;
-  /** The name of the file. */
-  name: string;
+interface AddSelectedFilesAction extends Action {
+  payload: FrontendFileEntity[];
 }
 
 /**
- * Convenience function to retrieve the raw data for a file being uploaded.
- * @param {string} fileId The ID of the file in the state.
- * @param {string} state The current state.
- * @return {UploadFileData} The raw data from this file.
+ * Adds new files that the user selected to the state.
+ * @param {Map<string, File>} files Maps file IDs to the new files.
+ * @return {AddSelectedFilesAction} The new file entities to add to the state.
  */
-async function getUploadFile(
-  fileId: string,
-  state: RootState
-): Promise<UploadFileData> {
-  // Obtain the file with this ID.
-  const uploadFile = uploadSelectors.selectById(
-    state,
-    fileId
-  ) as FrontendFileEntity;
+export const addSelectedFiles = createAction(
+  "upload/addSelectedFiles",
+  function prepare(files: Map<string, File>) {
+    const frontendFiles: FrontendFileEntity[] = [];
+    for (const [id, file] of files) {
+      if (!file.type.startsWith("image/")) {
+        // Filter invalid files.
+        continue;
+      }
 
-  // Load the actual contents of the file.
-  const fileReadResponse = await fetch(uploadFile.dataUrl);
-  return { contents: await fileReadResponse.blob(), name: uploadFile.name };
+      frontendFiles.push({
+        id: id,
+        thumbnailUrl: null,
+        name: file.name,
+        status: FileStatus.PENDING,
+      });
+    }
+
+    return { payload: frontendFiles };
+  }
+);
+
+/** Represents a file ID with corresponding data URL. */
+interface FileIdWithData {
+  id: string;
+  dataUrl: string;
 }
+
+/**
+ * Custom action creator for the `preProcessFiles` action.
+ * It handles pre-processing files and preparing them for upload.
+ * @param {string[]} fileIds The IDs of the files to pre-process.
+ * @param {Map<string, File>} idsToFiles Map of file IDs to the actual file
+ *  data, which is not stored in Redux.
+ * @return {FileIdWithData[]} The thunk that produces the necessary updates
+ *  for entities in the state.
+ */
+export const thunkPreProcessFiles = createAsyncThunk(
+  "upload/preProcessFiles",
+  async (
+    {
+      fileIds,
+      idsToFiles,
+    }: { fileIds: string[]; idsToFiles: Map<string, File> },
+    { getState }
+  ): Promise<FileIdWithData[]> => {
+    // Get the corresponding file entities.
+    const state = getState() as RootState;
+    const fileEntities = fileIds.map(
+      (id) => uploadSelectors.selectById(state, id) as FrontendFileEntity
+    );
+
+    // Create thumbnails for the images.
+    const thumbnailUrlPromises = fileEntities.map(async (entity) => {
+      // Read the file data.
+      const file = idsToFiles.get(entity.id) as File;
+      const resizedImage = await gBlobReduce.toBlob(file, {
+        max: 128,
+      });
+      return URL.createObjectURL(resizedImage);
+    });
+    const thumbnailUrls = await Promise.all(thumbnailUrlPromises);
+
+    return fileIds.map((id, i) => ({
+      id: id,
+      dataUrl: thumbnailUrls[i],
+    }));
+  }
+);
 
 /**
  * Action creator that uploads files to the backend.
- * It takes a file entity to upload.
+ * @param {string} fileId The ID of the file to upload.
+ * @param {Map<string, File>} idsToFiles Map of file IDs to the actual file
+ *  data, which is not stored in Redux.
  */
 export const thunkUploadFile = createAsyncThunk(
   "upload/uploadFile",
-  async (fileId: string, { getState }): Promise<ObjectRef> => {
+  async ({
+    fileId,
+    idsToFiles,
+  }: {
+    fileId: string;
+    idsToFiles: Map<string, File>;
+  }): Promise<ObjectRef> => {
     // Obtain the file with this ID.
-    const state = getState() as RootState;
-    const uploadFile = await getUploadFile(fileId, state);
+    const uploadFile = idsToFiles.get(fileId) as File;
 
     // Upload all the files.
     // File should always be loaded at the time we perform this action.
-    return await createImage(uploadFile.contents, {
+    return await createImage(uploadFile, {
       name: uploadFile.name,
       metadata: {},
     });
@@ -101,22 +160,30 @@ export const thunkUploadFile = createAsyncThunk(
 
 /**
  * Action creator that infers metadata from a provided file.
+ * @param {string} fileId The ID of the file to infer metadata for.
+ * @param {Map<string, File>} idsToFiles Map of file IDs to the actual file
+ *  data, which is not stored in Redux.
  */
 export const thunkInferMetadata = createAsyncThunk(
   "upload/inferMetadata",
-  async (fileId: string, { getState }): Promise<UavImageMetadata> => {
+  async ({
+    fileId,
+    idsToFiles,
+  }: {
+    fileId: string;
+    idsToFiles: Map<string, File>;
+  }): Promise<UavImageMetadata> => {
     // Obtain the file with this ID.
-    const state = getState() as RootState;
-    const uploadFile = await getUploadFile(fileId, state);
+    const uploadFile = idsToFiles.get(fileId) as File;
 
     // Infer the metadata.
-    return await inferMetadata(uploadFile.contents, {
+    return await inferMetadata(uploadFile, {
       name: uploadFile.name,
       knownMetadata: {},
     });
   },
   {
-    condition: (fileId: string, { getState }) => {
+    condition: (_, { getState }) => {
       const state = getState() as RootState;
       if (state.uploads.metadataStatus != MetadataInferenceStatus.NOT_STARTED) {
         // We have already completed or are performing metadata inference.
@@ -158,45 +225,6 @@ export const thunkUpdateMetadata = createAsyncThunk(
 );
 
 /**
- * Action that specifies new files to upload that were
- * selected by the user and need to be processed.
- */
-interface ProcessSelectedFilesAction extends Action {
-  payload: FrontendFileEntity[];
-}
-
-/**
- * Custom action creator for the `processSelectedFiles` action.
- * It deals with translating the `DataTransferItem`s into a format
- * that can be used by Redux.
- * @param {File[]} files The new selected files.
- * @return {ProcessSelectedFilesAction} The created action.
- */
-export const thunkProcessSelectedFiles = createAsyncThunk(
-  "upload/processSelectedFiles",
-  async (files: File[]): Promise<FrontendFileEntity[]> => {
-    // Filter to only image files.
-    const validFiles = files.filter((f: File) => f.type.startsWith("image/"));
-
-    // Create thumbnails for the images.
-    const fileUrlPromises = validFiles.map(async (file) => {
-      const resizedImage = await gBlobReduce.toBlob(file, { max: 128 });
-      return URL.createObjectURL(resizedImage);
-    });
-    const fileUrls = await Promise.all(fileUrlPromises);
-
-    return validFiles.map((file, i): FrontendFileEntity => {
-      return {
-        id: uuidv4(),
-        dataUrl: fileUrls[i],
-        name: file.name,
-        status: FileStatus.PENDING,
-      };
-    });
-  }
-);
-
-/**
  * Thunk that completes an upload by updating metadata on the backend, cleaning
  * up memory, and closing the upload modal.
  * @return {ThunkResult} Does not actually return anything, because it simply
@@ -207,7 +235,9 @@ export function finishUpload(): ThunkResult<void> {
     // Release the data for all the images that we uploaded.
     const state: RootState = getState();
     for (const file of sliceSelectors.selectAll(state.uploads)) {
-      URL.revokeObjectURL(file.dataUrl);
+      if (file.thumbnailUrl) {
+        URL.revokeObjectURL(file.thumbnailUrl);
+      }
     }
 
     if (state.uploads.metadataChanged) {
@@ -263,16 +293,14 @@ export const uploadSlice = createSlice({
     builder.addCase(thunkUploadFile.pending, (state, action) => {
       // Mark the file upload as in-progress.
       uploadAdapter.updateOne(state, {
-        id: action.meta.arg,
-        changes: { status: FileStatus.PROCESSING },
+        id: action.meta.arg.fileId,
+        changes: { status: FileStatus.UPLOADING },
       });
-
-      ++state.uploadsInProgress;
     });
     // Updates the state when an upload to the backend finishes.
     builder.addCase(thunkUploadFile.fulfilled, (state, action) => {
       // Mark the file upload as complete.
-      const fileId = action.meta.arg;
+      const fileId = action.meta.arg.fileId;
       uploadAdapter.updateOne(state, {
         id: fileId,
         changes: { status: FileStatus.COMPLETE, backendRef: action.payload },
@@ -294,15 +322,39 @@ export const uploadSlice = createSlice({
     });
     // The user selected some new files that must be processed.
     builder.addCase(
-      thunkProcessSelectedFiles.fulfilled,
-      (state, action: ProcessSelectedFilesAction) => {
+      addSelectedFiles.type,
+      (state, action: AddSelectedFilesAction) => {
         // Add all the uploaded files.
         uploadAdapter.addMany(state, action.payload);
 
         // Mark the drag as complete.
         state.isDragging = false;
+        // Mark these as in-progress uploads.
+        state.uploadsInProgress += action.payload.length;
       }
     );
+    // New files are being pre-processed.
+    builder.addCase(thunkPreProcessFiles.pending, (state, action) => {
+      // Mark all the modified files as pre-processing.
+      const fileIds = action.meta.arg.fileIds;
+      const updates = fileIds.map((id) => ({
+        id: id,
+        changes: { status: FileStatus.PRE_PROCESSING },
+      }));
+      uploadAdapter.updateMany(state, updates);
+    });
+    // New files have been pre-processed.
+    builder.addCase(thunkPreProcessFiles.fulfilled, (state, action) => {
+      // Update the specified entities.
+      const updates = action.payload.map((e) => ({
+        id: e.id,
+        changes: {
+          status: FileStatus.AWAITING_UPLOAD,
+          thumbnailUrl: e.dataUrl,
+        },
+      }));
+      uploadAdapter.updateMany(state, updates);
+    });
   },
 });
 

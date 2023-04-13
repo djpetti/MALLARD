@@ -5,6 +5,7 @@ import "@material/mwc-list/mwc-list-item";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { FileStatus, FrontendFileEntity } from "./types";
+import "./image-display";
 
 /**
  * An element that displays a list of files, with provisions for
@@ -16,7 +17,7 @@ export class FileListDisplay extends LitElement {
   static tagName: string = "file-list";
   static styles = css`
     /** Styles for "pending" uploads to make them stand out less. */
-    img.inactive {
+    image-display.inactive {
       -webkit-filter: grayscale(100%);
       filter: grayscale(100%);
     }
@@ -28,7 +29,9 @@ export class FileListDisplay extends LitElement {
 
   /** Order that we display files with various statuses in. */
   static FILE_DISPLAY_ORDER = [
-    FileStatus.PROCESSING,
+    FileStatus.UPLOADING,
+    FileStatus.AWAITING_UPLOAD,
+    FileStatus.PRE_PROCESSING,
     FileStatus.PENDING,
     FileStatus.COMPLETE,
   ];
@@ -102,13 +105,7 @@ export class FileListDisplay extends LitElement {
     let statusIcon = null;
     let childClass = "";
     switch (file.status) {
-      case FileStatus.PENDING: {
-        statusIcon = html`<mwc-icon slot="meta">pending</mwc-icon>`;
-        // Make sure children are styled to draw less attention.
-        childClass = "inactive";
-        break;
-      }
-      case FileStatus.PROCESSING: {
+      case FileStatus.UPLOADING: {
         statusIcon = html`<mwc-circular-progress
           slot="meta"
           indeterminate
@@ -120,17 +117,22 @@ export class FileListDisplay extends LitElement {
         statusIcon = html`<mwc-icon slot="meta">check_circle</mwc-icon>`;
         break;
       }
+      default: {
+        statusIcon = html`<mwc-icon slot="meta">pending</mwc-icon>`;
+        // Make sure children are styled to draw less attention.
+        childClass = "inactive";
+        break;
+      }
     }
 
     return html`
       <mwc-list-item graphic="medium" hasMeta noninteractive>
         <span class="${childClass}">${file.name}</span>
-        <img
-          src="${file.dataUrl}"
-          alt="icon"
+        <image-display
+          .imageUrl=${file.thumbnailUrl ?? undefined}
           slot="graphic"
           class="${childClass}"
-        />
+        ></image-display>
         ${statusIcon}
       </mwc-list-item>
       <li divider padded role="separator"></li>

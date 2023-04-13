@@ -27,6 +27,7 @@ export default {
                         regex: /^__/,
                     },
                 },
+                compress: { evaluate: false }
             }),
             ],
         },

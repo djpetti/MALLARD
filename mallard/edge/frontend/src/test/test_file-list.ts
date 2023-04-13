@@ -43,7 +43,7 @@ describe("file-list", () => {
     const pendingFile2 = fakeFrontendFileEntity();
     pendingFile2.status = FileStatus.PENDING;
     const processingFile = fakeFrontendFileEntity();
-    processingFile.status = FileStatus.PROCESSING;
+    processingFile.status = FileStatus.UPLOADING;
     const completeFile = fakeFrontendFileEntity();
     completeFile.status = FileStatus.COMPLETE;
 
@@ -88,7 +88,7 @@ describe("file-list", () => {
     // when we iterate over the displayed items.
     const sawFileWithStatus: Map<FileStatus, boolean> = new Map([
       [FileStatus.PENDING, false],
-      [FileStatus.PROCESSING, false],
+      [FileStatus.UPLOADING, false],
       [FileStatus.COMPLETE, false],
     ]);
     for (const fileName of displayedNames) {

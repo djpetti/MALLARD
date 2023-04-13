@@ -1,20 +1,22 @@
 import { css, html, LitElement, PropertyValues } from "lit";
 import "@material/mwc-icon";
 import "@material/mwc-fab";
-import { query, property } from "lit/decorators.js";
+import { property, query, state } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { FileStatus, FrontendFileEntity, RootState } from "./types";
 import {
+  addSelectedFiles,
   fileDropZoneEntered,
   fileDropZoneExited,
-  thunkProcessSelectedFiles,
   thunkInferMetadata,
+  thunkPreProcessFiles,
   thunkUploadFile,
   uploadSelectors,
 } from "./upload-slice";
 import { Action } from "redux";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * An element that allows the user to select and upload files.
@@ -123,28 +125,45 @@ export class FileUploader extends LitElement {
 
   /** Maximum number of files we are allowed to upload simultaneously. */
   static MAX_CONCURRENT_UPLOADS = 3;
+  /** Maximum number of files that we are allowed to pre-process
+   * simultaneously.
+   */
+  static MAX_CONCURRENT_PRE_PROCESSING = 1;
 
+  /** Name for the custom event signalling that new files have been selected. */
+  static FILES_SELECTED_EVENT_NAME = "files-selected";
   /** Name for the custom event signalling that new files are ready to start uploading. */
   static UPLOAD_READY_EVENT_NAME = "upload-ready";
+  /** Name for the event signaling that new files are ready to be
+   *  pre-processed.
+   */
+  static PRE_PROCESS_READY_EVENT_NAME = "pre-process-ready";
   /** Name for the custom event signalling that we are ready to infer metadata. */
   static METADATA_INFERENCE_READY_EVENT_NAME = "meta-inference-ready";
   /** Name for the event signaling that the user has dragged a file into
    * or out of the upload drop zone. */
   static DROP_ZONE_DRAGGING_EVENT_NAME = "upload-drop-zone-dragging";
-  /** Name for the event signaling that the user has selected new files.
-   */
-  static FILES_SELECTED_EVENT_NAME = "file-selected";
 
   /**
    * Keeps track of whether the user is actively dragging something
    * over the drop target.
    */
-  @property({ attribute: false })
+  @state()
   protected isDragging: boolean = false;
 
-  /** The raw file list data that the user last uploaded. */
-  @property({ attribute: false })
-  protected selectedFiles: File[] = [];
+  /** The raw file list data that the user last selected. Each
+   * file is keyed with a UUID that is stored in the state.
+   * @protected
+   */
+  @state()
+  protected lastSelectedFiles = new Map<string, File>();
+
+  /** The raw file data that is currently being processed, including
+   * data from all selections that user has made. Each file is keyed with
+   * a UUID that is stored in the state.
+   * @protected
+   */
+  protected allSelectedFiles = new Map<string, File>();
 
   /**
    * The list of files that are currently being uploaded.
@@ -161,15 +180,15 @@ export class FileUploader extends LitElement {
   /**
    * Helper function that converts a `DataTransferItemList` to an array of files.
    * @param {DataTransferItemList} dataTransfer The `DataTransferItemList` to convert.
-   * @return {File[]} The array of file objects.
+   * @return {Map<string, File>} The file objects, with generated UUIDs.
    * @private
    */
   private static getFilesFromDataTransfer(
     dataTransfer?: DataTransferItemList
-  ): File[] {
+  ): Map<string, File> {
     if (dataTransfer == undefined) {
       // File list is empty.
-      return [];
+      return new Map<string, File>();
     }
 
     const validFiles: File[] = [];
@@ -180,7 +199,8 @@ export class FileUploader extends LitElement {
       }
     }
 
-    return validFiles;
+    // Add UUIDs.
+    return new Map<string, File>(validFiles.map((f) => [uuidv4(), f]));
   }
 
   /**
@@ -203,7 +223,10 @@ export class FileUploader extends LitElement {
           // Because FileList cannot be constructed manually, this
           // line is really hard to test.
           // istanbul ignore next
-          this.selectedFiles = [...(this.fileInput.files ?? [])];
+          const files = [...(this.fileInput.files ?? [])];
+          this.lastSelectedFiles = new Map<string, File>(
+            files.map((f) => [uuidv4(), f])
+          );
         }}"
       />
 
@@ -228,7 +251,7 @@ export class FileUploader extends LitElement {
             }"
             @drop="${(event: DragEvent) => {
               event.preventDefault();
-              this.selectedFiles = FileUploader.getFilesFromDataTransfer(
+              this.lastSelectedFiles = FileUploader.getFilesFromDataTransfer(
                 event.dataTransfer?.items
               );
               this.isDragging = false;
@@ -258,6 +281,60 @@ export class FileUploader extends LitElement {
   }
 
   /**
+   * Finds files with a particular status, that can be transitioned
+   * to another status through some operation.
+   * @param {FileStatus} previousStatus The status that we want to
+   *  find files with.
+   * @param {FileStatus} nextStatus The status that the files will transition
+   *  to after applying the operation.
+   * @param {number} maxNumFiles The maximum number of files that we want with
+   *  nextStatus at any given time.
+   * @return {FrontendFileEntity[]} The next files to process, making sure
+   *  that this won't cause it to exceed maxNumFiles.
+   * @private
+   */
+  private findFilesWithStatus(
+    previousStatus: FileStatus,
+    nextStatus: FileStatus,
+    maxNumFiles: number
+  ): FrontendFileEntity[] {
+    // Group them by status.
+    const previous: FrontendFileEntity[] = [];
+    const next: FrontendFileEntity[] = [];
+    for (const file of this.uploadingFiles) {
+      if (file.status == previousStatus) {
+        previous.push(file);
+      } else if (file.status == nextStatus) {
+        next.push(file);
+      }
+    }
+
+    // Determine if we should start processing new files.
+    if (next.length < maxNumFiles) {
+      const numToReturn = maxNumFiles - next.length;
+      return previous.slice(0, numToReturn);
+    }
+
+    // No need to start processing more.
+    return [];
+  }
+
+  /**
+   * Checks how many files are being pre-processed. If it is
+   * less than the maximum number, it will suggest new files
+   * to start pre-processing.
+   * @return {FrontendFileEntity[]} The list of files to start pre-processing.
+   * @private
+   */
+  private findFilesToPreProcess(): FrontendFileEntity[] {
+    return this.findFilesWithStatus(
+      FileStatus.PENDING,
+      FileStatus.PRE_PROCESSING,
+      FileUploader.MAX_CONCURRENT_PRE_PROCESSING
+    );
+  }
+
+  /**
    * Checks how many uploads are actually running. If it is
    * less than the maximum number, it will suggest new files
    * to start uploading.
@@ -266,27 +343,11 @@ export class FileUploader extends LitElement {
    * @private
    */
   private findFilesToUpload(): FrontendFileEntity[] {
-    // Separate into pending and processing uploads.
-    const pending: FrontendFileEntity[] = [];
-    const processing: FrontendFileEntity[] = [];
-    for (const file of this.uploadingFiles) {
-      if (file.status == FileStatus.PENDING) {
-        pending.push(file);
-      } else if (file.status == FileStatus.PROCESSING) {
-        processing.push(file);
-      }
-    }
-
-    // Determine if we should start uploading new files.
-    if (processing.length < FileUploader.MAX_CONCURRENT_UPLOADS) {
-      // Start uploading some pending files.
-      const numToUpload =
-        FileUploader.MAX_CONCURRENT_UPLOADS - processing.length;
-      return pending.slice(0, numToUpload);
-    }
-
-    // No need to start more uploads.
-    return [];
+    return this.findFilesWithStatus(
+      FileStatus.AWAITING_UPLOAD,
+      FileStatus.UPLOADING,
+      FileUploader.MAX_CONCURRENT_UPLOADS
+    );
   }
 
   /**
@@ -297,9 +358,21 @@ export class FileUploader extends LitElement {
       // Update the list of files.
       this.fileList.files = this.uploadingFiles;
 
+      const toPreprocess = this.findFilesToPreProcess();
+      // Determine if we should start pre-processing any files.
+      if (toPreprocess.length > 0) {
+        this.dispatchEvent(
+          new CustomEvent<string[]>(FileUploader.PRE_PROCESS_READY_EVENT_NAME, {
+            bubbles: true,
+            composed: true,
+            detail: toPreprocess.map((f) => f.id),
+          })
+        );
+      }
+
       const newUploads = this.findFilesToUpload();
       // Determine if we should perform metadata inference.
-      if (newUploads.length !== 0) {
+      if (newUploads.length > 0) {
         this.dispatchEvent(
           new CustomEvent<string>(
             FileUploader.METADATA_INFERENCE_READY_EVENT_NAME,
@@ -334,14 +407,16 @@ export class FileUploader extends LitElement {
         })
       );
     }
-    if (_changedProperties.has("selectedFiles")) {
+    if (_changedProperties.has("lastSelectedFiles")) {
       this.dispatchEvent(
-        new CustomEvent<File[]>(FileUploader.FILES_SELECTED_EVENT_NAME, {
+        new CustomEvent<void>(FileUploader.FILES_SELECTED_EVENT_NAME, {
           bubbles: true,
           composed: true,
-          detail: this.selectedFiles,
         })
       );
+
+      // Update the master list of selected files.
+      this.lastSelectedFiles.forEach((v, k) => this.allSelectedFiles.set(k, v));
     }
   }
 }
@@ -372,28 +447,35 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       (event as CustomEvent<boolean>).detail
         ? fileDropZoneEntered(null)
         : fileDropZoneExited(null);
+    handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (_) => {
+      // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
+      // istanbul ignore next
+      return addSelectedFiles(this.lastSelectedFiles);
+    };
     // The fancy casting here is a hack to deal with the fact that thunkReadFiles
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (
+    handlers[ConnectedFileUploader.PRE_PROCESS_READY_EVENT_NAME] = (
       event: Event
     ) => {
-      // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
-      // istanbul ignore next
-      const fileList =
-        (event as CustomEvent<File[]>).detail ?? new DataTransferItemList();
-      return thunkProcessSelectedFiles(fileList) as unknown as Action;
+      const fileIds = (event as CustomEvent<string[]>).detail;
+      return thunkPreProcessFiles({
+        fileIds: fileIds,
+        idsToFiles: this.allSelectedFiles,
+      }) as unknown as Action;
     };
-    // handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
-    //   thunkUploadFile(
-    //     (event as CustomEvent<string>).detail
-    //   ) as unknown as Action;
-    // handlers[ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME] = (
-    //   event: Event
-    // ) =>
-    //   thunkInferMetadata(
-    //     (event as CustomEvent<string>).detail
-    //   ) as unknown as Action;
+    handlers[ConnectedFileUploader.UPLOAD_READY_EVENT_NAME] = (event: Event) =>
+      thunkUploadFile({
+        fileId: (event as CustomEvent<string>).detail,
+        idsToFiles: this.allSelectedFiles,
+      }) as unknown as Action;
+    handlers[ConnectedFileUploader.METADATA_INFERENCE_READY_EVENT_NAME] = (
+      event: Event
+    ) =>
+      thunkInferMetadata({
+        fileId: (event as CustomEvent<string>).detail,
+        idsToFiles: this.allSelectedFiles,
+      }) as unknown as Action;
 
     return handlers;
   }

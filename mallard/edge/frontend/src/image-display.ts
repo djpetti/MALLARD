@@ -56,7 +56,7 @@ export class ImageDisplay extends ArtifactInfoBase {
   /**
    * The URL of the image to display.
    */
-  @property({ type: String, attribute: false })
+  @property({ type: String })
   imageUrl?: string;
 
   /**

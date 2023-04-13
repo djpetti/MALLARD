@@ -101,7 +101,7 @@ describe("file-uploader", () => {
         fakeFrontendFileEntity(FileStatus.PENDING),
         fakeFrontendFileEntity(FileStatus.PENDING),
         fakeFrontendFileEntity(FileStatus.PENDING),
-        fakeFrontendFileEntity(FileStatus.PROCESSING),
+        fakeFrontendFileEntity(FileStatus.UPLOADING),
         fakeFrontendFileEntity(FileStatus.COMPLETE),
       ],
       ConnectedFileUploader.MAX_CONCURRENT_UPLOADS - 1,
@@ -110,7 +110,7 @@ describe("file-uploader", () => {
       "none pending",
       [
         fakeFrontendFileEntity(FileStatus.COMPLETE),
-        fakeFrontendFileEntity(FileStatus.PROCESSING),
+        fakeFrontendFileEntity(FileStatus.UPLOADING),
       ],
       0,
     ],
@@ -125,7 +125,7 @@ describe("file-uploader", () => {
     [
       "max uploads reached",
       Array(FileUploader.MAX_CONCURRENT_UPLOADS).fill(
-        fakeFrontendFileEntity(FileStatus.PROCESSING)
+        fakeFrontendFileEntity(FileStatus.UPLOADING)
       ),
       0,
     ],
@@ -184,7 +184,7 @@ describe("file-uploader", () => {
       // Setup a fake handler for our event.
       const handler = jest.fn();
       fileUploader.addEventListener(
-        ConnectedFileUploader.FILES_SELECTED_EVENT_NAME,
+        ConnectedFileUploader.PRE_PROCESS_READY_EVENT_NAME,
         handler
       );
 
@@ -326,7 +326,9 @@ describe("file-uploader", () => {
       expect(eventMap).toHaveProperty(
         FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME
       );
-      expect(eventMap).toHaveProperty(FileUploader.FILES_SELECTED_EVENT_NAME);
+      expect(eventMap).toHaveProperty(
+        FileUploader.PRE_PROCESS_READY_EVENT_NAME
+      );
       expect(eventMap).toHaveProperty(FileUploader.UPLOAD_READY_EVENT_NAME);
       expect(eventMap).toHaveProperty(
         FileUploader.METADATA_INFERENCE_READY_EVENT_NAME
@@ -376,7 +378,7 @@ describe("file-uploader", () => {
       };
 
       // Act.
-      eventMap[FileUploader.FILES_SELECTED_EVENT_NAME](
+      eventMap[FileUploader.PRE_PROCESS_READY_EVENT_NAME](
         testEvent as unknown as Event
       );
 

@@ -200,14 +200,14 @@ export function fakeFrontendFileEntity(
   if (status == undefined) {
     status = faker.random.arrayElement([
       FileStatus.PENDING,
-      FileStatus.PROCESSING,
+      FileStatus.UPLOADING,
       FileStatus.COMPLETE,
     ]);
   }
 
   return {
     id: id,
-    dataUrl: iconUrl,
+    thumbnailUrl: iconUrl,
     name: name,
     status: status,
   };
@@ -297,4 +297,13 @@ export function fakeSuggestions(): Suggestions {
     ]),
     textCompletions: [faker.lorem.words(), faker.lorem.words()],
   };
+}
+
+/**
+ * @return {File} A fake `File` that appears to contain image data.
+ */
+export function fakeImageFile(): File {
+  return new File([faker.datatype.string()], faker.system.fileName(), {
+    type: "image/jpeg",
+  });
 }

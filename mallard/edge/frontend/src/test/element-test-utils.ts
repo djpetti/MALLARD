@@ -300,10 +300,11 @@ export function fakeSuggestions(): Suggestions {
 }
 
 /**
+ * @param {string} mimeType The MIME type to use for the fake file.
  * @return {File} A fake `File` that appears to contain image data.
  */
-export function fakeImageFile(): File {
+export function fakeFile(mimeType: string = "image/jpeg"): File {
   return new File([faker.datatype.string()], faker.system.fileName(), {
-    type: "image/jpeg",
+    type: mimeType,
   });
 }

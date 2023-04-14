@@ -4,7 +4,7 @@ import {
   fakeFrontendFileEntity,
   fakeImageMetadata,
   fakeObjectRef,
-  fakeImageFile,
+  fakeFile,
   fakeState,
 } from "./element-test-utils";
 import uploadReducer, {
@@ -18,6 +18,7 @@ import uploadReducer, {
   thunkUpdateMetadata,
   thunkUploadFile,
   uploadSlice,
+  addSelectedFiles,
 } from "../upload-slice";
 import {
   FileStatus,
@@ -31,6 +32,10 @@ import each from "jest-each";
 import { cloneDeep } from "lodash";
 import { UavImageMetadata } from "mallard-api";
 import { thunkClearImageView } from "../thumbnail-grid-slice";
+import imageBlobReduce, {
+  ImageBlobReduce,
+  ImageBlobReduceStatic,
+} from "image-blob-reduce";
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -56,6 +61,15 @@ jest.mock("../api-client", () => ({
   inferMetadata: jest.fn(),
   batchUpdateMetadata: jest.fn(),
 }));
+
+// Mock out image-blob-reduce.
+jest.mock("../image-blob-reduce", () => ({
+  imageBlobReduce: jest.fn().mockImplementation(() => ({
+    toBlob: jest.fn(),
+  })),
+}));
+const mockImageBlobReduce =
+  imageBlobReduce as jest.MockedClass<ImageBlobReduceStatic>;
 
 // Mock out the `URL` API.
 const mockCreateObjectUrl = jest.fn();
@@ -97,7 +111,7 @@ describe("upload-slice action creators", () => {
 
       // The state should have a single pending file.
       uploadFile = fakeFrontendFileEntity();
-      idsToFiles = new Map([[uploadFile.id, fakeImageFile()]]);
+      idsToFiles = new Map([[uploadFile.id, fakeFile()]]);
 
       state.uploads.ids = [uploadFile.id];
       state.uploads.entities[uploadFile.id] = uploadFile;
@@ -156,135 +170,113 @@ describe("upload-slice action creators", () => {
       const metadata = fakeImageMetadata();
       mockInferMetadata.mockResolvedValue(metadata);
 
-      // Make it look like reading the image produces valid data.
-      const imageData = faker.datatype.string();
-      const mockResponse = { blob: jest.fn() };
-      mockResponse.blob.mockResolvedValue(imageData);
-      mockFetch.mockResolvedValue(mockResponse);
-
       // Act.
-      await thunkInferMetadata(uploadFile.id)(
-        store.dispatch,
-        store.getState,
-        {}
-      );
+      await thunkInferMetadata({
+        fileId: uploadFile.id,
+        idsToFiles: idsToFiles,
+      })(store.dispatch, store.getState, {});
 
       // Assert.
       // It should have dispatched the lifecycle actions.
       checkDispatchedActions(thunkInferMetadata);
 
-      // It should have fetched the image.
-      expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
       // It should have inferred the metadata.
+      const fakeFile = idsToFiles.get(uploadFile.id);
       expect(mockInferMetadata).toHaveBeenCalledWith(
-        imageData,
+        fakeFile,
         expect.anything()
       );
     });
-    //
-    // it("does not dispatch inferMetadata if inference is in-progress", async () => {
-    //   // Arrange.
-    //   // Make it look like inference has started already.
-    //   state.uploads.metadataStatus = MetadataInferenceStatus.LOADING;
-    //
-    //   // Act.
-    //   await thunkInferMetadata(uploadFile.id)(
-    //     store.dispatch,
-    //     store.getState,
-    //     {}
-    //   );
-    //
-    //   // Assert.
-    //   // It should not have dispatched any actions.
-    //   expect(store.getActions()).toHaveLength(0);
-    // });
-    //
-    // each([
-    //   ["there is metadata", fakeImageMetadata()],
-    //   ["there is no metadata", null],
-    // ]).it(
-    //   "creates an updateMetadata action when %s",
-    //   async (_, metadata: UavImageMetadata | null) => {
-    //     // Arrange.
-    //     // Make sure the state contains the backend ID for our image.
-    //     uploadFile.backendRef = fakeObjectRef();
-    //     state.uploads.entities[uploadFile.id] = uploadFile;
-    //     // Add fake metadata to the state.
-    //     state.uploads.metadata = metadata;
-    //
-    //     // Make it look like the update request succeeds.
-    //     mockUpdateMetadata.mockResolvedValue({});
-    //
-    //     // Act.
-    //     await thunkUpdateMetadata([uploadFile.id])(
-    //       store.dispatch,
-    //       store.getState,
-    //       {}
-    //     );
-    //
-    //     // Assert.
-    //     // It should have dispatched the lifecycle actions.
-    //     checkDispatchedActions(thunkUpdateMetadata);
-    //
-    //     if (metadata !== null) {
-    //       // It should not have sent the metadata name.
-    //       const expectedMetadata = cloneDeep(state.uploads.metadata);
-    //       (expectedMetadata as UavImageMetadata).name = undefined;
-    //       // It should have performed the request.
-    //       expect(mockUpdateMetadata).toHaveBeenCalledWith(expectedMetadata, [
-    //         uploadFile.backendRef,
-    //       ]);
-    //     } else {
-    //       // It should have just used the empty metadata.
-    //       expect(mockUpdateMetadata).toHaveBeenCalledWith(null, [
-    //         uploadFile.backendRef,
-    //       ]);
-    //     }
-    //   }
-    // );
-    //
-    // it("creates a processSelectedFiles action", async () => {
-    //   // Arrange.
-    //   // Create some files to process.
-    //   const fakeImageFile = {
-    //     type: "image/jpg",
-    //     name: faker.system.fileName(),
-    //   };
-    //   const fakeTextFile = {
-    //     type: "text/plain",
-    //     name: faker.system.fileName(),
-    //   };
-    //   const dataTransferItemList = [
-    //     fakeImageFile,
-    //     fakeImageFile,
-    //     // Throw one invalid file in there too.
-    //     fakeTextFile,
-    //   ];
-    //
-    //   // Make it look like creating the object URL succeeds.
-    //   const imageUri = faker.image.dataUri();
-    //   mockCreateObjectUrl.mockReturnValue(imageUri);
-    //
-    //   // Act.
-    //   // Fancy casting is so we can substitute mock objects.
-    //   await thunkProcessSelectedFiles(
-    //     dataTransferItemList as unknown as File[]
-    //   )(store.dispatch, store.getState, {});
-    //
-    //   // Assert.
-    //   // It should have dispatched the lifecycle actions.
-    //   checkDispatchedActions(thunkProcessSelectedFiles);
-    //
-    //   // // It should have created the correct action.
-    //   // expect(gotAction.type).toEqual("upload/processSelectedFiles");
-    //   // expect(gotAction.payload).toHaveLength(2);
-    //   // expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
-    //   // expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
-    //   // expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
-    //   // expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
-    //   // expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
-    //   // expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
-    // });
+
+    it("does not dispatch inferMetadata if inference is in-progress", async () => {
+      // Arrange.
+      // Make it look like inference has started already.
+      state.uploads.metadataStatus = MetadataInferenceStatus.LOADING;
+
+      // Act.
+      await thunkInferMetadata({
+        fileId: uploadFile.id,
+        idsToFiles: idsToFiles,
+      })(store.dispatch, store.getState, {});
+
+      // Assert.
+      // It should not have dispatched any actions.
+      expect(store.getActions()).toHaveLength(0);
+    });
+
+    each([
+      ["there is metadata", fakeImageMetadata()],
+      ["there is no metadata", null],
+    ]).it(
+      "creates an updateMetadata action when %s",
+      async (_, metadata: UavImageMetadata | null) => {
+        // Arrange.
+        // Make sure the state contains the backend ID for our image.
+        uploadFile.backendRef = fakeObjectRef();
+        state.uploads.entities[uploadFile.id] = uploadFile;
+        // Add fake metadata to the state.
+        state.uploads.metadata = metadata;
+
+        // Make it look like the update request succeeds.
+        mockUpdateMetadata.mockResolvedValue({});
+
+        // Act.
+        await thunkUpdateMetadata([uploadFile.id])(
+          store.dispatch,
+          store.getState,
+          {}
+        );
+
+        // Assert.
+        // It should have dispatched the lifecycle actions.
+        checkDispatchedActions(thunkUpdateMetadata);
+
+        if (metadata !== null) {
+          // It should not have sent the metadata name.
+          const expectedMetadata = cloneDeep(state.uploads.metadata);
+          (expectedMetadata as UavImageMetadata).name = undefined;
+          // It should have performed the request.
+          expect(mockUpdateMetadata).toHaveBeenCalledWith(expectedMetadata, [
+            uploadFile.backendRef,
+          ]);
+        } else {
+          // It should have just used the empty metadata.
+          expect(mockUpdateMetadata).toHaveBeenCalledWith(null, [
+            uploadFile.backendRef,
+          ]);
+        }
+      }
+    );
+
+    it("creates a addSelectedFiles action", () => {
+      // Arrange.
+      // Create some files to process.
+      const fakeImageFile = fakeFile();
+      const fakeTextFile = fakeFile("text/plain");
+      const id1 = faker.datatype.uuid();
+      const id2 = faker.datatype.uuid();
+      const fileMap = new Map([
+        [id1, fakeImageFile],
+        [id2, fakeImageFile],
+        // Throw one invalid file in there too.
+        [faker.datatype.uuid(), fakeTextFile],
+      ]);
+
+      // Act.
+      // Fancy casting is so we can substitute mock objects.
+      const gotAction = addSelectedFiles(fileMap);
+
+      // Assert.
+      // It should have created the correct action.
+      expect(gotAction.type).toEqual("upload/addSelectedFiles");
+      expect(gotAction.payload).toHaveLength(2);
+      expect(gotAction.payload[0].id).toEqual(id1);
+      expect(gotAction.payload[1].id).toEqual(id2);
+      expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
+      expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
+      expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
+      expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
+    });
   });
 
   //   each([

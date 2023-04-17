@@ -19,10 +19,12 @@ import uploadReducer, {
   thunkUploadFile,
   uploadSlice,
   addSelectedFiles,
+  thunkPreProcessFiles,
 } from "../upload-slice";
 import {
   FileStatus,
   FrontendFileEntity,
+  ImageEntity,
   MetadataInferenceStatus,
   RootState,
   UploadState,
@@ -36,6 +38,7 @@ import imageBlobReduce, {
   ImageBlobReduce,
   ImageBlobReduceStatic,
 } from "image-blob-reduce";
+import mock = jest.mock;
 
 // Require syntax must be used here due to an issue that prevents
 // access to faker.seed() when using import syntax.
@@ -63,11 +66,7 @@ jest.mock("../api-client", () => ({
 }));
 
 // Mock out image-blob-reduce.
-jest.mock("../image-blob-reduce", () => ({
-  imageBlobReduce: jest.fn().mockImplementation(() => ({
-    toBlob: jest.fn(),
-  })),
-}));
+jest.mock("image-blob-reduce");
 const mockImageBlobReduce =
   imageBlobReduce as jest.MockedClass<ImageBlobReduceStatic>;
 
@@ -80,6 +79,8 @@ global.URL.revokeObjectURL = mockRevokeObjectUrl;
 describe("upload-slice action creators", () => {
   /** Factory function for a mocked Redux store. */
   let mockStoreCreator: MockStoreCreator;
+  /** Stores the mocked global instance of imageBlobReduce. */
+  let mockImageBlobReduceInstance: jest.MockedObject<ImageBlobReduce>;
 
   beforeAll(() => {
     // Initialize the mock store factory.
@@ -89,6 +90,12 @@ describe("upload-slice action creators", () => {
   beforeEach(() => {
     // Set the faker seed.
     faker.seed(1337);
+
+    // When we reset the mocks, it will destroy the record of any
+    // global instances of mocked classes that we created, so save
+    // them here.
+    mockImageBlobReduceInstance = mockImageBlobReduce.mock
+      .instances[0] as jest.MockedObject<ImageBlobReduce>;
 
     // Reset the mocks.
     jest.clearAllMocks();
@@ -248,35 +255,76 @@ describe("upload-slice action creators", () => {
       }
     );
 
-    it("creates a addSelectedFiles action", () => {
+    it("creates a preProcessFiles action", async () => {
       // Arrange.
-      // Create some files to process.
-      const fakeImageFile = fakeFile();
-      const fakeTextFile = fakeFile("text/plain");
-      const id1 = faker.datatype.uuid();
-      const id2 = faker.datatype.uuid();
-      const fileMap = new Map([
-        [id1, fakeImageFile],
-        [id2, fakeImageFile],
-        // Throw one invalid file in there too.
-        [faker.datatype.uuid(), fakeTextFile],
-      ]);
+      const fileIds = state.uploads.ids as string[];
+
+      // Make it look like it produces a valid thumbnail blob.
+      const mockToBlob = mockImageBlobReduceInstance.toBlob;
+      const thumbnailBlob = fakeFile();
+      mockToBlob.mockResolvedValue(thumbnailBlob);
+
+      // Create a fake thumbnail URL.
+      const thumbnailUrl = faker.internet.url();
+      mockCreateObjectUrl.mockReturnValue(thumbnailUrl);
 
       // Act.
-      // Fancy casting is so we can substitute mock objects.
-      const gotAction = addSelectedFiles(fileMap);
+      await thunkPreProcessFiles({ fileIds, idsToFiles })(
+        store.dispatch,
+        store.getState,
+        {}
+      );
 
       // Assert.
-      // It should have created the correct action.
-      expect(gotAction.type).toEqual("upload/addSelectedFiles");
-      expect(gotAction.payload).toHaveLength(2);
-      expect(gotAction.payload[0].id).toEqual(id1);
-      expect(gotAction.payload[1].id).toEqual(id2);
-      expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
-      expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
-      expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
-      expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkPreProcessFiles);
+
+      // It should have created thumbnails for the images.
+      expect(mockToBlob).toHaveBeenCalledTimes(1);
+      const fakeFileData = idsToFiles.get(uploadFile.id) as File;
+      expect(mockToBlob).toHaveBeenCalledWith(fakeFileData, expect.anything());
+
+      expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+      expect(URL.createObjectURL).toHaveBeenCalledWith(thumbnailBlob);
+
+      // It should have returned the correct results.
+      expect(store.getActions()[1].payload).toEqual([
+        {
+          id: uploadFile.id,
+          dataUrl: thumbnailUrl,
+        },
+      ]);
     });
+  });
+
+  it("creates an addSelectedFiles action", () => {
+    // Arrange.
+    // Create some files to process.
+    const fakeImageFile = fakeFile();
+    const fakeTextFile = fakeFile("text/plain");
+    const id1 = faker.datatype.uuid();
+    const id2 = faker.datatype.uuid();
+    const fileMap = new Map([
+      [id1, fakeImageFile],
+      [id2, fakeImageFile],
+      // Throw one invalid file in there too.
+      [faker.datatype.uuid(), fakeTextFile],
+    ]);
+
+    // Act.
+    // Fancy casting is so we can substitute mock objects.
+    const gotAction = addSelectedFiles(fileMap);
+
+    // Assert.
+    // It should have created the correct action.
+    expect(gotAction.type).toEqual("upload/addSelectedFiles");
+    expect(gotAction.payload).toHaveLength(2);
+    expect(gotAction.payload[0].id).toEqual(id1);
+    expect(gotAction.payload[1].id).toEqual(id2);
+    expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
+    expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
+    expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
+    expect(gotAction.payload[1].status).toEqual(FileStatus.PENDING);
   });
 
   //   each([

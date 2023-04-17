@@ -40,7 +40,7 @@ export default {
         scss({fileName: "mallard-edge.css"}),
         copy({
             targets: [{
-                src: 'node_modules/client-zip/worker.js',
+                src: 'static/*',
                 dest: 'bundled/'
             }]
         })],

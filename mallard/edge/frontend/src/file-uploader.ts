@@ -224,6 +224,7 @@ export class FileUploader extends LitElement {
           // line is really hard to test.
           // istanbul ignore next
           const files = [...(this.fileInput.files ?? [])];
+          // istanbul ignore next
           this.lastSelectedFiles = new Map<string, File>(
             files.map((f) => [uuidv4(), f])
           );
@@ -409,10 +410,14 @@ export class FileUploader extends LitElement {
     }
     if (_changedProperties.has("lastSelectedFiles")) {
       this.dispatchEvent(
-        new CustomEvent<void>(FileUploader.FILES_SELECTED_EVENT_NAME, {
-          bubbles: true,
-          composed: true,
-        })
+        new CustomEvent<Map<string, File>>(
+          FileUploader.FILES_SELECTED_EVENT_NAME,
+          {
+            bubbles: true,
+            composed: true,
+            detail: this.lastSelectedFiles,
+          }
+        )
       );
 
       // Update the master list of selected files.
@@ -447,10 +452,10 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
       (event as CustomEvent<boolean>).detail
         ? fileDropZoneEntered(null)
         : fileDropZoneExited(null);
-    handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (_) => {
-      // TODO (danielp) Re-enable testing once JSDom supports drag-and-drop.
-      // istanbul ignore next
-      return addSelectedFiles(this.lastSelectedFiles);
+    handlers[ConnectedFileUploader.FILES_SELECTED_EVENT_NAME] = (
+      event: Event
+    ) => {
+      return addSelectedFiles((event as CustomEvent<Map<string, File>>).detail);
     };
     // The fancy casting here is a hack to deal with the fact that thunkReadFiles
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.

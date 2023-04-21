@@ -12,10 +12,7 @@ import each from "jest-each";
 import { PlatformType, UavImageMetadata } from "mallard-api";
 import { MetadataInferenceStatus, RootState } from "../types";
 import { Action } from "redux";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Using older require syntax here so we get the correct mock type.
 const uploadSlice = require("../upload-slice");
@@ -249,7 +246,7 @@ describe("metadata-form", () => {
 
       // Set some fake input.
       const numberInput = faker.datatype.number();
-      numericalField.value = numberInput;
+      numericalField.value = numberInput.toString();
 
       numericalField.dispatchEvent(new Event("change"));
 
@@ -312,7 +309,7 @@ describe("metadata-form", () => {
 
       // Set the relevant parameters.
       state.uploads.metadata = fakeImageMetadata();
-      state.uploads.metadataStatus = faker.random.arrayElement([
+      state.uploads.metadataStatus = faker.helpers.arrayElement([
         MetadataInferenceStatus.NOT_STARTED,
         MetadataInferenceStatus.LOADING,
         MetadataInferenceStatus.COMPLETE,

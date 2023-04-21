@@ -4,8 +4,7 @@ import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { downloadImageZip, makeImageUrlList } from "../downloads";
 import streamSaver from "streamsaver";
 import each from "jest-each";
-
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("client-zip", () => ({
   downloadZip: jest.fn(),
@@ -86,7 +85,7 @@ describe("downloads", () => {
       ];
 
       // Make it look like we can predict the length.
-      const zipLength = faker.datatype.number({ min: 0 });
+      const zipLength = BigInt(faker.datatype.number({ min: 0 }));
       mockPredictLength.mockReturnValue(zipLength);
 
       // Create some sort of fake file stream for it to write to.

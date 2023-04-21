@@ -21,8 +21,7 @@ import {
   ImagesApi,
 } from "mallard-api";
 import each from "jest-each";
-
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
@@ -289,7 +288,7 @@ describe("api-client", () => {
     const fakeError = new FakeAxiosError();
     mockUavImageCreate.mockRejectedValue(fakeError);
 
-    const imageData = faker.datatype.string();
+    const imageData = new Blob([faker.datatype.string()]);
     const metadata = fakeImageMetadata();
 
     // Act and assert.
@@ -382,7 +381,7 @@ describe("api-client", () => {
     const fakeError = new FakeAxiosError();
     mockMetadataInfer.mockRejectedValue(fakeError);
 
-    const imageData = faker.datatype.string();
+    const imageData = new Blob([faker.datatype.string()]);
     const metadata = fakeImageMetadata();
 
     // Act and assert.

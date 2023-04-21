@@ -10,8 +10,7 @@ import each from "jest-each";
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { ImageQuery } from "../types";
 import { PlatformType } from "mallard-api";
-
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("../api-client", () => ({
   queryImages: jest.fn(),

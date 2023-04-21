@@ -31,6 +31,7 @@
   "homepage": "https://github.com/UGA-BSAIL/MALLARD#readme",
   "devDependencies": {
     "@babel/preset-env": "^7.20.2",
+    "@faker-js/faker": "^7.6.0",
     "@openapitools/openapi-generator-cli": "^2.5.2",
     "@rollup/plugin-commonjs": "^24.0.1",
     "@rollup/plugin-json": "^6.0.0",
@@ -38,7 +39,6 @@
     "@rollup/plugin-terser": "^0.4.0",
     "@rollup/plugin-wasm": "^6.1.2",
     "@tsconfig/recommended": "^1.0.1",
-    "@types/faker": "^5.1.7",
     "@types/jest": "^29.4.0",
     "@types/redux-logger": "^3.0.9",
     "@types/redux-mock-store": "^1.0.2",
@@ -47,7 +47,6 @@
     "eslint": "^8.33.0",
     "eslint-config-google": "^0.14.0",
     "eslint-config-prettier": "^8.6.0",
-    "faker": "^5.4.0",
     "jest-each": "^29.4.1",
     "jest-environment-jsdom": "^29.5.0",
     "lit-analyzer": "^1.2.1",

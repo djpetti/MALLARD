@@ -1,12 +1,9 @@
 import { FileListDisplay } from "../file-list-display";
 import { fakeFrontendFileEntity, getShadowRoot } from "./element-test-utils";
 import { FileStatus, FrontendFileEntity } from "../types";
+import { faker } from "@faker-js/faker";
 
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
-
-describe("file-list", () => {
+describe("file-list-display", () => {
   /** Internal file-list to use for testing. */
   let fileList: FileListDisplay;
 
@@ -37,19 +34,18 @@ describe("file-list", () => {
 
   it("correctly renders files", async () => {
     // Arrange.
-    // Create some fake files to test with.
-    const pendingFile1 = fakeFrontendFileEntity();
-    pendingFile1.status = FileStatus.PENDING;
-    const pendingFile2 = fakeFrontendFileEntity();
-    pendingFile2.status = FileStatus.PENDING;
-    const processingFile = fakeFrontendFileEntity();
-    processingFile.status = FileStatus.UPLOADING;
-    const completeFile = fakeFrontendFileEntity();
-    completeFile.status = FileStatus.COMPLETE;
+    // Create some fake files.
+    const fakeFiles = new Array(100)
+      .fill(0)
+      .map((_) =>
+        fakeFrontendFileEntity(
+          faker.helpers.arrayElement(FileListDisplay.FILE_DISPLAY_ORDER)
+        )
+      );
 
     // Act.
-    // Render the files.
-    fileList.files = [completeFile, pendingFile1, processingFile, pendingFile2];
+    // Render some fake files.
+    fileList.files = fakeFiles;
     await fileList.updateComplete;
 
     // Assert.
@@ -60,35 +56,29 @@ describe("file-list", () => {
 
     // We should have one list item for each file. It will also insert a divider
     // after each one.
-    expect(listItems).toHaveLength(4);
+    expect(listItems).toHaveLength(fakeFiles.length);
 
     // It should correctly display the file names.
     const displayedNames = [];
     for (const listItem of listItems ?? []) {
       displayedNames.push(listItem.querySelector("span")?.textContent);
     }
-    const fileNames = [
-      pendingFile1,
-      pendingFile2,
-      processingFile,
-      completeFile,
-    ].map((f) => f.name);
+    const fileNames = fakeFiles.map((f) => f.name);
     for (const fileName of fileNames) {
       expect(displayedNames).toContain(fileName);
     }
 
     // It should have displayed things in the correct order.
     const namesToFiles: Map<string, FrontendFileEntity> = new Map(
-      [pendingFile1, pendingFile2, processingFile, completeFile].map((f) => [
-        f.name,
-        f,
-      ])
+      fakeFiles.map((f) => [f.name, f])
     );
     // Whether we have seen at least one file with a particular status
     // when we iterate over the displayed items.
     const sawFileWithStatus: Map<FileStatus, boolean> = new Map([
-      [FileStatus.PENDING, false],
       [FileStatus.UPLOADING, false],
+      [FileStatus.AWAITING_UPLOAD, false],
+      [FileStatus.PRE_PROCESSING, false],
+      [FileStatus.PENDING, false],
       [FileStatus.COMPLETE, false],
     ]);
     for (const fileName of displayedNames) {

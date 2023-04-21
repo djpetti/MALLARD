@@ -7,10 +7,7 @@ import { RootState } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, finishUpload } from "../upload-slice";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

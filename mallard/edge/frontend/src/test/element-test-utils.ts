@@ -12,7 +12,7 @@ import {
   RequestState,
   RootState,
 } from "../types";
-import * as faker from "faker";
+import { faker } from "@faker-js/faker";
 import {
   Field,
   ImageFormat,
@@ -198,7 +198,7 @@ export function fakeFrontendFileEntity(
   const iconUrl = faker.image.dataUri();
   const name = faker.system.fileName();
   if (status == undefined) {
-    status = faker.random.arrayElement([
+    status = faker.helpers.arrayElement([
       FileStatus.PENDING,
       FileStatus.UPLOADING,
       FileStatus.COMPLETE,
@@ -233,14 +233,14 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
   return {
     size: faker.datatype.number({ min: 0 }),
     name: faker.system.fileName(),
-    format: faker.random.arrayElement([
+    format: faker.helpers.arrayElement([
       ImageFormat.GIF,
       ImageFormat.TIFF,
       ImageFormat.JPEG,
       ImageFormat.BMP,
       ImageFormat.PNG,
     ]),
-    platformType: faker.random.arrayElement([
+    platformType: faker.helpers.arrayElement([
       PlatformType.GROUND,
       PlatformType.AERIAL,
     ]),
@@ -264,7 +264,7 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
  */
 export function fakeOrdering(): Ordering {
   return {
-    field: faker.random.arrayElement([
+    field: faker.helpers.arrayElement([
       Field.NAME,
       Field.CAPTURE_DATE,
       Field.CAMERA,
@@ -291,7 +291,7 @@ export function fakeImageQuery(): ImageQuery {
  */
 export function fakeSuggestions(): Suggestions {
   return {
-    menu: faker.random.arrayElement([
+    menu: faker.helpers.arrayElement([
       AutocompleteMenu.NONE,
       AutocompleteMenu.DATE,
     ]),

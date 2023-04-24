@@ -164,7 +164,7 @@ describe("autocomplete", () => {
     [
       "matches the end",
       "this string matches at the end",
-      "end",
+      "the end",
       "...g matches at the end",
     ],
     [

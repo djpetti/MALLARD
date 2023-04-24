@@ -17,10 +17,7 @@ import {
   thunkPreProcessFiles,
   thunkUploadFile,
 } from "../upload-slice";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("../upload-slice", () => {
   const actualSlice = jest.requireActual("../upload-slice");

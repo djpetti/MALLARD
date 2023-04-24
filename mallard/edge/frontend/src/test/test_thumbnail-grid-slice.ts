@@ -38,6 +38,7 @@ import {
 } from "../types";
 import thunk from "redux-thunk";
 import {
+  fakeFile,
   fakeImageEntities,
   fakeImageEntity,
   fakeImageQuery,
@@ -60,10 +61,7 @@ import {
   requestAutocomplete,
 } from "../autocomplete";
 import { downloadImageZip, makeImageUrlList } from "../downloads";
-
-// Require syntax must be used here due to an issue that prevents
-// access to faker.seed() when using import syntax.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -261,7 +259,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a loadThumbnail action", async () => {
     // Arrange.
     // Make it look like the loadThumbnail request succeeds.
-    const rawImage = faker.image.cats(128, 128);
+    const rawImage = fakeFile();
     mockLoadThumbnail.mockResolvedValue(rawImage);
 
     // Make it look like creatObjectURL produces a defined URL.
@@ -318,7 +316,7 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a loadImage action", async () => {
     // Arrange.
     // Make it look like the loadImage request succeeds.
-    const rawImage = faker.image.cats(1920, 1080);
+    const rawImage = fakeFile();
     mockLoadImage.mockResolvedValue(rawImage);
 
     // Make it look like creatObjectURL produces a defined URL.

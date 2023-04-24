@@ -12,10 +12,7 @@ import {
   thunkStartNewQuery,
   thunkContinueQuery,
 } from "../thumbnail-grid-slice";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");

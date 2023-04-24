@@ -15,10 +15,7 @@ import { Button } from "@material/mwc-button";
 import { RequestState } from "../types";
 import { Menu } from "@material/mwc-menu";
 import { ListItem } from "@material/mwc-list/mwc-list-item";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {

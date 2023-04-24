@@ -37,10 +37,7 @@ import imageBlobReduce, {
   ImageBlobReduce,
   ImageBlobReduceStatic,
 } from "image-blob-reduce";
-
-// Require syntax must be used here due to an issue that prevents
-// access to faker.seed() when using import syntax.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Using older require syntax here so we get the correct mock type.
 const apiClient = require("../api-client");

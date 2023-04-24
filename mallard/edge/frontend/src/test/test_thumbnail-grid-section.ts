@@ -8,10 +8,7 @@ import { ArtifactThumbnail } from "../artifact-thumbnail";
 import each from "jest-each";
 import { IconButton } from "@material/mwc-icon-button";
 import { createImageEntityId, selectImages } from "../thumbnail-grid-slice";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

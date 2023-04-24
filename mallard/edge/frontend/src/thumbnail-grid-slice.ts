@@ -569,7 +569,40 @@ export function thunkSelectAll(select: boolean): ThunkResult<void> {
   return (dispatch, getState) => {
     // Get all the images.
     const imageIds = thumbnailGridSelectors.selectIds(getState());
-    dispatch(selectImages({ imageIds: imageIds, select: select }));
+    dispatch(thunkSelectImages({ imageIds: imageIds, select: select }));
+  };
+}
+
+/**
+ * Thunk for selecting/deselecting multiple images.
+ * @param {EntityId[]} imageIds The image IDs to select or deselect.
+ * @param {boolean} select True to select, false to deselect.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkSelectImages({
+  imageIds,
+  select,
+}: {
+  imageIds: EntityId[];
+  select: boolean;
+}): ThunkResult<void> {
+  return (dispatch, getState) => {
+    const state = getState().imageView;
+
+    // Filter out updates that won't actually change anything. This can help
+    // us avoid dispatching spurious actions, which are expensive.
+    const updateIds = [];
+    for (const id of imageIds) {
+      const entity = state.entities[id] as ImageEntity;
+      if (entity.isSelected != select) {
+        updateIds.push(id);
+      }
+    }
+
+    if (updateIds.length > 0) {
+      dispatch(selectImages({ imageIds: updateIds, select: select }));
+    }
   };
 }
 
@@ -673,16 +706,7 @@ export const thumbnailGridSlice = createSlice({
     selectImages(state, action) {
       const imageIds = action.payload.imageIds;
 
-      // Filter out updates that won't actually change anything.
-      const updateIds = [];
-      for (const id of imageIds) {
-        const entity = state.entities[id] as ImageEntity;
-        if (entity.isSelected != action.payload.select) {
-          updateIds.push(id);
-        }
-      }
-
-      const updates = updateIds.map((id: string) => ({
+      const updates = imageIds.map((id: string) => ({
         id: id,
         changes: { isSelected: action.payload.select },
       }));
@@ -690,9 +714,9 @@ export const thumbnailGridSlice = createSlice({
 
       // Update the number of selected items.
       if (action.payload.select) {
-        state.numItemsSelected += updateIds.length;
+        state.numItemsSelected += imageIds.length;
       } else {
-        state.numItemsSelected -= updateIds.length;
+        state.numItemsSelected -= imageIds.length;
       }
     },
     // Marks an image as the one being displayed on the details page.

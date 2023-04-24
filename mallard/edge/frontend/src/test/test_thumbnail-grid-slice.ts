@@ -24,6 +24,7 @@ import thumbnailGridReducer, {
   thunkLoadMetadata,
   thunkLoadThumbnail,
   thunkSelectAll,
+  thunkSelectImages,
   thunkShowDetails,
   thunkStartNewQuery,
   thunkTextSearch,
@@ -978,18 +979,69 @@ describe("thumbnail-grid-slice action creators", () => {
     );
   });
 
-  it("can select/deselect all the images", () => {
+  each([
+    ["all changed", true],
+    ["none changed", false],
+  ]).it(
+    "can select/deselect all the images (%s)",
+    (_, changeSelection: boolean) => {
+      // Arrange.
+      const select = faker.datatype.boolean();
+      // Make it look like there are various images.
+      const images = fakeImageEntities();
+      // Make it look like none are selected.
+      for (const id of images.ids) {
+        images.entities[id].isSelected = changeSelection ? !select : select;
+      }
+
+      const state = fakeState();
+      state.imageView.ids = images.ids;
+      state.imageView.entities = images.entities;
+
+      const store = mockStoreCreator(state);
+
+      // Act.
+      thunkSelectAll(select)(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
+
+      // Assert.
+      // It should have dispatched the action.
+      const actions = store.getActions();
+      if (changeSelection) {
+        expect(actions).toHaveLength(1);
+
+        const selectAction = actions[0];
+        expect(selectAction.type).toEqual(
+          thumbnailGridSlice.actions.selectImages.type
+        );
+        expect(selectAction.payload).toEqual({
+          imageIds: state.imageView.ids,
+          select: select,
+        });
+      } else {
+        // In this case, it should have changed nothing.
+        expect(actions).toHaveLength(0);
+      }
+    }
+  );
+
+  it("can select/deselect multiple images", () => {
     // Arrange.
+    const select = faker.datatype.boolean();
     // Make it look like there are various images.
+    const images = fakeImageEntities(50);
+
     const state = fakeState();
-    state.imageView.ids = [faker.datatype.uuid(), faker.datatype.uuid()];
+    state.imageView.ids = images.ids;
+    state.imageView.entities = images.entities;
 
     const store = mockStoreCreator(state);
 
-    const select = faker.datatype.boolean();
-
     // Act.
-    thunkSelectAll(select)(
+    thunkSelectImages({ imageIds: images.ids, select: select })(
       store.dispatch,
       store.getState as () => RootState,
       {}
@@ -1004,8 +1056,13 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(selectAction.type).toEqual(
       thumbnailGridSlice.actions.selectImages.type
     );
+
+    // It should have only changed the ones that needed to be changed.
+    const idsToUpdate = state.imageView.ids.filter(
+      (id) => state.imageView.entities[id]?.isSelected != select
+    );
     expect(selectAction.payload).toEqual({
-      imageIds: state.imageView.ids,
+      imageIds: idsToUpdate,
       select: select,
     });
   });

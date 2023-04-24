@@ -4,9 +4,9 @@ import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";
 import {
-  selectImages,
   thumbnailGridSelectors,
   thunkLoadThumbnail,
+  thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import { ImageDisplay } from "./image-display";
@@ -236,10 +236,10 @@ export class ConnectedArtifactThumbnail extends connect(
         (event as CustomEvent<string>).detail
       ) as unknown as Action;
     handlers[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME] = (event: Event) =>
-      selectImages({
-        imageIds: [this.frontendId],
+      thunkSelectImages({
+        imageIds: [this.frontendId as string],
         select: (event as SelectedEvent).detail,
-      });
+      }) as unknown as Action;
     return handlers;
   }
 }

@@ -7,7 +7,10 @@ import {
 import { ArtifactThumbnail } from "../artifact-thumbnail";
 import each from "jest-each";
 import { IconButton } from "@material/mwc-icon-button";
-import { createImageEntityId, selectImages } from "../thumbnail-grid-slice";
+import {
+  createImageEntityId,
+  thunkSelectImages,
+} from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -22,7 +25,7 @@ jest.mock("../store", () => ({
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
-    selectImages: jest.fn(),
+    thunkSelectImages: jest.fn(),
 
     // Use the actual implementation for these functions.
     thumbnailGridSelectors: {
@@ -31,7 +34,9 @@ jest.mock("../thumbnail-grid-slice", () => {
     createImageEntityId: actualSlice.createImageEntityId,
   };
 });
-const mockSelectImages = selectImages as jest.MockedFn<typeof selectImages>;
+const mockSelectImages = thunkSelectImages as jest.MockedFn<
+  typeof thunkSelectImages
+>;
 
 describe("thumbnail-grid-section", () => {
   /** Internal thumbnail-grid-section to use for testing. */

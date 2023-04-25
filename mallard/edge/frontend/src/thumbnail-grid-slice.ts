@@ -460,6 +460,9 @@ export const thunkDoAutocomplete = createAsyncThunk(
  */
 export function thunkTextSearch(searchString: string): ThunkResult<void> {
   return (dispatch) => {
+    // Clear the current image view to release memory.
+    dispatch(thunkClearImageView());
+
     // Determine the query to use for searching.
     const queries = queriesFromSearchString(searchString);
     // Set the new query.

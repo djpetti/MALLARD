@@ -788,12 +788,15 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // It should have dispatched the query action.
     const actions = store.getActions();
-    expect(actions).toHaveLength(1);
+    expect(actions).toHaveLength(4);
 
-    const startQueryAction = actions[0];
-    expect(startQueryAction.type).toEqual(
-      thunkStartNewQuery.typePrefix + "/pending"
-    );
+    // Initial actions should just be clearing the state.
+    expect(actions[0].type).toEqual(clearThumbnails.type);
+    expect(actions[1].type).toEqual(clearFullSizedImages.type);
+    expect(actions[2].type).toEqual(clearImageView.type);
+
+    const startQueryAction = actions[3];
+    expect(startQueryAction.type).toEqual(thunkStartNewQuery.pending.type);
 
     expect(startQueryAction.meta.arg).toEqual({
       query: queries,

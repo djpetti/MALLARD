@@ -24,7 +24,6 @@ import {
   queryImages,
 } from "./api-client";
 import {
-  Field,
   ObjectRef,
   Ordering,
   QueryResponse,

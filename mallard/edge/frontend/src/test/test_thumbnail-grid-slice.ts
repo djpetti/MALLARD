@@ -797,7 +797,6 @@ describe("thumbnail-grid-slice action creators", () => {
 
     expect(startQueryAction.meta.arg).toEqual({
       query: queries,
-      orderings: expect.anything(),
     });
   });
 

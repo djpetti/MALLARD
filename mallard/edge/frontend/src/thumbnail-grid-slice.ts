@@ -16,6 +16,7 @@ import {
   RootState,
 } from "./types";
 import {
+  DEFAULT_ORDERINGS,
   deleteImages,
   getMetadata,
   loadImage,
@@ -160,7 +161,7 @@ export const thunkStartNewQuery = createAsyncThunk(
   "thumbnailGrid/startNewQuery",
   async ({
     query,
-    orderings,
+    orderings = DEFAULT_ORDERINGS,
     resultsPerPage,
     startPageNum,
   }: {
@@ -465,7 +466,6 @@ export function thunkTextSearch(searchString: string): ThunkResult<void> {
     dispatch(
       thunkStartNewQuery({
         query: queries,
-        orderings: [{ field: Field.CAPTURE_DATE, ascending: false }],
       })
     );
   };

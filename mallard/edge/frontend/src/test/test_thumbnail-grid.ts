@@ -456,7 +456,6 @@ describe("thumbnail-grid", () => {
         expect(mockThunkStartNewQuery).toBeCalledTimes(1);
         expect(mockThunkStartNewQuery).toBeCalledWith({
           query: expect.any(Object),
-          orderings: expect.any(Array),
           resultsPerPage: expect.any(Number),
         });
 

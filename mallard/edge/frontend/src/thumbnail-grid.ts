@@ -13,7 +13,6 @@ import {
 import { Action } from "redux";
 import "@material/mwc-circular-progress";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
-import { Field, Ordering } from "mallard-api";
 import { isEqual } from "lodash";
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
 
@@ -279,14 +278,6 @@ type ImagesChangedEvent = CustomEvent<string[]>;
  */
 export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
   /**
-   * Initial ordering to use when the page loads. This will put the
-   * newest stuff at the top.
-   * @private
-   */
-  private static DEFAULT_ORDERINGS: Ordering[] = [
-    { field: Field.CAPTURE_DATE, ascending: false },
-  ];
-  /**
    * Number of images to request at a time from the backend.
    * @private
    */
@@ -387,7 +378,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         // Start a new query.
         return thunkStartNewQuery({
           query: ConnectedThumbnailGrid.DEFAULT_QUERY,
-          orderings: ConnectedThumbnailGrid.DEFAULT_ORDERINGS,
           resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
         }) as unknown as Action;
       } else {

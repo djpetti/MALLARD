@@ -403,6 +403,7 @@ describe("top-nav-bar", () => {
     dialog.show();
 
     await navBarElement.updateComplete;
+    expect(dialog.open).toEqual(true);
 
     // Act.
     // Make it look like the deletion action finished.

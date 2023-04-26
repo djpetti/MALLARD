@@ -544,6 +544,24 @@ export function thunkClearThumbnails(
 }
 
 /**
+ * Completely removes entities from the state, taking care to free any
+ * associated memory.
+ * @param {EntityId[]} imageIds The IDs of the entities to remove.
+ * @return {ThunkResult} Does not actually return anything, because it
+ * simply dispatches other actions.
+ */
+export function thunkClearEntities(imageIds: EntityId[]): ThunkResult<void> {
+  return (dispatch) => {
+    // Free the associated memory.
+    dispatch(thunkClearFullSizedImages(imageIds));
+    dispatch(thunkClearThumbnails(imageIds));
+
+    // Remove from the state.
+    dispatch(clearEntities(imageIds));
+  };
+}
+
+/**
  * Thunk for clearing the entire image view state. It will handle releasing
  * the memory.
  * @return {ThunkResult} Does not actually return anything, because it
@@ -682,6 +700,10 @@ export const thumbnailGridSlice = createSlice({
           },
         }))
       );
+    },
+    // Removes entities from the state.
+    clearEntities(state, action) {
+      thumbnailGridAdapter.removeMany(state, action.payload);
     },
     // Completely resets the current image view, removing all loaded images.
     clearImageView(state, _) {
@@ -879,6 +901,7 @@ export const thumbnailGridSlice = createSlice({
 export const {
   clearFullSizedImages,
   clearThumbnails,
+  clearEntities,
   addArtifact,
   clearImageView,
   clearAutocomplete,

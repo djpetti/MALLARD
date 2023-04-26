@@ -174,7 +174,7 @@ describe("thumbnail-grid", () => {
       (_) => (gridElement.loadingState = RequestState.LOADING)
     );
     gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
+      ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
       loadDataHandler
     );
 
@@ -201,7 +201,7 @@ describe("thumbnail-grid", () => {
       (_) => (gridElement.loadingState = RequestState.LOADING)
     );
     gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
+      ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
       loadDataHandler
     );
 
@@ -231,7 +231,7 @@ describe("thumbnail-grid", () => {
       (_) => (gridElement.loadingState = RequestState.LOADING)
     );
     gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
+      ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
       loadDataHandler
     );
 
@@ -262,7 +262,7 @@ describe("thumbnail-grid", () => {
       (_) => (gridElement.loadingState = RequestState.LOADING)
     );
     gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
+      ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
       loadDataHandler
     );
 
@@ -442,12 +442,12 @@ describe("thumbnail-grid", () => {
       // Assert.
       // It should have a mapping for the proper events.
       expect(eventMap).toHaveProperty(
-        ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME
+        ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME
       );
 
       // This should fire the appropriate action creator.
       const testEvent = { detail: [faker.datatype.number()] };
-      eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME](
+      eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME](
         testEvent as unknown as Event
       );
 

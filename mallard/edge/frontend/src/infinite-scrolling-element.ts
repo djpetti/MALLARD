@@ -40,6 +40,22 @@ export abstract class InfiniteScrollingElement extends LitElement {
   protected abstract loadPreviousSection(): boolean;
 
   /**
+   * Should trigger the clean-up of the top-most section of
+   * content for this element. The subclass element is responsible for keeping
+   * track of which content is in this section and correctly deleting it.
+   * @protected
+   */
+  protected abstract deleteTopmostSection(): void;
+
+  /**
+   * Should trigger the clean-up of the bottom-most section of
+   * content for this element. The subclass element is responsible for keeping
+   * track of which content is in this section and correctly deleting it.
+   * @protected
+   */
+  protected abstract deleteBottommostSection(): void;
+
+  /**
    * @return {boolean} True if this element is currently
    * in the process of loading or processing new data. Basically, it
    * will check this before it kicks off a new loading cycle.
@@ -145,11 +161,13 @@ export abstract class InfiniteScrollingElement extends LitElement {
    * @private
    */
   private loadContentWhileNeeded(): void {
+    // Load content above.
     while (
       !this.isBusy() &&
       !this.isEnoughLoadedAbove() &&
       this.loadPreviousSection()
     ) {}
+    // Load content below.
     while (
       !this.isBusy() &&
       !this.isEnoughLoadedBelow() &&
@@ -158,12 +176,33 @@ export abstract class InfiniteScrollingElement extends LitElement {
   }
 
   /**
+   * Deletes extraneous content while we can to save memory.
+   * @private
+   */
+  private deleteContentWhileNeeded(): void {
+    // Only run these once. We can wait to run these again until the element
+    // has been updated.
+    if (!this.isBusy() && this.isTooMuchLoadedAbove()) {
+      this.deleteTopmostSection();
+    }
+    if (!this.isBusy() && this.isTooMuchLoadedBelow()) {
+      this.deleteBottommostSection();
+    }
+  }
+
+  /**
    * @inheritDoc
    */
   protected firstUpdated(_: PropertyValues) {
     // Add a handler for scroll events which loads more
-    // content if needed.
-    this.addEventListener("scroll", (_) => this.loadContentWhileNeeded());
+    // content if needed or deletes extra content.
+    this.addEventListener("scroll", (_) => {
+      this.loadContentWhileNeeded();
+      this.deleteContentWhileNeeded();
+    });
+
+    // Load the first section.
+    this.loadNextSection();
   }
 
   /**
@@ -173,5 +212,6 @@ export abstract class InfiniteScrollingElement extends LitElement {
     // If something changed, that might indicate that we have more data to
     // load.
     this.loadContentWhileNeeded();
+    this.deleteContentWhileNeeded();
   }
 }

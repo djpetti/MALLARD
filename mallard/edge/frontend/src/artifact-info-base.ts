@@ -1,5 +1,5 @@
 import { LitElement, PropertyValues } from "lit";
-import { property } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import { ImageStatus, RootState } from "./types";
 import {
   thumbnailGridSelectors,
@@ -23,12 +23,18 @@ export class ArtifactInfoBase extends LitElement {
   frontendId?: string;
 
   /**
+   * Whether we want to load this image right now.
+   */
+  @state()
+  enableLoading: boolean = true;
+
+  /**
    * @inheritDoc
    */
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.has("frontendId")) {
+    if (_changedProperties.has("frontendId") && this.enableLoading) {
       // The image ID has changed. We need to fire an event for this to kick
       // off the actual image loading.
       this.dispatchEvent(

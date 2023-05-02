@@ -62,6 +62,7 @@ export function fakeState(): RootState {
       },
       details: { frontendId: null },
       numItemsSelected: 0,
+      numThumbnailsLoaded: 0,
       bulkDownloadState: RequestState.IDLE,
       exportedImagesUrl: null,
     },

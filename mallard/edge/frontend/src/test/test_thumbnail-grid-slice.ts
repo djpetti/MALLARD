@@ -22,7 +22,7 @@ import thumbnailGridReducer, {
   thunkExportSelected,
   thunkLoadImage,
   thunkLoadMetadata,
-  thunkLoadThumbnail,
+  thunkLoadThumbnails,
   thunkSelectAll,
   thunkSelectImages,
   thunkShowDetails,
@@ -275,7 +275,7 @@ describe("thumbnail-grid-slice action creators", () => {
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadThumbnail(imageId)(store.dispatch, store.getState, {});
+    await thunkLoadThumbnails([imageId])(store.dispatch, store.getState, {});
 
     // Assert.
     // It should have loaded the thumbnail.
@@ -286,12 +286,13 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(actions).toHaveLength(2);
 
     const pendingAction = actions[0];
-    expect(pendingAction.type).toEqual(thunkLoadThumbnail.pending.type);
+    expect(pendingAction.type).toEqual(thunkLoadThumbnails.pending.type);
 
     const fulfilledAction = actions[1];
-    expect(fulfilledAction.type).toEqual(thunkLoadThumbnail.fulfilled.type);
-    expect(fulfilledAction.payload.imageId).toEqual(imageId);
-    expect(fulfilledAction.payload.imageUrl).toEqual(imageUrl);
+    expect(fulfilledAction.type).toEqual(thunkLoadThumbnails.fulfilled.type);
+    expect(fulfilledAction.payload).toHaveLength(1);
+    expect(fulfilledAction.payload[0].imageId).toEqual(imageId);
+    expect(fulfilledAction.payload[0].imageUrl).toEqual(imageUrl);
   });
 
   it("does not reload a thumbnail that is already loaded", async () => {
@@ -304,14 +305,19 @@ describe("thumbnail-grid-slice action creators", () => {
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadThumbnail(imageId)(store.dispatch, store.getState, {});
+    await thunkLoadThumbnails([imageId])(store.dispatch, store.getState, {});
 
     // Assert.
     // It should not have loaded the thumbnail.
     expect(mockLoadThumbnail).not.toBeCalled();
 
-    // It should not have dispatched any actions.
-    expect(store.getActions()).toHaveLength(0);
+    // It should have dispatched the lifecycle actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    // It should not have actually updated any thumbnails.
+    const fullfilledAction = actions[1];
+    expect(fullfilledAction.payload).toHaveLength(0);
   });
 
   it("creates a loadImage action", async () => {
@@ -522,9 +528,9 @@ describe("thumbnail-grid-slice action creators", () => {
     it("should delete selected images and return their IDs", async () => {
       // Arrange
       const imageEntities = [
-        fakeImageEntity(),
-        fakeImageEntity(),
-        fakeImageEntity(),
+        fakeImageEntity(true, true),
+        fakeImageEntity(true, true),
+        fakeImageEntity(true, true),
       ];
       const frontendIds = imageEntities.map((e) =>
         createImageEntityId(e.backendId)
@@ -564,15 +570,15 @@ describe("thumbnail-grid-slice action creators", () => {
         thunkDeleteSelected.pending.type
       );
 
-      // It should have cleared any loaded thumbnails.
-      const thumbnailClearAction = actions[1];
-      expect(thumbnailClearAction.type).toEqual(clearThumbnails.type);
-      expect(thumbnailClearAction.payload).toEqual(selectedIds);
-
       // It should have cleared any loaded images.
-      const imageClearAction = actions[2];
+      const imageClearAction = actions[1];
       expect(imageClearAction.type).toEqual(clearFullSizedImages.type);
       expect(imageClearAction.payload).toEqual(selectedIds);
+
+      // It should have cleared any loaded thumbnails.
+      const thumbnailClearAction = actions[2];
+      expect(thumbnailClearAction.type).toEqual(clearThumbnails.type);
+      expect(thumbnailClearAction.payload).toEqual(selectedIds);
 
       // It should have dispatched the fulfilled action.
       const deleteFullfilledAction = actions[3];
@@ -845,7 +851,7 @@ describe("thumbnail-grid-slice action creators", () => {
       expect(clearAction.type).toEqual(
         thumbnailGridSlice.actions.clearFullSizedImages.type
       );
-      expect(clearAction.payload).toEqual(images.ids);
+      expect(clearAction.payload).toEqual(imageLoaded ? images.ids : []);
     }
   );
 
@@ -915,7 +921,7 @@ describe("thumbnail-grid-slice action creators", () => {
       expect(clearAction.type).toEqual(
         thumbnailGridSlice.actions.clearThumbnails.type
       );
-      expect(clearAction.payload).toEqual(images.ids);
+      expect(clearAction.payload).toEqual(thumbnailLoaded ? images.ids : []);
     }
   );
 
@@ -945,7 +951,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
   it("can clear all the images with thunkClearImageView", () => {
     // Arrange.
-    const images = fakeImageEntities();
+    const images = fakeImageEntities(undefined, true, true);
     const state = fakeState();
     state.imageView.ids = images.ids;
     state.imageView.entities = images.entities;
@@ -1180,11 +1186,12 @@ describe("thumbnail-grid-slice reducers", () => {
     state.imageView.ids = [loadedImageId, unloadedImageId];
     state.imageView.entities[loadedImageId] = loadedImage;
     state.imageView.entities[unloadedImageId] = unloadedImage;
+    state.imageView.numThumbnailsLoaded = 1;
 
     // Act.
     const newImageState = thumbnailGridSlice.reducer(
       state.imageView,
-      clearThumbnails([loadedImageId, unloadedImageId])
+      clearThumbnails([loadedImageId])
     );
 
     // Assert.
@@ -1198,6 +1205,9 @@ describe("thumbnail-grid-slice reducers", () => {
       expect(image.thumbnailUrl).toBeNull();
       expect(image.thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
     }
+
+    // It should have updated the counter for the number of loaded images.
+    expect(newState.imageView.numThumbnailsLoaded).toEqual(0);
   });
 
   it("handles a clearImageView action", () => {
@@ -1620,48 +1630,52 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.search.autocompleteSuggestions).toEqual(suggestions);
   });
 
-  it(`handles a ${thunkLoadThumbnail.pending.type} action`, () => {
+  it(`handles a ${thunkLoadThumbnails.pending.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
-    // Image IDs that we are loading metadata for.
-    const imageEntity = fakeImageEntity();
-    const imageId = createImageEntityId(imageEntity.backendId);
-    state.ids = [imageId];
-    state.entities[imageId] = imageEntity;
+    // Images that we are loading thumbnails for.
+    const images = fakeImageEntities();
+    state.ids = images.ids;
+    state.entities = images.entities;
 
     // Act.
     const newState: ImageViewState = thumbnailGridReducer(state, {
-      type: thunkLoadThumbnail.pending,
+      type: thunkLoadThumbnails.pending,
       meta: {
-        arg: imageId,
+        arg: images.ids,
       },
     });
 
     // Assert.
     // It should have updated the loading status.
-    expect(newState.entities[imageId]?.thumbnailStatus).toEqual(
-      ImageStatus.LOADING
-    );
+    for (const id of images.ids) {
+      expect(newState.entities[id]?.thumbnailStatus).toEqual(
+        ImageStatus.LOADING
+      );
+    }
   });
 
-  it(`handles a ${thunkLoadThumbnail.fulfilled.type} action`, () => {
+  it(`handles a ${thunkLoadThumbnails.fulfilled.type} action`, () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
-    // Fix up the state so it looks like we already have a loading thumbnail.
-    const fakeEntity = fakeImageEntity(false);
-    // In this case, the image ID has to be consistent with the backend ID
-    // from the generated entity.
-    const imageId: string = createImageEntityId(fakeEntity.backendId);
-    state.ids = [imageId];
-    state.entities[imageId] = fakeEntity;
+    // Images that we are loading thumbnails for.
+    const images = fakeImageEntities(undefined);
+    state.ids = images.ids;
+    state.entities = images.entities;
 
     // Create fake loaded image data.
-    const imageInfo = { imageId: imageId, imageUrl: faker.image.dataUri() };
+    const imageInfo = images.ids.map((id) => ({
+      imageId: id,
+      imageUrl: faker.image.dataUri(),
+    }));
     // Create the action.
     const action = {
-      type: thunkLoadThumbnail.fulfilled.type,
+      meta: {
+        arg: images.ids,
+      },
+      type: thunkLoadThumbnails.fulfilled.type,
       payload: imageInfo,
     };
 
@@ -1669,10 +1683,16 @@ describe("thumbnail-grid-slice reducers", () => {
     const newState: ImageViewState = thumbnailGridReducer(state, action);
 
     // Assert.
-    // It should have updated the entity for the image.
-    const imageEntity = newState.entities[imageId];
-    expect(imageEntity?.thumbnailStatus).toEqual(ImageStatus.LOADED);
-    expect(imageEntity?.thumbnailUrl).toEqual(imageInfo.imageUrl);
+    // It should have updated the entities for the images.
+    for (let i = 0; i < images.ids.length; ++i) {
+      const imageId = images.ids[i];
+      const imageEntity = newState.entities[imageId];
+      expect(imageEntity?.thumbnailStatus).toEqual(ImageStatus.LOADED);
+      expect(imageEntity?.thumbnailUrl).toEqual(imageInfo[i].imageUrl);
+    }
+
+    // It should have updated the tracker for the number of loaded thumbnails.
+    expect(newState.numThumbnailsLoaded).toEqual(state.ids.length);
   });
 
   it(`handles a ${thunkLoadImage.pending.type} action`, () => {

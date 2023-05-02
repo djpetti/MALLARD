@@ -1,5 +1,6 @@
 import { ConnectedThumbnailGrid } from "../thumbnail-grid";
 import {
+  fakeImageEntities,
   fakeImageEntity,
   fakeState,
   getShadowRoot,
@@ -21,6 +22,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadMetadata: jest.fn(),
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
+    createImageEntityId: actualSlice.createImageEntityId,
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
       selectById: actualSlice.thumbnailGridSelectors.selectById,
@@ -46,16 +48,19 @@ jest.mock("../store", () => ({
   configureStore: jest.fn(),
 }));
 
+class TestThumbnailGrid extends ConnectedThumbnailGrid {
+  public updateFromState(state: RootState) {
+    Object.assign(this, this.mapState(state));
+  }
+}
+
 describe("thumbnail-grid", () => {
   /** Internal thumbnail-grid to use for testing. */
-  let gridElement: ConnectedThumbnailGrid;
+  let gridElement: TestThumbnailGrid;
 
   beforeAll(() => {
     // Manually register the custom element.
-    customElements.define(
-      ConnectedThumbnailGrid.tagName,
-      ConnectedThumbnailGrid
-    );
+    customElements.define(TestThumbnailGrid.tagName, TestThumbnailGrid);
   });
 
   beforeEach(() => {
@@ -66,8 +71,8 @@ describe("thumbnail-grid", () => {
     jest.clearAllMocks();
 
     gridElement = window.document.createElement(
-      ConnectedThumbnailGrid.tagName
-    ) as ConnectedThumbnailGrid;
+      TestThumbnailGrid.tagName
+    ) as TestThumbnailGrid;
     // Default to not being in loading mode, since that's typically what
     // we want to test.
     gridElement.loadingState = RequestState.IDLE;
@@ -75,9 +80,7 @@ describe("thumbnail-grid", () => {
   });
 
   afterEach(() => {
-    document.body
-      .getElementsByTagName(ConnectedThumbnailGrid.tagName)[0]
-      .remove();
+    document.body.getElementsByTagName(TestThumbnailGrid.tagName)[0].remove();
   });
 
   each([
@@ -97,6 +100,9 @@ describe("thumbnail-grid", () => {
     ];
 
     // Act.
+    // groupedArtifacts isn't actually a reactive property, so we have to
+    // update manually.
+    gridElement.requestUpdate();
     await gridElement.updateComplete;
 
     // Assert.
@@ -185,6 +191,54 @@ describe("thumbnail-grid", () => {
     // Assert.
     // It should have tried to load more data.
     expect(loadDataHandler).toBeCalledTimes(1);
+  });
+
+  it("clears the thumbnails on top when enough data are loaded", async () => {
+    // Arrange.
+    // First, make it look like we have too many thumbnails.
+    const state = fakeState();
+    // Limit the number of images here to limit memory/computation.
+    const images = fakeImageEntities(10, true);
+    state.imageView.ids = images.ids;
+    state.imageView.entities = images.entities;
+    // Set this artificially so it triggers the clearing of old data.
+    state.imageView.numThumbnailsLoaded =
+      ConnectedThumbnailGrid.MAX_THUMBNAILS_LOADED + 1;
+    state.imageView.currentQueryHasMorePages = true;
+
+    // Make it look like the user has scrolled down.
+    Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
+    Object.defineProperty(gridElement, "scrollHeight", { value: 1500 });
+    Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+
+    // Set up a fake handler for the data deletion event.
+    // It will automatically set the status to "loading" after the first load event
+    // to simulate actual behavior and avoid an infinite loop.
+    const deleteDataHandler = jest.fn(
+      (_) => (gridElement.loadingState = RequestState.LOADING)
+    );
+    gridElement.addEventListener(
+      ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME,
+      deleteDataHandler
+    );
+
+    // Act.
+    // Set the state correctly.
+    while (!(await gridElement.updateComplete)) {}
+    gridElement.updateFromState(state);
+    while (!(await gridElement.updateComplete)) {}
+
+    // Assert.
+    // It should have deleted data once.
+    expect(deleteDataHandler).toBeCalledTimes(1);
+    // It should have deleted the top page.
+    const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
+    expect(deleteIds).toEqual(
+      gridElement.orderedArtifactIds.slice(
+        0,
+        ConnectedThumbnailGrid.IMAGES_PER_PAGE
+      )
+    );
   });
 
   it("does not load data if it doesn't need to", async () => {

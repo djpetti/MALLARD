@@ -5,7 +5,7 @@ import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";
 import {
   thumbnailGridSelectors,
-  thunkLoadThumbnail,
+  thunkLoadThumbnails,
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -195,9 +195,14 @@ export class ConnectedArtifactThumbnail extends connect(
    * @inheritDoc
    */
   mapState(state: RootState): { [p: string]: any } {
+    const defaultState = {
+      imageUrl: undefined,
+      selected: false,
+      imageLink: undefined,
+    };
     if (!this.frontendId) {
       // No specific thumbnail has been set.
-      return {};
+      return defaultState;
     }
 
     const imageEntity = thumbnailGridSelectors.selectById(
@@ -206,11 +211,11 @@ export class ConnectedArtifactThumbnail extends connect(
     );
     if (imageEntity === undefined) {
       // The frontendId that was set is apparently invalid.
-      return {};
+      return defaultState;
     }
     if (imageEntity.thumbnailStatus != ImageStatus.LOADED) {
       // The thumbnail image is has not been loaded yet.
-      return {};
+      return defaultState;
     }
 
     return {
@@ -232,9 +237,9 @@ export class ConnectedArtifactThumbnail extends connect(
     handlers[ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME] = (
       event: Event
     ) =>
-      thunkLoadThumbnail(
-        (event as CustomEvent<string>).detail
-      ) as unknown as Action;
+      thunkLoadThumbnails([
+        (event as CustomEvent<string>).detail,
+      ]) as unknown as Action;
     handlers[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME] = (event: Event) =>
       thunkSelectImages({
         imageIds: [this.frontendId as string],

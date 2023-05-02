@@ -1,5 +1,5 @@
 import { css, html, PropertyValues } from "lit";
-import { property, queryAll } from "lit/decorators.js";
+import { property, queryAll, state } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
@@ -9,6 +9,7 @@ import {
   thunkClearEntities,
   thunkContinueQuery,
   thunkLoadMetadata,
+  thunkLoadThumbnails,
   thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -27,6 +28,14 @@ interface GroupedImages {
   captureDate: Date;
   /** The session for these images. */
   session?: string;
+}
+
+/**
+ * Combines a page number with the associated scroll amount.
+ */
+interface PageAndScroll {
+  page: number;
+  scrollOffset: number;
 }
 
 /**
@@ -115,9 +124,16 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
 
   /**
    * Number of images to request at a time from the backend.
-   * @protected
    */
-  protected static readonly IMAGES_PER_PAGE = 50;
+  public static readonly IMAGES_PER_PAGE: number = 50;
+  /**
+   * Maximum number of thumbnails we will keep loaded at once.
+   */
+  public static readonly MAX_THUMBNAILS_LOADED: number = 500;
+  /**
+   * Hysteresis pixel value to use when reloading pages.
+   */
+  private static readonly PAGE_RELOAD_HYSTERESIS: number = 100;
 
   /**
    * Name for the custom event signaling that the displayed images have
@@ -129,10 +145,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   static readonly LOAD_MORE_DATA_BOTTOM_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data-bottom`;
   /**
-   * Name for the custom event signaling that the user has scrolled near
-   * the top, and we need to load more data.
+   * Name for the custom event signaling that we should reload data
+   * that we previously unloaded for memory savings.
    */
-  static readonly LOAD_MORE_DATA_TOP_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data-top`;
+  static readonly RELOAD_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-reload-data`;
   /**
    * Name for the custom event signaling that we want to delete some data.
    */
@@ -154,7 +170,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * Unique IDs of grouped artifacts.
    */
-  private groupedArtifactsFlatIds: string[] = [];
+  protected groupedArtifactsFlatIds: string[] = [];
 
   /** Represents the status of the data loading process. */
   @property({ attribute: false })
@@ -166,6 +182,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   @property()
   public hasMorePages: boolean = true;
 
+  /**
+   * Keeps track of how many total thumbnails are loaded.
+   */
+  @state()
+  protected numThumbnailsLoaded = 0;
+
   @queryAll("thumbnail-grid-section")
   private sections!: ThumbnailGridSection[];
 
@@ -173,6 +195,31 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * Keeps track of the top-most page of data that is currently displayed.
    */
   private topPageNum: number = 0;
+
+  /**
+   * Keeps track of the bottom-most page of data that is currently displayed.
+   */
+  private bottomPageNum: number = 0;
+
+  /**
+   * List of page numbers and their associated scroll offsets that we add to
+   * whenever we clear a page at the top. Should remain sorted.
+   */
+  private removedPagesTop: PageAndScroll[] = [];
+
+  /**
+   * List of page numbers and their associated scroll offsets that we add to
+   * whenever we clear a page at the bottom. Should remain sorted.
+   */
+  private removedPagesBottom: PageAndScroll[] = [];
+
+  /**
+   * @return {string[]} The IDs of the displayed artifacts, in the order
+   * that they are displayed on the page.
+   */
+  public get orderedArtifactIds(): string[] {
+    return Array.from(this.groupedArtifactsFlatIds);
+  }
 
   /**
    * @inheritDoc
@@ -183,6 +230,8 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       return false;
     }
 
+    ++this.bottomPageNum;
+
     // Dispatch an event. This will trigger an action that loads
     // the next page.
     this.dispatchEvent(
@@ -192,43 +241,112 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       })
     );
 
+    if (this.numThumbnailsLoaded > ThumbnailGrid.MAX_THUMBNAILS_LOADED) {
+      // We have too many thumbnails. Remove some at the top to compensate.
+      this.clearTopmostSection();
+    }
+
     return true;
   }
 
   /**
-   * @inheritDoc
+   * Gets the image IDs from a particular page of the query.
+   * @param {number} pageNum The query page to get IDs from.
+   * @return {string[]} The array of image IDs from this page.
+   * @private
    */
-  protected override loadPreviousSection(): boolean {
-    if (this.topPageNum == 0) {
-      // We have nothing more to load, so don't bother.
-      return false;
-    }
+  private getIdsFromPage(pageNum: number): string[] {
+    const startIndex = pageNum * ThumbnailGrid.IMAGES_PER_PAGE;
+    return this.groupedArtifactsFlatIds.slice(
+      startIndex,
+      startIndex + ThumbnailGrid.IMAGES_PER_PAGE
+    );
+  }
 
-    --this.topPageNum;
+  /**
+   * Reloads data from a page that was cleared.
+   * @param {number} pageNum The page number to reload.
+   * @return {boolean} True if more data was loaded, false if there was
+   *  nothing more to load.
+   * @private
+   */
+  private reloadPage(pageNum: number): boolean {
+    // Find the IDs for the page we want to reload.
+    const pageIds = this.getIdsFromPage(pageNum);
 
     // Dispatch an event. This will trigger an action that loads the
     // previous page.
     this.dispatchEvent(
-      new CustomEvent<number>(ThumbnailGrid.LOAD_MORE_DATA_TOP_EVENT_NAME, {
+      new CustomEvent<string[]>(ThumbnailGrid.RELOAD_DATA_EVENT_NAME, {
         bubbles: true,
         composed: false,
-        detail: this.topPageNum,
+        detail: pageIds,
       })
     );
     return true;
   }
 
   /**
-   * @inheritDoc
+   * Reloads a page if it is necessary to do so, based on the current scroll
+   * position.
+   * @return {boolean} True if it reloaded a page, false otherwise.
+   * @private
    */
-  protected override deleteTopmostSection() {
-    ++this.topPageNum;
+  private reloadIfNeeded(): boolean {
+    const lastTop = this.removedPagesTop.pop();
+    if (lastTop) {
+      if (
+        this.scrollTop <
+        lastTop.scrollOffset - ThumbnailGrid.PAGE_RELOAD_HYSTERESIS
+      ) {
+        this.reloadPage(lastTop.page);
+        // Unload a page at the bottom to compensate.
+        this.clearBottommostSection();
+        --this.topPageNum;
+        return true;
+      }
 
+      // Add it back if we didn't reload it.
+      this.removedPagesTop.push(lastTop);
+    }
+
+    const lastBottom = this.removedPagesBottom.pop();
+    if (lastBottom) {
+      if (
+        this.scrollTop >=
+        lastBottom.scrollOffset + ThumbnailGrid.PAGE_RELOAD_HYSTERESIS
+      ) {
+        this.reloadPage(lastBottom.page);
+        // Unload a page at the top to compensate.
+        this.clearTopmostSection();
+        ++this.bottomPageNum;
+        return true;
+      }
+
+      // Add it back if we didn't reload it.
+      this.removedPagesBottom.push(lastBottom);
+    }
+
+    return false;
+  }
+
+  /**
+   * Clears loaded data from the topmost page to save memory.
+   * @private
+   */
+  private clearTopmostSection() {
     // Find the first page of displayed results.
     const firstPageIds = this.groupedArtifactsFlatIds.slice(
-      0,
-      ThumbnailGrid.IMAGES_PER_PAGE
+      this.topPageNum * ThumbnailGrid.IMAGES_PER_PAGE,
+      (this.topPageNum + 1) * ThumbnailGrid.IMAGES_PER_PAGE
     );
+
+    this.removedPagesTop.push({
+      page: this.topPageNum,
+      scrollOffset: this.scrollTop,
+    });
+    ++this.topPageNum;
+
     this.dispatchEvent(
       new CustomEvent<string[]>(ThumbnailGrid.DELETE_DATA_EVENT_NAME, {
         bubbles: true,
@@ -239,13 +357,22 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   }
 
   /**
-   * @inheritDoc
+   * Clears data from the bottommost page to save memory.
+   * @private
    */
-  protected override deleteBottommostSection() {
+  private clearBottommostSection() {
     // Find the last page of displayed results.
+    --this.bottomPageNum;
     const lastPageIds = this.groupedArtifactsFlatIds.slice(
-      -ThumbnailGrid.IMAGES_PER_PAGE
+      this.bottomPageNum * ThumbnailGrid.IMAGES_PER_PAGE,
+      (this.bottomPageNum + 1) * ThumbnailGrid.IMAGES_PER_PAGE
     );
+
+    this.removedPagesBottom.push({
+      page: this.bottomPageNum,
+      scrollOffset: this.scrollTop,
+    });
+
     this.dispatchEvent(
       new CustomEvent<string[]>(ThumbnailGrid.DELETE_DATA_EVENT_NAME, {
         bubbles: true,
@@ -349,6 +476,35 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       );
     }
   }
+
+  /**
+   * @inheritDoc
+   */
+  protected override async getUpdateComplete(): Promise<boolean> {
+    // It shouldn't be considered updated until all the sections are updated.
+    for (const section of this.sections) {
+      await section.updateComplete;
+    }
+
+    return await super.getUpdateComplete();
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected firstUpdated(properties: PropertyValues) {
+    // Reload pages as needed when we scroll.
+    this.addEventListener("scroll", (_) => {
+      while (this.reloadIfNeeded()) {}
+    });
+
+    super.firstUpdated(properties);
+
+    // If we have no data, try loading some initially.
+    if (this.displayedArtifacts.length == 0) {
+      this.loadNextSection();
+    }
+  }
 }
 
 /**
@@ -433,6 +589,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
       queryPageNum: state.imageView.currentQueryOptions.pageNum,
       isQueryRunning: state.imageView.currentQuery.length > 0,
+      numThumbnailsLoaded: state.imageView.numThumbnailsLoaded,
     };
   }
 
@@ -465,11 +622,11 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
     };
-    handlers[ConnectedThumbnailGrid.LOAD_MORE_DATA_TOP_EVENT_NAME] = (
+    handlers[ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME] = (
       event: Event
     ) => {
-      return thunkContinueQuery(
-        (event as CustomEvent<number>).detail
+      return thunkLoadThumbnails(
+        (event as CustomEvent<string[]>).detail
       ) as unknown as Action;
     };
     handlers[ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME] = (

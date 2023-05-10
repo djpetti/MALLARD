@@ -41,7 +41,7 @@ const IMAGE_FORMAT_TO_ENUM = new Map<string, ImageFormat>([
  */
 export const DEFAULT_ORDERINGS: Ordering[] = [
   { field: Field.CAPTURE_DATE, ascending: false },
-  { field: Field.SESSION, ascending: false },
+  { field: Field.SESSION, ascending: true },
   { field: Field.NAME, ascending: true },
 ];
 

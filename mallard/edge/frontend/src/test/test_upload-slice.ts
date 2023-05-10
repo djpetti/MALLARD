@@ -4,6 +4,7 @@ import {
   fakeFrontendFileEntity,
   fakeImageMetadata,
   fakeObjectRef,
+  fakeFile,
   fakeState,
 } from "./element-test-utils";
 import uploadReducer, {
@@ -12,12 +13,13 @@ import uploadReducer, {
   dialogOpened,
   fileDropZoneEntered,
   fileDropZoneExited,
-  processSelectedFiles,
   setMetadata,
   thunkInferMetadata,
   thunkUpdateMetadata,
   thunkUploadFile,
   uploadSlice,
+  addSelectedFiles,
+  thunkPreProcessFiles,
 } from "../upload-slice";
 import {
   FileStatus,
@@ -30,17 +32,26 @@ import { AsyncThunk } from "@reduxjs/toolkit";
 import each from "jest-each";
 import { cloneDeep } from "lodash";
 import { UavImageMetadata } from "mallard-api";
-import { clearImageView } from "../thumbnail-grid-slice";
-
-// Require syntax must be used here due to an issue that prevents
-// access to faker.seed() when using import syntax.
-const faker = require("faker");
+import { thunkClearImageView } from "../thumbnail-grid-slice";
+import imageBlobReduce, {
+  ImageBlobReduce,
+  ImageBlobReduceStatic,
+} from "image-blob-reduce";
+import { faker } from "@faker-js/faker";
 
 // Using older require syntax here so we get the correct mock type.
 const apiClient = require("../api-client");
 const mockCreateImage: jest.Mock = apiClient.createImage;
 const mockInferMetadata: jest.Mock = apiClient.inferMetadata;
 const mockUpdateMetadata: jest.Mock = apiClient.batchUpdateMetadata;
+
+// Mock out the thumbnailGridSlice.
+jest.mock("../thumbnail-grid-slice", () => ({
+  thunkClearImageView: jest.fn(),
+}));
+const mockClearImageView = thunkClearImageView as jest.MockedFn<
+  typeof thunkClearImageView
+>;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -49,9 +60,10 @@ jest.mock("../api-client", () => ({
   batchUpdateMetadata: jest.fn(),
 }));
 
-// Mock out the JS fetch API.
-const mockFetch = jest.fn();
-global.fetch = mockFetch;
+// Mock out image-blob-reduce.
+jest.mock("image-blob-reduce");
+const mockImageBlobReduce =
+  imageBlobReduce as jest.MockedClass<ImageBlobReduceStatic>;
 
 // Mock out the `URL` API.
 const mockCreateObjectUrl = jest.fn();
@@ -62,10 +74,18 @@ global.URL.revokeObjectURL = mockRevokeObjectUrl;
 describe("upload-slice action creators", () => {
   /** Factory function for a mocked Redux store. */
   let mockStoreCreator: MockStoreCreator;
+  /** Stores the mocked global instance of imageBlobReduce. */
+  let mockImageBlobReduceInstance: jest.MockedObject<ImageBlobReduce>;
 
   beforeAll(() => {
     // Initialize the mock store factory.
     mockStoreCreator = configureStore([thunk]);
+
+    // When we reset the mocks, it will destroy the record of any
+    // global instances of mocked classes that we created, so save
+    // them here.
+    mockImageBlobReduceInstance = mockImageBlobReduce.mock
+      .instances[0] as jest.MockedObject<ImageBlobReduce>;
   });
 
   beforeEach(() => {
@@ -76,11 +96,13 @@ describe("upload-slice action creators", () => {
     jest.clearAllMocks();
   });
 
-  describe("async action creators", () => {
+  describe("async thunks", () => {
     /** A fake state to use for testing. */
     let state: RootState;
     /** A fake upload file to use for testing. */
     let uploadFile: FrontendFileEntity;
+    /** A fake set of uploaded files for testing. */
+    let idsToFiles: Map<string, File>;
     /** A fake Redux store to use for testing. */
     let store: MockStore;
 
@@ -88,8 +110,11 @@ describe("upload-slice action creators", () => {
       // Initialize a fake store with valid state.
       state = fakeState();
       state.uploads.dialogOpen = true;
+
       // The state should have a single pending file.
       uploadFile = fakeFrontendFileEntity();
+      idsToFiles = new Map([[uploadFile.id, fakeFile()]]);
+
       state.uploads.ids = [uploadFile.id];
       state.uploads.entities[uploadFile.id] = uploadFile;
       store = mockStoreCreator(state);
@@ -118,22 +143,24 @@ describe("upload-slice action creators", () => {
       const newImageId = fakeObjectRef();
       mockCreateImage.mockResolvedValue(newImageId);
 
-      // Make it look like reading the image produces valid data.
-      const mockResponse = { blob: jest.fn() };
-      mockResponse.blob.mockResolvedValue(faker.datatype.string());
-      mockFetch.mockResolvedValue(mockResponse);
-
       // Act.
-      await thunkUploadFile(uploadFile.id)(store.dispatch, store.getState, {});
+      await thunkUploadFile({ fileId: uploadFile.id, idsToFiles: idsToFiles })(
+        store.dispatch,
+        store.getState,
+        {}
+      );
 
       // Assert.
       // It should have dispatched the lifecycle actions.
       checkDispatchedActions(thunkUploadFile);
 
-      // It should have fetched the image.
-      expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
       // It should have uploaded the image.
+      const fakeFile = idsToFiles.get(uploadFile.id) as File;
       expect(mockCreateImage).toHaveBeenCalledTimes(1);
+      expect(mockCreateImage).toBeCalledWith(fakeFile, {
+        name: fakeFile.name,
+        metadata: {},
+      });
     });
 
     it("creates an inferMetadata action", async () => {
@@ -145,28 +172,20 @@ describe("upload-slice action creators", () => {
       const metadata = fakeImageMetadata();
       mockInferMetadata.mockResolvedValue(metadata);
 
-      // Make it look like reading the image produces valid data.
-      const imageData = faker.datatype.string();
-      const mockResponse = { blob: jest.fn() };
-      mockResponse.blob.mockResolvedValue(imageData);
-      mockFetch.mockResolvedValue(mockResponse);
-
       // Act.
-      await thunkInferMetadata(uploadFile.id)(
-        store.dispatch,
-        store.getState,
-        {}
-      );
+      await thunkInferMetadata({
+        fileId: uploadFile.id,
+        idsToFiles: idsToFiles,
+      })(store.dispatch, store.getState, {});
 
       // Assert.
       // It should have dispatched the lifecycle actions.
       checkDispatchedActions(thunkInferMetadata);
 
-      // It should have fetched the image.
-      expect(mockFetch).toHaveBeenCalledWith(uploadFile.dataUrl);
       // It should have inferred the metadata.
+      const fakeFile = idsToFiles.get(uploadFile.id);
       expect(mockInferMetadata).toHaveBeenCalledWith(
-        imageData,
+        fakeFile,
         expect.anything()
       );
     });
@@ -177,11 +196,10 @@ describe("upload-slice action creators", () => {
       state.uploads.metadataStatus = MetadataInferenceStatus.LOADING;
 
       // Act.
-      await thunkInferMetadata(uploadFile.id)(
-        store.dispatch,
-        store.getState,
-        {}
-      );
+      await thunkInferMetadata({
+        fileId: uploadFile.id,
+        idsToFiles: idsToFiles,
+      })(store.dispatch, store.getState, {});
 
       // Assert.
       // It should not have dispatched any actions.
@@ -231,36 +249,73 @@ describe("upload-slice action creators", () => {
         }
       }
     );
+
+    it("creates a preProcessFiles action", async () => {
+      // Arrange.
+      const fileIds = state.uploads.ids as string[];
+
+      // Make it look like it produces a valid thumbnail blob.
+      const mockToBlob = mockImageBlobReduceInstance.toBlob;
+      const thumbnailBlob = fakeFile();
+      mockToBlob.mockResolvedValue(thumbnailBlob);
+
+      // Create a fake thumbnail URL.
+      const thumbnailUrl = faker.internet.url();
+      mockCreateObjectUrl.mockReturnValue(thumbnailUrl);
+
+      // Act.
+      await thunkPreProcessFiles({ fileIds, idsToFiles })(
+        store.dispatch,
+        store.getState,
+        {}
+      );
+
+      // Assert.
+      // It should have dispatched the lifecycle actions.
+      checkDispatchedActions(thunkPreProcessFiles);
+
+      // It should have created thumbnails for the images.
+      expect(mockToBlob).toHaveBeenCalledTimes(1);
+      const fakeFileData = idsToFiles.get(uploadFile.id) as File;
+      expect(mockToBlob).toHaveBeenCalledWith(fakeFileData, expect.anything());
+
+      expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+      expect(URL.createObjectURL).toHaveBeenCalledWith(thumbnailBlob);
+
+      // It should have returned the correct results.
+      expect(store.getActions()[1].payload).toEqual([
+        {
+          id: uploadFile.id,
+          dataUrl: thumbnailUrl,
+        },
+      ]);
+    });
   });
 
-  it("creates a processSelectedFiles action", () => {
+  it("creates an addSelectedFiles action", () => {
     // Arrange.
     // Create some files to process.
-    const fakeImageFile = { type: "image/jpg", name: faker.system.fileName() };
-    const fakeTextFile = { type: "text/plain", name: faker.system.fileName() };
-    const dataTransferItemList = [
-      fakeImageFile,
-      fakeImageFile,
+    const fakeImageFile = fakeFile();
+    const fakeTextFile = fakeFile("text/plain");
+    const id1 = faker.datatype.uuid();
+    const id2 = faker.datatype.uuid();
+    const fileMap = new Map([
+      [id1, fakeImageFile],
+      [id2, fakeImageFile],
       // Throw one invalid file in there too.
-      fakeTextFile,
-    ];
-
-    // Make it look like creating the object URL succeeds.
-    const imageUri = faker.image.dataUri();
-    mockCreateObjectUrl.mockReturnValue(imageUri);
+      [faker.datatype.uuid(), fakeTextFile],
+    ]);
 
     // Act.
     // Fancy casting is so we can substitute mock objects.
-    const gotAction = processSelectedFiles(
-      dataTransferItemList as unknown as File[]
-    );
+    const gotAction = addSelectedFiles(fileMap);
 
     // Assert.
     // It should have created the correct action.
-    expect(gotAction.type).toEqual("upload/processSelectedFiles");
+    expect(gotAction.type).toEqual("upload/addSelectedFiles");
     expect(gotAction.payload).toHaveLength(2);
-    expect(gotAction.payload[0].dataUrl).toEqual(imageUri);
-    expect(gotAction.payload[1].dataUrl).toEqual(imageUri);
+    expect(gotAction.payload[0].id).toEqual(id1);
+    expect(gotAction.payload[1].id).toEqual(id2);
     expect(gotAction.payload[0].name).toEqual(fakeImageFile.name);
     expect(gotAction.payload[1].name).toEqual(fakeImageFile.name);
     expect(gotAction.payload[0].status).toEqual(FileStatus.PENDING);
@@ -284,18 +339,23 @@ describe("upload-slice action creators", () => {
 
       const store = mockStoreCreator(state);
 
+      // Use a dummy action here to simulate how this thunk works.
+      mockClearImageView.mockReturnValue((dispatch) => {
+        dispatch({ type: "thunkClearImageView", payload: undefined });
+      });
+
       // Act.
       finishUpload()(store.dispatch, store.getState as () => RootState, {});
 
       // Assert.
       // It should have released the object URLs.
-      expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.dataUrl);
+      expect(mockRevokeObjectUrl).toHaveBeenCalledWith(uploadFile.thumbnailUrl);
 
       // It should have dispatched the action.
       const actions = store.getActions();
       expect(actions).toHaveLength(hasNewMetadata ? 3 : 2);
       expect(actions[actions.length - 2].type).toEqual(dialogClosed.type);
-      expect(actions[actions.length - 1].type).toEqual(clearImageView.type);
+      expect(actions[actions.length - 1].type).toEqual("thunkClearImageView");
 
       if (hasNewMetadata) {
         // It should have dispatched an additional action to update the
@@ -386,24 +446,24 @@ describe("upload-slice reducers", () => {
     // Arrange.
     const state: UploadState = fakeState().uploads;
     // Make it look like we have a pending file.
-    const pendingFile = fakeFrontendFileEntity();
-    pendingFile.status = FileStatus.PENDING;
+    const awaitingFile = fakeFrontendFileEntity();
+    awaitingFile.status = FileStatus.AWAITING_UPLOAD;
     const doneFile = fakeFrontendFileEntity();
     doneFile.status = FileStatus.COMPLETE;
-    state.ids = [pendingFile.id, doneFile.id];
-    state.entities[pendingFile.id] = pendingFile;
+    state.ids = [awaitingFile.id, doneFile.id];
+    state.entities[awaitingFile.id] = awaitingFile;
     state.entities[doneFile.id] = doneFile;
 
     // Act.
     const newState = uploadReducer(state, {
       type: thunkUploadFile.typePrefix + "/pending",
-      meta: { arg: pendingFile.id },
+      meta: { arg: { fileId: awaitingFile.id } },
     });
 
     // Assert.
     // It should have modified the status of the pending file.
-    expect(newState.entities[pendingFile.id]?.status).toEqual(
-      FileStatus.PROCESSING
+    expect(newState.entities[awaitingFile.id]?.status).toEqual(
+      FileStatus.UPLOADING
     );
     // It should not have changed the status of the complete file.
     expect(newState.entities[doneFile.id]?.status).toEqual(FileStatus.COMPLETE);
@@ -414,7 +474,7 @@ describe("upload-slice reducers", () => {
     const state: UploadState = fakeState().uploads;
     // Make it look like we have a processing file.
     const processingFile = fakeFrontendFileEntity();
-    processingFile.status = FileStatus.PROCESSING;
+    processingFile.status = FileStatus.UPLOADING;
     const doneFile = fakeFrontendFileEntity();
     doneFile.status = FileStatus.COMPLETE;
     state.ids = [processingFile.id, doneFile.id];
@@ -424,7 +484,7 @@ describe("upload-slice reducers", () => {
     // Act.
     const newState = uploadReducer(state, {
       type: thunkUploadFile.typePrefix + "/fulfilled",
-      meta: { arg: processingFile.id },
+      meta: { arg: { fileId: processingFile.id } },
     });
 
     // Assert.
@@ -473,7 +533,7 @@ describe("upload-slice reducers", () => {
     expect(newState.metadata).toEqual(metadata);
   });
 
-  it("handles a processSelectedFiles action", () => {
+  it("handles an addSelectedFiles action", () => {
     // Arrange.
     // Create some files to process.
     const file1 = fakeFrontendFileEntity();
@@ -486,7 +546,7 @@ describe("upload-slice reducers", () => {
 
     // Act.
     const newState = uploadReducer(state, {
-      type: processSelectedFiles.type,
+      type: addSelectedFiles.type,
       payload: [file1, file2],
     });
 
@@ -498,5 +558,72 @@ describe("upload-slice reducers", () => {
 
     // It should have marked the drag-and-drop action as finished.
     expect(newState.isDragging).toEqual(false);
+    // It should have marked the uploads as in-progress.
+    expect(newState.uploadsInProgress).toEqual(2);
+  });
+
+  it("handles a preProcessFiles/pending action", () => {
+    // Arrange.
+    const file1 = fakeFrontendFileEntity();
+    file1.status = FileStatus.PENDING;
+    const file2 = fakeFrontendFileEntity();
+    file2.status = FileStatus.PENDING;
+    const state: UploadState = fakeState().uploads;
+    const fileIds = [file1.id, file2.id];
+    state.ids = fileIds;
+    state.entities[file1.id] = file1;
+    state.entities[file2.id] = file2;
+
+    // Act.
+    const newState = uploadReducer(state, {
+      type: thunkPreProcessFiles.pending.type,
+      meta: { arg: { fileIds } },
+    });
+
+    // Assert.
+    // It should have updated the status of both files to pre-processing.
+    expect(newState.entities[file1.id]?.status).toEqual(
+      FileStatus.PRE_PROCESSING
+    );
+    expect(newState.entities[file2.id]?.status).toEqual(
+      FileStatus.PRE_PROCESSING
+    );
+  });
+
+  it("handles a preProcessFiles/fulfilled action", () => {
+    // Arrange.
+    const file1 = fakeFrontendFileEntity();
+    file1.status = FileStatus.PRE_PROCESSING;
+    const file2 = fakeFrontendFileEntity();
+    file2.status = FileStatus.PRE_PROCESSING;
+    const state: UploadState = fakeState().uploads;
+    state.ids = [file1.id, file2.id];
+    state.entities[file1.id] = file1;
+    state.entities[file2.id] = file2;
+
+    const processedFiles = [
+      { id: file1.id, dataUrl: faker.internet.url() },
+      { id: file2.id, dataUrl: faker.internet.url() },
+    ];
+
+    // Act.
+    const newState = uploadReducer(state, {
+      type: thunkPreProcessFiles.fulfilled.type,
+      payload: processedFiles,
+    });
+
+    // Assert.
+    expect(newState.entities[file1.id]?.status).toEqual(
+      FileStatus.AWAITING_UPLOAD
+    );
+    expect(newState.entities[file1.id]?.thumbnailUrl).toEqual(
+      processedFiles[0].dataUrl
+    );
+    expect(newState.entities[file2.id]?.status).toEqual(
+      FileStatus.AWAITING_UPLOAD
+    );
+    expect(newState.entities[file2.id]?.thumbnailUrl).toEqual(
+      processedFiles[1].dataUrl
+    );
   });
 });

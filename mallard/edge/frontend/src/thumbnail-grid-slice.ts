@@ -1,4 +1,5 @@
 import {
+  AnyAction,
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
@@ -15,6 +16,7 @@ import {
   RootState,
 } from "./types";
 import {
+  DEFAULT_ORDERINGS,
   deleteImages,
   getMetadata,
   loadImage,
@@ -22,7 +24,6 @@ import {
   queryImages,
 } from "./api-client";
 import {
-  Field,
   ObjectRef,
   Ordering,
   QueryResponse,
@@ -51,7 +52,7 @@ window.process =
       };
 
 /** Type alias to make typing thunks simpler. */
-type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
+type ThunkResult<R> = ThunkAction<R, RootState, any, AnyAction>;
 
 /**
  * Return type for the `thunkStartQuery` creator.
@@ -144,6 +145,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   },
   details: { frontendId: null },
   numItemsSelected: 0,
+  numThumbnailsLoaded: 0,
   bulkDownloadState: RequestState.IDLE,
   exportedImagesUrl: null,
 });
@@ -159,7 +161,7 @@ export const thunkStartNewQuery = createAsyncThunk(
   "thumbnailGrid/startNewQuery",
   async ({
     query,
-    orderings,
+    orderings = DEFAULT_ORDERINGS,
     resultsPerPage,
     startPageNum,
   }: {
@@ -224,27 +226,42 @@ export const thunkContinueQuery = createAsyncThunk(
 /**
  * Action creator that starts a new request for an image thumbnail.
  */
-export const thunkLoadThumbnail = createAsyncThunk(
+export const thunkLoadThumbnails = createAsyncThunk(
   "thumbnailGrid/loadThumbnail",
-  async (imageId: string, { getState }): Promise<LoadImageReturn> => {
-    // This should never be undefined, because that means our image ID is invalid.
-    const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
-      getState() as RootState,
-      imageId
-    ) as ImageEntity;
-    const rawImage = await loadThumbnail(imageEntity.backendId);
-
-    // Get the object URL for it.
-    return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
-  },
-  {
-    condition: (imageId: string, { getState }): boolean => {
-      const imageEntity = thumbnailGridSelectors.selectById(
+  async (imageIds: string[], { getState }): Promise<LoadImageReturn[]> => {
+    const updates = [];
+    for (const imageId of imageIds) {
+      // This should never be undefined, because that means our image ID is invalid.
+      const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
         getState() as RootState,
         imageId
       ) as ImageEntity;
-      // If the thumbnail is already loaded, we don't need to re-load it.
-      return imageEntity.thumbnailStatus == ImageStatus.NOT_LOADED;
+      if (imageEntity.thumbnailStatus === ImageStatus.LOADED) {
+        // If the image is already loaded, don't reload it.
+        continue;
+      }
+
+      const rawImage = await loadThumbnail(imageEntity.backendId);
+
+      updates.push({
+        imageId: imageId,
+        imageUrl: URL.createObjectURL(rawImage),
+      });
+    }
+
+    // Get the object URL for it.
+    return updates;
+  },
+  {
+    condition: (imageIds: string[], { getState }): boolean => {
+      const state = getState() as RootState;
+      return !imageIds.every((id) => {
+        const imageEntity = thumbnailGridSelectors.selectById(
+          state,
+          id
+        ) as ImageEntity;
+        return imageEntity.thumbnailStatus != ImageStatus.NOT_LOADED;
+      });
     },
   }
 );
@@ -365,8 +382,8 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
  * Action creator that starts a new request to delete the selected images.
  */
 export const thunkDeleteSelected = createAsyncThunk(
-  "thumbnailGrid/deleteImages",
-  async (_, { getState }): Promise<string[]> => {
+  "thumbnailGrid/deleteSelected",
+  async (_, { dispatch, getState }): Promise<string[]> => {
     // Get the backend IDs for the images.
     const state = getState() as RootState;
     const selectedIds = getSelectedImageIds(state);
@@ -374,6 +391,12 @@ export const thunkDeleteSelected = createAsyncThunk(
       (id) =>
         thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
     );
+
+    // TODO (danielp): Look into this typing issue further. It might be
+    //  a bug in redux-thunk.
+    type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
+    // Release the associated memory.
+    dispatch(thunkClearEntities(selectedIds) as ActionType);
 
     // Delete all the images.
     await deleteImages(backendIds);
@@ -451,45 +474,124 @@ export const thunkDoAutocomplete = createAsyncThunk(
  */
 export function thunkTextSearch(searchString: string): ThunkResult<void> {
   return (dispatch) => {
+    // Clear the current image view to release memory.
+    dispatch(thunkClearImageView());
+
     // Determine the query to use for searching.
     const queries = queriesFromSearchString(searchString);
     // Set the new query.
     dispatch(
       thunkStartNewQuery({
         query: queries,
-        orderings: [{ field: Field.CAPTURE_DATE, ascending: false }],
       })
     );
   };
 }
 
 /**
- * Thunk for clearing a loaded full-sized image. It will
+ * Thunk for clearing loaded full-sized images. It will
  * handle releasing the memory.
- * @param {string} imageId The entity ID of the image to clear. If not
- *  provided, it will do nothing.
+ * @param {(EntityId | undefined)[]} imageIds The entity IDs of the images to
+ *  clear.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
  */
-export function thunkClearFullSizedImage(imageId?: string): ThunkResult<void> {
+export function thunkClearFullSizedImages(
+  imageIds: (EntityId | undefined)[]
+): ThunkResult<void> {
   return (dispatch, getState) => {
-    if (!imageId) {
-      // Do nothing.
-      return;
-    }
-
-    // Release the loaded image.
     const state: RootState = getState();
-    const entity = thumbnailGridSelectors.selectById(
-      state,
-      imageId
-    ) as ImageEntity;
-    if (entity.imageUrl) {
-      URL.revokeObjectURL(entity.imageUrl);
+
+    const clearedImageIds = [];
+    for (const imageId of imageIds) {
+      if (!imageId) {
+        // Do nothing.
+        continue;
+      }
+
+      // Release the loaded image.
+      const entity = thumbnailGridSelectors.selectById(
+        state,
+        imageId
+      ) as ImageEntity;
+      if (entity.imageUrl) {
+        URL.revokeObjectURL(entity.imageUrl);
+        clearedImageIds.push(imageId);
+      }
     }
 
     // Update the state.
-    dispatch(thumbnailGridSlice.actions.clearFullSizedImage(imageId));
+    dispatch(clearFullSizedImages(clearedImageIds));
+  };
+}
+
+/**
+ * Thunk for clearing loaded thumbnail images. It will handle releasing the
+ * memory.
+ * @param {(EntityId | undefined)[]} imageIds The entity IDs of the image to
+ *  clear.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkClearThumbnails(
+  imageIds: (EntityId | undefined)[]
+): ThunkResult<void> {
+  return (dispatch, getState) => {
+    const state: RootState = getState();
+
+    const clearedImageIds = [];
+    for (const imageId of imageIds) {
+      if (!imageId) {
+        // Do nothing.
+        continue;
+      }
+
+      // Release the loaded image.
+      const entity = thumbnailGridSelectors.selectById(
+        state,
+        imageId
+      ) as ImageEntity;
+      if (entity.thumbnailUrl) {
+        URL.revokeObjectURL(entity.thumbnailUrl);
+        clearedImageIds.push(imageId);
+      }
+    }
+
+    // Update the state.
+    dispatch(clearThumbnails(clearedImageIds));
+  };
+}
+
+/**
+ * Removes any loaded images or thumbnails for these entities,
+ * significantly reducing memory usage.
+ * @param {EntityId[]} imageIds The IDs of the entities to remove.
+ * @return {ThunkResult} Does not actually return anything, because it
+ * simply dispatches other actions.
+ */
+export function thunkClearEntities(imageIds: EntityId[]): ThunkResult<void> {
+  return (dispatch) => {
+    // Free the associated memory.
+    dispatch(thunkClearFullSizedImages(imageIds));
+    dispatch(thunkClearThumbnails(imageIds));
+  };
+}
+
+/**
+ * Thunk for clearing the entire image view state. It will handle releasing
+ * the memory.
+ * @return {ThunkResult} Does not actually return anything, because it
+ * simply dispatches other actions.
+ */
+export function thunkClearImageView(): ThunkResult<void> {
+  return (dispatch, getState) => {
+    // Free all the memory associated with the images.
+    const imageIds = thumbnailGridSelectors.selectIds(getState());
+    dispatch(thunkClearThumbnails(imageIds));
+    dispatch(thunkClearFullSizedImages(imageIds));
+
+    // Update the state.
+    dispatch(clearImageView(null));
   };
 }
 
@@ -503,7 +605,40 @@ export function thunkSelectAll(select: boolean): ThunkResult<void> {
   return (dispatch, getState) => {
     // Get all the images.
     const imageIds = thumbnailGridSelectors.selectIds(getState());
-    dispatch(selectImages({ imageIds: imageIds, select: select }));
+    dispatch(thunkSelectImages({ imageIds: imageIds, select: select }));
+  };
+}
+
+/**
+ * Thunk for selecting/deselecting multiple images.
+ * @param {EntityId[]} imageIds The image IDs to select or deselect.
+ * @param {boolean} select True to select, false to deselect.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkSelectImages({
+  imageIds,
+  select,
+}: {
+  imageIds: EntityId[];
+  select: boolean;
+}): ThunkResult<void> {
+  return (dispatch, getState) => {
+    const state = getState().imageView;
+
+    // Filter out updates that won't actually change anything. This can help
+    // us avoid dispatching spurious actions, which are expensive.
+    const updateIds = [];
+    for (const id of imageIds) {
+      const entity = state.entities[id] as ImageEntity;
+      if (entity.isSelected != select) {
+        updateIds.push(id);
+      }
+    }
+
+    if (updateIds.length > 0) {
+      dispatch(selectImages({ imageIds: updateIds, select: select }));
+    }
   };
 }
 
@@ -541,7 +676,7 @@ function updateQueryState(
   queryResults: QueryResponse
 ) {
   // Register all the results.
-  thumbnailGridAdapter.addMany(
+  thumbnailGridAdapter.upsertMany(
     state,
     queryResults.imageIds.map((i) => createDefaultEntity(i))
   );
@@ -557,14 +692,37 @@ export const thumbnailGridSlice = createSlice({
   reducers: {
     // We are manually adding a new artifact to the frontend state.
     addArtifact(state, action) {
-      thumbnailGridAdapter.addOne(state, createDefaultEntity(action.payload));
+      thumbnailGridAdapter.upsertOne(
+        state,
+        createDefaultEntity(action.payload)
+      );
     },
     // Clears a loaded full-sized image.
-    clearFullSizedImage(state, action) {
-      thumbnailGridAdapter.updateOne(state, {
-        id: action.payload,
-        changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
-      });
+    clearFullSizedImages(state, action) {
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.payload.map((id: string) => ({
+          id: id,
+          changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
+        }))
+      );
+    },
+    // Clears a loaded thumbnail.
+    clearThumbnails(state, action) {
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.payload.map((id: string) => ({
+          id: id,
+          changes: {
+            thumbnailUrl: null,
+            thumbnailStatus: ImageStatus.NOT_LOADED,
+          },
+        }))
+      );
+
+      // Since we check in the action creator, it's safe to assume that
+      // every update constitutes an actual change.
+      state.numThumbnailsLoaded -= action.payload.length;
     },
     // Completely resets the current image view, removing all loaded images.
     clearImageView(state, _) {
@@ -591,16 +749,7 @@ export const thumbnailGridSlice = createSlice({
     selectImages(state, action) {
       const imageIds = action.payload.imageIds;
 
-      // Filter out updates that won't actually change anything.
-      const updateIds = [];
-      for (const id of imageIds) {
-        const entity = state.entities[id] as ImageEntity;
-        if (entity.isSelected != action.payload.select) {
-          updateIds.push(id);
-        }
-      }
-
-      const updates = updateIds.map((id: string) => ({
+      const updates = imageIds.map((id: string) => ({
         id: id,
         changes: { isSelected: action.payload.select },
       }));
@@ -608,9 +757,9 @@ export const thumbnailGridSlice = createSlice({
 
       // Update the number of selected items.
       if (action.payload.select) {
-        state.numItemsSelected += updateIds.length;
+        state.numItemsSelected += imageIds.length;
       } else {
-        state.numItemsSelected -= updateIds.length;
+        state.numItemsSelected -= imageIds.length;
       }
     },
     // Marks an image as the one being displayed on the details page.
@@ -678,25 +827,38 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We initiated thumbnail loading.
-    builder.addCase(thunkLoadThumbnail.pending, (state, action) => {
-      thumbnailGridAdapter.updateOne(state, {
-        id: action.meta.arg,
+    builder.addCase(thunkLoadThumbnails.pending, (state, action) => {
+      const updates = action.meta.arg.map((id) => ({
+        id: id,
         changes: {
           thumbnailStatus: ImageStatus.LOADING,
         },
-      });
+      }));
+      thumbnailGridAdapter.updateMany(state, updates);
     });
 
     // Add results from thumbnail loading.
-    builder.addCase(thunkLoadThumbnail.fulfilled, (state, action) => {
-      // Transition images from LOADING to VISIBLE, and save the image URL.
-      thumbnailGridAdapter.updateOne(state, {
-        id: action.payload.imageId,
+    builder.addCase(thunkLoadThumbnails.fulfilled, (state, action) => {
+      // We indiscriminately change the status of all the specified
+      // thumbnails to LOADING, so we need to change them all to loaded.
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.meta.arg.map((id) => ({
+          id: id,
+          changes: { thumbnailStatus: ImageStatus.LOADED },
+        }))
+      );
+
+      // Save the image URLs.
+      const updates = action.payload.map((p) => ({
+        id: p.imageId,
         changes: {
-          thumbnailStatus: ImageStatus.LOADED,
-          thumbnailUrl: action.payload.imageUrl,
+          thumbnailUrl: p.imageUrl,
         },
-      });
+      }));
+      thumbnailGridAdapter.updateMany(state, updates);
+
+      state.numThumbnailsLoaded += updates.length;
     });
 
     // We initiated image loading.
@@ -769,7 +931,8 @@ export const thumbnailGridSlice = createSlice({
 });
 
 export const {
-  clearFullSizedImage,
+  clearFullSizedImages,
+  clearThumbnails,
   addArtifact,
   clearImageView,
   clearAutocomplete,

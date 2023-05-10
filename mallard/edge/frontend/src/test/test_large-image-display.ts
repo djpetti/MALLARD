@@ -10,13 +10,10 @@ import {
 import { RootState } from "../types";
 import {
   thunkLoadImage,
-  thunkClearFullSizedImage,
+  thunkClearFullSizedImages,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -29,7 +26,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     createImageEntityId: jest.fn(),
     thunkLoadImage: jest.fn(),
     addArtifact: jest.fn(),
-    thunkClearFullSizedImage: jest.fn(),
+    thunkClearFullSizedImages: jest.fn(),
     thumbnailGridSelectors: {
       // Use the actual implementation for this function, but spy on calls.
       selectById: jest.spyOn(actualSlice.thumbnailGridSelectors, "selectById"),
@@ -221,7 +218,7 @@ describe("large-image-display", () => {
     );
 
     // Check disconnected event.
-    expect(thunkClearFullSizedImage).toBeCalledTimes(1);
-    expect(thunkClearFullSizedImage).toBeCalledWith(testEvent.detail);
+    expect(thunkClearFullSizedImages).toBeCalledTimes(1);
+    expect(thunkClearFullSizedImages).toBeCalledWith([testEvent.detail]);
   });
 });

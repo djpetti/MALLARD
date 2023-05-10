@@ -2,10 +2,7 @@ import { ConnectedMetadataCard, MetadataCard } from "../metadata-card";
 import { PlatformType } from "mallard-api";
 import { fakeImageMetadata, getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 describe("MetadataCard", () => {
   let metadataCardElement: ConnectedMetadataCard;

@@ -12,7 +12,7 @@ import {
   RequestState,
   RootState,
 } from "../types";
-import * as faker from "faker";
+import { faker } from "@faker-js/faker";
 import {
   Field,
   ImageFormat,
@@ -22,6 +22,8 @@ import {
   UavImageMetadata,
 } from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
+import { EntityId } from "@reduxjs/toolkit";
+import { createImageEntityId } from "../thumbnail-grid-slice";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -60,6 +62,7 @@ export function fakeState(): RootState {
       },
       details: { frontendId: null },
       numItemsSelected: 0,
+      numThumbnailsLoaded: 0,
       bulkDownloadState: RequestState.IDLE,
       exportedImagesUrl: null,
     },
@@ -148,6 +151,43 @@ export function fakeImageEntity(
 }
 
 /**
+ * Contains image entities, and corresponding frontend IDs.
+ */
+interface EntitiesAndIds {
+  ids: EntityId[];
+  entities: { [id: EntityId]: ImageEntity };
+}
+
+/**
+ * @brief Creates a full set if ImageEntities to use for a test. Note that this
+ *  uses `createImageEntityId` internally, so it should not be mocked.
+ * @param {number?} numEntities The number of fake entities to add. If not
+ *  provided it will choose randomly.
+ * @param {any} entityArgs Will be forwarded to `fakeImageEntity`.
+ * @return {EntitiesAndIds} The fake entities that it created.
+ */
+export function fakeImageEntities(
+  numEntities?: number,
+  ...entityArgs: any
+): EntitiesAndIds {
+  if (numEntities === undefined) {
+    // Choose the number of entities randomly.
+    numEntities = faker.datatype.number(15);
+  }
+
+  const state: EntitiesAndIds = { ids: [], entities: {} };
+  for (let i = 0; i < numEntities; ++i) {
+    const entity = fakeImageEntity(...entityArgs);
+    const frontendId = createImageEntityId(entity.backendId);
+
+    state.ids.push(frontendId);
+    state.entities[frontendId] = entity;
+  }
+
+  return state;
+}
+
+/**
  * Creates a fake entity in our normalized upload file database.
  * @param {FileStatus} status If specified, use a specific status for this file.
  * @return {FrontendFileEntity} The entity that it created.
@@ -159,16 +199,16 @@ export function fakeFrontendFileEntity(
   const iconUrl = faker.image.dataUri();
   const name = faker.system.fileName();
   if (status == undefined) {
-    status = faker.random.arrayElement([
+    status = faker.helpers.arrayElement([
       FileStatus.PENDING,
-      FileStatus.PROCESSING,
+      FileStatus.UPLOADING,
       FileStatus.COMPLETE,
     ]);
   }
 
   return {
     id: id,
-    dataUrl: iconUrl,
+    thumbnailUrl: iconUrl,
     name: name,
     status: status,
   };
@@ -194,14 +234,14 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
   return {
     size: faker.datatype.number({ min: 0 }),
     name: faker.system.fileName(),
-    format: faker.random.arrayElement([
+    format: faker.helpers.arrayElement([
       ImageFormat.GIF,
       ImageFormat.TIFF,
       ImageFormat.JPEG,
       ImageFormat.BMP,
       ImageFormat.PNG,
     ]),
-    platformType: faker.random.arrayElement([
+    platformType: faker.helpers.arrayElement([
       PlatformType.GROUND,
       PlatformType.AERIAL,
     ]),
@@ -225,7 +265,7 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
  */
 export function fakeOrdering(): Ordering {
   return {
-    field: faker.random.arrayElement([
+    field: faker.helpers.arrayElement([
       Field.NAME,
       Field.CAPTURE_DATE,
       Field.CAMERA,
@@ -252,10 +292,20 @@ export function fakeImageQuery(): ImageQuery {
  */
 export function fakeSuggestions(): Suggestions {
   return {
-    menu: faker.random.arrayElement([
+    menu: faker.helpers.arrayElement([
       AutocompleteMenu.NONE,
       AutocompleteMenu.DATE,
     ]),
     textCompletions: [faker.lorem.words(), faker.lorem.words()],
   };
+}
+
+/**
+ * @param {string} mimeType The MIME type to use for the fake file.
+ * @return {File} A fake `File` that appears to contain image data.
+ */
+export function fakeFile(mimeType: string = "image/jpeg"): File {
+  return new File([faker.datatype.string()], faker.system.fileName(), {
+    type: mimeType,
+  });
 }

@@ -5,7 +5,10 @@ import "./artifact-thumbnail";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { RootState } from "./types";
-import { selectImages, thumbnailGridSelectors } from "./thumbnail-grid-slice";
+import {
+  thumbnailGridSelectors,
+  thunkSelectImages,
+} from "./thumbnail-grid-slice";
 import { Action } from "redux";
 
 /** Custom event indicating that the selection status has changed. */
@@ -149,13 +152,16 @@ export class ConnectedThumbnailGridSection extends connect(
   mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
+    // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
+    // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
+    // However, it still works just fine with an AsyncThunkAction.
     handlers[ConnectedThumbnailGridSection.SELECT_TOGGLED_EVENT_NAME] = (
       event: Event
     ) =>
-      selectImages({
+      thunkSelectImages({
         imageIds: this.displayedArtifacts,
         select: (event as SelectedEvent).detail,
-      });
+      }) as unknown as Action;
 
     return handlers;
   }

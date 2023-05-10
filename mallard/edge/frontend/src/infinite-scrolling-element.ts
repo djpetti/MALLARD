@@ -5,6 +5,9 @@ import { LitElement, PropertyValues } from "lit";
  * scrollable.
  */
 export abstract class InfiniteScrollingElement extends LitElement {
+  /** Observer to use for reacting to size changes. */
+  private resizeObserver?: ResizeObserver;
+
   /**
    * We load some additional content beyond what will fit on the user's
    * screen as a buffer for when the user scrolls. This sets the percentage
@@ -32,16 +35,30 @@ export abstract class InfiniteScrollingElement extends LitElement {
   protected abstract isBusy(): boolean;
 
   /**
+   * Gets the element to use when measuring the height for the purposes
+   * of determining when to load more content. By default, it measures the
+   * entire element, but you might just want to look at a sub-element.
+   * @return {HTMLElement} The element to measure.
+   * @protected
+   */
+  protected getContentElement(): HTMLElement {
+    // This is just a default, and isn't worth testing.
+    // istanbul ignore next
+    return this;
+  }
+
+  /**
    * Determines if enough content has been loaded on the page.
    * @return {boolean} True if sufficient content has been loaded, false
    *  if we should load some more.
    * @private
    */
   private isEnoughLoaded(): boolean {
+    const content = this.getContentElement();
     // The height of the displayed portion of the element.
     const viewportHeight = this.clientHeight;
     // The full height of the element.
-    const contentHeight = this.scrollHeight;
+    const contentHeight = content.scrollHeight;
     // How far the element is scrolled.
     const scrollDistance = this.scrollTop;
 
@@ -73,14 +90,12 @@ export abstract class InfiniteScrollingElement extends LitElement {
     // Add a handler for scroll events which loads more
     // content if needed.
     this.addEventListener("scroll", (_) => this.loadContentWhileNeeded());
-  }
 
-  /**
-   * @inheritDoc
-   */
-  protected updated(_: PropertyValues) {
-    // If something changed, that might indicate that we have more data to
-    // load.
-    this.loadContentWhileNeeded();
+    // Add a resize observer so that we can try loading more data whenever
+    // the element size changes.
+    this.resizeObserver = new ResizeObserver((_, __) =>
+      this.loadContentWhileNeeded()
+    );
+    this.resizeObserver.observe(this.getContentElement());
   }
 }

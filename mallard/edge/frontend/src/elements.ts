@@ -12,6 +12,7 @@ import { ConnectedThumbnailGridSection } from "./thumbnail-grid-section";
 import { ConnectedArtifactDetails } from "./artifact-details";
 import { ConnectedMetadataCard } from "./metadata-card";
 import { ConnectedNotesCard } from "./notes-card";
+import { ImageDisplay } from "./image-display";
 
 type LitElementType = typeof LitElement;
 export interface ComponentType extends LitElementType {
@@ -34,6 +35,7 @@ const componentClasses: ComponentType[] = [
   ConnectedArtifactDetails,
   ConnectedMetadataCard,
   ConnectedNotesCard,
+  ImageDisplay,
 ];
 
 /**

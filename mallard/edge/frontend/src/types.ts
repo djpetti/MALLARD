@@ -151,6 +151,8 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
 
   /** Keeps track of the total number of items selected. */
   numItemsSelected: number;
+  /** Keeps track of the total number of thumbnails loaded. */
+  numThumbnailsLoaded: number;
   /** State of the image bulk download request. */
   bulkDownloadState: RequestState;
   /** URL of the exported list of images. */
@@ -163,8 +165,12 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
 export enum FileStatus {
   /** We have not yet started processing. */
   PENDING,
-  /** We are currently processing. */
-  PROCESSING,
+  /** We are currently pre-processing the file. */
+  PRE_PROCESSING,
+  /** We have preprocessed the file and are waiting to upload. */
+  AWAITING_UPLOAD,
+  /** We are currently uploading. */
+  UPLOADING,
   /** We are finished processing. */
   COMPLETE,
 }
@@ -188,8 +194,8 @@ export interface FrontendFileEntity {
   /** Unique, constant ID for this file. */
   id: string;
 
-  /** URL of the file data. */
-  dataUrl: string;
+  /** URL of the thumbnail data. */
+  thumbnailUrl: string | null;
   /** Display name for the file. */
   name: string;
   /** Current status of the file. */

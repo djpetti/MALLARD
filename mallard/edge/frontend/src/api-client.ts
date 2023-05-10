@@ -1,5 +1,6 @@
 import {
   Configuration,
+  Field,
   ImageFormat,
   ImagesApi,
   ObjectRef,
@@ -34,6 +35,14 @@ const IMAGE_FORMAT_TO_ENUM = new Map<string, ImageFormat>([
   ["bmp", ImageFormat.BMP],
   ["png", ImageFormat.PNG],
 ]);
+
+/** Default orderings to use for queries. This will put the newest stuff at
+ * the top, but sort by name for images collected on the same day.
+ */
+export const DEFAULT_ORDERINGS: Ordering[] = [
+  { field: Field.CAPTURE_DATE, ascending: false },
+  { field: Field.NAME, ascending: true },
+];
 
 /**
  * Converts a raw response from Axios to a metadata structure.
@@ -88,7 +97,7 @@ function metadataToForm(metadata: UavImageMetadata): any[] {
  */
 export async function queryImages(
   query: ImageQuery[],
-  orderings: Ordering[] = [],
+  orderings: Ordering[] = DEFAULT_ORDERINGS,
   resultsPerPage?: number,
   pageNum: number = 1
 ): Promise<QueryResponse> {

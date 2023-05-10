@@ -284,6 +284,7 @@ export class TopNavBar extends LitElement {
           id="confirm_delete_dialog"
           scrimClickAction="${this.showDeletionProgress ? "" : "close"}"
           escKeyAction="${this.showDeletionProgress ? "" : "close"}"
+          ?open="${this.showDeletionProgress}"
         >
           <div>
             Are you sure you want to delete ${this.numItemsSelected} item(s)?
@@ -333,7 +334,10 @@ export class TopNavBar extends LitElement {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.get("showDeletionProgress") === false) {
+    if (
+      _changedProperties.has("showDeletionProgress") &&
+      !this.showDeletionProgress
+    ) {
       // If we've stopped showing the deletion progress, go ahead and close
       // the dialog automatically.
       this.confirmDeleteDialog.close();

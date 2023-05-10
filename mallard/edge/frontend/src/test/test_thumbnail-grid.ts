@@ -1,5 +1,6 @@
 import { ConnectedThumbnailGrid } from "../thumbnail-grid";
 import {
+  fakeImageEntities,
   fakeImageEntity,
   fakeState,
   getShadowRoot,
@@ -11,11 +12,11 @@ import {
   thunkLoadMetadata,
   thunkStartNewQuery,
   thunkContinueQuery,
+  thunkLoadThumbnails,
+  thunkClearEntities,
 } from "../thumbnail-grid-slice";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
+import MockedClass = jest.MockedClass;
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
@@ -24,6 +25,9 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadMetadata: jest.fn(),
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
+    thunkLoadThumbnails: jest.fn(),
+    thunkClearEntities: jest.fn(),
+    createImageEntityId: actualSlice.createImageEntityId,
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
       selectById: actualSlice.thumbnailGridSelectors.selectById,
@@ -39,6 +43,12 @@ const mockThunkStartNewQuery = thunkStartNewQuery as jest.MockedFn<
 const mockThunkContinueQuery = thunkContinueQuery as jest.MockedFn<
   typeof thunkContinueQuery
 >;
+const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
+  typeof thunkLoadThumbnails
+>;
+const mockThunkClearEntities = thunkClearEntities as jest.MockedFn<
+  typeof thunkClearEntities
+>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -48,6 +58,14 @@ jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
   configureStore: jest.fn(),
 }));
+
+// Mock the ResizeObserver class, because JSDom doesn't implement it.
+const mockResizeObserver: MockedClass<any> = jest.fn(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+global.ResizeObserver = mockResizeObserver;
 
 describe("thumbnail-grid", () => {
   /** Internal thumbnail-grid to use for testing. */
@@ -100,6 +118,9 @@ describe("thumbnail-grid", () => {
     ];
 
     // Act.
+    // groupedArtifacts isn't actually a reactive property, so we have to
+    // update manually.
+    gridElement.requestUpdate();
     await gridElement.updateComplete;
 
     // Assert.
@@ -163,119 +184,300 @@ describe("thumbnail-grid", () => {
     expect(emptyMessage.classList).not.toContain("hidden");
   });
 
-  it("loads more data when the user scrolls", async () => {
-    // Arrange.
-    // Make it look like the user has scrolled down.
-    Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
-    Object.defineProperty(gridElement, "scrollHeight", { value: 1500 });
-    Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+  describe("infinite scrolling", () => {
+    /**
+     * Fake handler for the event to load more data.
+     */
+    let loadMoreDataHandler: jest.Mock;
 
-    // Set up a fake handler for the loading data event.
-    // It will automatically set the status to "loading" after the first load event
-    // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn(
-      (_) => (gridElement.loadingState = RequestState.LOADING)
-    );
-    gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
-      loadDataHandler
-    );
+    beforeEach(() => {
+      // Set window properties for scrolling.
+      Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
+      const shadowRoot = getShadowRoot(ConnectedThumbnailGrid.tagName);
+      const contentElement = shadowRoot.querySelector(
+        "#grid_content"
+      ) as HTMLDivElement;
+      Object.defineProperty(contentElement, "scrollHeight", { value: 1500 });
 
-    // Act.
-    await gridElement.requestUpdate();
-    await gridElement.updateComplete;
+      // Set up a fake handler for the loading data event.
+      // It will automatically set the status to "loading" after the first load event
+      // to simulate actual behavior and avoid an infinite loop.
+      loadMoreDataHandler = jest.fn(
+        (_) => (gridElement.loadingState = RequestState.LOADING)
+      );
+      gridElement.addEventListener(
+        ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
+        loadMoreDataHandler
+      );
+    });
 
-    // Assert.
-    // It should have tried to load more data.
-    expect(loadDataHandler).toBeCalledTimes(1);
-  });
+    it("loads more data when the user scrolls", async () => {
+      // Arrange.
+      // Make it look like the user has scrolled down.
+      Object.defineProperty(gridElement, "scrollTop", { value: 500 });
 
-  it("does not load data if it doesn't need to", async () => {
-    // Arrange.
-    // Make it look like the user has not scrolled down.
-    Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
-    Object.defineProperty(gridElement, "scrollHeight", { value: 3000 });
-    Object.defineProperty(gridElement, "scrollTop", { value: 0 });
+      // Act.
+      // We're going to have to manually simulate a scroll event.
+      gridElement.dispatchEvent(new Event("scroll"));
 
-    // Set up a fake handler for the loading data event.
-    // It will automatically set the status to "loading" after the first load event
-    // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn(
-      (_) => (gridElement.loadingState = RequestState.LOADING)
-    );
-    gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
-      loadDataHandler
-    );
+      // Assert.
+      // It should have tried to load more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(1);
+    });
 
-    // Act.
-    await gridElement.requestUpdate();
-    await gridElement.updateComplete;
+    it("responds to a change in the content", async () => {
+      // Arrange.
+      // Make it look like the user has scrolled down.
+      Object.defineProperty(gridElement, "scrollTop", { value: 500 });
 
-    // Assert.
-    // It should not have tried to load more data.
-    expect(loadDataHandler).toBeCalledTimes(0);
-  });
+      // Act.
+      // Simulate a change in the content size, which should cause it to
+      // check whether to load more data.
+      // Get the ResizeObserver instance.
+      expect(mockResizeObserver).toBeCalledTimes(1);
+      // Get the callback.
+      const observeCallback = mockResizeObserver.mock.calls[0][0];
 
-  it("does not load data if it's already loading", async () => {
-    // Arrange.
-    // Make it look like the user has scrolled down.
-    Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
-    Object.defineProperty(gridElement, "scrollHeight", { value: 1500 });
-    Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+      // Call the callback.
+      observeCallback();
 
-    // Make it look like it's loading.
-    gridElement.loadingState = RequestState.LOADING;
+      // Assert.
+      // It should have tried to load more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(1);
+    });
 
-    // Set up a fake handler for the loading data event.
-    // It will automatically set the status to "loading" after the first load event
-    // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn(
-      (_) => (gridElement.loadingState = RequestState.LOADING)
-    );
-    gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
-      loadDataHandler
-    );
+    describe("data clearing and reloading", () => {
+      /**
+       * Fake handler for the data deletion event.
+       */
+      let deleteDataHandler: jest.Mock;
+      /**
+       * Fake handler for the data reloading event.
+       */
+      let reloadDataHandler: jest.Mock;
 
-    // Act.
-    await gridElement.requestUpdate();
-    await gridElement.updateComplete;
+      beforeEach(async () => {
+        // First, make it look like we have too many thumbnails.
+        const state = fakeState();
+        const images = fakeImageEntities(
+          ConnectedThumbnailGrid.IMAGES_PER_PAGE * 2,
+          true
+        );
+        state.imageView.ids = images.ids;
+        state.imageView.entities = images.entities;
+        // Set this artificially so it triggers the clearing of old data.
+        state.imageView.numThumbnailsLoaded =
+          ConnectedThumbnailGrid.MAX_THUMBNAILS_LOADED + 1;
+        state.imageView.currentQueryHasMorePages = true;
 
-    // Assert.
-    // It should not have tried to load more data.
-    expect(loadDataHandler).toBeCalledTimes(0);
-  });
+        // Set the state correctly.
+        Object.assign(gridElement, gridElement.mapState(state));
+        await gridElement.updateComplete;
 
-  it("stops loading when there are no more data", async () => {
-    // Arrange.
-    // Make it look like the user has scrolled down.
-    Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
-    Object.defineProperty(gridElement, "scrollHeight", { value: 1500 });
-    Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+        // Make it look like the user has scrolled down.
+        Object.assign(gridElement, { scrollTop: 500 });
 
-    // Make it look like we have no more data to load.
-    gridElement.loadingState = RequestState.SUCCEEDED;
-    gridElement.hasMorePages = false;
+        // Set up a fake handler for the event to load more data at the bottom.
+        // It will automatically set the status to "loading" after the first load event
+        // to simulate actual behavior and avoid an infinite loop.
+        loadMoreDataHandler = jest.fn(
+          (_) => (gridElement.loadingState = RequestState.LOADING)
+        );
+        gridElement.addEventListener(
+          ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME,
+          loadMoreDataHandler
+        );
 
-    // Set up a fake handler for the loading data event.
-    // It will automatically set the status to "loading" after the first load event
-    // to simulate actual behavior and avoid an infinite loop.
-    const loadDataHandler = jest.fn(
-      (_) => (gridElement.loadingState = RequestState.LOADING)
-    );
-    gridElement.addEventListener(
-      ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME,
-      loadDataHandler
-    );
+        // Set up a fake handler for the data deletion event.
+        deleteDataHandler = jest.fn();
+        gridElement.addEventListener(
+          ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME,
+          deleteDataHandler
+        );
 
-    // Act.
-    await gridElement.requestUpdate();
-    await gridElement.updateComplete;
+        // Set up a fake handler for the data reloading event.
+        reloadDataHandler = jest.fn();
+        gridElement.addEventListener(
+          ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME,
+          reloadDataHandler
+        );
+      });
 
-    // Assert.
-    // It should not have tried to load more data.
-    expect(loadDataHandler).toBeCalledTimes(0);
+      it("clears the thumbnails on top when enough data are loaded", async () => {
+        // Arrange.
+        // Act.
+        // Simulate the user scrolling, which should cause it to clear excess
+        // data.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Assert.
+        // It should have loaded additional data.
+        expect(loadMoreDataHandler).toBeCalledTimes(1);
+        // It should have deleted data once.
+        expect(deleteDataHandler).toBeCalledTimes(1);
+
+        // It should have deleted the proper page.
+        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
+        // It should have cleared the thumbnails on top.
+        expect(deleteIds).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+      });
+
+      it("reloads data on the top when necessary", async () => {
+        // Act.
+        // This should initially delete the images on top.
+        gridElement.dispatchEvent(new Event("scroll"));
+        // Now, make it look like the user has scrolled back up.
+        Object.assign(gridElement, { scrollTop: 0 });
+        // This should now reload the data on top.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Assert.
+        // It should have deleted data twice.
+        expect(deleteDataHandler).toBeCalledTimes(2);
+        // It should have reloaded data once on the top.
+        expect(reloadDataHandler).toBeCalledTimes(1);
+
+        // It should have deleted the proper pages.
+        const deleteIds1 = deleteDataHandler.mock.calls[0][0].detail;
+        // It should have cleared the thumbnails on top first.
+        expect(deleteIds1).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have cleared the ones on the bottom.
+        const deleteIds2 = deleteDataHandler.mock.calls[1][0].detail;
+        expect(deleteIds2).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have reloaded the ones on top.
+        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
+        expect(reloadedIds1).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+      });
+
+      it("reloads data on the bottom when necessary", async () => {
+        // Act.
+        // This should initially delete the images on top.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Now, make it look like the user has scrolled back up.
+        Object.assign(gridElement, { scrollTop: 0 });
+        // This should now reload the data on top.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Now, make it look like the user has scrolled down again.
+        Object.assign(gridElement, { scrollTop: 500 });
+        // This should now reload the data on the bottom.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Assert.
+        // It should have deleted data three times.
+        expect(deleteDataHandler).toBeCalledTimes(3);
+        // It should have reloaded data on the top and bottom.
+        expect(reloadDataHandler).toBeCalledTimes(2);
+
+        // It should have deleted the proper pages.
+        const deleteIds1 = deleteDataHandler.mock.calls[0][0].detail;
+        // It should have cleared the thumbnails on top first.
+        expect(deleteIds1).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have cleared the ones on the bottom.
+        const deleteIds2 = deleteDataHandler.mock.calls[1][0].detail;
+        expect(deleteIds2).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have reloaded the ones on top.
+        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
+        expect(reloadedIds1).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have cleared the ones on top again.
+        const deleteIds3 = deleteDataHandler.mock.calls[2][0].detail;
+        expect(deleteIds3).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            0,
+            ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+        // Then it should have reloaded the ones on the bottom.
+        const reloadedIds2 = reloadDataHandler.mock.calls[1][0].detail;
+        expect(reloadedIds2).toEqual(
+          gridElement.orderedArtifactIds.slice(
+            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
+          )
+        );
+      });
+    });
+
+    it("does not load data if it doesn't need to", () => {
+      // Arrange.
+      // Make it look like the user has not scrolled down.
+      Object.defineProperty(gridElement, "scrollTop", { value: 0 });
+
+      // Act.
+      // Simulate scrolling to trigger an update.
+      gridElement.dispatchEvent(new Event("scroll"));
+
+      // Assert.
+      // It should not have tried to load more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(0);
+    });
+
+    it("does not load data if it's already loading", () => {
+      // Arrange.
+      // Make it look like the user has scrolled down.
+      Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+
+      // Make it look like it's loading.
+      gridElement.loadingState = RequestState.LOADING;
+
+      // Act.
+      // Simulate scrolling to trigger an update.
+      gridElement.dispatchEvent(new Event("scroll"));
+
+      // Assert.
+      // It should not have tried to load more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(0);
+    });
+
+    it("stops loading when there are no more data", () => {
+      // Arrange.
+      Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+
+      // Make it look like we have no more data to load.
+      gridElement.loadingState = RequestState.SUCCEEDED;
+      gridElement.hasMorePages = false;
+
+      // Act.
+      // Simulate scrolling to trigger an update.
+      gridElement.dispatchEvent(new Event("scroll"));
+
+      // Assert.
+      // It should not have tried to load more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(0);
+    });
   });
 
   each([
@@ -409,7 +611,7 @@ describe("thumbnail-grid", () => {
     expect(groups[2].imageIds).toEqual([imageId4]);
   });
 
-  it("maps the correct actions to the images-changed event", () => {
+  it(`maps the correct actions to the ${ConnectedThumbnailGrid.IMAGES_CHANGED_EVENT_NAME} event`, () => {
     // Act.
     const eventMap = gridElement.mapEvents();
 
@@ -433,7 +635,7 @@ describe("thumbnail-grid", () => {
     ["no query is running", false],
     ["a query is running", true],
   ]).it(
-    "maps the correct actions to the load-more-data event when %s",
+    `maps the correct actions to the ${ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME} event when %s`,
     (_: string, isQueryRunning: boolean) => {
       // Arrange.
       gridElement.isQueryRunning = isQueryRunning;
@@ -445,12 +647,12 @@ describe("thumbnail-grid", () => {
       // Assert.
       // It should have a mapping for the proper events.
       expect(eventMap).toHaveProperty(
-        ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME
+        ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME
       );
 
       // This should fire the appropriate action creator.
       const testEvent = { detail: [faker.datatype.number()] };
-      eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_EVENT_NAME](
+      eventMap[ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME](
         testEvent as unknown as Event
       );
 
@@ -459,7 +661,6 @@ describe("thumbnail-grid", () => {
         expect(mockThunkStartNewQuery).toBeCalledTimes(1);
         expect(mockThunkStartNewQuery).toBeCalledWith({
           query: expect.any(Object),
-          orderings: expect.any(Array),
           resultsPerPage: expect.any(Number),
         });
 
@@ -475,4 +676,44 @@ describe("thumbnail-grid", () => {
       }
     }
   );
+
+  it(`maps the correct actions to the ${ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = gridElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: [faker.datatype.uuid()] };
+    eventMap[ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    expect(mockThunkLoadThumbnails).toBeCalledTimes(1);
+    expect(mockThunkLoadThumbnails).toBeCalledWith(testEvent.detail);
+  });
+
+  it(`maps the correct actions to the ${ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = gridElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: [faker.datatype.uuid()] };
+    eventMap[ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    expect(mockThunkClearEntities).toBeCalledTimes(1);
+    expect(mockThunkClearEntities).toBeCalledWith(testEvent.detail);
+  });
 });

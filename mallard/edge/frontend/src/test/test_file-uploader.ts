@@ -1,5 +1,6 @@
 import { ConnectedFileUploader, FileUploader } from "../file-uploader";
 import {
+  fakeFile,
   fakeFrontendFileEntity,
   fakeState,
   getShadowRoot,
@@ -8,32 +9,50 @@ import { FileListDisplay } from "../file-list-display";
 import { FileStatus, FrontendFileEntity, RootState } from "../types";
 import each from "jest-each";
 import { Action } from "redux";
+import {
+  addSelectedFiles,
+  fileDropZoneEntered,
+  fileDropZoneExited,
+  thunkInferMetadata,
+  thunkPreProcessFiles,
+  thunkUploadFile,
+} from "../upload-slice";
+import { faker } from "@faker-js/faker";
 
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+jest.mock("../upload-slice", () => {
+  const actualSlice = jest.requireActual("../upload-slice");
 
-// Using older require syntax here so we get the correct mock type.
-const uploadSlice = require("../upload-slice");
-const mockDropZoneEntered = uploadSlice.fileDropZoneEntered;
-const mockDropZoneExited = uploadSlice.fileDropZoneExited;
-const mockProcessSelectedFiles = uploadSlice.processSelectedFiles;
-const mockThunkUploadFile = uploadSlice.thunkUploadFile;
-const mockThunkInferMetadata = uploadSlice.thunkInferMetadata;
-const mockUploadSelectors = uploadSlice.uploadSelectors;
-const { uploadSelectors } = jest.requireActual("../upload-slice");
+  return {
+    fileDropZoneEntered: jest.fn(),
+    fileDropZoneExited: jest.fn(),
+    addSelectedFiles: jest.fn(),
+    thunkPreProcessFiles: jest.fn(),
+    thunkUploadFile: jest.fn(),
+    thunkInferMetadata: jest.fn(),
+    // Use the real selector functions.
+    uploadSelectors: actualSlice.uploadSelectors,
+  };
+});
+const mockDropZoneEntered = fileDropZoneEntered as jest.MockedFn<
+  typeof fileDropZoneEntered
+>;
+const mockDropZoneExited = fileDropZoneExited as jest.MockedFn<
+  typeof fileDropZoneExited
+>;
+const mockAddSelectedFiles = addSelectedFiles as jest.MockedFn<
+  typeof addSelectedFiles
+>;
+const mockPreProcessFiles = thunkPreProcessFiles as jest.MockedFn<
+  typeof thunkPreProcessFiles
+>;
+const mockUploadFile = thunkUploadFile as jest.MockedFn<typeof thunkUploadFile>;
+const mockInferMetadata = thunkInferMetadata as jest.MockedFn<
+  typeof thunkInferMetadata
+>;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
   connect: jest.fn((_, elementClass) => elementClass),
-}));
-jest.mock("../upload-slice", () => ({
-  fileDropZoneEntered: jest.fn(),
-  fileDropZoneExited: jest.fn(),
-  processSelectedFiles: jest.fn(),
-  thunkUploadFile: jest.fn(),
-  thunkInferMetadata: jest.fn(),
-  uploadSelectors: { selectAll: jest.fn() },
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -52,9 +71,6 @@ describe("file-uploader", () => {
   beforeEach(() => {
     // Set a faker seed.
     faker.seed(1337);
-
-    // Use the actual implementation for this function.
-    mockUploadSelectors.selectAll.mockImplementation(uploadSelectors.selectAll);
 
     // Create the element under test.
     fileUploader = window.document.createElement(
@@ -96,37 +112,37 @@ describe("file-uploader", () => {
 
   each([
     [
-      "some pending",
+      "some ready",
       [
-        fakeFrontendFileEntity(FileStatus.PENDING),
-        fakeFrontendFileEntity(FileStatus.PENDING),
-        fakeFrontendFileEntity(FileStatus.PENDING),
-        fakeFrontendFileEntity(FileStatus.PROCESSING),
+        fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
+        fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
+        fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
+        fakeFrontendFileEntity(FileStatus.UPLOADING),
         fakeFrontendFileEntity(FileStatus.COMPLETE),
       ],
       ConnectedFileUploader.MAX_CONCURRENT_UPLOADS - 1,
     ],
     [
-      "none pending",
+      "none ready",
       [
-        fakeFrontendFileEntity(FileStatus.COMPLETE),
-        fakeFrontendFileEntity(FileStatus.PROCESSING),
+        fakeFrontendFileEntity(FileStatus.PRE_PROCESSING),
+        fakeFrontendFileEntity(FileStatus.PENDING),
       ],
       0,
     ],
     [
-      "all pending",
+      "all ready",
       [
-        fakeFrontendFileEntity(FileStatus.PENDING),
-        fakeFrontendFileEntity(FileStatus.PENDING),
+        fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
+        fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
       ],
       2,
     ],
     [
       "max uploads reached",
-      Array(FileUploader.MAX_CONCURRENT_UPLOADS).fill(
-        fakeFrontendFileEntity(FileStatus.PROCESSING)
-      ),
+      Array(FileUploader.MAX_CONCURRENT_UPLOADS)
+        .fill(fakeFrontendFileEntity(FileStatus.UPLOADING))
+        .concat([FileStatus.AWAITING_UPLOAD]),
       0,
     ],
   ]).it(
@@ -163,6 +179,7 @@ describe("file-uploader", () => {
     );
 
     const fakeFile = fakeFrontendFileEntity();
+    fakeFile.status = FileStatus.AWAITING_UPLOAD;
 
     // Act.
     // Setting at least one file to upload should cause this event to get dispatched.
@@ -188,9 +205,7 @@ describe("file-uploader", () => {
         handler
       );
 
-      // Create a fake drag event. (We can't use a real one due to limitations in
-      // JSDom).
-      /** Since we don't have full access to the DragEvent type, we
+      /** Since we don't have full access to the DragEvent type with JSDOM, we
        * have to kind of fake it. */
       class TestDragEvent extends Event {
         public dataTransfer?: any;
@@ -223,11 +238,11 @@ describe("file-uploader", () => {
       // It should have dispatched a new event.
       expect(handler).toBeCalledTimes(1);
       if (validTransfer && validFiles) {
-        // The event should contain files.
-        expect(handler.mock.calls[0][0].detail).toHaveLength(2);
+        // It should have saved the files.
+        expect(handler.mock.calls[0][0].detail.size).toEqual(2);
       } else {
         // The event should contain nothing.
-        expect(handler.mock.calls[0][0].detail).toHaveLength(0);
+        expect(handler.mock.calls[0][0].detail.size).toEqual(0);
       }
     }
   );
@@ -326,7 +341,9 @@ describe("file-uploader", () => {
       expect(eventMap).toHaveProperty(
         FileUploader.DROP_ZONE_DRAGGING_EVENT_NAME
       );
-      expect(eventMap).toHaveProperty(FileUploader.FILES_SELECTED_EVENT_NAME);
+      expect(eventMap).toHaveProperty(
+        FileUploader.PRE_PROCESS_READY_EVENT_NAME
+      );
       expect(eventMap).toHaveProperty(FileUploader.UPLOAD_READY_EVENT_NAME);
       expect(eventMap).toHaveProperty(
         FileUploader.METADATA_INFERENCE_READY_EVENT_NAME
@@ -367,11 +384,15 @@ describe("file-uploader", () => {
       expect(mockDropZoneExited).toBeCalledWith(null);
     });
 
-    it("uses the correct action creator for drop events", () => {
+    it("uses the correct action creator for selection events", () => {
       // Arrange.
+      const idsToFiles = new Map([
+        [faker.datatype.uuid(), fakeFile()],
+        [faker.datatype.uuid(), fakeFile()],
+      ]);
       const testEvent = {
         type: "drop",
-        detail: ["foo", "bar"],
+        detail: idsToFiles,
         preventDefault: jest.fn(),
       };
 
@@ -381,8 +402,29 @@ describe("file-uploader", () => {
       );
 
       // Assert.
-      expect(mockProcessSelectedFiles).toBeCalledTimes(1);
-      expect(mockProcessSelectedFiles).toBeCalledWith(testEvent.detail);
+      expect(mockAddSelectedFiles).toBeCalledTimes(1);
+      expect(mockAddSelectedFiles).toBeCalledWith(idsToFiles);
+    });
+
+    it("uses the correct action creator for preprocess events", () => {
+      // Arrange.
+      const testEvent = {
+        type: "drop",
+        detail: ["foo", "bar"],
+        preventDefault: jest.fn(),
+      };
+
+      // Act.
+      eventMap[FileUploader.PRE_PROCESS_READY_EVENT_NAME](
+        testEvent as unknown as Event
+      );
+
+      // Assert.
+      expect(mockPreProcessFiles).toBeCalledTimes(1);
+      expect(mockPreProcessFiles).toBeCalledWith({
+        fileIds: testEvent.detail,
+        idsToFiles: expect.anything(),
+      });
     });
 
     // TODO (danielp) Re-enable once JSDom supports drag-and-drop.
@@ -415,11 +457,14 @@ describe("file-uploader", () => {
       );
 
       // Assert.
-      expect(mockThunkUploadFile).toBeCalledTimes(1);
-      expect(mockThunkUploadFile).toBeCalledWith(fileId);
+      expect(mockUploadFile).toBeCalledTimes(1);
+      expect(mockUploadFile).toBeCalledWith({
+        fileId: fileId,
+        idsToFiles: expect.anything(),
+      });
     });
 
-    it("uses the correct action creator for meta-inference-ready events", () => {
+    it("uses the correct action creator for metadata-inference-ready events", () => {
       // Arrange.
       const fileId = faker.datatype.uuid();
       const testEvent = {
@@ -433,8 +478,11 @@ describe("file-uploader", () => {
       );
 
       // Assert.
-      expect(mockThunkInferMetadata).toBeCalledTimes(1);
-      expect(mockThunkInferMetadata).toBeCalledWith(fileId);
+      expect(mockInferMetadata).toBeCalledTimes(1);
+      expect(mockInferMetadata).toBeCalledWith({
+        fileId: fileId,
+        idsToFiles: expect.anything(),
+      });
     });
   });
 });

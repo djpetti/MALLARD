@@ -1,10 +1,7 @@
 import { getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
 import { ImageDisplay } from "../image-display";
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
+import { faker } from "@faker-js/faker";
 
 // Using older require syntax here so that we get the correct mock type.
 const pageManager = require("../page-manager");

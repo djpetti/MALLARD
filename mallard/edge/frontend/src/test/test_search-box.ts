@@ -19,6 +19,7 @@ import {
 import { AppDatePicker } from "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
 import { TextField } from "@material/mwc-textfield";
+import { faker } from "@faker-js/faker";
 
 jest.mock("../thumbnail-grid-slice", () => {
   return {
@@ -36,10 +37,6 @@ const mockThunkDoAutocomplete = thunkDoAutocomplete as jest.MockedFn<
 const mockThunkTextSearch = thunkTextSearch as jest.MockedFn<
   typeof thunkTextSearch
 >;
-
-// I know this sounds insane, but when I import this as an ES6 module, faker.seed() comes up
-// undefined. I can only assume this is a quirk in Babel.
-const faker = require("faker");
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

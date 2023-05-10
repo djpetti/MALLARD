@@ -1,5 +1,5 @@
 import { css, html, PropertyValues } from "lit";
-import { property, queryAll, state } from "lit/decorators.js";
+import { property, query, queryAll, state } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
@@ -191,6 +191,9 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   @queryAll("thumbnail-grid-section")
   private sections!: ThumbnailGridSection[];
 
+  @query("#grid_content", true)
+  private gridContent!: HTMLDivElement;
+
   /**
    * Keeps track of the top-most page of data that is currently displayed.
    */
@@ -219,6 +222,13 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   public get orderedArtifactIds(): string[] {
     return Array.from(this.groupedArtifactsFlatIds);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override getContentElement(): HTMLElement {
+    return this.gridContent;
   }
 
   /**
@@ -432,7 +442,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         No Data
       </h1>
 
-      <div class="thumbnail_grid ${contentVisibility}">
+      <div class="thumbnail_grid ${contentVisibility}" id="grid_content">
         ${this.groupedArtifacts.map(
           (g) => html`
             <thumbnail-grid-section
@@ -457,11 +467,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * @inheritDoc
    */
   protected override async updated(_changedProperties: PropertyValues) {
-    // It shouldn't be considered updated until all the sections are updated.
-    for (const section of this.sections) {
-      await section.updateComplete;
-    }
-
     super.updated(_changedProperties);
 
     if (_changedProperties.has("displayedArtifacts")) {
@@ -475,18 +480,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         })
       );
     }
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected override async getUpdateComplete(): Promise<boolean> {
-    // It shouldn't be considered updated until all the sections are updated.
-    for (const section of this.sections) {
-      await section.updateComplete;
-    }
-
-    return await super.getUpdateComplete();
   }
 
   /**

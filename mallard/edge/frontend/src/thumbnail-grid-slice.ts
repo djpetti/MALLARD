@@ -724,10 +724,6 @@ export const thumbnailGridSlice = createSlice({
       // every update constitutes an actual change.
       state.numThumbnailsLoaded -= action.payload.length;
     },
-    // Removes entities from the state.
-    clearEntities(state, action) {
-      thumbnailGridAdapter.removeMany(state, action.payload);
-    },
     // Completely resets the current image view, removing all loaded images.
     clearImageView(state, _) {
       thumbnailGridAdapter.removeAll(state);
@@ -937,7 +933,6 @@ export const thumbnailGridSlice = createSlice({
 export const {
   clearFullSizedImages,
   clearThumbnails,
-  clearEntities,
   addArtifact,
   clearImageView,
   clearAutocomplete,

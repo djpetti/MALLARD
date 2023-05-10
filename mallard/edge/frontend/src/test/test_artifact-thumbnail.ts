@@ -18,7 +18,7 @@ import { faker } from "@faker-js/faker";
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
-    thunkLoadThumbnail: jest.fn(),
+    thunkLoadThumbnails: jest.fn(),
     thunkSelectImages: jest.fn(),
     // Use the actual implementation for these functions.
     createImageEntityId: actualSlice.createImageEntityId,
@@ -27,7 +27,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     },
   };
 });
-const mockThunkLoadThumbnail = thunkLoadThumbnails as jest.MockedFn<
+const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
   typeof thunkLoadThumbnails
 >;
 const mockSelectImages = thunkSelectImages as jest.MockedFn<
@@ -222,8 +222,8 @@ describe("artifact-thumbnail", () => {
       testEvent as unknown as Event
     );
 
-    expect(mockThunkLoadThumbnail).toBeCalledTimes(1);
-    expect(mockThunkLoadThumbnail).toBeCalledWith(testEvent.detail);
+    expect(mockThunkLoadThumbnails).toBeCalledTimes(1);
+    expect(mockThunkLoadThumbnails).toBeCalledWith([testEvent.detail]);
   });
 
   it(`maps the correct action to the ${ConnectedArtifactThumbnail.SELECTED_EVENT_NAME} event`, () => {
@@ -274,81 +274,92 @@ describe("artifact-thumbnail", () => {
     expect(thumbnailElement.imageLink).not.toBeUndefined();
   });
 
-  it("updates the properties from the Redux state", () => {
-    // Arrange.
-    // Set a thumbnail image ID.
-    const imageId = faker.datatype.uuid();
-    thumbnailElement.frontendId = imageId;
+  describe("mapState", () => {
+    /**
+     * Updates it will produce when the state is invalid.
+     */
+    const DEFAULT_UPDATES = {
+      imageUrl: undefined,
+      selected: false,
+      imageLink: undefined,
+    };
 
-    // Create a fake state.
-    const state: RootState = fakeState();
-    const imageEntity = fakeImageEntity(true);
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = imageEntity;
+    it("updates the properties from the Redux state", () => {
+      // Arrange.
+      // Set a thumbnail image ID.
+      const imageId = faker.datatype.uuid();
+      thumbnailElement.frontendId = imageId;
 
-    // Act.
-    const updates = thumbnailElement.mapState(state);
+      // Create a fake state.
+      const state: RootState = fakeState();
+      const imageEntity = fakeImageEntity(true);
+      state.imageView.ids = [imageId];
+      state.imageView.entities[imageId] = imageEntity;
 
-    // Assert.
-    // It should have updated the image URL.
-    expect(updates).toHaveProperty("imageUrl");
-    expect(updates["imageUrl"]).toEqual(
-      state.imageView.entities[imageId]?.thumbnailUrl
-    );
+      // Act.
+      const updates = thumbnailElement.mapState(state);
 
-    // It should have set the selection status.
-    expect(updates).toHaveProperty("selected");
-    expect(updates["selected"]).toEqual(imageEntity.isSelected);
+      // Assert.
+      // It should have updated the image URL.
+      expect(updates).toHaveProperty("imageUrl");
+      expect(updates["imageUrl"]).toEqual(
+        state.imageView.entities[imageId]?.thumbnailUrl
+      );
 
-    // It should have set a link to the image details.
-    expect(updates).toHaveProperty("imageLink");
-    expect(updates["imageLink"]).toContain(imageEntity.backendId.bucket);
-    expect(updates["imageLink"]).toContain(imageEntity.backendId.name);
-  });
+      // It should have set the selection status.
+      expect(updates).toHaveProperty("selected");
+      expect(updates["selected"]).toEqual(imageEntity.isSelected);
 
-  it("ignores Redux updates when no image ID is set", () => {
-    // Arrange.
-    thumbnailElement.frontendId = undefined;
+      // It should have set a link to the image details.
+      expect(updates).toHaveProperty("imageLink");
+      expect(updates["imageLink"]).toContain(imageEntity.backendId.bucket);
+      expect(updates["imageLink"]).toContain(imageEntity.backendId.name);
+    });
 
-    // Act.
-    const updates = thumbnailElement.mapState(fakeState());
+    it("ignores Redux updates when no image ID is set", () => {
+      // Arrange.
+      thumbnailElement.frontendId = undefined;
 
-    // Assert.
-    expect(updates).toEqual({});
-  });
+      // Act.
+      const updates = thumbnailElement.mapState(fakeState());
 
-  it("ignores Redux updates when the image ID is invalid", () => {
-    // Arrange.
-    // Set a thumbnail image ID.
-    thumbnailElement.frontendId = faker.datatype.uuid();
+      // Assert.
+      expect(updates).toEqual(DEFAULT_UPDATES);
+    });
 
-    // Create a fake state.
-    const state: RootState = fakeState();
-    // Make it look like this image doesn't exist.
-    state.imageView.ids = [];
+    it("ignores Redux updates when the image ID is invalid", () => {
+      // Arrange.
+      // Set a thumbnail image ID.
+      thumbnailElement.frontendId = faker.datatype.uuid();
 
-    // Act.
-    const updates = thumbnailElement.mapState(state);
+      // Create a fake state.
+      const state: RootState = fakeState();
+      // Make it look like this image doesn't exist.
+      state.imageView.ids = [];
 
-    // Assert.
-    expect(updates).toEqual({});
-  });
+      // Act.
+      const updates = thumbnailElement.mapState(state);
 
-  it("ignores Redux updates when the image has not been loaded", () => {
-    // Arrange.
-    // Set a thumbnail image ID.
-    const imageId = faker.datatype.uuid();
-    thumbnailElement.frontendId = imageId;
+      // Assert.
+      expect(updates).toEqual(DEFAULT_UPDATES);
+    });
 
-    // Create a fake state.
-    const state: RootState = fakeState();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false);
+    it("ignores Redux updates when the image has not been loaded", () => {
+      // Arrange.
+      // Set a thumbnail image ID.
+      const imageId = faker.datatype.uuid();
+      thumbnailElement.frontendId = imageId;
 
-    // Act.
-    const updates = thumbnailElement.mapState(state);
+      // Create a fake state.
+      const state: RootState = fakeState();
+      state.imageView.ids = [imageId];
+      state.imageView.entities[imageId] = fakeImageEntity(false);
 
-    // Assert.
-    expect(updates).toEqual({});
+      // Act.
+      const updates = thumbnailElement.mapState(state);
+
+      // Assert.
+      expect(updates).toEqual(DEFAULT_UPDATES);
+    });
   });
 });

@@ -268,17 +268,25 @@ describe("thumbnail-grid-slice action creators", () => {
     mockCreateObjectUrl.mockReturnValue(imageUrl);
 
     // Initialize the fake store with valid state.
-    const imageId: string = faker.datatype.uuid();
+    const unloadedImage = fakeImageEntity(false);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+    const loadedImage = fakeImageEntity(true);
+    const loadedImageId = createImageEntityId(loadedImage.backendId);
     const state = fakeState();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false);
+    state.imageView.ids = [unloadedImageId, loadedImageId];
+    state.imageView.entities[unloadedImageId] = unloadedImage;
+    state.imageView.entities[loadedImageId] = loadedImage;
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadThumbnails([imageId])(store.dispatch, store.getState, {});
+    await thunkLoadThumbnails([unloadedImageId, loadedImageId])(
+      store.dispatch,
+      store.getState,
+      {}
+    );
 
     // Assert.
-    // It should have loaded the thumbnail.
+    // It should have loaded one thumbnail.
     expect(mockLoadThumbnail).toBeCalledTimes(1);
 
     // It should have dispatched the lifecycle actions.
@@ -291,11 +299,11 @@ describe("thumbnail-grid-slice action creators", () => {
     const fulfilledAction = actions[1];
     expect(fulfilledAction.type).toEqual(thunkLoadThumbnails.fulfilled.type);
     expect(fulfilledAction.payload).toHaveLength(1);
-    expect(fulfilledAction.payload[0].imageId).toEqual(imageId);
+    expect(fulfilledAction.payload[0].imageId).toEqual(unloadedImageId);
     expect(fulfilledAction.payload[0].imageUrl).toEqual(imageUrl);
   });
 
-  it("does not reload a thumbnail that is already loaded", async () => {
+  it("does not reload a thumbnails when they're all already loaded", async () => {
     // Arrange.
     // Make it look like the thumbnail is already loaded.
     const imageId: string = faker.datatype.uuid();
@@ -311,13 +319,9 @@ describe("thumbnail-grid-slice action creators", () => {
     // It should not have loaded the thumbnail.
     expect(mockLoadThumbnail).not.toBeCalled();
 
-    // It should have dispatched the lifecycle actions.
+    // It should not have dispatched any actions.
     const actions = store.getActions();
-    expect(actions).toHaveLength(2);
-
-    // It should not have actually updated any thumbnails.
-    const fullfilledAction = actions[1];
-    expect(fullfilledAction.payload).toHaveLength(0);
+    expect(actions).toHaveLength(0);
   });
 
   it("creates a loadImage action", async () => {

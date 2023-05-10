@@ -197,7 +197,7 @@ class Ordering(ApiModel):
         """
         Order by name, alphabetically.
         """
-        SESSION = "session_num"
+        SESSION = "session"
         """
         Order by session name, alphabetically.
         """

@@ -270,7 +270,7 @@ export function fakeOrdering(): Ordering {
       Field.CAPTURE_DATE,
       Field.CAMERA,
       Field.SEQUENCE_NUM,
-      Field.SESSION_NUM,
+      Field.SESSION,
     ]),
     ascending: faker.datatype.boolean(),
   };

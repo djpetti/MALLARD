@@ -45,7 +45,7 @@ services:
     image: minio/minio
     hostname: object-store
     volumes:
-      - objects:/data
+      - {{cookiecutter.object_location}}:/data
     environment:
       MINIO_ROOT_USER: minio_user_51c173
       MINIO_ROOT_PASSWORD: HFgwH5U5RNaAbe
@@ -58,7 +58,7 @@ services:
     image: mariadb:10.5-focal
     hostname: metadata-store
     volumes:
-      - metadata:/var/lib/mysql
+      - {{cookiecutter.metadata_location}}:/var/lib/mysql
     environment:
       MARIADB_ROOT_PASSWORD: TnrHYavLF7WF38
       MARIADB_DATABASE: mallard_meta
@@ -87,9 +87,3 @@ services:
 networks:
   # Internal network
   mallard:
-
-volumes:
-  # Object store volume. This is where uploaded data will be stored.
-  objects:
-  # Metadata store volume. This is where the metadata DB will be stored.
-  metadata:

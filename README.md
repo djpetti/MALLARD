@@ -29,6 +29,10 @@ You will be given the chance to specify the following options:
   For instance, you might wish to run MALLARD behind your own reverse proxy
   and handle SSL there.
 - `host_port`: The port that MALLARD will listen on for connections.
+- `object_location`: Specifies the path where data uploaded to MALLARD will
+  be stored.
+- `metadata_location`: Specifies the path where the MALLARD database will be
+  stored.
 
 A `docker-compose` file will be created in the repository root, named based
 on the value you set for `config_name`. For instance, if you set

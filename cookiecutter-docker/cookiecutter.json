@@ -2,5 +2,7 @@
   "config_name": "default",
   "mode": ["production", "development"],
   "proxy_config": ["ssl", "no_ssl"],
-  "host_port": 8081
+  "host_port": 8081,
+  "object_location": "./objects",
+  "metadata_location": "./metadata"
 }

@@ -133,3 +133,7 @@ venv.bak/
 
 # Docker-compose files are auto-generated.
 docker-compose*.yml
+
+# These are the default locations for saved data.
+objects/
+metadata/

@@ -392,14 +392,14 @@ export const thunkDeleteSelected = createAsyncThunk(
         thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
     );
 
+    // Delete all the images.
+    await deleteImages(backendIds);
+
     // TODO (danielp): Look into this typing issue further. It might be
     //  a bug in redux-thunk.
     type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
     // Release the associated memory.
     dispatch(thunkClearEntities(selectedIds) as ActionType);
-
-    // Delete all the images.
-    await deleteImages(backendIds);
 
     return selectedIds as string[];
   }

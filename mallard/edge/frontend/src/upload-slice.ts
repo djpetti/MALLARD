@@ -18,7 +18,6 @@ import { ObjectRef, UavImageMetadata } from "mallard-api";
 import { cloneDeep } from "lodash";
 import { thunkClearImageView } from "./thumbnail-grid-slice";
 import pica from "pica";
-import "image-blob-reduce";
 import imageBlobReduce from "image-blob-reduce";
 
 /** Type alias to make typing thunks simpler. */
@@ -44,9 +43,67 @@ const sliceSelectors = uploadAdapter.getSelectors();
 
 /** Pica instance to use. */
 // eslint-disable-next-line new-cap
-const gPica = new pica();
+const gPica = new pica({
+  features: ["ww", "wasm"],
+});
 // eslint-disable-next-line new-cap
 const gBlobReduce = new imageBlobReduce({ pica: gPica });
+
+// @ts-ignore
+gBlobReduce._create_blob = function (env) {
+  return (
+    // @ts-ignore
+    this.pica
+      // @ts-ignore
+      .toBlob(env.out_canvas, "image/jpeg", 0.8)
+      .then(function (blob: Blob) {
+        env.out_blob = blob;
+        return env;
+      })
+  );
+};
+
+// @ts-ignore
+gBlobReduce._transform = function (env) {
+  // @ts-ignore
+  env.out_canvas = this.pica.options.createCanvas(
+    env.transform_width,
+    env.transform_height
+  );
+
+  // Dim env temporary vars to prohibit use and avoid confusion when orientation
+  // changed. You should take real size from canvas.
+  env.transform_width = null;
+  env.transform_height = null;
+
+  // By default use alpha for png only
+  const picaOpts = { alpha: env.blob.type === "image/png", filter: "box" };
+
+  // Extract pica options if been passed
+  // @ts-ignore
+  this.utils.assign(picaOpts, this.utils.pick_pica_resize_options(env.opts));
+
+  // @ts-ignore
+  return this.pica
+    .resize(env.image, env.out_canvas, picaOpts)
+    .then(function () {
+      return env;
+    });
+};
+
+/**
+ * Supported image file types. We limit ourselves to ones with broad
+ * browser support.
+ */
+const SUPPORTED_IMAGE_TYPES = new Set<string>([
+  "image/apng",
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/svg+xml",
+  "image/webp",
+]);
 
 /**
  * Action that specifies new files to upload that were
@@ -66,7 +123,7 @@ export const addSelectedFiles = createAction(
   function prepare(files: Map<string, File>) {
     const frontendFiles: FrontendFileEntity[] = [];
     for (const [id, file] of files) {
-      if (!file.type.startsWith("image/")) {
+      if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
         // Filter invalid files.
         continue;
       }
@@ -354,6 +411,9 @@ export const uploadSlice = createSlice({
         },
       }));
       uploadAdapter.updateMany(state, updates);
+    });
+    builder.addCase(thunkPreProcessFiles.rejected, (_, action) => {
+      console.log(action.error.message);
     });
   },
 });

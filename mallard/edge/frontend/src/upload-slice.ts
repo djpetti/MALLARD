@@ -49,6 +49,8 @@ const gPica = new pica({
 // eslint-disable-next-line new-cap
 const gBlobReduce = new imageBlobReduce({ pica: gPica });
 
+// Customization for image-blob-reduce functionality.
+// istanbul ignore next
 // @ts-ignore
 gBlobReduce._create_blob = function (env) {
   return (
@@ -63,6 +65,7 @@ gBlobReduce._create_blob = function (env) {
   );
 };
 
+// istanbul ignore next
 // @ts-ignore
 gBlobReduce._transform = function (env) {
   // @ts-ignore
@@ -411,9 +414,6 @@ export const uploadSlice = createSlice({
         },
       }));
       uploadAdapter.updateMany(state, updates);
-    });
-    builder.addCase(thunkPreProcessFiles.rejected, (_, action) => {
-      console.log(action.error.message);
     });
   },
 });

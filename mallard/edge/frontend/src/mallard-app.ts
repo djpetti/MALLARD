@@ -9,8 +9,8 @@ import "@material/mwc-button";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
-import { finishUpload, dialogOpened } from "./upload-slice";
-import { RootState } from "./types";
+import { dialogOpened, thunkFinishUpload } from "./upload-slice";
+import { RootState, UploadWorkflowStatus } from "./types";
 import { ThumbnailGrid } from "./thumbnail-grid";
 
 /**
@@ -20,6 +20,10 @@ import { ThumbnailGrid } from "./thumbnail-grid";
 export class MallardApp extends LitElement {
   static tagName: string = "mallard-app";
   static styles = css`
+    .no-overflow {
+      overflow: hidden;
+    }
+
     #thumbnails {
       overflow-x: hidden;
     }
@@ -56,7 +60,12 @@ export class MallardApp extends LitElement {
   /** Name for the custom event signaling that the upload modal has been
    * opened or closed.
    */
-  static UPLOAD_MODAL_STATE_CHANGE = `${MallardApp.tagName}-upload-modal-state-change`;
+  static UPLOAD_MODAL_OPEN_EVENT_NAME = `${MallardApp.tagName}-upload-modal-state-change`;
+
+  /** Name for the custom event signaling that the user has clicked the Done
+   * button on the upload modal.
+   */
+  static DONE_BUTTON_EVENT_NAME = `${MallardApp.tagName}-done-button-clicked`;
 
   /** Indicates whether the upload modal should be open. */
   @property({ type: Boolean })
@@ -65,6 +74,10 @@ export class MallardApp extends LitElement {
   /** Keeps track of whether any uploads are currently in-progress. */
   @property({ attribute: false })
   uploadsInProgress: boolean = false;
+
+  /** Keeps track of whether uploads are currently being finalized. */
+  @property({ attribute: false })
+  finalizingUploads: boolean = false;
 
   @query("#thumbnails", true)
   private thumbnailGrid!: ThumbnailGrid;
@@ -102,16 +115,30 @@ export class MallardApp extends LitElement {
           </div>
         </div>
 
-        <mwc-button
-          id="done_button"
-          slot="primaryAction"
-          ?disabled="${this.uploadsInProgress}"
-          @click="${() => {
-            this.uploadModalOpen = false;
-          }}"
-        >
-          Done
-        </mwc-button>
+        ${this.finalizingUploads
+          ? html`
+              <div slot="primaryAction" class="no-overflow">
+                <mwc-circular-progress
+                  indeterminate
+                  density="-4"
+                ></mwc-circular-progress>
+              </div>
+            `
+          : html` <mwc-button
+              id="done_button"
+              slot="primaryAction"
+              ?disabled="${this.uploadsInProgress}"
+              @click="${() => {
+                this.dispatchEvent(
+                  new CustomEvent(MallardApp.DONE_BUTTON_EVENT_NAME, {
+                    bubbles: true,
+                    composed: false,
+                  })
+                );
+              }}"
+            >
+              Done
+            </mwc-button>`}
       </mwc-dialog>
     `;
   }
@@ -122,24 +149,20 @@ export class MallardApp extends LitElement {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.get("uploadModalOpen") !== undefined) {
-      // The upload modal state has changed.
+    if (
+      _changedProperties.get("uploadModalOpen") !== undefined &&
+      this.uploadModalOpen
+    ) {
+      // The upload modal has been opened.
       this.dispatchEvent(
-        new CustomEvent<boolean>(MallardApp.UPLOAD_MODAL_STATE_CHANGE, {
+        new CustomEvent(MallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME, {
           bubbles: true,
           composed: false,
-          detail: this.uploadModalOpen,
         })
       );
     }
   }
 }
-
-/**
- * Custom event fired when the upload modal is opened or closed. In this case,
- * the event detail is a boolean indicating whether it is open or not.
- */
-type ModalStateChangedEvent = CustomEvent<boolean>;
 
 /**
  * Extension of `Application` that connects to Redux.
@@ -152,6 +175,8 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
     return {
       uploadModalOpen: state.uploads.dialogOpen,
       uploadsInProgress: state.uploads.uploadsInProgress > 0,
+      finalizingUploads:
+        state.uploads.status === UploadWorkflowStatus.FINALIZING,
     };
   }
 
@@ -161,15 +186,10 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
   override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
-    handlers[ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE] = (
-      event: Event
-    ) => {
-      return (event as ModalStateChangedEvent).detail
-        ? // If it's opened, make sure Redux reflects that.
-          dialogOpened(null)
-        : // If it's closed, finalize the upload.
-          (finishUpload() as unknown as Action);
-    };
+    handlers[ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME] = (_: Event) =>
+      dialogOpened(null);
+    handlers[ConnectedMallardApp.DONE_BUTTON_EVENT_NAME] = (_: Event) =>
+      thunkFinishUpload() as unknown as Action;
     return handlers;
   }
 }

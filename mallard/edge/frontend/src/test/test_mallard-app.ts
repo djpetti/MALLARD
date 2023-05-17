@@ -3,10 +3,10 @@ import { Dialog } from "@material/mwc-dialog";
 import each from "jest-each";
 import { Fab } from "@material/mwc-fab";
 import { Button } from "@material/mwc-button";
-import { RootState } from "../types";
+import { RootState, UploadWorkflowStatus } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
-import { dialogOpened, finishUpload } from "../upload-slice";
+import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -15,7 +15,7 @@ jest.mock("@captaincodeman/redux-connect-element", () => ({
 }));
 jest.mock("../upload-slice", () => ({
   dialogOpened: jest.fn(),
-  finishUpload: jest.fn(),
+  thunkFinishUpload: jest.fn(),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -23,7 +23,9 @@ jest.mock("../store", () => ({
 }));
 
 const mockDialogOpened = dialogOpened as jest.MockedFn<typeof dialogOpened>;
-const mockFinishUpload = finishUpload as jest.MockedFn<typeof finishUpload>;
+const mockFinishUpload = thunkFinishUpload as jest.MockedFn<
+  typeof thunkFinishUpload
+>;
 
 describe("mallard-app", () => {
   /** Internal MallardApp to use for testing. */
@@ -77,12 +79,12 @@ describe("mallard-app", () => {
     }
   );
 
-  it("dispatches events when the modal is opened or closed", async () => {
+  it("dispatches an event when the modal is opened", async () => {
     // Arrange.
     // Create a fake event handler.
     const eventHandler = jest.fn();
     app.addEventListener(
-      ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE,
+      ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME,
       eventHandler
     );
 
@@ -96,10 +98,7 @@ describe("mallard-app", () => {
 
     // Assert.
     // It should have dispatched the event.
-    expect(eventHandler).toBeCalledTimes(2);
-    // The event should have indicated the new state of the modal.
-    expect(eventHandler.mock.calls[0][0].detail).toBe(true);
-    expect(eventHandler.mock.calls[1][0].detail).toBe(false);
+    expect(eventHandler).toBeCalledTimes(1);
   });
 
   it("opens the modal when the add button is clicked", () => {
@@ -117,19 +116,26 @@ describe("mallard-app", () => {
     expect(app.uploadModalOpen).toBe(true);
   });
 
-  it("closes the modal when the done button is clicked", () => {
+  it("dispatches an event when the done button is clicked", () => {
     // Arrange.
     // Get the add button.
     const shadowRoot = getShadowRoot(app.tagName);
     const doneButton = shadowRoot.querySelector("#done_button") as Button;
+
+    // Create a fake event handler.
+    const eventHandler = jest.fn();
+    app.addEventListener(
+      ConnectedMallardApp.DONE_BUTTON_EVENT_NAME,
+      eventHandler
+    );
 
     // Act.
     // Simulate a button click.
     doneButton.dispatchEvent(new Event("click"));
 
     // Assert.
-    // It should have closed the modal.
-    expect(app.uploadModalOpen).toBe(false);
+    // It should have dispatched the event.
+    expect(eventHandler).toBeCalledTimes(1);
   });
 
   it("does not allow the upload modal to be closed while uploading", async () => {
@@ -145,6 +151,27 @@ describe("mallard-app", () => {
     expect(doneButton.disabled).toEqual(true);
   });
 
+  it("shows a spinner while finalizing the upload", async () => {
+    // Arrange.
+    // Make it look like uploads are being finalized.
+    app.finalizingUploads = true;
+
+    // Act.
+    await app.updateComplete;
+
+    // Assert.
+    // It should show a spinner instead of a close button.
+    const root = getShadowRoot(app.tagName);
+
+    // It should not be showing the "Done" button.
+    const doneButton = root.querySelector("#done_button");
+    expect(doneButton).toBeNull();
+
+    // It should be showing a spinner instead.
+    const spinner = root.querySelector("mwc-circular-progress");
+    expect(spinner).not.toBeNull();
+  });
+
   it("updates the properties from the Redux state", () => {
     // Arrange.
     // Create a fake state.
@@ -155,6 +182,12 @@ describe("mallard-app", () => {
     state.uploads.dialogOpen = dialogOpen;
     const uploadsInProgress = faker.datatype.number();
     state.uploads.uploadsInProgress = uploadsInProgress;
+    const uploadStatus = faker.helpers.arrayElement([
+      UploadWorkflowStatus.WAITING,
+      UploadWorkflowStatus.UPLOADING,
+      UploadWorkflowStatus.FINALIZING,
+    ]);
+    state.uploads.status = uploadStatus;
 
     // Act.
     const updates = app.mapState(state);
@@ -164,6 +197,9 @@ describe("mallard-app", () => {
     expect(updates).toHaveProperty("uploadModalOpen");
     expect(updates["uploadModalOpen"]).toEqual(dialogOpen);
     expect(updates["uploadsInProgress"]).toEqual(uploadsInProgress > 0);
+    expect(updates["finalizingUploads"]).toEqual(
+      uploadStatus === UploadWorkflowStatus.FINALIZING
+    );
   });
 
   describe("maps the correct actions to events", () => {
@@ -177,34 +213,34 @@ describe("mallard-app", () => {
       // Assert.
       // It should have a mapping for the proper events.
       expect(eventMap).toHaveProperty(
-        ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE
+        ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME
       );
     });
 
-    each([
-      ["close", false],
-      ["open", true],
-    ]).it(
-      "uses the correct action creator for modal %s events",
-      (_: string, modalOpen: boolean) => {
-        // Arrange.
-        const testEvent = {
-          type: ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE,
-          detail: modalOpen,
-        };
+    it(`handles ${ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME} events`, () => {
+      // Arrange.
+      const testEvent = new CustomEvent(
+        ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME
+      );
 
-        // Act.
-        eventMap[ConnectedMallardApp.UPLOAD_MODAL_STATE_CHANGE](
-          testEvent as unknown as Event
-        );
+      // Act.
+      eventMap[ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME](testEvent);
 
-        // Assert.
-        if (modalOpen) {
-          expect(mockDialogOpened).toBeCalled();
-        } else {
-          expect(mockFinishUpload).toBeCalled();
-        }
-      }
-    );
+      // Assert.
+      expect(mockDialogOpened).toBeCalled();
+    });
+
+    it(`handles ${ConnectedMallardApp.DONE_BUTTON_EVENT_NAME} events`, () => {
+      // Arrange.
+      const testEvent = new CustomEvent(
+        ConnectedMallardApp.DONE_BUTTON_EVENT_NAME
+      );
+
+      // Act.
+      eventMap[ConnectedMallardApp.DONE_BUTTON_EVENT_NAME](testEvent);
+
+      // Assert.
+      expect(mockFinishUpload).toBeCalled();
+    });
   });
 });

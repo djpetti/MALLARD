@@ -4,12 +4,15 @@ import {
   MetadataInferenceStatus,
   RootState,
   UploadState,
+  UploadWorkflowStatus,
 } from "./types";
 import {
+  AnyAction,
   createAction,
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
+  EntityId,
 } from "@reduxjs/toolkit";
 import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
@@ -32,6 +35,8 @@ const initialState: UploadState = uploadAdapter.getInitialState({
   metadataStatus: MetadataInferenceStatus.NOT_STARTED,
   metadata: null,
   metadataChanged: false,
+
+  status: UploadWorkflowStatus.WAITING,
 });
 
 /** Memoized selectors for the state. */
@@ -255,34 +260,34 @@ export const thunkInferMetadata = createAsyncThunk(
 );
 
 /**
- * Action creator that updates metadata for a set of files. It will use
- * the metadata currently specified in the state.
+ * Performs a batch metadata update based on the current state.
+ * @param {EntityId[]} fileIds The frontend IDs of the files to update.
+ * @param {RootState} state The current state.
  */
-export const thunkUpdateMetadata = createAsyncThunk(
-  "upload/updateMetadata",
-  async (fileIds: string[], { getState }): Promise<void> => {
-    // Get the backend IDs for all the files.
-    const state = getState() as RootState;
-    const objectRefs = fileIds.map((fileId) => {
-      const file = uploadSelectors.selectById(
-        state,
-        fileId
-      ) as FrontendFileEntity;
+async function updateMetadataFromState(
+  fileIds: EntityId[],
+  state: RootState
+): Promise<void> {
+  // Get the backend IDs for all the files.
+  const objectRefs = fileIds.map((fileId) => {
+    const file = uploadSelectors.selectById(
+      state,
+      fileId
+    ) as FrontendFileEntity;
 
-      return file.backendRef as ObjectRef;
-    });
+    return file.backendRef as ObjectRef;
+  });
 
-    // Do not specify names, because we want these to be inferred so that
-    // they're all unique.
-    const useMetadata = cloneDeep(state.uploads.metadata);
-    if (useMetadata !== null) {
-      useMetadata.name = undefined;
-    }
-
-    // Perform the updates.
-    await batchUpdateMetadata(useMetadata as UavImageMetadata, objectRefs);
+  // Do not specify names, because we want these to be inferred so that
+  // they're all unique.
+  const useMetadata = cloneDeep(state.uploads.metadata);
+  if (useMetadata !== null) {
+    useMetadata.name = undefined;
   }
-);
+
+  // Perform the updates.
+  await batchUpdateMetadata(useMetadata as UavImageMetadata, objectRefs);
+}
 
 /**
  * Thunk that completes an upload by updating metadata on the backend, cleaning
@@ -290,28 +295,28 @@ export const thunkUpdateMetadata = createAsyncThunk(
  * @return {ThunkResult} Does not actually return anything, because it simply
  *  dispatches other actions.
  */
-export function finishUpload(): ThunkResult<void> {
-  return (dispatch, getState) => {
+export const thunkFinishUpload = createAsyncThunk(
+  "upload/finishUpload",
+  async (_, { getState, dispatch }): Promise<void> => {
+    const state = getState() as RootState;
+    if (state.uploads.metadataChanged) {
+      // The user changed the metadata. Update it on the backend.
+      await updateMetadataFromState(uploadSelectors.selectIds(state), state);
+    }
+
     // Release the data for all the images that we uploaded.
-    const state: RootState = getState();
     for (const file of sliceSelectors.selectAll(state.uploads)) {
       if (file.thumbnailUrl) {
         URL.revokeObjectURL(file.thumbnailUrl);
       }
     }
 
-    if (state.uploads.metadataChanged) {
-      // The user changed the metadata. Update it on the backend.
-      dispatch(
-        thunkUpdateMetadata(uploadSelectors.selectIds(state) as string[])
-      );
-    }
-
     dispatch(uploadSlice.actions.dialogClosed(null));
     // Force a refresh of the thumbnail grid to display new uploaded data.
-    dispatch(thunkClearImageView());
-  };
-}
+    type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
+    dispatch(thunkClearImageView() as ActionType);
+  }
+);
 
 export const uploadSlice = createSlice({
   name: "upload",
@@ -320,6 +325,7 @@ export const uploadSlice = createSlice({
     // The user is initiating an upload.
     dialogOpened(state, _) {
       state.dialogOpen = true;
+      state.status = UploadWorkflowStatus.WAITING;
     },
     // The user is closing the upload dialog.
     dialogClosed(state, _) {
@@ -330,6 +336,7 @@ export const uploadSlice = createSlice({
       state.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
       state.metadata = null;
       state.metadataChanged = false;
+      state.status = UploadWorkflowStatus.WAITING;
     },
 
     // The user is dragging files to be uploaded, and they have entered
@@ -391,6 +398,8 @@ export const uploadSlice = createSlice({
         state.isDragging = false;
         // Mark these as in-progress uploads.
         state.uploadsInProgress += action.payload.length;
+        // It is now uploading files.
+        state.status = UploadWorkflowStatus.UPLOADING;
       }
     );
     // New files are being pre-processed.
@@ -414,6 +423,13 @@ export const uploadSlice = createSlice({
         },
       }));
       uploadAdapter.updateMany(state, updates);
+    });
+    // Metadata is being updated after the upload.
+    builder.addCase(thunkFinishUpload.pending, (state) => {
+      state.status = UploadWorkflowStatus.FINALIZING;
+    });
+    builder.addCase(thunkFinishUpload.fulfilled, (state) => {
+      state.status = UploadWorkflowStatus.WAITING;
     });
   },
 });

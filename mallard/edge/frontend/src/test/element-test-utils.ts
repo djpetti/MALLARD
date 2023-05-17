@@ -11,6 +11,7 @@ import {
   MetadataInferenceStatus,
   RequestState,
   RootState,
+  UploadWorkflowStatus,
 } from "../types";
 import { faker } from "@faker-js/faker";
 import {
@@ -77,6 +78,8 @@ export function fakeState(): RootState {
       metadataStatus: MetadataInferenceStatus.NOT_STARTED,
       metadata: null,
       metadataChanged: false,
+
+      status: UploadWorkflowStatus.WAITING,
     },
   };
 }

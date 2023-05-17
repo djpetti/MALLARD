@@ -176,6 +176,24 @@ export enum FileStatus {
 }
 
 /**
+ * Represents the state of the overall upload workflow.
+ */
+export enum UploadWorkflowStatus {
+  /**
+   * We have not started uploading any files yet.
+   */
+  WAITING,
+  /**
+   * We are in the process of uploading files.
+   */
+  UPLOADING,
+  /**
+   * We are finalizing the upload.
+   */
+  FINALIZING,
+}
+
+/**
  * Represents the status of a metadata inference request.
  */
 export enum MetadataInferenceStatus {
@@ -225,6 +243,9 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   metadata: UavImageMetadata | null;
   /** Whether the loaded metadata has been modified by the user. */
   metadataChanged: boolean;
+
+  /** Overall status of the upload process. */
+  status: UploadWorkflowStatus;
 }
 
 /**

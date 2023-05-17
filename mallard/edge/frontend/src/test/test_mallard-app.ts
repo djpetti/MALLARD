@@ -8,6 +8,7 @@ import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
+import { ThumbnailGrid } from "../thumbnail-grid";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -92,13 +93,30 @@ describe("mallard-app", () => {
     // Show the modal.
     app.uploadModalOpen = true;
     await app.updateComplete;
+
+    // Assert.
+    // It should have dispatched the event.
+    expect(eventHandler).toBeCalledTimes(1);
+  });
+
+  it("updates the image view when the upload modal is closed", async () => {
+    // Assert.
+    // Mock out the grid update.
+    const root = getShadowRoot(ConnectedMallardApp.tagName);
+    const grid = root.querySelector("thumbnail-grid") as ThumbnailGrid;
+    Object.assign(grid, { loadContentWhileNeeded: jest.fn() });
+
+    // Act.
+    // Show the modal.
+    app.uploadModalOpen = true;
+    await app.updateComplete;
     // Hide the modal.
     app.uploadModalOpen = false;
     await app.updateComplete;
 
     // Assert.
-    // It should have dispatched the event.
-    expect(eventHandler).toBeCalledTimes(1);
+    // It should have updated the grid.
+    expect(grid.loadContentWhileNeeded).toBeCalledTimes(1);
   });
 
   it("opens the modal when the add button is clicked", () => {

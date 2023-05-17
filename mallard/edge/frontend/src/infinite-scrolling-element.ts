@@ -73,9 +73,8 @@ export abstract class InfiniteScrollingElement extends LitElement {
 
   /**
    * Loads additional content until we have enough.
-   * @private
    */
-  private loadContentWhileNeeded(): void {
+  public loadContentWhileNeeded(): void {
     while (!this.isBusy() && !this.isEnoughLoaded()) {
       if (!this.loadNextSection()) {
         break;

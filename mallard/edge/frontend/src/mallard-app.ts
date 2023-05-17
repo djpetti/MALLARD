@@ -149,17 +149,20 @@ export class MallardApp extends LitElement {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (
-      _changedProperties.get("uploadModalOpen") !== undefined &&
-      this.uploadModalOpen
-    ) {
-      // The upload modal has been opened.
-      this.dispatchEvent(
-        new CustomEvent(MallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-        })
-      );
+    if (_changedProperties.get("uploadModalOpen") !== undefined) {
+      if (this.uploadModalOpen) {
+        // The upload modal has been opened.
+        this.dispatchEvent(
+          new CustomEvent(MallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME, {
+            bubbles: true,
+            composed: false,
+          })
+        );
+      } else {
+        // When we close the modal, force the image view to try to reload
+        // additional data.
+        this.thumbnailGrid.loadContentWhileNeeded();
+      }
     }
   }
 }

@@ -8,6 +8,7 @@ import thumbnailGridReducer, {
   createImageEntityId,
   selectImages,
   setExportedImagesUrl,
+  setSectionExpanded,
   showDetails,
   thumbnailGridSelectors,
   thumbnailGridSlice,
@@ -1370,6 +1371,35 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newImageState.exportedImagesUrl).toEqual(url);
+  });
+
+  each([
+    ["collapse", false],
+    ["expand", true],
+  ]).it("handles a setSectionExpanded action (%s)", (_, expand: boolean) => {
+    // Arrange.
+    const state: RootState = fakeState();
+    const sectionName = faker.lorem.words();
+
+    if (!expand) {
+      // Make it look like it's initially expanded.
+      state.imageView.collapsedSections[sectionName] = true;
+    }
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      setSectionExpanded({ sectionName: sectionName, expand: expand })
+    );
+
+    // Assert.
+    if (expand) {
+      // It should have expanded the section.
+      expect(newImageState.collapsedSections[sectionName]).not.toEqual(true);
+    } else {
+      // It should have collapsed the section.
+      expect(newImageState.collapsedSections[sectionName]).toEqual(true);
+    }
   });
 
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {

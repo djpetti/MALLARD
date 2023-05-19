@@ -1,11 +1,13 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import "@material/mwc-icon-button";
+import "@material/mwc-icon-button-toggle";
 import "./artifact-thumbnail";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { RootState } from "./types";
 import {
+  setSectionExpanded,
   thumbnailGridSelectors,
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
@@ -47,7 +49,7 @@ export class ThumbnailGridSection extends LitElement {
       font-style: normal;
     }
 
-    #select_button {
+    .action-buttons {
       position: absolute;
       z-index: 99;
       top: 0;
@@ -58,6 +60,9 @@ export class ThumbnailGridSection extends LitElement {
 
   /** Event indicating that the user has clicked the select button. */
   static readonly SELECT_TOGGLED_EVENT_NAME = `${ThumbnailGridSection.tagName}-selected`;
+
+  /** Event indicating that the user has clicked the expand/collapse button. */
+  static readonly EXPAND_TOGGLED_EVENT_NAME = `${ThumbnailGridSection.tagName}-expand-or-collapse`;
 
   /**
    * The header to use for this section.
@@ -74,6 +79,10 @@ export class ThumbnailGridSection extends LitElement {
   /** Whether this section is selected. */
   @property({ type: Boolean })
   selected: boolean = false;
+
+  /** Whether this section is expanded. */
+  @property({ type: Boolean })
+  expanded: boolean = true;
 
   /**
    * Run whenever the select button is clicked.
@@ -93,6 +102,23 @@ export class ThumbnailGridSection extends LitElement {
   }
 
   /**
+   * Run whenever the expand/collapse button is clicked.
+   * @private
+   */
+  private onExpandOrCollapse(): void {
+    this.expanded = !this.expanded;
+
+    // Indicate that the selection status changed.
+    this.dispatchEvent(
+      new CustomEvent<boolean>(ThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.expanded,
+      })
+    );
+  }
+
+  /**
    * @inheritDoc
    */
   protected render() {
@@ -105,20 +131,34 @@ export class ThumbnailGridSection extends LitElement {
       ${this.displayedArtifacts.length > 0
         ? html` <div id="section_divider">
             ${this.sectionHeader}
-            <!-- Selection button -->
-            <mwc-icon-button
-              id="select_button"
-              icon="${selectIcon}"
-              @click="${this.onSelect}"
-            ></mwc-icon-button>
+            <span class="action-buttons">
+              <!-- Selection button -->
+              <mwc-icon-button
+                id="select_button"
+                icon="${selectIcon}"
+                @click="${this.onSelect}"
+              ></mwc-icon-button>
+              <!-- Expand/collapse button -->
+              <mwc-icon-button-toggle
+                ?on="${this.expanded}"
+                id="collapse_button"
+                onIcon="expand_more"
+                offIcon="expand_less"
+                @click="${this.onExpandOrCollapse}"
+              ></mwc-icon-button-toggle>
+            </span>
           </div>`
-        : html``}
-      <div id="section_contents">
-        ${this.displayedArtifacts.map(
-          (i) =>
-            html` <artifact-thumbnail .frontendId=${i}></artifact-thumbnail>`
-        )}
-      </div>
+        : nothing}
+      ${this.expanded
+        ? html` <div id="section_contents">
+            ${this.displayedArtifacts.map(
+              (i) =>
+                html` <artifact-thumbnail
+                  .frontendId=${i}
+                ></artifact-thumbnail>`
+            )}
+          </div>`
+        : nothing}
     `;
   }
 }
@@ -143,7 +183,11 @@ export class ConnectedThumbnailGridSection extends connect(
       }
     }
 
-    return { selected: allSelected };
+    // Check to see if this section is collapsed.
+    const collapsed =
+      state.imageView.collapsedSections[this.sectionHeader] === true;
+
+    return { selected: allSelected, expanded: !collapsed };
   }
 
   /**
@@ -162,6 +206,13 @@ export class ConnectedThumbnailGridSection extends connect(
         imageIds: this.displayedArtifacts,
         select: (event as SelectedEvent).detail,
       }) as unknown as Action;
+    handlers[ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME] = (
+      event: Event
+    ) =>
+      setSectionExpanded({
+        sectionName: this.sectionHeader,
+        expand: (event as CustomEvent<boolean>).detail,
+      });
 
     return handlers;
   }

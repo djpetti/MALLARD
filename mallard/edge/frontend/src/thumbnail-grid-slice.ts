@@ -148,6 +148,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   numThumbnailsLoaded: 0,
   bulkDownloadState: RequestState.IDLE,
   exportedImagesUrl: null,
+  collapsedSections: {},
 });
 
 /** Memoized selectors for the state. */
@@ -770,6 +771,11 @@ export const thumbnailGridSlice = createSlice({
     setExportedImagesUrl(state, action) {
       state.exportedImagesUrl = action.payload;
     },
+    // Sets a new section as expanded or collapsed.
+    setSectionExpanded(state, action) {
+      state.collapsedSections[action.payload.sectionName] =
+        !action.payload.expand;
+    },
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
@@ -939,5 +945,6 @@ export const {
   selectImages,
   showDetails,
   setExportedImagesUrl,
+  setSectionExpanded,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

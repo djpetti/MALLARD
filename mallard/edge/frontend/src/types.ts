@@ -157,6 +157,11 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   bulkDownloadState: RequestState;
   /** URL of the exported list of images. */
   exportedImagesUrl: string | null;
+
+  /** Keys are the names of sections, mapped to "true" if that section is
+   * collapsed.
+   */
+  collapsedSections: Dictionary<boolean>;
 }
 
 /**

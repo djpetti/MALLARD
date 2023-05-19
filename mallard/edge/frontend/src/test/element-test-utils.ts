@@ -66,6 +66,8 @@ export function fakeState(): RootState {
       numThumbnailsLoaded: 0,
       bulkDownloadState: RequestState.IDLE,
       exportedImagesUrl: null,
+
+      collapsedSections: {},
     },
     uploads: {
       dialogOpen: false,

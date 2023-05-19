@@ -9,9 +9,11 @@ import each from "jest-each";
 import { IconButton } from "@material/mwc-icon-button";
 import {
   createImageEntityId,
+  setSectionExpanded,
   thunkSelectImages,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
+import { IconButtonToggle } from "@material/mwc-icon-button-toggle";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -26,6 +28,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
     thunkSelectImages: jest.fn(),
+    setSectionExpanded: jest.fn(),
 
     // Use the actual implementation for these functions.
     thumbnailGridSelectors: {
@@ -36,6 +39,9 @@ jest.mock("../thumbnail-grid-slice", () => {
 });
 const mockSelectImages = thunkSelectImages as jest.MockedFn<
   typeof thunkSelectImages
+>;
+const mockSetSectionExpanded = setSectionExpanded as jest.MockedFn<
+  typeof setSectionExpanded
 >;
 
 describe("thumbnail-grid-section", () => {
@@ -76,7 +82,10 @@ describe("thumbnail-grid-section", () => {
   it("correctly renders when not empty", async () => {
     // Arrange.
     // Add a few thumbnails.
-    gridSectionElement.displayedArtifacts = ["steven", "bob"];
+    gridSectionElement.displayedArtifacts = [
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+    ];
     // Set a header.
     gridSectionElement.sectionHeader = "My Header";
 
@@ -100,6 +109,32 @@ describe("thumbnail-grid-section", () => {
         (thumbnail as ArtifactThumbnail).frontendId
       );
     }
+  });
+
+  it("correctly renders when the section is collapsed", async () => {
+    // Arrange.
+    // Add a few thumbnails.
+    gridSectionElement.displayedArtifacts = [
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+    ];
+    // Set it to be collapsed.
+    gridSectionElement.expanded = false;
+
+    // Act.
+    await gridSectionElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
+
+    // It should have rendered the correct header.
+    const divider = root.querySelector("#section_divider") as HTMLElement;
+    expect(divider).not.toBe(null);
+    expect(divider.textContent).toContain("Section Header");
+
+    // It should not have rendered the thumbnails.
+    const contents = root.querySelector("#section_contents") as HTMLElement;
+    expect(contents).toBe(null);
   });
 
   each([
@@ -144,6 +179,47 @@ describe("thumbnail-grid-section", () => {
   });
 
   each([
+    ["expand", true],
+    ["collapse", false],
+  ]).it("allows the user to %s the section", async (_, expand: boolean) => {
+    // Arrange.
+    // Initially set the state to the opposite of what we're changing it to.
+    gridSectionElement.expanded = !expand;
+
+    // Add some artifacts to force it to actually display.
+    gridSectionElement.displayedArtifacts = [faker.datatype.uuid()];
+    await gridSectionElement.updateComplete;
+
+    // Add a handler for the expand/collapse event.
+    const expandEventHandler = jest.fn();
+    gridSectionElement.addEventListener(
+      ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME,
+      expandEventHandler
+    );
+
+    // Act.
+    // Find the expand/collapse button.
+    const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
+    const collapseButton = root.querySelector(
+      "#collapse_button"
+    ) as IconButtonToggle;
+
+    // Simulate a click.
+    collapseButton.dispatchEvent(new MouseEvent("click"));
+
+    await gridSectionElement.updateComplete;
+
+    // Assert.
+    // The state should be updated.
+    expect(gridSectionElement.expanded).toEqual(expand);
+    // It should be displaying correctly.
+    expect(collapseButton.on).toEqual(expand);
+
+    // It should have dispatched the expand/collapse event.
+    expect(expandEventHandler).toBeCalledTimes(1);
+  });
+
+  each([
     ["selected", true],
     ["not selected", false],
   ]).it(
@@ -181,6 +257,29 @@ describe("thumbnail-grid-section", () => {
     }
   );
 
+  each([
+    ["expanded", true],
+    ["collapsed", false],
+  ]).it(
+    "updates the properties from the Redux state when the section is %s",
+    (_, expanded: boolean) => {
+      // Arrange.
+      const state = fakeState();
+      if (!expanded) {
+        // Make it look like it's collapsed.
+        state.imageView.collapsedSections[gridSectionElement.sectionHeader] =
+          true;
+      }
+
+      // Act.
+      const gotUpdates = gridSectionElement.mapState(state);
+
+      // Assert.
+      // It should have updated the expanded property appropriately.
+      expect(gotUpdates["expanded"]).toEqual(expanded);
+    }
+  );
+
   it(`maps the correct action to the ${ConnectedThumbnailGridSection.SELECT_TOGGLED_EVENT_NAME} event`, () => {
     // Arrange.
     // Add some fake displayed artifacts.
@@ -211,6 +310,33 @@ describe("thumbnail-grid-section", () => {
     expect(mockSelectImages).toBeCalledWith({
       imageIds: gridSectionElement.displayedArtifacts,
       select: selected,
+    });
+  });
+
+  it(`maps the correct action to the ${ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME} event`, () => {
+    // Arrange.
+    // Act.
+    const eventMap = gridSectionElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const expand = faker.datatype.boolean();
+    eventMap[ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME](
+      new CustomEvent<boolean>(
+        ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME,
+        { detail: expand }
+      )
+    );
+
+    // It should fire the appropriate action creator.
+    expect(mockSetSectionExpanded).toBeCalledWith({
+      sectionName: gridSectionElement.sectionHeader,
+      expand: expand,
     });
   });
 });

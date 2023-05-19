@@ -152,21 +152,25 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
 
 /**
  * Loads metadata for an image.
- * @param {ObjectRef} imageId The ID of the image to load metadata for.
- * @return {UavImageMetadata} The image metadata.
+ * @param {ObjectRef} imageIds The IDs of the images to load metadata for.
+ * @return {UavImageMetadata[]} The corresponding metadata for each image.
  */
 export async function getMetadata(
-  imageId: ObjectRef
-): Promise<UavImageMetadata> {
+  imageIds: ObjectRef[]
+): Promise<UavImageMetadata[]> {
   const response = await api
-    .getImageMetadataImagesMetadataBucketNameGet(imageId.bucket, imageId.name)
+    .findImageMetadataImagesMetadataPost(imageIds)
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
     });
 
   // Convert from JSON.
-  return responseToMetadata(response.data);
+  const metadata: UavImageMetadata[] = [];
+  for (const rawMetadata of response.data.metadata) {
+    metadata.push(responseToMetadata(rawMetadata));
+  }
+  return metadata;
 }
 
 /**

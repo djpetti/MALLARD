@@ -477,42 +477,52 @@ async def test_get_thumbnail_nonexistent(
 
 
 @pytest.mark.asyncio
-async def test_get_image_metadata(
-    config: ConfigForTests, faker: Faker
+@pytest.mark.parametrize(
+    "num_images", [8, 1, 0], ids=["multiple", "single", "none"]
+)
+async def test_find_image_metadata(
+    config: ConfigForTests, faker: Faker, num_images: int
 ) -> None:
     """
-    Tests that `get_image_metadata` works.
+    Tests that `find_image_metadata` works.
 
     Args:
         config: The configuration to use for testing.
         faker: The fixture to use for generating fake data.
+        num_images: The number of images to use for testing.
 
     """
     # Arrange.
     # Generate fake bucket and image names.
-    bucket = faker.pystr()
-    image_name = faker.pystr()
+    object_refs = [faker.object_ref() for _ in range(num_images)]
+
+    # Make it look like it get valid metadata from the database.
+    config.mock_metadata_store.get.return_value = faker.uav_image_metadata()
 
     # Act.
-    response = await endpoints.get_image_metadata(
-        bucket=bucket,
-        name=image_name,
-        metadata_store=config.mock_metadata_store,
-    )
+    response = (
+        await endpoints.find_image_metadata(
+            images=object_refs,
+            metadata_store=config.mock_metadata_store,
+        )
+    ).metadata
 
     # Assert.
     # It should have gotten the metadata.
-    object_id = ObjectRef(bucket=bucket, name=image_name)
-    config.mock_metadata_store.get.assert_called_once_with(object_id)
-    assert response == config.mock_metadata_store.get.return_value
+    assert config.mock_metadata_store.get.call_count == num_images
+    for object_id in object_refs:
+        config.mock_metadata_store.get.assert_any_call(object_id)
+    assert (
+        response == [config.mock_metadata_store.get.return_value] * num_images
+    )
 
 
 @pytest.mark.asyncio
-async def test_get_image_metadata_nonexistent(
+async def test_find_image_metadata_nonexistent(
     config: ConfigForTests, faker: Faker
 ) -> None:
     """
-    Tests that the `get_image_metadata` endpoint handles it correctly when
+    Tests that the `find_image_metadata` endpoint handles it correctly when
     the specified image does not exist.
 
     Args:
@@ -522,19 +532,25 @@ async def test_get_image_metadata_nonexistent(
     """
     # Arrange.
     # Generate fake bucket and image names.
-    bucket = faker.pystr()
-    image_name = faker.pystr()
+    existing_object_id = faker.object_ref()
+    missing_object_id = faker.object_ref()
+    object_refs = [existing_object_id, missing_object_id]
 
-    # Make it look like the image doesn't exist.
-    config.mock_metadata_store.get.side_effect = KeyError
+    # Make it look like one of the images doesn't exist.
+    config.mock_metadata_store.get.side_effect = [mock.DEFAULT, KeyError]
 
     # Act and assert.
-    with pytest.raises(HTTPException):
-        await endpoints.get_image_metadata(
-            bucket=bucket,
-            name=image_name,
+    with pytest.raises(HTTPException) as exc_info:
+        await endpoints.find_image_metadata(
+            images=object_refs,
             metadata_store=config.mock_metadata_store,
         )
+
+        # This should be a 404 error.
+        assert exc_info.value.status_code == 404
+        # It should have a message that indicates which image was not found.
+        assert missing_object_id.bucket in exc_info.value.detail
+        assert missing_object_id.name in exc_info.value.detail
 
 
 @pytest.mark.asyncio

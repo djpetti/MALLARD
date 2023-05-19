@@ -201,41 +201,43 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  it("can load metadata (%s)", async () => {
+  it("can load metadata", async () => {
     // Arrange.
     // Fake a valid response.
-    const mockMetadataGet =
-      mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
+    const mockFindMetadata =
+      mockImagesApiClass.prototype.findImageMetadataImagesMetadataPost;
 
     const metadata = fakeImageMetadata();
-    mockMetadataGet.mockResolvedValue({ data: metadata });
+    mockFindMetadata.mockResolvedValue({ data: { metadata: [metadata] } });
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act.
-    const result: UavImageMetadata = await getMetadata(imageId);
+    const result: UavImageMetadata[] = await getMetadata([imageId]);
 
     // Assert.
     // It should have loaded the thumbnail.
-    expect(mockMetadataGet).toBeCalledTimes(1);
-    expect(mockMetadataGet).toBeCalledWith(imageId.bucket, imageId.name);
+    expect(mockFindMetadata).toBeCalledTimes(1);
+    expect(mockFindMetadata).toBeCalledWith([
+      { bucket: imageId.bucket, name: imageId.name },
+    ]);
 
     // It should have gotten the proper result.
-    expect(result).toEqual(metadata);
+    expect(result[0]).toEqual(metadata);
   });
 
   it("handles a failure when loading metadata", async () => {
     // Arrange.
     // Make it look like loading the metadata fails.
-    const mockMetadataGet =
-      mockImagesApiClass.prototype.getImageMetadataImagesMetadataBucketNameGet;
+    const mockFindMetadata =
+      mockImagesApiClass.prototype.findImageMetadataImagesMetadataPost;
     const fakeError = new FakeAxiosError();
-    mockMetadataGet.mockRejectedValue(fakeError);
+    mockFindMetadata.mockRejectedValue(fakeError);
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act and assert.
-    await expect(getMetadata(imageId)).rejects.toThrow(FakeAxiosError);
+    await expect(getMetadata([imageId])).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

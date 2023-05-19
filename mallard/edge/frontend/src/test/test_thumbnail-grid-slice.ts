@@ -388,7 +388,7 @@ describe("thumbnail-grid-slice action creators", () => {
     const metadata: UavImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
-    mockGetMetadata.mockResolvedValue(metadata);
+    mockGetMetadata.mockResolvedValue([metadata]);
 
     // Initialize the fake store with valid state.
     const imageId: string = faker.datatype.uuid();

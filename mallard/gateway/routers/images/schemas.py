@@ -5,6 +5,7 @@ Schemas used by the endpoints in `images`.
 
 from typing import List
 
+from ...backends.metadata.schemas import UavImageMetadata
 from ...backends.objects.models import ObjectRef
 from ...schemas import ApiModel
 
@@ -38,3 +39,15 @@ class QueryResponse(ApiModel):
 
     page_num: int
     is_last_page: bool
+
+
+class MetadataResponse(ApiModel):
+    """
+    Response to a request for image metadata.
+
+    Attributes:
+        metadata: The retrieved metadata for each image.
+
+    """
+
+    metadata: List[UavImageMetadata]

@@ -302,18 +302,15 @@ export const thunkLoadMetadata = createAsyncThunk(
   "thumbnailGrid/loadMetadata",
   async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
     // Asynchronously load metadata for all the images.
-    const metadataPromises: Promise<UavImageMetadata>[] = imageIds.map(
-      (imageId: string) => {
-        // This should never be undefined, because that means our image ID is invalid.
-        const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
-          getState() as RootState,
-          imageId
-        ) as ImageEntity;
-
-        return getMetadata(imageEntity.backendId);
-      }
-    );
-    const metadata: UavImageMetadata[] = await Promise.all(metadataPromises);
+    const backendIds: ObjectRef[] = imageIds.map((imageId: string) => {
+      // This should never be undefined, because that means our image ID is invalid.
+      const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+        getState() as RootState,
+        imageId
+      ) as ImageEntity;
+      return imageEntity.backendId;
+    });
+    const metadata: UavImageMetadata[] = await getMetadata(backendIds);
 
     return { imageIds: imageIds, metadata: metadata };
   },

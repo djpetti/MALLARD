@@ -6,8 +6,9 @@ API endpoints for managing image data.
 import asyncio
 import io
 import uuid
+from contextlib import contextmanager
 from datetime import date, timedelta, timezone
-from typing import List, cast
+from typing import Iterable, List, cast
 
 from fastapi import (
     APIRouter,
@@ -32,7 +33,6 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import (
     ImageFormat,
     ImageQuery,
-    Metadata,
     Ordering,
     UavImageMetadata,
 )
@@ -43,7 +43,7 @@ from .image_metadata import (
     MissingLengthError,
     fill_metadata,
 )
-from .schemas import CreateResponse, QueryResponse
+from .schemas import CreateResponse, MetadataResponse, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -122,6 +122,36 @@ async def _create_thumbnail(image: bytes) -> io.BytesIO:
     return await loop.run_in_executor(
         get_process_pool(), _create_thumbnail_sync, image
     )
+
+
+@contextmanager
+def _check_key_errors() -> Iterable[None]:
+    """
+    Checks for key errors in an `ExceptionGroup` raised by the code in the
+    context manager, and produces the appropriate response if there are any.
+
+    """
+    try:
+        yield
+
+    except ExceptionGroup as ex_group:
+        # Check for key errors, which are raised when the images do not
+        # exist. We have a standard HTTP error for that.
+        key_errors, others = ex_group.split(KeyError)
+
+        if key_errors is not None:
+            error_messages = [f"\t-{e}" for e in key_errors.exceptions]
+            combined_error = "\n".join(error_messages)
+            logger.error("Could not find images: {}", combined_error)
+            raise HTTPException(
+                status_code=404,
+                detail=f"Some of the images could not be "
+                f"found:\n{combined_error}",
+            )
+
+        if others is not None:
+            # Otherwise, just raise it again.
+            raise others
 
 
 async def use_bucket(
@@ -292,29 +322,11 @@ async def delete_images(
     """
     logger.info("Deleting images {}.", images)
 
-    try:
+    with _check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for image in images:
                 tasks.create_task(object_store.delete_object(image))
                 tasks.create_task(metadata_store.delete(image))
-
-    except ExceptionGroup as ex_group:
-        # Check for key errors, which are raised when the images do not
-        # exist. We have a standard HTTP error for that.
-        key_errors, others = ex_group.split(KeyError)
-
-        if key_errors is not None:
-            error_messages = [f"\t-{e}" for e in key_errors.exceptions]
-            combined_error = "\n".join(error_messages)
-            raise HTTPException(
-                status_code=404,
-                detail=f"Some of the images could not be "
-                f"found:\n{combined_error}",
-            )
-
-        if others is not None:
-            # Otherwise, just raise it again.
-            raise others
 
 
 @router.get("/{bucket}/{name}")
@@ -397,37 +409,34 @@ async def get_thumbnail(
     return StreamingResponse(image_stream, media_type="image/jpeg")
 
 
-@router.get("/metadata/{bucket}/{name}", response_model=UavImageMetadata)
-async def get_image_metadata(
-    bucket: str,
-    name: str,
+@router.post("/metadata", response_model=MetadataResponse)
+async def find_image_metadata(
+    images: List[ObjectRef] = Body(...),
     metadata_store: MetadataStore = Depends(backends.metadata_store),
-) -> Metadata:
+) -> MetadataResponse:
     """
-    Gets the complete metadata for an image.
+    Retrieves the metadata for a set of images.
 
     Args:
-        bucket: The bucket that the image is in.
-        name: The name of the image.
+        images: The set of images to get metadata for.
         metadata_store: The metadata store to use.
 
     Returns:
-        The image metadata, in JSON form.
+        The corresponding metadata for each image, in JSON form.
 
     """
-    logger.debug("Getting metadata for image {} in bucket {}.", name, bucket)
-    object_id = ObjectRef(bucket=bucket, name=name)
+    logger.debug("Getting metadata for images {}", images)
 
-    try:
-        metadata = await metadata_store.get(object_id)
-    except KeyError:
-        # The image doesn't exist.
-        raise HTTPException(
-            status_code=404,
-            detail="Requested image metadata could not be found.",
-        )
+    tasks = []
+    with _check_key_errors():
+        async with asyncio.TaskGroup() as task_group:
+            for object_id in images:
+                tasks.append(
+                    task_group.create_task(metadata_store.get(object_id))
+                )
 
-    return metadata
+    # Get the results.
+    return MetadataResponse(metadata=[t.result() for t in tasks])
 
 
 @router.patch("/metadata/batch_update")

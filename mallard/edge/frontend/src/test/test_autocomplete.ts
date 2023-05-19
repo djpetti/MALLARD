@@ -193,7 +193,7 @@ describe("autocomplete", () => {
 
       // Make it look like getting the metadata succeeded.
       const metadata = fakeImageMetadata(fieldValue);
-      mockGetMetadata.mockResolvedValue(metadata);
+      mockGetMetadata.mockResolvedValue([metadata]);
 
       // Act.
       const suggestions = await requestAutocomplete(searchString, 5, 20);
@@ -228,7 +228,7 @@ describe("autocomplete", () => {
 
       // Make it look like getting the metadata succeeded.
       const metadata = fakeImageMetadata();
-      mockGetMetadata.mockResolvedValue(metadata);
+      mockGetMetadata.mockResolvedValue([metadata]);
 
       // Act.
       const suggestions = await requestAutocomplete(searchString, 5, 20);

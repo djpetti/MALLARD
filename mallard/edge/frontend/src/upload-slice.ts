@@ -23,9 +23,6 @@ import { thunkClearImageView } from "./thumbnail-grid-slice";
 import pica from "pica";
 import imageBlobReduce from "image-blob-reduce";
 
-/** Type alias to make typing thunks simpler. */
-type ThunkResult<R> = ThunkAction<R, RootState, any, any>;
-
 const uploadAdapter = createEntityAdapter<FrontendFileEntity>();
 const initialState: UploadState = uploadAdapter.getInitialState({
   isDragging: false,

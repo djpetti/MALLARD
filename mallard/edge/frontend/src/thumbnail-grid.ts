@@ -205,6 +205,11 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   private bottomPageNum: number = 0;
 
   /**
+   * Total number of thumbnails displayed on the last update cycle.
+   */
+  private lastNumThumbnailsDisplayed: number = 0;
+
+  /**
    * List of page numbers and their associated scroll offsets that we add to
    * whenever we clear a page at the top. Should remain sorted.
    */
@@ -416,6 +421,26 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   }
 
   /**
+   * Counts the total number of thumbnails that are actually being
+   * displayed (not in collapsed sections).
+   * @return {number} The number of displayed thumbnails.
+   * @private
+   */
+  private numThumbnailsDisplayed(): number {
+    let numThumbnails = 0;
+    for (const section of this.sections) {
+      if (!section.expanded) {
+        // Section is collapsed. Don't count it.
+        continue;
+      }
+
+      numThumbnails += section.displayedArtifacts.length;
+    }
+
+    return numThumbnails;
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render() {
@@ -427,7 +452,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         : "hidden";
     // Visibility of the loading indicator.
     const loadingVisibility =
-      this.loadingState == RequestState.LOADING ? "" : "hidden";
+      this.sufficientDataLoaded || !this.hasMorePages ? "hidden" : "";
     // Visibility of the content.
     const contentVisibility = this.groupedArtifacts.length == 0 ? "hidden" : "";
 
@@ -479,6 +504,17 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
           detail: this.displayedArtifacts,
         })
       );
+    }
+
+    if (_changedProperties.get("loadingState") == RequestState.LOADING) {
+      const numThumbnailsDisplayed = this.numThumbnailsDisplayed();
+      if (numThumbnailsDisplayed == this.lastNumThumbnailsDisplayed) {
+        // The number of displayed thumbnails didn't change. This could mean
+        // that we loaded data internal to a collapsed section and should
+        // check if we should load more.
+        this.loadContentWhileNeeded();
+      }
+      this.lastNumThumbnailsDisplayed = numThumbnailsDisplayed;
     }
   }
 

@@ -16,6 +16,9 @@ export abstract class InfiniteScrollingElement extends LitElement {
    */
   private OVERFILL_MARGIN_PERCENT = 50;
 
+  /** Keeps track of whether we have loaded sufficient data. */
+  private sufficientDataLoaded_: boolean = false;
+
   /**
    * Should trigger the load of the next section of content for
    * this element. The subclass element is responsible for
@@ -68,7 +71,16 @@ export abstract class InfiniteScrollingElement extends LitElement {
     // Find out how many we actually have loaded.
     const bufferUsedPx = contentHeight - (scrollDistance + viewportHeight);
 
-    return bufferUsedPx >= bufferSizePx;
+    this.sufficientDataLoaded_ = bufferUsedPx >= bufferSizePx;
+    return this.sufficientDataLoaded_;
+  }
+
+  /**
+   * @return {boolean} True if a sufficient amount of data has been loaded.
+   * @protected
+   */
+  protected get sufficientDataLoaded(): boolean {
+    return this.sufficientDataLoaded_;
   }
 
   /**

@@ -301,18 +301,40 @@ export const thunkLoadImage = createAsyncThunk(
 export const thunkLoadMetadata = createAsyncThunk(
   "thumbnailGrid/loadMetadata",
   async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
-    // Asynchronously load metadata for all the images.
-    const backendIds: ObjectRef[] = imageIds.map((imageId: string) => {
-      // This should never be undefined, because that means our image ID is invalid.
-      const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
-        getState() as RootState,
-        imageId
-      ) as ImageEntity;
-      return imageEntity.backendId;
-    });
+    const imageEntities: ImageEntity[] = imageIds.map(
+      (imageId: string) =>
+        // This should never be undefined, because that means our image ID is invalid.
+        thumbnailGridSelectors.selectById(
+          getState() as RootState,
+          imageId
+        ) as ImageEntity
+    );
+    // Check for image entities that don't have loaded metadata.
+    const entitiesToLoad = imageEntities.filter(
+      (entity) => entity.metadata === null
+    );
+    const loadedEntities = imageEntities.filter(
+      (entity) => entity.metadata !== null
+    );
+    const backendIds: ObjectRef[] = entitiesToLoad.map(
+      (entity) => entity.backendId
+    );
+
     const metadata: UavImageMetadata[] = await getMetadata(backendIds);
 
-    return { imageIds: imageIds, metadata: metadata };
+    // We have to reconstruct the image IDs because we changed the order
+    // during filtering.
+    const previouslyLoadedImageIds = loadedEntities.map((entity) =>
+      createImageEntityId(entity.backendId)
+    );
+    const newlyLoadedImageIds = backendIds.map(createImageEntityId);
+    const previousMetadata = loadedEntities.map(
+      (entity) => entity.metadata as UavImageMetadata
+    );
+    return {
+      imageIds: previouslyLoadedImageIds.concat(newlyLoadedImageIds),
+      metadata: previousMetadata.concat(metadata),
+    };
   },
   {
     condition: (imageIds: string[], { getState }): boolean => {

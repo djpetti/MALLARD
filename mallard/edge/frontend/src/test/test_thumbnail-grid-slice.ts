@@ -385,20 +385,29 @@ describe("thumbnail-grid-slice action creators", () => {
   it("creates a loadMetadata action", async () => {
     // Arrange.
     // Make it look like the getMetadata request succeeds.
-    const metadata: UavImageMetadata = {
+    const newMetadata: UavImageMetadata = {
       captureDate: faker.date.past().toISOString(),
     };
-    mockGetMetadata.mockResolvedValue([metadata]);
+    mockGetMetadata.mockResolvedValue([newMetadata]);
 
     // Initialize the fake store with valid state.
-    const imageId: string = faker.datatype.uuid();
+    const unloadedImage = fakeImageEntity(false, false);
+    const loadedImage = fakeImageEntity(undefined, true);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+    const loadedImageId = createImageEntityId(loadedImage.backendId);
     const state = fakeState();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false, false);
+    state.imageView.ids = [unloadedImageId, loadedImageId];
+    state.imageView.entities[unloadedImageId] = unloadedImage;
+    // Make it look like this one is already loaded.
+    state.imageView.entities[loadedImageId] = loadedImage;
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadMetadata([imageId])(store.dispatch, store.getState, {});
+    await thunkLoadMetadata([unloadedImageId, loadedImageId])(
+      store.dispatch,
+      store.getState,
+      {}
+    );
 
     // Assert.
     // It should have loaded the metadata.
@@ -415,8 +424,14 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction.type).toEqual(
       "thumbnailGrid/loadMetadata/fulfilled"
     );
-    expect(fulfilledAction.payload.imageIds).toEqual([imageId]);
-    expect(fulfilledAction.payload.metadata).toEqual([metadata]);
+    expect(fulfilledAction.payload.imageIds).toEqual([
+      loadedImageId,
+      unloadedImageId,
+    ]);
+    expect(fulfilledAction.payload.metadata).toEqual([
+      loadedImage.metadata,
+      newMetadata,
+    ]);
   });
 
   it("does not reload metadata that is already loaded", async () => {

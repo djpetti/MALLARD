@@ -94,6 +94,7 @@
     "@types/wicg-file-system-access": "^2020.9.5",
     "app-datepicker": "^6.0.0-rc.32",
     "client-zip": "^2.3.0",
+    "denque": "^2.1.0",
     "image-blob-reduce": "^4.1.0",
     "jquery": "^3.6.0",
     "lit": "^2.6.1",

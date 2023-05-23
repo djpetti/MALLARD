@@ -119,7 +119,7 @@ export function fakeImageEntity(
 
   let thumbnailStatus: ImageStatus = ImageStatus.NOT_LOADED;
   let imageStatus: ImageStatus = ImageStatus.NOT_LOADED;
-  let metdataStatus: ImageStatus = ImageStatus.NOT_LOADED;
+  let metadataStatus: ImageStatus = ImageStatus.NOT_LOADED;
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let metadata: UavImageMetadata | null = null;
@@ -135,7 +135,7 @@ export function fakeImageEntity(
   if (imageLoaded) {
     // Simulate a loaded image.
     imageStatus = ImageStatus.LOADED;
-    metdataStatus = ImageStatus.LOADED;
+    metadataStatus = ImageStatus.LOADED;
     imageUrl = faker.image.dataUri();
     metadata = {
       captureDate: captureDate.toISOString(),
@@ -147,7 +147,7 @@ export function fakeImageEntity(
     backendId: fakeObjectRef(),
     thumbnailStatus: thumbnailStatus,
     imageStatus: imageStatus,
-    metadataStatus: metdataStatus,
+    metadataStatus: metadataStatus,
     thumbnailUrl: thumbnailUrl,
     imageUrl: imageUrl,
     metadata: metadata,
@@ -158,7 +158,7 @@ export function fakeImageEntity(
 /**
  * Contains image entities, and corresponding frontend IDs.
  */
-interface EntitiesAndIds {
+export interface EntitiesAndIds {
   ids: EntityId[];
   entities: { [id: EntityId]: ImageEntity };
 }

@@ -1,10 +1,11 @@
-import { LitElement, PropertyValues } from "lit";
+import { PropertyValues } from "lit";
+import { VisibilityCheckingContainer } from "./visibility_checking_container";
 
 /**
  * A superclass for elements that need to be infinitely
  * scrollable.
  */
-export abstract class InfiniteScrollingElement extends LitElement {
+export abstract class InfiniteScrollingElement extends VisibilityCheckingContainer {
   /** Observer to use for reacting to size changes. */
   private resizeObserver?: ResizeObserver;
 
@@ -97,7 +98,9 @@ export abstract class InfiniteScrollingElement extends LitElement {
   /**
    * @inheritDoc
    */
-  protected firstUpdated(_: PropertyValues) {
+  protected firstUpdated(properties: PropertyValues) {
+    super.firstUpdated(properties);
+
     // Add a handler for scroll events which loads more
     // content if needed.
     this.addEventListener("scroll", (_) => this.loadContentWhileNeeded());

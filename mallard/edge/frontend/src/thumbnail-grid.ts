@@ -21,21 +21,13 @@ import { ThumbnailGridSection } from "./thumbnail-grid-section";
 /**
  * Encapsulates image IDs grouped with corresponding metadata.
  */
-interface GroupedImages {
+export interface GroupedImages {
   /** The image IDs. */
   imageIds: string[];
   /** The capture data for these images. */
   captureDate: Date;
   /** The session for these images. */
   session?: string;
-}
-
-/**
- * Combines a page number with the associated scroll amount.
- */
-interface PageAndScroll {
-  page: number;
-  scrollOffset: number;
 }
 
 /**
@@ -164,8 +156,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   displayedArtifacts: string[] = [];
 
   /**
-   * Artifacts grouped by date.
+   * Artifacts grouped by section.
    */
+  @state({
+    // Do a deep check here since spurious re-rendering is expensive.
+    hasChanged: (newValue, oldValue) => !isEqual(oldValue, newValue),
+  })
   public groupedArtifacts: GroupedImages[] = [];
   /**
    * Unique IDs of grouped artifacts.
@@ -181,12 +177,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   @property()
   public hasMorePages: boolean = true;
-
-  /**
-   * Keeps track of how many total thumbnails are loaded.
-   */
-  @state()
-  protected numThumbnailsLoaded = 0;
 
   @queryAll("thumbnail-grid-section")
   private sections!: ThumbnailGridSection[];
@@ -210,29 +200,16 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   private lastNumThumbnailsDisplayed: number = 0;
 
   /**
-   * List of page numbers and their associated scroll offsets that we add to
-   * whenever we clear a page at the top. Should remain sorted.
+   * @inheritDoc
    */
-  private removedPagesTop: PageAndScroll[] = [];
-
-  /**
-   * List of page numbers and their associated scroll offsets that we add to
-   * whenever we clear a page at the bottom. Should remain sorted.
-   */
-  private removedPagesBottom: PageAndScroll[] = [];
-
-  /**
-   * @return {string[]} The IDs of the displayed artifacts, in the order
-   * that they are displayed on the page.
-   */
-  public get orderedArtifactIds(): string[] {
-    return Array.from(this.groupedArtifactsFlatIds);
+  protected override getContentElement(): HTMLElement {
+    return this.gridContent;
   }
 
   /**
    * @inheritDoc
    */
-  protected override getContentElement(): HTMLElement {
+  protected override getParentElement(): HTMLElement {
     return this.gridContent;
   }
 
@@ -256,143 +233,37 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       })
     );
 
-    if (this.numThumbnailsLoaded > ThumbnailGrid.MAX_THUMBNAILS_LOADED) {
-      // We have too many thumbnails. Remove some at the top to compensate.
-      this.clearTopmostSection();
-    }
-
     return true;
   }
 
   /**
-   * Gets the image IDs from a particular page of the query.
-   * @param {number} pageNum The query page to get IDs from.
-   * @return {string[]} The array of image IDs from this page.
-   * @private
+   * @inheritDoc
    */
-  private getIdsFromPage(pageNum: number): string[] {
-    const startIndex = pageNum * ThumbnailGrid.IMAGES_PER_PAGE;
-    return this.groupedArtifactsFlatIds.slice(
-      startIndex,
-      startIndex + ThumbnailGrid.IMAGES_PER_PAGE
-    );
-  }
-
-  /**
-   * Reloads data from a page that was cleared.
-   * @param {number} pageNum The page number to reload.
-   * @return {boolean} True if more data was loaded, false if there was
-   *  nothing more to load.
-   * @private
-   */
-  private reloadPage(pageNum: number): boolean {
-    // Find the IDs for the page we want to reload.
-    const pageIds = this.getIdsFromPage(pageNum);
-
-    // Dispatch an event. This will trigger an action that loads the
-    // previous page.
+  protected override onChildVisible(_child: Element) {
+    // Load any necessary data for this new child.
+    const childThumbnailIds = (_child as ThumbnailGridSection)
+      .displayedArtifacts;
     this.dispatchEvent(
       new CustomEvent<string[]>(ThumbnailGrid.RELOAD_DATA_EVENT_NAME, {
         bubbles: true,
         composed: false,
-        detail: pageIds,
-      })
-    );
-    return true;
-  }
-
-  /**
-   * Reloads a page if it is necessary to do so, based on the current scroll
-   * position.
-   * @return {boolean} True if it reloaded a page, false otherwise.
-   * @private
-   */
-  private reloadIfNeeded(): boolean {
-    const lastTop = this.removedPagesTop.pop();
-    if (lastTop) {
-      if (
-        this.scrollTop <
-        lastTop.scrollOffset - ThumbnailGrid.PAGE_RELOAD_HYSTERESIS
-      ) {
-        this.reloadPage(lastTop.page);
-        // Unload a page at the bottom to compensate.
-        this.clearBottommostSection();
-        --this.topPageNum;
-        return true;
-      }
-
-      // Add it back if we didn't reload it.
-      this.removedPagesTop.push(lastTop);
-    }
-
-    const lastBottom = this.removedPagesBottom.pop();
-    if (lastBottom) {
-      if (
-        this.scrollTop >=
-        lastBottom.scrollOffset + ThumbnailGrid.PAGE_RELOAD_HYSTERESIS
-      ) {
-        this.reloadPage(lastBottom.page);
-        // Unload a page at the top to compensate.
-        this.clearTopmostSection();
-        ++this.bottomPageNum;
-        return true;
-      }
-
-      // Add it back if we didn't reload it.
-      this.removedPagesBottom.push(lastBottom);
-    }
-
-    return false;
-  }
-
-  /**
-   * Clears loaded data from the topmost page to save memory.
-   * @private
-   */
-  private clearTopmostSection() {
-    // Find the first page of displayed results.
-    const firstPageIds = this.groupedArtifactsFlatIds.slice(
-      this.topPageNum * ThumbnailGrid.IMAGES_PER_PAGE,
-      (this.topPageNum + 1) * ThumbnailGrid.IMAGES_PER_PAGE
-    );
-
-    this.removedPagesTop.push({
-      page: this.topPageNum,
-      scrollOffset: this.scrollTop,
-    });
-    ++this.topPageNum;
-
-    this.dispatchEvent(
-      new CustomEvent<string[]>(ThumbnailGrid.DELETE_DATA_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: firstPageIds,
+        detail: childThumbnailIds,
       })
     );
   }
 
   /**
-   * Clears data from the bottommost page to save memory.
-   * @private
+   * @inheritDoc
    */
-  private clearBottommostSection() {
-    // Find the last page of displayed results.
-    --this.bottomPageNum;
-    const lastPageIds = this.groupedArtifactsFlatIds.slice(
-      this.bottomPageNum * ThumbnailGrid.IMAGES_PER_PAGE,
-      (this.bottomPageNum + 1) * ThumbnailGrid.IMAGES_PER_PAGE
-    );
-
-    this.removedPagesBottom.push({
-      page: this.bottomPageNum,
-      scrollOffset: this.scrollTop,
-    });
-
+  protected override onChildNotVisible(_child: Element) {
+    // Clear any data for the invisible child to save memory.
+    const childThumbnailIds = (_child as ThumbnailGridSection)
+      .displayedArtifacts;
     this.dispatchEvent(
       new CustomEvent<string[]>(ThumbnailGrid.DELETE_DATA_EVENT_NAME, {
         bubbles: true,
         composed: false,
-        detail: lastPageIds,
+        detail: childThumbnailIds,
       })
     );
   }
@@ -506,6 +377,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       );
     }
 
+    if (_changedProperties.has("groupedArtifacts")) {
+      // Reset the visibility tracker, since it could be invalid with these
+      // new images.
+      this.resetVisibilityTracking();
+    }
+
     if (_changedProperties.get("loadingState") == RequestState.LOADING) {
       const numThumbnailsDisplayed = this.numThumbnailsDisplayed();
       if (numThumbnailsDisplayed == this.lastNumThumbnailsDisplayed) {
@@ -522,11 +399,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * @inheritDoc
    */
   protected firstUpdated(properties: PropertyValues) {
-    // Reload pages as needed when we scroll.
-    this.addEventListener("scroll", (_) => {
-      while (this.reloadIfNeeded()) {}
-    });
-
     super.firstUpdated(properties);
 
     // If we have no data, try loading some initially.
@@ -618,7 +490,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
       queryPageNum: state.imageView.currentQueryOptions.pageNum,
       isQueryRunning: state.imageView.currentQuery.length > 0,
-      numThumbnailsLoaded: state.imageView.numThumbnailsLoaded,
     };
   }
 

@@ -1,5 +1,6 @@
-import { ConnectedThumbnailGrid } from "../thumbnail-grid";
+import { ConnectedThumbnailGrid, GroupedImages } from "../thumbnail-grid";
 import {
+  EntitiesAndIds,
   fakeImageEntities,
   fakeImageEntity,
   fakeState,
@@ -9,13 +10,14 @@ import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
 import {
-  thunkLoadMetadata,
-  thunkStartNewQuery,
-  thunkContinueQuery,
-  thunkLoadThumbnails,
   thunkClearEntities,
+  thunkContinueQuery,
+  thunkLoadMetadata,
+  thunkLoadThumbnails,
+  thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
+import lodash from "lodash";
 import MockedClass = jest.MockedClass;
 
 jest.mock("../thumbnail-grid-slice", () => {
@@ -70,6 +72,30 @@ global.ResizeObserver = mockResizeObserver;
 describe("thumbnail-grid", () => {
   /** Internal thumbnail-grid to use for testing. */
   let gridElement: ConnectedThumbnailGrid;
+
+  /**
+   * Creates a fake set of grouped images.
+   * @return {GroupedImages[]} The grouped images.
+   */
+  function fakeGroupedImages(): GroupedImages[] {
+    const numImageGroups = faker.datatype.number({ min: 1, max: 10 });
+    const groups: GroupedImages[] = [];
+    for (let i = 0; i < numImageGroups; ++i) {
+      const numImages = faker.datatype.number({ min: 1, max: 25 });
+      const imageIds: string[] = [];
+      for (let j = 0; j < numImages; ++j) {
+        imageIds.push(faker.datatype.uuid());
+      }
+
+      groups.push({
+        imageIds: imageIds,
+        session: faker.lorem.words(),
+        captureDate: faker.date.past(),
+      });
+    }
+
+    return groups;
+  }
 
   beforeAll(() => {
     // Manually register the custom element.
@@ -190,6 +216,19 @@ describe("thumbnail-grid", () => {
      */
     let loadMoreDataHandler: jest.Mock;
 
+    /**
+     * Gets the section element at a particular index.
+     * @param {number} index The index to get the element at.
+     * @return {ThumbnailGridSection} The specified section.
+     */
+    function getSectionElement(index: number): ThumbnailGridSection {
+      const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
+      const sectionContainer = root.querySelector(
+        "#grid_content"
+      ) as HTMLDivElement;
+      return sectionContainer.children[index] as ThumbnailGridSection;
+    }
+
     beforeEach(() => {
       // Set window properties for scrolling.
       Object.defineProperty(gridElement, "clientHeight", { value: 1000 });
@@ -225,7 +264,61 @@ describe("thumbnail-grid", () => {
       expect(loadMoreDataHandler).toBeCalledTimes(1);
     });
 
-    it("responds to a change in the content", async () => {
+    it("loads more data when it needs to, even if a section is collapsed", async () => {
+      // Arrange.
+      // Simulate a loading status initially.
+      gridElement.loadingState = RequestState.LOADING;
+      await gridElement.updateComplete;
+
+      // Display some thumbnails.
+      const groupedImages = fakeGroupedImages();
+      gridElement.groupedArtifacts = groupedImages;
+      await gridElement.updateComplete;
+
+      // Initially mark all sections as expanded.
+      const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
+      const sectionContainer = root.querySelector(
+        "#grid_content"
+      ) as HTMLDivElement;
+      for (const section of sectionContainer.children) {
+        (section as ThumbnailGridSection).expanded = true;
+      }
+
+      // Simulate a section being collapsed.
+      const firstSection = getSectionElement(0);
+      firstSection.expanded = false;
+      await firstSection.updateComplete;
+
+      // Make it look like the initial loading has finished.
+      gridElement.loadingState = RequestState.SUCCEEDED;
+      await gridElement.updateComplete;
+
+      // Make it look like it's loading again.
+      gridElement.loadingState = RequestState.LOADING;
+      await gridElement.updateComplete;
+
+      // Make it look like the user has scrolled down.
+      Object.defineProperty(gridElement, "scrollTop", { value: 500 });
+
+      // Simulate some additional data being loaded into the collapsed section.
+      const newlyLoadedImageIds = [
+        faker.datatype.uuid(),
+        faker.datatype.uuid(),
+      ];
+      gridElement.groupedArtifacts[0].imageIds =
+        groupedImages[0].imageIds.concat(newlyLoadedImageIds);
+
+      // Act.
+      // Make it look like it's finished loading.
+      gridElement.loadingState = RequestState.SUCCEEDED;
+      await gridElement.updateComplete;
+
+      // Assert.
+      // This should have forced it to try loading more data.
+      expect(loadMoreDataHandler).toBeCalledTimes(1);
+    });
+
+    it("responds to a change in the content size", async () => {
       // Arrange.
       // Make it look like the user has scrolled down.
       Object.defineProperty(gridElement, "scrollTop", { value: 500 });
@@ -246,7 +339,7 @@ describe("thumbnail-grid", () => {
       expect(loadMoreDataHandler).toBeCalledTimes(1);
     });
 
-    describe("data clearing and reloading", () => {
+    describe("visibility tracking", () => {
       /**
        * Fake handler for the data deletion event.
        */
@@ -256,18 +349,48 @@ describe("thumbnail-grid", () => {
        */
       let reloadDataHandler: jest.Mock;
 
+      /**
+       * Images in the first section.
+       */
+      let section1Images: EntitiesAndIds;
+      /**
+       * Images in the second section.
+       */
+      let section2Images: EntitiesAndIds;
+
+      /**
+       * Mock function to use for setting custom bounding rectangles.
+       */
+      const mockGetBoundingClientRect = jest.fn();
+
       beforeEach(async () => {
-        // First, make it look like we have too many thumbnails.
+        const section1CaptureDate = faker.date.past();
+        const section2CaptureDate = faker.date.past();
+        const section1SessionName = faker.lorem.words();
+        const section2SessionName = faker.lorem.words();
+
+        // First, make it look like we have thumbnails in two sections.
         const state = fakeState();
-        const images = fakeImageEntities(
-          ConnectedThumbnailGrid.IMAGES_PER_PAGE * 2,
-          true
+        section1Images = fakeImageEntities(
+          faker.datatype.number({ min: 1, max: 25 }),
+          true,
+          undefined,
+          section1CaptureDate,
+          section1SessionName
         );
-        state.imageView.ids = images.ids;
-        state.imageView.entities = images.entities;
-        // Set this artificially so it triggers the clearing of old data.
-        state.imageView.numThumbnailsLoaded =
-          ConnectedThumbnailGrid.MAX_THUMBNAILS_LOADED + 1;
+        section2Images = fakeImageEntities(
+          faker.datatype.number({ min: 1, max: 25 }),
+          true,
+          undefined,
+          section2CaptureDate,
+          section2SessionName
+        );
+        state.imageView.ids = section1Images.ids.concat(section2Images.ids);
+        lodash.assign(
+          state.imageView.entities,
+          section1Images.entities,
+          section2Images.entities
+        );
         state.imageView.currentQueryHasMorePages = true;
 
         // Set the state correctly.
@@ -301,133 +424,174 @@ describe("thumbnail-grid", () => {
           ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME,
           reloadDataHandler
         );
+
+        // Set a plausible size for the viewport.
+        Object.defineProperty(window, "innerHeight", {
+          value: 1000,
+        });
       });
 
-      it("clears the thumbnails on top when enough data are loaded", async () => {
+      /**
+       * Sets things up so that it looks like the top section is not visible.
+       */
+      function setUpTopSectionInvisible() {
         // Arrange.
+        // Make it look like one of the sections is no longer visible.
+        mockGetBoundingClientRect.mockReturnValue({
+          top: -1000,
+          bottom: -600,
+          left: 0,
+          right: 2000,
+        });
+        const topSection = getSectionElement(0);
+        Object.assign(topSection, {
+          getBoundingClientRect: mockGetBoundingClientRect,
+        });
+
         // Act.
         // Simulate the user scrolling, which should cause it to clear excess
         // data.
         gridElement.dispatchEvent(new Event("scroll"));
+      }
+
+      it("clears the sections on top when enough data are loaded", () => {
+        // Act.
+        setUpTopSectionInvisible();
 
         // Assert.
+        // It should have checked the visibility of the top section.
+        expect(mockGetBoundingClientRect).toBeCalled();
         // It should have loaded additional data.
         expect(loadMoreDataHandler).toBeCalledTimes(1);
         // It should have deleted data once.
         expect(deleteDataHandler).toBeCalledTimes(1);
 
-        // It should have deleted the proper page.
+        // It should have deleted the top section.
         const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
-        // It should have cleared the thumbnails on top.
-        expect(deleteIds).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
+        expect(deleteIds).toEqual(section1Images.ids);
       });
 
-      it("reloads data on the top when necessary", async () => {
+      it("reloads data on the top when necessary", () => {
+        // Arrange.
+        setUpTopSectionInvisible();
+
+        // Make it look like the top section is visible again.
+        const mockGetBoundingClientRect = jest.fn();
+        mockGetBoundingClientRect.mockReturnValue({
+          top: -300,
+          bottom: 200,
+          left: 0,
+          right: 2000,
+        });
+        const topSection = getSectionElement(0);
+        Object.assign(topSection, {
+          getBoundingClientRect: mockGetBoundingClientRect,
+        });
+
         // Act.
-        // This should initially delete the images on top.
-        gridElement.dispatchEvent(new Event("scroll"));
-        // Now, make it look like the user has scrolled back up.
-        Object.assign(gridElement, { scrollTop: 0 });
         // This should now reload the data on top.
         gridElement.dispatchEvent(new Event("scroll"));
 
         // Assert.
-        // It should have deleted data twice.
-        expect(deleteDataHandler).toBeCalledTimes(2);
+        // It should have first deleted the top section.
+        expect(deleteDataHandler).toBeCalledTimes(1);
         // It should have reloaded data once on the top.
         expect(reloadDataHandler).toBeCalledTimes(1);
 
-        // It should have deleted the proper pages.
-        const deleteIds1 = deleteDataHandler.mock.calls[0][0].detail;
-        // It should have cleared the thumbnails on top first.
-        expect(deleteIds1).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have cleared the ones on the bottom.
-        const deleteIds2 = deleteDataHandler.mock.calls[1][0].detail;
-        expect(deleteIds2).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have reloaded the ones on top.
+        // It should have deleted the top section.
+        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
+        expect(deleteIds).toEqual(section1Images.ids);
+        // Then it should have reloaded the top section.
         const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
-        expect(reloadedIds1).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
+        expect(reloadedIds1).toEqual(section1Images.ids);
       });
 
-      it("reloads data on the bottom when necessary", async () => {
-        // Act.
-        // This should initially delete the images on top.
-        gridElement.dispatchEvent(new Event("scroll"));
+      /**
+       * Sets things up so that it looks like the bottom section is not visible.
+       */
+      function setUpBottomSectionInvisible() {
+        // Arrange.
+        // Make it look like the bottom section is no longer visible.
+        mockGetBoundingClientRect.mockReturnValue({
+          top: 1600,
+          bottom: 1900,
+          left: 0,
+          right: 2000,
+        });
+        const bottomSection = getSectionElement(1);
+        Object.assign(bottomSection, {
+          getBoundingClientRect: mockGetBoundingClientRect,
+        });
 
-        // Now, make it look like the user has scrolled back up.
-        Object.assign(gridElement, { scrollTop: 0 });
+        // Act.
+        // Simulate the user scrolling, which should cause it to clear excess
+        // data.
+        gridElement.dispatchEvent(new Event("scroll"));
+      }
+
+      it("deletes data on the bottom when necessary", () => {
+        // Act.
+        setUpBottomSectionInvisible();
+
+        // Assert.
+        // It should have checked the visibility of the bottom section.
+        expect(mockGetBoundingClientRect).toBeCalled();
+        // It should have loaded additional data.
+        expect(loadMoreDataHandler).toBeCalledTimes(1);
+        // It should have deleted data once.
+        expect(deleteDataHandler).toBeCalledTimes(1);
+
+        // It should have deleted the bottom section.
+        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
+        expect(deleteIds).toEqual(section2Images.ids);
+      });
+
+      it("reloads data on the bottom when necessary", () => {
+        // Arrange.
+        setUpBottomSectionInvisible();
+
+        // Make it look like the bottom section is visible again.
+        const mockGetBoundingClientRect = jest.fn();
+        mockGetBoundingClientRect.mockReturnValue({
+          top: 800,
+          bottom: 1600,
+          left: 0,
+          right: 2000,
+        });
+        const bottomSection = getSectionElement(1);
+        Object.assign(bottomSection, {
+          getBoundingClientRect: mockGetBoundingClientRect,
+        });
+
+        // Act.
         // This should now reload the data on top.
         gridElement.dispatchEvent(new Event("scroll"));
 
-        // Now, make it look like the user has scrolled down again.
-        Object.assign(gridElement, { scrollTop: 500 });
-        // This should now reload the data on the bottom.
+        // Assert.
+        // It should have first deleted the bottom section.
+        expect(deleteDataHandler).toBeCalledTimes(1);
+        // It should have reloaded data once on the bottom.
+        expect(reloadDataHandler).toBeCalledTimes(1);
+
+        // It should have deleted the bottom section.
+        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
+        expect(deleteIds).toEqual(section2Images.ids);
+        // Then it should have reloaded the top section.
+        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
+        expect(reloadedIds1).toEqual(section2Images.ids);
+      });
+
+      it("does not clear or reload any data when it doesn't need to", () => {
+        // Act.
+        // By default, a scroll event should do nothing as long as both
+        // elements are visible.
         gridElement.dispatchEvent(new Event("scroll"));
 
         // Assert.
-        // It should have deleted data three times.
-        expect(deleteDataHandler).toBeCalledTimes(3);
-        // It should have reloaded data on the top and bottom.
-        expect(reloadDataHandler).toBeCalledTimes(2);
-
-        // It should have deleted the proper pages.
-        const deleteIds1 = deleteDataHandler.mock.calls[0][0].detail;
-        // It should have cleared the thumbnails on top first.
-        expect(deleteIds1).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have cleared the ones on the bottom.
-        const deleteIds2 = deleteDataHandler.mock.calls[1][0].detail;
-        expect(deleteIds2).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have reloaded the ones on top.
-        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
-        expect(reloadedIds1).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have cleared the ones on top again.
-        const deleteIds3 = deleteDataHandler.mock.calls[2][0].detail;
-        expect(deleteIds3).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            0,
-            ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
-        // Then it should have reloaded the ones on the bottom.
-        const reloadedIds2 = reloadDataHandler.mock.calls[1][0].detail;
-        expect(reloadedIds2).toEqual(
-          gridElement.orderedArtifactIds.slice(
-            -ConnectedThumbnailGrid.IMAGES_PER_PAGE
-          )
-        );
+        // It should not have deleted data.
+        expect(deleteDataHandler).not.toBeCalled();
+        // It should not have reloaded anything.
+        expect(reloadDataHandler).not.toBeCalled();
       });
     });
 

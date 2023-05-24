@@ -6,10 +6,8 @@ import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
   thumbnailGridSelectors,
-  thunkClearEntities,
   thunkContinueQuery,
   thunkLoadMetadata,
-  thunkLoadThumbnails,
   thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -136,15 +134,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * the bottom, and we need to load more data.
    */
   static readonly LOAD_MORE_DATA_BOTTOM_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data-bottom`;
-  /**
-   * Name for the custom event signaling that we should reload data
-   * that we previously unloaded for memory savings.
-   */
-  static readonly RELOAD_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-reload-data`;
-  /**
-   * Name for the custom event signaling that we want to delete some data.
-   */
-  static readonly DELETE_DATA_EVENT_NAME = `${ThumbnailGrid.tagName}-delete-data`;
 
   /** The unique IDs of the artifacts whose thumbnails are displayed in this component.
    * Data should be saved in the same order as `groupedArtifacts`. */
@@ -185,16 +174,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   private gridContent!: HTMLDivElement;
 
   /**
-   * Keeps track of the top-most page of data that is currently displayed.
-   */
-  private topPageNum: number = 0;
-
-  /**
-   * Keeps track of the bottom-most page of data that is currently displayed.
-   */
-  private bottomPageNum: number = 0;
-
-  /**
    * Total number of thumbnails displayed on the last update cycle.
    */
   private lastNumThumbnailsDisplayed: number = 0;
@@ -222,8 +201,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       return false;
     }
 
-    ++this.bottomPageNum;
-
     // Dispatch an event. This will trigger an action that loads
     // the next page.
     this.dispatchEvent(
@@ -241,15 +218,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   protected override onChildVisible(_child: Element) {
     // Load any necessary data for this new child.
-    const childThumbnailIds = (_child as ThumbnailGridSection)
-      .displayedArtifacts;
-    this.dispatchEvent(
-      new CustomEvent<string[]>(ThumbnailGrid.RELOAD_DATA_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: childThumbnailIds,
-      })
-    );
+    (_child as ThumbnailGridSection).reloadThumbnails();
   }
 
   /**
@@ -257,15 +226,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   protected override onChildNotVisible(_child: Element) {
     // Clear any data for the invisible child to save memory.
-    const childThumbnailIds = (_child as ThumbnailGridSection)
-      .displayedArtifacts;
-    this.dispatchEvent(
-      new CustomEvent<string[]>(ThumbnailGrid.DELETE_DATA_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: childThumbnailIds,
-      })
-    );
+    (_child as ThumbnailGridSection).clearThumbnails();
   }
 
   /**
@@ -521,20 +482,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         // Continue the existing query.
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
-    };
-    handlers[ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME] = (
-      event: Event
-    ) => {
-      return thunkLoadThumbnails(
-        (event as CustomEvent<string[]>).detail
-      ) as unknown as Action;
-    };
-    handlers[ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME] = (
-      event: Event
-    ) => {
-      return thunkClearEntities(
-        (event as CustomEvent<string[]>).detail
-      ) as unknown as Action;
     };
     return handlers;
   }

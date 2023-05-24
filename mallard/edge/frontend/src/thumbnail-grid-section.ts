@@ -9,6 +9,8 @@ import { RootState } from "./types";
 import {
   setSectionExpanded,
   thumbnailGridSelectors,
+  thunkClearEntities,
+  thunkLoadThumbnails,
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -23,6 +25,16 @@ type SelectedEvent = CustomEvent<boolean>;
 export class ThumbnailGridSection extends LitElement {
   /** Tag name for this element. */
   static readonly tagName: string = "thumbnail-grid-section";
+
+  /**
+   * Name for the custom event signaling that we should reload data
+   * that we previously unloaded for memory savings.
+   */
+  static readonly RELOAD_DATA_EVENT_NAME = `${ThumbnailGridSection.tagName}-reload-data`;
+  /**
+   * Name for the custom event signaling that we want to delete some data.
+   */
+  static readonly DELETE_DATA_EVENT_NAME = `${ThumbnailGridSection.tagName}-delete-data`;
 
   static styles = css`
     :host {
@@ -114,6 +126,45 @@ export class ThumbnailGridSection extends LitElement {
         bubbles: true,
         composed: false,
         detail: this.expanded,
+      })
+    );
+
+    if (this.expanded) {
+      // Reload unloaded data if necessary.
+      this.reloadThumbnails();
+    } else {
+      // If it's collapsed, clear those data to save memory.
+      this.clearThumbnails();
+    }
+  }
+
+  /**
+   * Clears the thumbnail data for this section to save memory.
+   */
+  public clearThumbnails(): void {
+    this.dispatchEvent(
+      new CustomEvent<string[]>(ThumbnailGridSection.DELETE_DATA_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.displayedArtifacts,
+      })
+    );
+  }
+
+  /**
+   * Reloads previously-cleared thumbnail data for this section, if necessary.
+   */
+  public reloadThumbnails(): void {
+    if (!this.expanded) {
+      // If it's not even expanded, there's no point in reloading.
+      return;
+    }
+
+    this.dispatchEvent(
+      new CustomEvent<string[]>(ThumbnailGridSection.RELOAD_DATA_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.displayedArtifacts,
       })
     );
   }
@@ -213,6 +264,20 @@ export class ConnectedThumbnailGridSection extends connect(
         sectionName: this.sectionHeader,
         expand: (event as CustomEvent<boolean>).detail,
       });
+    handlers[ConnectedThumbnailGridSection.RELOAD_DATA_EVENT_NAME] = (
+      event: Event
+    ) => {
+      return thunkLoadThumbnails(
+        (event as CustomEvent<string[]>).detail
+      ) as unknown as Action;
+    };
+    handlers[ConnectedThumbnailGridSection.DELETE_DATA_EVENT_NAME] = (
+      event: Event
+    ) => {
+      return thunkClearEntities(
+        (event as CustomEvent<string[]>).detail
+      ) as unknown as Action;
+    };
 
     return handlers;
   }

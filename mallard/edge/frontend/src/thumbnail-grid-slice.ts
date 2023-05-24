@@ -228,7 +228,7 @@ export const thunkContinueQuery = createAsyncThunk(
  * Action creator that starts a new request for an image thumbnail.
  */
 export const thunkLoadThumbnails = createAsyncThunk(
-  "thumbnailGrid/loadThumbnail",
+  "thumbnailGrid/loadThumbnails",
   async (imageIds: string[], { getState }): Promise<LoadImageReturn[]> => {
     const updates = [];
     for (const imageId of imageIds) {

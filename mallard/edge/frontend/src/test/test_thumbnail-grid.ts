@@ -10,10 +10,8 @@ import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
 import {
-  thunkClearEntities,
   thunkContinueQuery,
   thunkLoadMetadata,
-  thunkLoadThumbnails,
   thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
@@ -27,8 +25,6 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadMetadata: jest.fn(),
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
-    thunkLoadThumbnails: jest.fn(),
-    thunkClearEntities: jest.fn(),
     createImageEntityId: actualSlice.createImageEntityId,
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
@@ -44,12 +40,6 @@ const mockThunkStartNewQuery = thunkStartNewQuery as jest.MockedFn<
 >;
 const mockThunkContinueQuery = thunkContinueQuery as jest.MockedFn<
   typeof thunkContinueQuery
->;
-const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
-  typeof thunkLoadThumbnails
->;
-const mockThunkClearEntities = thunkClearEntities as jest.MockedFn<
-  typeof thunkClearEntities
 >;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -68,6 +58,16 @@ const mockResizeObserver: MockedClass<any> = jest.fn(() => ({
   disconnect: jest.fn(),
 }));
 global.ResizeObserver = mockResizeObserver;
+
+/**
+ * Mocked version of the ThumbnailGridSection class that we use for testing.
+ */
+class MockThumbnailGridSection extends HTMLElement {
+  expanded: boolean = true;
+
+  clearThumbnails = jest.fn();
+  reloadThumbnails = jest.fn();
+}
 
 describe("thumbnail-grid", () => {
   /** Internal thumbnail-grid to use for testing. */
@@ -102,6 +102,11 @@ describe("thumbnail-grid", () => {
     customElements.define(
       ConnectedThumbnailGrid.tagName,
       ConnectedThumbnailGrid
+    );
+    // Register the mocked version of the ThumbnailGridSection class.
+    customElements.define(
+      ThumbnailGridSection.tagName,
+      MockThumbnailGridSection
     );
   });
 
@@ -217,16 +222,24 @@ describe("thumbnail-grid", () => {
     let loadMoreDataHandler: jest.Mock;
 
     /**
-     * Gets the section element at a particular index.
-     * @param {number} index The index to get the element at.
-     * @return {ThumbnailGridSection} The specified section.
+     * Gets all the displayed sections in the grid element.
+     * @return {HTMLCollection} The displayed section elements.
      */
-    function getSectionElement(index: number): ThumbnailGridSection {
+    function getAllSections(): HTMLCollection {
       const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
       const sectionContainer = root.querySelector(
         "#grid_content"
       ) as HTMLDivElement;
-      return sectionContainer.children[index] as ThumbnailGridSection;
+      return sectionContainer.children;
+    }
+
+    /**
+     * Gets the section element at a particular index.
+     * @param {number} index The index to get the element at.
+     * @return {ThumbnailGridSection} The specified section.
+     */
+    function getSectionElement(index: number): MockThumbnailGridSection {
+      return getAllSections()[index] as MockThumbnailGridSection;
     }
 
     beforeEach(() => {
@@ -287,7 +300,6 @@ describe("thumbnail-grid", () => {
       // Simulate a section being collapsed.
       const firstSection = getSectionElement(0);
       firstSection.expanded = false;
-      await firstSection.updateComplete;
 
       // Make it look like the initial loading has finished.
       gridElement.loadingState = RequestState.SUCCEEDED;
@@ -327,9 +339,9 @@ describe("thumbnail-grid", () => {
       // Simulate a change in the content size, which should cause it to
       // check whether to load more data.
       // Get the ResizeObserver instance.
-      expect(mockResizeObserver).toBeCalledTimes(1);
+      expect(mockResizeObserver).toBeCalledTimes(2);
       // Get the callback.
-      const observeCallback = mockResizeObserver.mock.calls[0][0];
+      const observeCallback = mockResizeObserver.mock.calls[1][0];
 
       // Call the callback.
       observeCallback();
@@ -340,15 +352,6 @@ describe("thumbnail-grid", () => {
     });
 
     describe("visibility tracking", () => {
-      /**
-       * Fake handler for the data deletion event.
-       */
-      let deleteDataHandler: jest.Mock;
-      /**
-       * Fake handler for the data reloading event.
-       */
-      let reloadDataHandler: jest.Mock;
-
       /**
        * Images in the first section.
        */
@@ -411,24 +414,17 @@ describe("thumbnail-grid", () => {
           loadMoreDataHandler
         );
 
-        // Set up a fake handler for the data deletion event.
-        deleteDataHandler = jest.fn();
-        gridElement.addEventListener(
-          ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME,
-          deleteDataHandler
-        );
-
-        // Set up a fake handler for the data reloading event.
-        reloadDataHandler = jest.fn();
-        gridElement.addEventListener(
-          ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME,
-          reloadDataHandler
-        );
-
         // Set a plausible size for the viewport.
         Object.defineProperty(window, "innerHeight", {
           value: 1000,
         });
+
+        // It might have updated visibility, so clear the mocks so that the
+        // tests don't get confused.
+        for (const section of getAllSections()) {
+          (section as MockThumbnailGridSection).clearThumbnails.mockClear();
+          (section as MockThumbnailGridSection).reloadThumbnails.mockClear();
+        }
       });
 
       /**
@@ -463,12 +459,11 @@ describe("thumbnail-grid", () => {
         expect(mockGetBoundingClientRect).toBeCalled();
         // It should have loaded additional data.
         expect(loadMoreDataHandler).toBeCalledTimes(1);
-        // It should have deleted data once.
-        expect(deleteDataHandler).toBeCalledTimes(1);
 
-        // It should have deleted the top section.
-        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
-        expect(deleteIds).toEqual(section1Images.ids);
+        // It should have created two sections.
+        const topSection = getSectionElement(0);
+        // It should have deleted data from the top section.
+        expect(topSection.clearThumbnails).toBeCalledTimes(1);
       });
 
       it("reloads data on the top when necessary", () => {
@@ -494,16 +489,9 @@ describe("thumbnail-grid", () => {
 
         // Assert.
         // It should have first deleted the top section.
-        expect(deleteDataHandler).toBeCalledTimes(1);
+        expect(topSection.clearThumbnails).toBeCalledTimes(1);
         // It should have reloaded data once on the top.
-        expect(reloadDataHandler).toBeCalledTimes(1);
-
-        // It should have deleted the top section.
-        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
-        expect(deleteIds).toEqual(section1Images.ids);
-        // Then it should have reloaded the top section.
-        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
-        expect(reloadedIds1).toEqual(section1Images.ids);
+        expect(topSection.reloadThumbnails).toBeCalledTimes(1);
       });
 
       /**
@@ -539,11 +527,8 @@ describe("thumbnail-grid", () => {
         // It should have loaded additional data.
         expect(loadMoreDataHandler).toBeCalledTimes(1);
         // It should have deleted data once.
-        expect(deleteDataHandler).toBeCalledTimes(1);
-
-        // It should have deleted the bottom section.
-        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
-        expect(deleteIds).toEqual(section2Images.ids);
+        const bottomSection = getSectionElement(1);
+        expect(bottomSection.clearThumbnails).toBeCalledTimes(1);
       });
 
       it("reloads data on the bottom when necessary", () => {
@@ -569,16 +554,9 @@ describe("thumbnail-grid", () => {
 
         // Assert.
         // It should have first deleted the bottom section.
-        expect(deleteDataHandler).toBeCalledTimes(1);
+        expect(bottomSection.clearThumbnails).toBeCalledTimes(1);
         // It should have reloaded data once on the bottom.
-        expect(reloadDataHandler).toBeCalledTimes(1);
-
-        // It should have deleted the bottom section.
-        const deleteIds = deleteDataHandler.mock.calls[0][0].detail;
-        expect(deleteIds).toEqual(section2Images.ids);
-        // Then it should have reloaded the top section.
-        const reloadedIds1 = reloadDataHandler.mock.calls[0][0].detail;
-        expect(reloadedIds1).toEqual(section2Images.ids);
+        expect(bottomSection.reloadThumbnails).toBeCalledTimes(1);
       });
 
       it("does not clear or reload any data when it doesn't need to", () => {
@@ -588,10 +566,37 @@ describe("thumbnail-grid", () => {
         gridElement.dispatchEvent(new Event("scroll"));
 
         // Assert.
+        const topSection = getSectionElement(0);
+        const bottomSection = getSectionElement(1);
+
         // It should not have deleted data.
-        expect(deleteDataHandler).not.toBeCalled();
+        expect(topSection.clearThumbnails).not.toBeCalled();
+        expect(bottomSection.clearThumbnails).not.toBeCalled();
         // It should not have reloaded anything.
-        expect(reloadDataHandler).not.toBeCalled();
+        expect(topSection.reloadThumbnails).not.toBeCalled();
+        expect(bottomSection.reloadThumbnails).not.toBeCalled();
+      });
+
+      it("responds to a change in the content size", async () => {
+        // Arrange.
+        // Make it look like the top section is invisible.
+        setUpTopSectionInvisible();
+
+        // Act.
+        // Simulate a change in the content size, which should cause it to
+        // update visibility.
+        // Get the ResizeObserver instance.
+        expect(mockResizeObserver).toBeCalledTimes(2);
+        // Get the callback.
+        const observeCallback = mockResizeObserver.mock.calls[0][0];
+
+        // Call the callback.
+        observeCallback();
+
+        // Assert.
+        // It should have cleared the top section.
+        const topSection = getSectionElement(0);
+        expect(topSection.clearThumbnails).toBeCalledTimes(1);
       });
     });
 
@@ -840,44 +845,4 @@ describe("thumbnail-grid", () => {
       }
     }
   );
-
-  it(`maps the correct actions to the ${ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME} event`, () => {
-    // Act.
-    const eventMap = gridElement.mapEvents();
-
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME
-    );
-
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: [faker.datatype.uuid()] };
-    eventMap[ConnectedThumbnailGrid.RELOAD_DATA_EVENT_NAME](
-      testEvent as unknown as Event
-    );
-
-    expect(mockThunkLoadThumbnails).toBeCalledTimes(1);
-    expect(mockThunkLoadThumbnails).toBeCalledWith(testEvent.detail);
-  });
-
-  it(`maps the correct actions to the ${ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME} event`, () => {
-    // Act.
-    const eventMap = gridElement.mapEvents();
-
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME
-    );
-
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: [faker.datatype.uuid()] };
-    eventMap[ConnectedThumbnailGrid.DELETE_DATA_EVENT_NAME](
-      testEvent as unknown as Event
-    );
-
-    expect(mockThunkClearEntities).toBeCalledTimes(1);
-    expect(mockThunkClearEntities).toBeCalledWith(testEvent.detail);
-  });
 });

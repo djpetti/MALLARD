@@ -10,6 +10,8 @@ import { IconButton } from "@material/mwc-icon-button";
 import {
   createImageEntityId,
   setSectionExpanded,
+  thunkClearEntities,
+  thunkLoadThumbnails,
   thunkSelectImages,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
@@ -29,6 +31,8 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkSelectImages: jest.fn(),
     setSectionExpanded: jest.fn(),
+    thunkLoadThumbnails: jest.fn(),
+    thunkClearEntities: jest.fn(),
 
     // Use the actual implementation for these functions.
     thumbnailGridSelectors: {
@@ -43,10 +47,23 @@ const mockSelectImages = thunkSelectImages as jest.MockedFn<
 const mockSetSectionExpanded = setSectionExpanded as jest.MockedFn<
   typeof setSectionExpanded
 >;
+const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
+  typeof thunkLoadThumbnails
+>;
+const mockThunkClearEntities = thunkClearEntities as jest.MockedFn<
+  typeof thunkClearEntities
+>;
 
 describe("thumbnail-grid-section", () => {
   /** Internal thumbnail-grid-section to use for testing. */
   let gridSectionElement: ConnectedThumbnailGridSection;
+
+  // Handler for the expand/collapse event.
+  const expandEventHandler = jest.fn();
+
+  // Add handlers for the clear and reload events.
+  const clearEventHandler = jest.fn();
+  const reloadEventHandler = jest.fn();
 
   beforeAll(() => {
     // Manually register the custom element.
@@ -57,10 +74,29 @@ describe("thumbnail-grid-section", () => {
   });
 
   beforeEach(() => {
+    faker.seed(1337);
+
+    jest.clearAllMocks();
+
+    // Add the element under test.
     gridSectionElement = window.document.createElement(
       ConnectedThumbnailGridSection.tagName
     ) as ConnectedThumbnailGridSection;
     document.body.appendChild(gridSectionElement);
+
+    // Set up event handlers.
+    gridSectionElement.addEventListener(
+      ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME,
+      expandEventHandler
+    );
+    gridSectionElement.addEventListener(
+      ConnectedThumbnailGridSection.DELETE_DATA_EVENT_NAME,
+      clearEventHandler
+    );
+    gridSectionElement.addEventListener(
+      ConnectedThumbnailGridSection.RELOAD_DATA_EVENT_NAME,
+      reloadEventHandler
+    );
   });
 
   afterEach(() => {
@@ -178,6 +214,57 @@ describe("thumbnail-grid-section", () => {
     expect(selectEventHandler).toBeCalledTimes(1);
   });
 
+  it("can clear the thumbnails", () => {
+    // Arrange.
+    // Set some displayed artifacts.
+    gridSectionElement.displayedArtifacts = [
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+    ];
+
+    // Act.
+    gridSectionElement.clearThumbnails();
+
+    // Assert.
+    // It should have dispatched the clear event.
+    expect(clearEventHandler).toBeCalledTimes(1);
+    // It should have cleared everything.
+    expect(clearEventHandler.mock.calls[0][0].detail).toEqual(
+      gridSectionElement.displayedArtifacts
+    );
+  });
+
+  each([
+    ["expanded", true],
+    ["collapsed", false],
+  ]).it("can reload the thumbnails when it is %s", (_, expanded: boolean) => {
+    // Arrange.
+    // Set some displayed artifacts.
+    gridSectionElement.displayedArtifacts = [
+      faker.datatype.uuid(),
+      faker.datatype.uuid(),
+    ];
+
+    // Make it look like it is expanded or collapsed.
+    gridSectionElement.expanded = expanded;
+
+    // Act.
+    gridSectionElement.reloadThumbnails();
+
+    // Assert.
+    if (expanded) {
+      // It should have dispatched the reload event.
+      expect(reloadEventHandler).toBeCalledTimes(1);
+      // It should have reloaded everything.
+      expect(reloadEventHandler.mock.calls[0][0].detail).toEqual(
+        gridSectionElement.displayedArtifacts
+      );
+    } else {
+      // It should not have reloaded, because the section is not expanded.
+      expect(reloadEventHandler).not.toBeCalled();
+    }
+  });
+
   each([
     ["expand", true],
     ["collapse", false],
@@ -189,13 +276,6 @@ describe("thumbnail-grid-section", () => {
     // Add some artifacts to force it to actually display.
     gridSectionElement.displayedArtifacts = [faker.datatype.uuid()];
     await gridSectionElement.updateComplete;
-
-    // Add a handler for the expand/collapse event.
-    const expandEventHandler = jest.fn();
-    gridSectionElement.addEventListener(
-      ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME,
-      expandEventHandler
-    );
 
     // Act.
     // Find the expand/collapse button.
@@ -217,6 +297,13 @@ describe("thumbnail-grid-section", () => {
 
     // It should have dispatched the expand/collapse event.
     expect(expandEventHandler).toBeCalledTimes(1);
+
+    // It should have cleared/reloaded the thumbnails.
+    if (expand) {
+      expect(reloadEventHandler).toBeCalledTimes(1);
+    } else {
+      expect(clearEventHandler).toBeCalledTimes(1);
+    }
   });
 
   each([
@@ -338,5 +425,45 @@ describe("thumbnail-grid-section", () => {
       sectionName: gridSectionElement.sectionHeader,
       expand: expand,
     });
+  });
+
+  it(`maps the correct actions to the ${ConnectedThumbnailGridSection.RELOAD_DATA_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = gridSectionElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGridSection.RELOAD_DATA_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: [faker.datatype.uuid()] };
+    eventMap[ConnectedThumbnailGridSection.RELOAD_DATA_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    expect(mockThunkLoadThumbnails).toBeCalledTimes(1);
+    expect(mockThunkLoadThumbnails).toBeCalledWith(testEvent.detail);
+  });
+
+  it(`maps the correct actions to the ${ConnectedThumbnailGridSection.DELETE_DATA_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = gridSectionElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedThumbnailGridSection.DELETE_DATA_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = { detail: [faker.datatype.uuid()] };
+    eventMap[ConnectedThumbnailGridSection.DELETE_DATA_EVENT_NAME](
+      testEvent as unknown as Event
+    );
+
+    expect(mockThunkClearEntities).toBeCalledTimes(1);
+    expect(mockThunkClearEntities).toBeCalledWith(testEvent.detail);
   });
 });

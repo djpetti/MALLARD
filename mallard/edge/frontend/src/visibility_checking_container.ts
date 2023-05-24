@@ -146,5 +146,10 @@ export abstract class VisibilityCheckingContainer extends LitElement {
     // Add a handler for scroll events which loads more
     // content if needed.
     this.addEventListener("scroll", update);
+
+    // Add a resize observer so that we can try loading more data whenever
+    // the element size changes. (This catches collapse/expand events.)
+    this.parentResizeObserver = new ResizeObserver(update);
+    this.parentResizeObserver.observe(this.getParentElement());
   }
 }

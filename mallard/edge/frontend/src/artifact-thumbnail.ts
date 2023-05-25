@@ -234,12 +234,6 @@ export class ConnectedArtifactThumbnail extends connect(
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME] = (
-      event: Event
-    ) =>
-      thunkLoadThumbnails([
-        (event as CustomEvent<string>).detail,
-      ]) as unknown as Action;
     handlers[ConnectedArtifactThumbnail.SELECTED_EVENT_NAME] = (event: Event) =>
       thunkSelectImages({
         imageIds: [this.frontendId as string],

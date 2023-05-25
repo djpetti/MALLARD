@@ -67,6 +67,9 @@ class MockThumbnailGridSection extends HTMLElement {
 
   clearThumbnails = jest.fn();
   reloadThumbnails = jest.fn();
+
+  disableVisibilityTracking = jest.fn();
+  enableVisibilityTracking = jest.fn();
 }
 
 describe("thumbnail-grid", () => {
@@ -424,6 +427,12 @@ describe("thumbnail-grid", () => {
         for (const section of getAllSections()) {
           (section as MockThumbnailGridSection).clearThumbnails.mockClear();
           (section as MockThumbnailGridSection).reloadThumbnails.mockClear();
+          (
+            section as MockThumbnailGridSection
+          ).enableVisibilityTracking.mockClear();
+          (
+            section as MockThumbnailGridSection
+          ).disableVisibilityTracking.mockClear();
         }
       });
 
@@ -464,6 +473,7 @@ describe("thumbnail-grid", () => {
         const topSection = getSectionElement(0);
         // It should have deleted data from the top section.
         expect(topSection.clearThumbnails).toBeCalledTimes(1);
+        expect(topSection.disableVisibilityTracking).toBeCalledTimes(1);
       });
 
       it("reloads data on the top when necessary", () => {
@@ -490,8 +500,9 @@ describe("thumbnail-grid", () => {
         // Assert.
         // It should have first deleted the top section.
         expect(topSection.clearThumbnails).toBeCalledTimes(1);
-        // It should have reloaded data once on the top.
-        expect(topSection.reloadThumbnails).toBeCalledTimes(1);
+        expect(topSection.disableVisibilityTracking).toBeCalledTimes(1);
+        // It should have re-enabled visibility tracking on the top.
+        expect(topSection.enableVisibilityTracking).toBeCalledTimes(1);
       });
 
       /**
@@ -529,6 +540,7 @@ describe("thumbnail-grid", () => {
         // It should have deleted data once.
         const bottomSection = getSectionElement(1);
         expect(bottomSection.clearThumbnails).toBeCalledTimes(1);
+        expect(bottomSection.disableVisibilityTracking).toBeCalledTimes(1);
       });
 
       it("reloads data on the bottom when necessary", () => {
@@ -555,8 +567,9 @@ describe("thumbnail-grid", () => {
         // Assert.
         // It should have first deleted the bottom section.
         expect(bottomSection.clearThumbnails).toBeCalledTimes(1);
-        // It should have reloaded data once on the bottom.
-        expect(bottomSection.reloadThumbnails).toBeCalledTimes(1);
+        expect(bottomSection.disableVisibilityTracking).toBeCalledTimes(1);
+        // It should have re-enabled visibility tracking on the bottom section.
+        expect(bottomSection.enableVisibilityTracking).toBeCalledTimes(1);
       });
 
       it("does not clear or reload any data when it doesn't need to", () => {
@@ -572,9 +585,44 @@ describe("thumbnail-grid", () => {
         // It should not have deleted data.
         expect(topSection.clearThumbnails).not.toBeCalled();
         expect(bottomSection.clearThumbnails).not.toBeCalled();
+        expect(topSection.disableVisibilityTracking).not.toBeCalled();
+        expect(bottomSection.disableVisibilityTracking).not.toBeCalled();
         // It should not have reloaded anything.
         expect(topSection.reloadThumbnails).not.toBeCalled();
         expect(bottomSection.reloadThumbnails).not.toBeCalled();
+        expect(topSection.enableVisibilityTracking).not.toBeCalled();
+        expect(bottomSection.enableVisibilityTracking).not.toBeCalled();
+      });
+
+      it("propagates scroll events to the section elements", () => {
+        // Arrange.
+        // Listen for scroll events on the sections.
+        const scrollEventHandler = jest.fn();
+        for (const section of getAllSections()) {
+          section.addEventListener("scroll", scrollEventHandler);
+        }
+
+        // Act.
+        gridElement.dispatchEvent(new Event("scroll"));
+
+        // Assert.
+        // It should have dispatched a scroll event on all the sections.
+        expect(scrollEventHandler).toBeCalledTimes(getAllSections().length);
+      });
+
+      it("supports enabling or disabling tracking twice", () => {
+        // Act and assert.
+        expect(gridElement.isTrackingEnabled).toEqual(true);
+
+        gridElement.disableVisibilityTracking();
+        gridElement.disableVisibilityTracking();
+
+        expect(gridElement.isTrackingEnabled).toEqual(false);
+
+        gridElement.enableVisibilityTracking();
+        gridElement.enableVisibilityTracking();
+
+        expect(gridElement.isTrackingEnabled).toEqual(true);
       });
 
       it("responds to a change in the content size", async () => {

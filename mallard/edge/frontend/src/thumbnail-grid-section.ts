@@ -1,5 +1,5 @@
-import { LitElement, css, html, nothing } from "lit";
-import { property } from "lit/decorators.js";
+import { css, html, nothing } from "lit";
+import { property, query } from "lit/decorators.js";
 import "@material/mwc-icon-button";
 import "@material/mwc-icon-button-toggle";
 import "./artifact-thumbnail";
@@ -14,6 +14,8 @@ import {
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
+import { VisibilityCheckingContainer } from "./visibility-checking-container";
+import { ArtifactThumbnail } from "./artifact-thumbnail";
 
 /** Custom event indicating that the selection status has changed. */
 type SelectedEvent = CustomEvent<boolean>;
@@ -22,7 +24,7 @@ type SelectedEvent = CustomEvent<boolean>;
  * A grid of thumbnails with a section header.
  * @customElement thumbnail-grid-section
  */
-export class ThumbnailGridSection extends LitElement {
+export class ThumbnailGridSection extends VisibilityCheckingContainer {
   /** Tag name for this element. */
   static readonly tagName: string = "thumbnail-grid-section";
 
@@ -96,6 +98,49 @@ export class ThumbnailGridSection extends LitElement {
   @property({ type: Boolean })
   expanded: boolean = true;
 
+  /** Parent element containing the section contents. */
+  @query("#section_contents", true)
+  private sectionContents!: HTMLDivElement;
+
+  /**
+   * @inheritDoc
+   */
+  protected override getParentElement(): HTMLElement {
+    return this.sectionContents;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override onChildrenVisible(_children: Element[]) {
+    // Load the thumbnails.
+    this.dispatchEvent(
+      new CustomEvent<string[]>(ThumbnailGridSection.RELOAD_DATA_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: _children.map(
+          (c) => (c as ArtifactThumbnail).frontendId as string
+        ),
+      })
+    );
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override onChildrenNotVisible(_children: Element[]) {
+    // Clear the thumbnails.
+    this.dispatchEvent(
+      new CustomEvent<string[]>(ThumbnailGridSection.DELETE_DATA_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: _children.map(
+          (c) => (c as ArtifactThumbnail).frontendId as string
+        ),
+      })
+    );
+  }
+
   /**
    * Run whenever the select button is clicked.
    * @private
@@ -130,10 +175,12 @@ export class ThumbnailGridSection extends LitElement {
     );
 
     if (this.expanded) {
-      // Reload unloaded data if necessary.
-      this.reloadThumbnails();
+      // Reload unloaded data if necessary and enable tracking.
+      this.enableVisibilityTracking();
     } else {
-      // If it's collapsed, clear those data to save memory.
+      // If it's collapsed, clear those data to save memory and disable
+      // tracking.
+      this.disableVisibilityTracking();
       this.clearThumbnails();
     }
   }
@@ -172,6 +219,20 @@ export class ThumbnailGridSection extends LitElement {
   /**
    * @inheritDoc
    */
+  public override enableVisibilityTracking() {
+    // Allow this only if the element has been updated. (It will be
+    // automatically enabled after the first update.) Also, don't allow
+    // tracking to be enabled on collapsed sections.
+    if (!this.hasUpdated || !this.expanded) {
+      return;
+    }
+
+    super.enableVisibilityTracking();
+  }
+
+  /**
+   * @inheritDoc
+   */
   protected render() {
     // Icon to use for the select button.
     const selectIcon = this.selected
@@ -200,16 +261,16 @@ export class ThumbnailGridSection extends LitElement {
             </span>
           </div>`
         : nothing}
-      ${this.expanded
-        ? html` <div id="section_contents">
-            ${this.displayedArtifacts.map(
+      <div id="section_contents">
+        ${this.expanded
+          ? html` ${this.displayedArtifacts.map(
               (i) =>
                 html` <artifact-thumbnail
                   .frontendId=${i}
                 ></artifact-thumbnail>`
-            )}
-          </div>`
-        : nothing}
+            )}`
+          : nothing}
+      </div>
     `;
   }
 }

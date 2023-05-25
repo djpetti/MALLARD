@@ -16,6 +16,7 @@ import {
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
 import { IconButtonToggle } from "@material/mwc-icon-button-toggle";
+import MockedClass = jest.MockedClass;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -53,6 +54,14 @@ const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
 const mockThunkClearEntities = thunkClearEntities as jest.MockedFn<
   typeof thunkClearEntities
 >;
+
+// Mock the ResizeObserver class, because JSDom doesn't implement it.
+const mockResizeObserver: MockedClass<any> = jest.fn(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+global.ResizeObserver = mockResizeObserver;
 
 describe("thumbnail-grid-section", () => {
   /** Internal thumbnail-grid-section to use for testing. */
@@ -170,7 +179,7 @@ describe("thumbnail-grid-section", () => {
 
     // It should not have rendered the thumbnails.
     const contents = root.querySelector("#section_contents") as HTMLElement;
-    expect(contents).toBe(null);
+    expect(contents.childElementCount).toEqual(0);
   });
 
   each([
@@ -232,6 +241,177 @@ describe("thumbnail-grid-section", () => {
     expect(clearEventHandler.mock.calls[0][0].detail).toEqual(
       gridSectionElement.displayedArtifacts
     );
+  });
+
+  describe("visibility tracking", () => {
+    /**
+     * Mock function to use for setting custom bounding rectangles.
+     */
+    const mockGetBoundingClientRect = jest.fn();
+
+    /**
+     * @return {HTMLCollection} The collection of all the thumbnail elements.
+     */
+    function getAllThumbnailElements(): HTMLCollection {
+      const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
+      const contents = root.querySelector("#section_contents");
+      return contents?.children as HTMLCollection;
+    }
+
+    /**
+     * Gets a specific thumbnail element from within this section.
+     * @param {number} index The index of the element to get.
+     * @return {ArtifactThumbnail} The element that it got.
+     */
+    function getThumbnailElement(index: number): ArtifactThumbnail {
+      return getAllThumbnailElements()[index] as ArtifactThumbnail;
+    }
+
+    beforeEach(async () => {
+      // Add some fake images to the section.
+      gridSectionElement.displayedArtifacts = [
+        faker.datatype.uuid(),
+        faker.datatype.uuid(),
+        faker.datatype.uuid(),
+      ];
+      await gridSectionElement.updateComplete;
+
+      // Make sure visibility tracking is in a well-defined state.
+      gridSectionElement.disableVisibilityTracking();
+      gridSectionElement.enableVisibilityTracking();
+
+      // Set a plausible size for the viewport.
+      Object.defineProperty(window, "innerHeight", {
+        value: 1000,
+      });
+
+      // It might have updated visibility, so clear the mocks so that the
+      // tests don't get confused.
+      clearEventHandler.mockClear();
+      reloadEventHandler.mockClear();
+    });
+
+    enum Condition {
+      NOT_UPDATED,
+      COLLAPSED,
+    }
+
+    each([
+      ["not updated yet", Condition.NOT_UPDATED],
+      ["collapsed", Condition.COLLAPSED],
+    ]).it(
+      "will not enable visibility tracking when the element is %s",
+      (_, condition: Condition) => {
+        // Disable tracking initially.
+        gridSectionElement.disableVisibilityTracking();
+
+        // Arrange.
+        if (condition == Condition.NOT_UPDATED) {
+          // Make it look like it hasn't been updated.
+          Object.assign(gridSectionElement, { hasUpdated: false });
+        } else {
+          // Make it look like it's collapsed.
+          gridSectionElement.expanded = false;
+        }
+
+        // Act.
+        // Try to enable visibility tracking.
+        gridSectionElement.enableVisibilityTracking();
+
+        // Assert.
+        // It should not have enabled.
+        expect(gridSectionElement.isTrackingEnabled).toEqual(false);
+      }
+    );
+
+    it("will not check visibility of unconnected elements", () => {
+      // Arrange.
+      // Make it look like the thumbnails are unconnected.
+      for (const thumbnail of getAllThumbnailElements()) {
+        Object.defineProperty(thumbnail, "isConnected", { value: false });
+        Object.assign(thumbnail, {
+          getBoundingClientRect: mockGetBoundingClientRect,
+        });
+      }
+
+      // Act.
+      // Force it to update the visibility.
+      gridSectionElement.disableVisibilityTracking();
+      gridSectionElement.enableVisibilityTracking();
+
+      // Assert.
+      // It should not have checked visibility.
+      expect(mockGetBoundingClientRect).not.toBeCalled();
+    });
+
+    /**
+     * Sets things up so that it looks like the first thumbnail is not visible.
+     */
+    function setUpFirstThumbnailInvisible() {
+      // Arrange.
+      // Make it look like one of the thumbnails is no longer visible.
+      mockGetBoundingClientRect.mockReturnValue({
+        top: -1000,
+        bottom: -800,
+        left: 0,
+        right: 200,
+      });
+      const firstThumbnail = getThumbnailElement(0);
+      Object.assign(firstThumbnail, {
+        getBoundingClientRect: mockGetBoundingClientRect,
+      });
+
+      // Act.
+      // Simulate the user scrolling, which should cause it to clear excess
+      // data.
+      gridSectionElement.dispatchEvent(new Event("scroll"));
+    }
+
+    it("clears thumbnails when enough data are loaded", () => {
+      // Act.
+      setUpFirstThumbnailInvisible();
+
+      // Assert.
+      // It should have checked the visibility on the thumbnail.
+      expect(mockGetBoundingClientRect).toBeCalled();
+      // It should have cleared the first thumbnail.
+      expect(clearEventHandler).toBeCalledTimes(1);
+      const firstThumbnail = getThumbnailElement(0);
+      expect(clearEventHandler.mock.calls[0][0].detail).toEqual([
+        firstThumbnail.frontendId,
+      ]);
+    });
+
+    it("reloads data when necessary", () => {
+      // Arrange.
+      setUpFirstThumbnailInvisible();
+
+      // Make it look like the first thumbnail is visible again.
+      mockGetBoundingClientRect.mockReturnValue({
+        top: 0,
+        bottom: 200,
+        left: 0,
+        right: 200,
+      });
+
+      // Act.
+      // It should now reload the data on top.
+      gridSectionElement.dispatchEvent(new Event("scroll"));
+
+      // Assert.
+      // It should have first deleted the first thumbnail.
+      expect(clearEventHandler).toBeCalledTimes(1);
+      const firstThumbnail = getThumbnailElement(0);
+      expect(clearEventHandler.mock.calls[0][0].detail).toEqual([
+        firstThumbnail.frontendId,
+      ]);
+
+      // It should then have reloaded the thumbnail.
+      expect(reloadEventHandler).toBeCalledTimes(1);
+      expect(reloadEventHandler.mock.calls[0][0].detail).toEqual([
+        firstThumbnail.frontendId,
+      ]);
+    });
   });
 
   each([
@@ -298,10 +478,12 @@ describe("thumbnail-grid-section", () => {
     // It should have dispatched the expand/collapse event.
     expect(expandEventHandler).toBeCalledTimes(1);
 
-    // It should have cleared/reloaded the thumbnails.
     if (expand) {
-      expect(reloadEventHandler).toBeCalledTimes(1);
+      // It should have enabled visibility tracking.
+      expect(gridSectionElement.isTrackingEnabled).toEqual(true);
     } else {
+      // It should have disabled visibility tracking and cleared the thumbnails.
+      expect(gridSectionElement.isTrackingEnabled).toEqual(false);
       expect(clearEventHandler).toBeCalledTimes(1);
     }
   });

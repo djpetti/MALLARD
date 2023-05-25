@@ -20,6 +20,12 @@ export abstract class VisibilityCheckingContainer extends LitElement {
   /** Observer to use for reacting to size changes. */
   private parentResizeObserver?: ResizeObserver;
 
+  /** Whether visibility tracking is currently enabled. */
+  private trackingEnabled: boolean = false;
+
+  /** Abort signal to use for removing the scroll event listener. */
+  private scrollEventRemovalController?: AbortController;
+
   /**
    * Gets the parent element. We will be managing the children of this
    * element. New children can be dynamically added at the beginning and end,
@@ -32,17 +38,17 @@ export abstract class VisibilityCheckingContainer extends LitElement {
 
   /**
    * Called whenever a child element becomes visible.
-   * @param {Element} _child The element that became visible.
+   * @param {Element[]} _children The elements that became visible.
    * @protected
    */
-  protected onChildVisible(_child: Element) {}
+  protected onChildrenVisible(_children: Element[]) {}
 
   /**
    * Called whenever a child element becomes invisible.
-   * @param {Element} _child The element that became invisible.
+   * @param {Element[]} _children The elements that became invisible.
    * @protected
    */
-  protected onChildNotVisible(_child: Element) {}
+  protected onChildrenNotVisible(_children: Element[]) {}
 
   /**
    * Checks if a particular element is visible (or close enough) in the
@@ -52,6 +58,12 @@ export abstract class VisibilityCheckingContainer extends LitElement {
    * @private
    */
   private isVisible(element: Element): boolean {
+    if (!element.isConnected) {
+      // If it's not connected, we're not going to get an accurate read of
+      // the bounding box.
+      return false;
+    }
+
     const bufferSizePx =
       (window.innerHeight *
         VisibilityCheckingContainer.VISIBLE_MARGIN_PERCENT) /
@@ -70,19 +82,26 @@ export abstract class VisibilityCheckingContainer extends LitElement {
    * @private
    */
   private removeAllInvisible() {
+    const invisibleChildren: Element[] = [];
+
     let lastElement = this.visibleChildren.peekBack();
     while (lastElement && !this.isVisible(lastElement)) {
       // Element is not visible and should be removed from the visible set.
-      this.onChildNotVisible(lastElement);
+      invisibleChildren.push(lastElement);
       this.visibleChildren.pop();
       lastElement = this.visibleChildren.peekBack();
     }
 
     let firstElement = this.visibleChildren.peekFront();
     while (firstElement && !this.isVisible(firstElement)) {
-      this.onChildNotVisible(firstElement);
+      invisibleChildren.push(firstElement);
       this.visibleChildren.shift();
       firstElement = this.visibleChildren.peekFront();
+    }
+
+    // Run the callback.
+    if (invisibleChildren.length > 0) {
+      this.onChildrenNotVisible(invisibleChildren);
     }
   }
 
@@ -91,11 +110,13 @@ export abstract class VisibilityCheckingContainer extends LitElement {
    * @private
    */
   private addAllNewlyVisible() {
+    const visibleChildren: Element[] = [];
+
     // See if there are any children afterwards that are visible.
     let lastElement = this.visibleChildren.peekBack()?.nextElementSibling;
     while (lastElement && this.isVisible(lastElement)) {
       // Mark it as visible.
-      this.onChildVisible(lastElement);
+      visibleChildren.push(lastElement);
       this.visibleChildren.push(lastElement);
       // Check the next one.
       lastElement = lastElement.nextElementSibling;
@@ -104,9 +125,13 @@ export abstract class VisibilityCheckingContainer extends LitElement {
     // See if there are any children before that are visible.
     let firstElement = this.visibleChildren.peekFront()?.previousElementSibling;
     while (firstElement && this.isVisible(firstElement)) {
-      this.onChildVisible(firstElement);
+      visibleChildren.push(firstElement);
       this.visibleChildren.unshift(firstElement);
       firstElement = firstElement.previousElementSibling;
+    }
+
+    if (visibleChildren.length > 0) {
+      this.onChildrenVisible(visibleChildren);
     }
   }
 
@@ -126,6 +151,7 @@ export abstract class VisibilityCheckingContainer extends LitElement {
     for (const child of children) {
       if (this.isVisible(child)) {
         this.visibleChildren.push(child);
+        this.onChildrenVisible([child]);
         break;
       }
     }
@@ -135,21 +161,68 @@ export abstract class VisibilityCheckingContainer extends LitElement {
   }
 
   /**
-   * @inheritDoc
+   * Re-enabled visibility tracking after it has been disabled.
+   * @protected
    */
-  protected override firstUpdated(_: PropertyValues) {
+  public enableVisibilityTracking() {
+    if (this.trackingEnabled) {
+      // Already enabled. Don't add the listeners twice.
+      return;
+    }
+
+    this.resetVisibilityTracking();
+
     const update = () => {
-      this.removeAllInvisible();
-      this.addAllNewlyVisible();
+      if (this.visibleChildren.isEmpty()) {
+        this.resetVisibilityTracking();
+      } else {
+        this.removeAllInvisible();
+        this.addAllNewlyVisible();
+      }
     };
 
     // Add a handler for scroll events which loads more
     // content if needed.
-    this.addEventListener("scroll", update);
+    this.scrollEventRemovalController = new AbortController();
+    this.addEventListener("scroll", update, {
+      signal: this.scrollEventRemovalController.signal,
+    });
 
-    // Add a resize observer so that we can try loading more data whenever
-    // the element size changes. (This catches collapse/expand events.)
+    // Add a resize observer so that we can update the visibility whenever
+    // the size changes.
     this.parentResizeObserver = new ResizeObserver(update);
     this.parentResizeObserver.observe(this.getParentElement());
+
+    this.trackingEnabled = true;
+  }
+
+  /**
+   * Disables visibility tracking temporarily. After this is called, it will
+   * no longer track the visibility of child elements.
+   * @protected
+   */
+  public disableVisibilityTracking() {
+    if (!this.trackingEnabled) {
+      return;
+    }
+
+    this.scrollEventRemovalController?.abort();
+    this.parentResizeObserver?.unobserve(this.getParentElement());
+
+    this.trackingEnabled = false;
+  }
+
+  /**
+   * @return {boolean} Whether tracking is enabled.
+   */
+  public get isTrackingEnabled(): boolean {
+    return this.trackingEnabled;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override firstUpdated(_: PropertyValues) {
+    this.enableVisibilityTracking();
   }
 }

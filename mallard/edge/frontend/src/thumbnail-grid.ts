@@ -216,17 +216,24 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * @inheritDoc
    */
-  protected override onChildVisible(_child: Element) {
-    // Load any necessary data for this new child.
-    (_child as ThumbnailGridSection).reloadThumbnails();
+  protected override onChildrenVisible(_children: Element[]) {
+    // Enable visibility tracking on the child.
+    for (const child of _children) {
+      (child as ThumbnailGridSection).enableVisibilityTracking();
+    }
   }
 
   /**
    * @inheritDoc
    */
-  protected override onChildNotVisible(_child: Element) {
-    // Clear any data for the invisible child to save memory.
-    (_child as ThumbnailGridSection).clearThumbnails();
+  protected override onChildrenNotVisible(_children: Element[]) {
+    // Clear any data for the invisible child to save memory. There's also
+    // no point in keeping visibility tracking enabled, because we know the
+    // entire section is invisible.
+    for (const child of _children) {
+      (child as ThumbnailGridSection).disableVisibilityTracking();
+      (child as ThumbnailGridSection).clearThumbnails();
+    }
   }
 
   /**
@@ -366,6 +373,15 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     if (this.displayedArtifacts.length == 0) {
       this.loadNextSection();
     }
+
+    // The visibility checking code relies on receiving scroll events.
+    // However, scroll events only go to this element instead of the section
+    // elements, so we manually forward them to get around this.
+    this.addEventListener("scroll", () => {
+      for (const child of this.gridContent.children) {
+        child.dispatchEvent(new Event("scroll"));
+      }
+    });
   }
 }
 

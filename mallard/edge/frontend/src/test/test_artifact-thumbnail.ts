@@ -206,26 +206,6 @@ describe("artifact-thumbnail", () => {
     expect(root.querySelector("#select_button")).toBeNull();
   });
 
-  it(`maps the correct action to the ${ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME} event`, () => {
-    // Act.
-    const eventMap = thumbnailElement.mapEvents();
-
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME
-    );
-
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: faker.datatype.uuid() };
-    eventMap[ConnectedArtifactThumbnail.ARTIFACT_CHANGED_EVENT_NAME](
-      testEvent as unknown as Event
-    );
-
-    expect(mockThunkLoadThumbnails).toBeCalledTimes(1);
-    expect(mockThunkLoadThumbnails).toBeCalledWith([testEvent.detail]);
-  });
-
   it(`maps the correct action to the ${ConnectedArtifactThumbnail.SELECTED_EVENT_NAME} event`, () => {
     // Act.
     const eventMap = thumbnailElement.mapEvents();

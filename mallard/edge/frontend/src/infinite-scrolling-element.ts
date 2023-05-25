@@ -1,5 +1,6 @@
 import { PropertyValues } from "lit";
-import { VisibilityCheckingContainer } from "./visibility_checking_container";
+import { VisibilityCheckingContainer } from "./visibility-checking-container";
+import { state } from "lit/decorators.js";
 
 /**
  * A superclass for elements that need to be infinitely
@@ -18,6 +19,7 @@ export abstract class InfiniteScrollingElement extends VisibilityCheckingContain
   private OVERFILL_MARGIN_PERCENT = 50;
 
   /** Keeps track of whether we have loaded sufficient data. */
+  @state()
   private sufficientDataLoaded_: boolean = false;
 
   /**

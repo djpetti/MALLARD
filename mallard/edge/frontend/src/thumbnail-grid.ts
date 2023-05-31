@@ -7,7 +7,6 @@ import "./thumbnail-grid-section";
 import {
   thumbnailGridSelectors,
   thunkContinueQuery,
-  thunkLoadMetadata,
   thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -121,28 +120,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    */
   public static readonly MAX_THUMBNAILS_LOADED: number = 500;
   /**
-   * Hysteresis pixel value to use when reloading pages.
-   */
-  private static readonly PAGE_RELOAD_HYSTERESIS: number = 100;
-
-  /**
-   * Name for the custom event signaling that the displayed images have
-   * changed. */
-  static readonly IMAGES_CHANGED_EVENT_NAME = `${ThumbnailGrid.tagName}-images-changed`;
-  /**
    * Name for the custom event signaling that the user has scrolled near
    * the bottom, and we need to load more data.
    */
   static readonly LOAD_MORE_DATA_BOTTOM_EVENT_NAME = `${ThumbnailGrid.tagName}-load-more-data-bottom`;
-
-  /** The unique IDs of the artifacts whose thumbnails are displayed in this component.
-   * Data should be saved in the same order as `groupedArtifacts`. */
-  @property({
-    type: Array,
-    // Do a deep check here since spurious re-rendering is expensive.
-    hasChanged: (newValue, oldValue) => !isEqual(oldValue, newValue),
-  })
-  displayedArtifacts: string[] = [];
 
   /**
    * Artifacts grouped by section.
@@ -333,18 +314,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   protected override async updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.has("displayedArtifacts")) {
-      // The displayed images have changed. We need to fire an event
-      // to kick off metadata loading.
-      this.dispatchEvent(
-        new CustomEvent<string[]>(ThumbnailGrid.IMAGES_CHANGED_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-          detail: this.displayedArtifacts,
-        })
-      );
-    }
-
     if (_changedProperties.has("groupedArtifacts")) {
       // Reset the visibility tracker, since it could be invalid with these
       // new images.
@@ -353,7 +322,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
 
     if (_changedProperties.get("loadingState") == RequestState.LOADING) {
       const numThumbnailsDisplayed = this.numThumbnailsDisplayed();
-      if (numThumbnailsDisplayed == this.lastNumThumbnailsDisplayed) {
+      if (numThumbnailsDisplayed <= this.lastNumThumbnailsDisplayed) {
         // The number of displayed thumbnails didn't change. This could mean
         // that we loaded data internal to a collapsed section and should
         // check if we should load more.
@@ -370,7 +339,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     super.firstUpdated(properties);
 
     // If we have no data, try loading some initially.
-    if (this.displayedArtifacts.length == 0) {
+    if (this.groupedArtifacts.length == 0) {
       this.loadNextSection();
     }
 
@@ -384,13 +353,6 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     });
   }
 }
-
-/**
- * Custom event fired when the displayed images change.
- * In this case, the event detail is an array of the image UUIDs
- * that were added.
- */
-type ImagesChangedEvent = CustomEvent<string[]>;
 
 /**
  * Extension of `ThumbnailGrid` that connects to Redux.
@@ -460,7 +422,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
     return {
       loadingState: overallState,
-      displayedArtifacts: allIds,
       groupedArtifacts: grouped,
       groupedArtifactsFlatIds: flatten(grouped.map((g) => g.imageIds)),
       hasMorePages: state.imageView.currentQueryHasMorePages,
@@ -479,12 +440,6 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     // The fancy casting here is a hack to deal with the fact that thunkLoadMetadata
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedThumbnailGrid.IMAGES_CHANGED_EVENT_NAME] = (
-      event: Event
-    ) =>
-      thunkLoadMetadata(
-        (event as ImagesChangedEvent).detail
-      ) as unknown as Action;
     handlers[ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME] = (
       _: Event
     ) => {

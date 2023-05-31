@@ -160,23 +160,40 @@ export const thumbnailGridSelectors =
  */
 export const thunkStartNewQuery = createAsyncThunk(
   "thumbnailGrid/startNewQuery",
-  async ({
-    query,
-    orderings = DEFAULT_ORDERINGS,
-    resultsPerPage,
-    startPageNum,
-  }: {
-    query: ImageQuery[];
-    orderings?: Ordering[];
-    resultsPerPage?: number;
-    startPageNum?: number;
-  }): Promise<StartQueryReturn> => {
+  async (
+    {
+      query,
+      orderings = DEFAULT_ORDERINGS,
+      resultsPerPage,
+      startPageNum,
+    }: {
+      query: ImageQuery[];
+      orderings?: Ordering[];
+      resultsPerPage?: number;
+      startPageNum?: number;
+    },
+    { dispatch }
+  ): Promise<StartQueryReturn> => {
     if (startPageNum == undefined) {
       // Default to the first page.
       startPageNum = 1;
     }
 
     // Perform the query.
+    const queryResult = await queryImages(
+      query,
+      orderings,
+      resultsPerPage,
+      startPageNum
+    );
+
+    // Add the results to the state.
+    dispatch(addArtifacts(queryResult.imageIds));
+    // Fetch all the metadata.
+    dispatch(
+      thunkLoadMetadata(queryResult.imageIds.map((i) => createImageEntityId(i)))
+    );
+
     return {
       query: query,
       options: {
@@ -184,7 +201,7 @@ export const thunkStartNewQuery = createAsyncThunk(
         resultsPerPage: resultsPerPage,
         pageNum: startPageNum,
       },
-      result: await queryImages(query, orderings, resultsPerPage, startPageNum),
+      result: queryResult,
     };
   }
 );
@@ -194,19 +211,31 @@ export const thunkStartNewQuery = createAsyncThunk(
  */
 export const thunkContinueQuery = createAsyncThunk(
   "thumbnailGrid/continueQuery",
-  async (pageNum: number, { getState }): Promise<ContinueQueryReturn> => {
+  async (
+    pageNum: number,
+    { getState, dispatch }
+  ): Promise<ContinueQueryReturn> => {
     const state = (getState() as RootState).imageView;
     const options = state.currentQueryOptions;
 
     // Perform the query.
+    const queryResult = await queryImages(
+      state.currentQuery,
+      options.orderings,
+      options.resultsPerPage,
+      pageNum
+    );
+
+    // Add the results to the state.
+    dispatch(addArtifacts(queryResult.imageIds));
+    // Fetch all the metadata.
+    dispatch(
+      thunkLoadMetadata(queryResult.imageIds.map((i) => createImageEntityId(i)))
+    );
+
     return {
       pageNum: pageNum,
-      result: await queryImages(
-        state.currentQuery,
-        options.orderings,
-        options.resultsPerPage,
-        pageNum
-      ),
+      result: queryResult,
     };
   },
   {
@@ -678,7 +707,7 @@ export function thunkShowDetails(backendId: ObjectRef): ThunkResult<void> {
     const frontendId = createImageEntityId(backendId);
     if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
       // We need to register it.
-      dispatch(addArtifact(backendId));
+      dispatch(addArtifacts([backendId]));
     }
 
     // Mark this as the image displayed on the details page.
@@ -695,12 +724,6 @@ function updateQueryState(
   state: Draft<ImageViewState>,
   queryResults: QueryResponse
 ) {
-  // Register all the results.
-  thumbnailGridAdapter.upsertMany(
-    state,
-    queryResults.imageIds.map((i) => createDefaultEntity(i))
-  );
-
   // Save the current query.
   state.currentQueryState = RequestState.SUCCEEDED;
   state.currentQueryHasMorePages = !queryResults.isLastPage;
@@ -711,10 +734,12 @@ export const thumbnailGridSlice = createSlice({
   initialState: initialState as ImageViewState,
   reducers: {
     // We are manually adding a new artifact to the frontend state.
-    addArtifact(state, action) {
-      thumbnailGridAdapter.upsertOne(
+    addArtifacts(state, action) {
+      thumbnailGridAdapter.upsertMany(
         state,
-        createDefaultEntity(action.payload)
+        action.payload.map((backendId: ObjectRef) =>
+          createDefaultEntity(backendId)
+        )
       );
     },
     // Clears a loaded full-sized image.
@@ -958,7 +983,7 @@ export const thumbnailGridSlice = createSlice({
 export const {
   clearFullSizedImages,
   clearThumbnails,
-  addArtifact,
+  addArtifacts,
   clearImageView,
   clearAutocomplete,
   selectImages,

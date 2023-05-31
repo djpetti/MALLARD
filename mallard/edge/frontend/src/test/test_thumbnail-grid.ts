@@ -11,7 +11,6 @@ import { RequestState, RootState } from "../types";
 import each from "jest-each";
 import {
   thunkContinueQuery,
-  thunkLoadMetadata,
   thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
@@ -22,7 +21,6 @@ jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
 
   return {
-    thunkLoadMetadata: jest.fn(),
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
     createImageEntityId: actualSlice.createImageEntityId,
@@ -32,9 +30,6 @@ jest.mock("../thumbnail-grid-slice", () => {
     },
   };
 });
-const mockThunkLoadMetadata = thunkLoadMetadata as jest.MockedFn<
-  typeof thunkLoadMetadata
->;
 const mockThunkStartNewQuery = thunkStartNewQuery as jest.MockedFn<
   typeof thunkStartNewQuery
 >;
@@ -712,7 +707,7 @@ describe("thumbnail-grid", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       state.imageView.ids = [imageId];
-      state.imageView.entities[imageId] = fakeImageEntity(false, false);
+      state.imageView.entities[imageId] = fakeImageEntity(true, false);
       state.imageView.currentQueryState = contentState;
       state.imageView.metadataLoadingState = metadataState;
 
@@ -721,8 +716,10 @@ describe("thumbnail-grid", () => {
 
       // Assert.
       // It should have gotten the correct updates.
-      expect(updates).toHaveProperty("displayedArtifacts");
-      expect(updates["displayedArtifacts"]).toEqual(state.imageView.ids);
+      expect(updates).toHaveProperty("groupedArtifactsFlatIds");
+      expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
+        new Set(state.imageView.ids)
+      );
       expect(updates["loadingState"]).toEqual(
         contentState == RequestState.SUCCEEDED &&
           metadataState == RequestState.SUCCEEDED
@@ -735,12 +732,26 @@ describe("thumbnail-grid", () => {
       expect(updates["hasMorePages"]).toEqual(
         state.imageView.currentQueryHasMorePages
       );
-
-      // There should be no grouped images, because our input lacks metadata.
-      expect(updates).toHaveProperty("groupedArtifacts");
-      expect(updates["groupedArtifacts"]).toEqual([]);
     }
   );
+
+  it("does not include artifacts that have no metadata", () => {
+    // Arrange.
+    const imageId = faker.datatype.uuid();
+
+    // Create a fake state.
+    const state: RootState = fakeState();
+    state.imageView.ids = [imageId];
+    state.imageView.entities[imageId] = fakeImageEntity(false, false);
+
+    // Act.
+    const updates = gridElement.mapState(state);
+
+    // Assert.
+    // There should be no grouped images, because our input lacks metadata.
+    expect(updates).toHaveProperty("groupedArtifacts");
+    expect(updates["groupedArtifacts"]).toEqual([]);
+  });
 
   it("marks loading as finished when there are no data", () => {
     // Arrange.
@@ -809,8 +820,10 @@ describe("thumbnail-grid", () => {
 
     // Assert.
     // It should have gotten the correct updates.
-    expect(updates).toHaveProperty("displayedArtifacts");
-    expect(updates["displayedArtifacts"]).toEqual(state.imageView.ids);
+    expect(updates).toHaveProperty("groupedArtifactsFlatIds");
+    expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
+      new Set(state.imageView.ids)
+    );
 
     // It should have grouped things correctly.
     expect(updates).toHaveProperty("groupedArtifacts");
@@ -826,26 +839,6 @@ describe("thumbnail-grid", () => {
 
     expect(groups[2].captureDate).toEqual(captureDate2);
     expect(groups[2].imageIds).toEqual([imageId4]);
-  });
-
-  it(`maps the correct actions to the ${ConnectedThumbnailGrid.IMAGES_CHANGED_EVENT_NAME} event`, () => {
-    // Act.
-    const eventMap = gridElement.mapEvents();
-
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedThumbnailGrid.IMAGES_CHANGED_EVENT_NAME
-    );
-
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: [faker.datatype.uuid()] };
-    eventMap[ConnectedThumbnailGrid.IMAGES_CHANGED_EVENT_NAME](
-      testEvent as unknown as Event
-    );
-
-    expect(mockThunkLoadMetadata).toBeCalledTimes(1);
-    expect(mockThunkLoadMetadata).toBeCalledWith(testEvent.detail);
   });
 
   each([

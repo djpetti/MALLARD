@@ -1,6 +1,6 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
-  addArtifact,
+  addArtifacts,
   clearAutocomplete,
   clearFullSizedImages,
   clearImageView,
@@ -143,13 +143,23 @@ describe("thumbnail-grid-slice action creators", () => {
       // Arrange.
       // Make it look like the query request succeeds.
       const queryResult: QueryResponse = {
-        imageIds: [],
+        imageIds: [fakeObjectRef(), fakeObjectRef()],
         pageNum: startPage ?? 1,
         isLastPage: true,
       };
       mockQueryImages.mockResolvedValue(queryResult);
 
-      const store = mockStoreCreator({});
+      const state = fakeState();
+      // For metadata loading, we have to make it look like there are
+      // already image entities.
+      const frontendIds = queryResult.imageIds.map((i) =>
+        createImageEntityId(i)
+      );
+      state.imageView.ids = frontendIds;
+      state.imageView.entities[frontendIds[0]] = fakeImageEntity(false, false);
+      state.imageView.entities[frontendIds[1]] = fakeImageEntity(false, false);
+
+      const store = mockStoreCreator(state);
       // Fake query to perform.
       const queries: ImageQuery[] = [{}];
 
@@ -164,20 +174,40 @@ describe("thumbnail-grid-slice action creators", () => {
       // It should have started the query.
       expect(mockQueryImages).toBeCalledTimes(1);
 
-      // It should have dispatched the lifecycle actions.
+      // It should have dispatched the actions.
       const actions = store.getActions();
-      expect(actions).toHaveLength(2);
+      expect(actions).toHaveLength(5);
 
+      // First, it should dispatch a pending action.
       const pendingAction = actions[0];
       expect(pendingAction.type).toEqual(thunkStartNewQuery.pending.type);
 
-      const fulfilledAction = actions[1];
+      // Then, it should add the artifacts.
+      const addArtifactsAction = actions[1];
+      expect(addArtifactsAction.type).toEqual(addArtifacts.type);
+      expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+
+      // Then, it should load metadata, which will dispatch two lifecycle
+      // actions.
+      const metadataPendingAction = actions[2];
+      expect(metadataPendingAction.type).toEqual(
+        thunkLoadMetadata.pending.type
+      );
+      expect(metadataPendingAction.meta.arg).toEqual(frontendIds);
+
+      // The fulfilled actions should come last.
+      const fulfilledAction = actions[3];
       expect(fulfilledAction.type).toEqual(thunkStartNewQuery.fulfilled.type);
       expect(fulfilledAction.payload.query).toEqual(queries);
       expect(fulfilledAction.payload.result).toEqual(queryResult);
       expect(fulfilledAction.payload.options).toMatchObject({
         pageNum: startPage ?? 1,
       });
+
+      const metadataFulfilledAction = actions[4];
+      expect(metadataFulfilledAction.type).toEqual(
+        thunkLoadMetadata.fulfilled.type
+      );
     }
   );
 
@@ -190,15 +220,22 @@ describe("thumbnail-grid-slice action creators", () => {
     state.imageView.currentQuery = [query];
     state.imageView.currentQueryHasMorePages = true;
     state.imageView.currentQueryOptions.pageNum = pageNum;
-    const store = mockStoreCreator(state);
 
     // Make it look like the query request succeeds.
     const queryResult: QueryResponse = {
-      imageIds: [],
+      imageIds: [fakeObjectRef(), fakeObjectRef()],
       pageNum: pageNum + 1,
       isLastPage: true,
     };
     mockQueryImages.mockResolvedValue(queryResult);
+
+    // For metadata loading, we have to make it look like there are
+    // already image entities.
+    const frontendIds = queryResult.imageIds.map((i) => createImageEntityId(i));
+    state.imageView.ids = frontendIds;
+    state.imageView.entities[frontendIds[0]] = fakeImageEntity(false, false);
+    state.imageView.entities[frontendIds[1]] = fakeImageEntity(false, false);
+    const store = mockStoreCreator(state);
 
     // Act.
     await thunkContinueQuery(pageNum + 1)(store.dispatch, store.getState, {});
@@ -213,17 +250,35 @@ describe("thumbnail-grid-slice action creators", () => {
       pageNum + 1
     );
 
-    // It should have dispatched the lifecycle actions.
+    // It should have dispatched the correct actions.
     const actions = store.getActions();
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(5);
 
+    // First, it should dispatch the pending action.
     const pendingAction = actions[0];
     expect(pendingAction.type).toEqual(thunkContinueQuery.pending.type);
 
-    const fulfilledAction = actions[1];
+    // Then, it should add the artifacts.
+    const addArtifactsAction = actions[1];
+    expect(addArtifactsAction.type).toEqual(addArtifacts.type);
+    expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+
+    // Then, it should load metadata, which will dispatch two lifecycle
+    // actions.
+    const metadataPendingAction = actions[2];
+    expect(metadataPendingAction.type).toEqual(thunkLoadMetadata.pending.type);
+    expect(metadataPendingAction.meta.arg).toEqual(frontendIds);
+
+    // The fulfilled actions should come last.
+    const fulfilledAction = actions[3];
     expect(fulfilledAction.type).toEqual(thunkContinueQuery.fulfilled.type);
     expect(fulfilledAction.payload.pageNum).toEqual(pageNum + 1);
     expect(fulfilledAction.payload.result).toEqual(queryResult);
+
+    const metadataFulfilledAction = actions[4];
+    expect(metadataFulfilledAction.type).toEqual(
+      thunkLoadMetadata.fulfilled.type
+    );
   });
 
   each([
@@ -1129,8 +1184,8 @@ describe("thumbnail-grid-slice action creators", () => {
       if (!imageEntity) {
         // There will be one extra action to register the artifact
         const registerAction = actions[0];
-        expect(registerAction.type).toEqual(addArtifact.type);
-        expect(registerAction.payload).toEqual(backendId);
+        expect(registerAction.type).toEqual(addArtifacts.type);
+        expect(registerAction.payload).toEqual([backendId]);
       }
 
       // There should be an action to update which image we are showing
@@ -1148,13 +1203,16 @@ describe("thumbnail-grid-slice reducers", () => {
     faker.seed(1337);
   });
 
-  it("handles an addArtifact action", () => {
+  it("handles an addArtifacts action", () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
     const backendId = fakeObjectRef();
 
     // Act.
-    const newState = thumbnailGridSlice.reducer(state, addArtifact(backendId));
+    const newState = thumbnailGridSlice.reducer(
+      state,
+      addArtifacts([backendId])
+    );
 
     // Assert.
     // It should have added a new entity.
@@ -1472,12 +1530,6 @@ describe("thumbnail-grid-slice reducers", () => {
     const newRootState = fakeState();
     newRootState.imageView = newState;
 
-    // It should have added the image entity.
-    const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
-    expect(imageEntities).toHaveLength(1);
-    expect(imageEntities[0].backendId).toEqual(fakeImage);
-    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
-    expect(imageEntities[0].thumbnailUrl).toBe(null);
     // The query should have been preserved so that we can re-run it.
     expect(newState.currentQuery).toEqual(query);
     expect(newState.currentQueryOptions).toEqual(action.payload.options);
@@ -1537,13 +1589,6 @@ describe("thumbnail-grid-slice reducers", () => {
     // We need the full state to use selectors.
     const newRootState = fakeState();
     newRootState.imageView = newState;
-
-    // It should have added the image entity.
-    const imageEntities = thumbnailGridSelectors.selectAll(newRootState);
-    expect(imageEntities).toHaveLength(1);
-    expect(imageEntities[0].backendId).toEqual(fakeImage);
-    expect(imageEntities[0].thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
-    expect(imageEntities[0].thumbnailUrl).toBe(null);
 
     // It should have updated the page number.
     expect(newState.currentQueryOptions.pageNum).toEqual(pageNum);

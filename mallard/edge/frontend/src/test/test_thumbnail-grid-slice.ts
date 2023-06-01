@@ -1092,6 +1092,8 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(clearImageViewAction.type).toEqual(
       thumbnailGridSlice.actions.clearImageView.type
     );
+    // Don't clear the current query.
+    expect(clearImageViewAction.payload).toEqual({ preserveQuery: true });
   });
 
   each([
@@ -1320,35 +1322,54 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.imageView.numThumbnailsLoaded).toEqual(0);
   });
 
-  it("handles a clearImageView action", () => {
-    // Arrange.
-    const state: RootState = fakeState();
-    // Make it look like an image is loaded.
-    const imageId = faker.datatype.uuid();
-    state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
+  each([
+    ["clear query", undefined],
+    ["preserve query", true],
+  ]).it(
+    "handles a clearImageView action (%s)",
+    (_, preserveQuery?: boolean) => {
+      // Arrange.
+      const state: RootState = fakeState();
+      // Make it look like an image is loaded.
+      const imageId = faker.datatype.uuid();
+      state.imageView.ids = [imageId];
+      state.imageView.entities[imageId] = fakeImageEntity(undefined, true);
 
-    // Make it look like some other parameters are set.
-    state.imageView.currentQueryState = RequestState.SUCCEEDED;
-    state.imageView.metadataLoadingState = RequestState.SUCCEEDED;
+      // Make it look like some other parameters are set.
+      state.imageView.currentQueryState = RequestState.SUCCEEDED;
+      state.imageView.metadataLoadingState = RequestState.SUCCEEDED;
 
-    // Act.
-    const newImageState = thumbnailGridSlice.reducer(
-      state.imageView,
-      clearImageView(null)
-    );
+      // Act.
+      const newImageState = thumbnailGridSlice.reducer(
+        state.imageView,
+        clearImageView({ preserveQuery: preserveQuery })
+      );
 
-    // Assert.
-    const newState = fakeState();
-    newState.imageView = newImageState;
+      // Assert.
+      const newState = fakeState();
+      newState.imageView = newImageState;
 
-    // It should have removed all images.
-    const imageEntities = thumbnailGridSelectors.selectAll(newState);
-    expect(imageEntities).toHaveLength(0);
-    // It should have reset state parameters.
-    expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
-    expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
-  });
+      // It should have removed all images.
+      const imageEntities = thumbnailGridSelectors.selectAll(newState);
+      expect(imageEntities).toHaveLength(0);
+      // It should have reset state parameters.
+      expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
+      expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
+
+      if (preserveQuery) {
+        // It should have maintained the current query, but reset the page
+        // number.
+        expect(newImageState.currentQuery).toEqual(
+          state.imageView.currentQuery
+        );
+        expect(newImageState.currentQueryOptions.pageNum).toEqual(0);
+      } else {
+        // It should have cleared the current query.
+        expect(newImageState.currentQuery).toEqual([]);
+        expect(newImageState.currentQueryOptions).toEqual({});
+      }
+    }
+  );
 
   it("handles a clearAutocomplete action", () => {
     // Arrange.

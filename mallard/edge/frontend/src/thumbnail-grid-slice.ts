@@ -672,7 +672,7 @@ export function thunkClearImageView(): ThunkResult<void> {
     dispatch(thunkClearFullSizedImages(imageIds));
 
     // Update the state.
-    dispatch(clearImageView(null));
+    dispatch(clearImageView({ preserveQuery: true }));
   };
 }
 
@@ -802,12 +802,19 @@ export const thumbnailGridSlice = createSlice({
       state.numThumbnailsLoaded -= action.payload.length;
     },
     // Completely resets the current image view, removing all loaded images.
-    clearImageView(state, _) {
+    clearImageView(state, action) {
       thumbnailGridAdapter.removeAll(state);
 
-      // Reset the query state.
-      state.currentQuery = [];
-      state.currentQueryOptions = {};
+      if (action.payload.preserveQuery) {
+        // Keep the current query, but reset the page number since we're
+        // clearing all the loaded artifacts.
+        state.currentQueryOptions.pageNum = 0;
+      }
+      if (!action.payload.preserveQuery) {
+        // Reset the query state.
+        state.currentQuery = [];
+        state.currentQueryOptions = {};
+      }
       state.currentQueryState = RequestState.IDLE;
       state.metadataLoadingState = RequestState.IDLE;
       state.currentQueryError = null;

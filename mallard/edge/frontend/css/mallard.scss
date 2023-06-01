@@ -5,6 +5,11 @@
 
 @include card.core-styles;
 
+@font-face {
+  font-family: deftone-stylus;
+  src: url("/static/deftone.ttf");
+}
+
 body {
   background-color: var(--theme-background);
   margin: 0;

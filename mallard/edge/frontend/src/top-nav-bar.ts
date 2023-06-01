@@ -59,17 +59,23 @@ export class TopNavBar extends LitElement {
 
     #app_bar {
       --mdc-theme-on-primary: var(--theme-whitish);
+      --mdc-typography-headline6-font-family: deftone-stylus;
+      --mdc-typography-headline6-font-size: 28pt;
 
       overflow-x: hidden;
     }
 
     #search {
-      margin-left: 200px;
+      margin-left: 250px;
       margin-top: 5px;
       position: fixed;
       /* Put the search box on top of the navigation bar. */
       top: 0;
       z-index: 10;
+    }
+
+    #title {
+      margin-right: 10px;
     }
   `;
 
@@ -229,6 +235,8 @@ export class TopNavBar extends LitElement {
         : html`${this.title}`;
 
     return html`
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
+
       <mwc-top-app-bar-fixed id="app_bar" class="${topBarClass}">
         <!-- Back button -->
         <mwc-icon-button

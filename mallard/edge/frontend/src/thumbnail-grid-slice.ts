@@ -37,6 +37,7 @@ import {
   Suggestions,
 } from "./autocomplete";
 import { downloadImageZip, makeImageUrlList } from "./downloads";
+import { chunk } from "lodash";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -254,12 +255,14 @@ export const thunkContinueQuery = createAsyncThunk(
 );
 
 /**
- * Action creator that starts a new request for an image thumbnail.
+ * Action creator that starts new requests for a set of image thumbnails. It
+ * will not update the state until ALL requests have finished.
  */
-export const thunkLoadThumbnails = createAsyncThunk(
-  "thumbnailGrid/loadThumbnails",
+const thunkLoadThumbnailsChunk = createAsyncThunk(
+  "thumbnailGrid/loadThumbnailsChunk",
   async (imageIds: string[], { getState }): Promise<LoadImageReturn[]> => {
-    const updates = [];
+    const promises: Promise<Blob>[] = [];
+    const filteredIds: string[] = [];
     for (const imageId of imageIds) {
       // This should never be undefined, because that means our image ID is invalid.
       const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
@@ -271,16 +274,17 @@ export const thunkLoadThumbnails = createAsyncThunk(
         continue;
       }
 
-      const rawImage = await loadThumbnail(imageEntity.backendId);
-
-      updates.push({
-        imageId: imageId,
-        imageUrl: URL.createObjectURL(rawImage),
-      });
+      promises.push(loadThumbnail(imageEntity.backendId));
+      filteredIds.push(imageId);
     }
 
-    // Get the object URL for it.
-    return updates;
+    // Start thumbnail loading.
+    const thumbnails = await Promise.all(promises);
+    // Get the object URL for all thumbnails.
+    return filteredIds.map((id, i) => ({
+      imageId: id,
+      imageUrl: URL.createObjectURL(thumbnails[i]),
+    }));
   },
   {
     condition: (imageIds: string[], { getState }): boolean => {
@@ -295,6 +299,34 @@ export const thunkLoadThumbnails = createAsyncThunk(
     },
   }
 );
+
+/**
+ * Chunk size to use for loading thumbnails.
+ */
+const THUMBNAIL_CHUNK_SIZE: number = 50;
+
+/**
+ * Action creator that starts new requests for a set of image thumbnails. It
+ * will break the thumbnail loading into chunks and update the state after
+ * each chunk finishes, to keep things more responsive.
+ * @param {string[]} imageIds The IDs of the images that we want to load
+ *  thumbnails for.
+ * @param {number} chunkSize Specify the size of the chunks to use when
+ *  splitting the thumbnail load operation.
+ * @return {ThunkResult} Does not actually return anything, because it
+ *  simply dispatches other actions.
+ */
+export function thunkLoadThumbnails(
+  imageIds: string[],
+  chunkSize: number = THUMBNAIL_CHUNK_SIZE
+): ThunkResult<void> {
+  return (dispatch) => {
+    // Break requested thumbnails up into chunks.
+    for (const chunkIds of chunk(imageIds, chunkSize)) {
+      dispatch(thunkLoadThumbnailsChunk(chunkIds));
+    }
+  };
+}
 
 /**
  * Action creator that starts a new request for an image.
@@ -877,7 +909,7 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We initiated thumbnail loading.
-    builder.addCase(thunkLoadThumbnails.pending, (state, action) => {
+    builder.addCase(thunkLoadThumbnailsChunk.pending, (state, action) => {
       const updates = action.meta.arg.map((id) => ({
         id: id,
         changes: {
@@ -888,7 +920,7 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // Add results from thumbnail loading.
-    builder.addCase(thunkLoadThumbnails.fulfilled, (state, action) => {
+    builder.addCase(thunkLoadThumbnailsChunk.fulfilled, (state, action) => {
       // We indiscriminately change the status of all the specified
       // thumbnails to LOADING, so we need to change them all to loaded.
       thumbnailGridAdapter.updateMany(

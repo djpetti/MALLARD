@@ -324,39 +324,67 @@ describe("thumbnail-grid-slice action creators", () => {
     mockCreateObjectUrl.mockReturnValue(imageUrl);
 
     // Initialize the fake store with valid state.
-    const unloadedImage = fakeImageEntity(false);
-    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+    const unloadedImage1 = fakeImageEntity(false);
+    const unloadedImage1Id = createImageEntityId(unloadedImage1.backendId);
+    const unloadedImage2 = fakeImageEntity(false);
+    const unloadedImage2Id = createImageEntityId(unloadedImage2.backendId);
     const loadedImage = fakeImageEntity(true);
     const loadedImageId = createImageEntityId(loadedImage.backendId);
     const state = fakeState();
-    state.imageView.ids = [unloadedImageId, loadedImageId];
-    state.imageView.entities[unloadedImageId] = unloadedImage;
+    state.imageView.ids = [unloadedImage1Id, unloadedImage2Id, loadedImageId];
+    state.imageView.entities[unloadedImage1Id] = unloadedImage1;
+    state.imageView.entities[unloadedImage2Id] = unloadedImage2;
     state.imageView.entities[loadedImageId] = loadedImage;
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadThumbnails([unloadedImageId, loadedImageId])(
-      store.dispatch,
-      store.getState,
+    const asyncThunkDispatch = jest.fn();
+    thunkLoadThumbnails([unloadedImage1Id, loadedImageId, unloadedImage2Id], 2)(
+      asyncThunkDispatch,
+      store.getState as () => RootState,
       {}
     );
 
+    // Manually dispatch the sub-actions.
+    expect(asyncThunkDispatch).toBeCalledTimes(2);
+    const subActions = asyncThunkDispatch.mock.calls.map((c) => c[0]);
+    for (const subAction of subActions) {
+      await subAction(store.dispatch, store.getState, {});
+    }
+
     // Assert.
-    // It should have loaded one thumbnail.
-    expect(mockLoadThumbnail).toBeCalledTimes(1);
+    // It should have loaded two thumbnail.
+    expect(mockLoadThumbnail).toBeCalledTimes(2);
 
     // It should have dispatched the lifecycle actions.
     const actions = store.getActions();
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(4);
 
-    const pendingAction = actions[0];
-    expect(pendingAction.type).toEqual(thunkLoadThumbnails.pending.type);
+    const pendingAction1 = actions[0];
+    expect(pendingAction1.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/pending"
+    );
 
-    const fulfilledAction = actions[1];
-    expect(fulfilledAction.type).toEqual(thunkLoadThumbnails.fulfilled.type);
-    expect(fulfilledAction.payload).toHaveLength(1);
-    expect(fulfilledAction.payload[0].imageId).toEqual(unloadedImageId);
-    expect(fulfilledAction.payload[0].imageUrl).toEqual(imageUrl);
+    const fulfilledAction1 = actions[1];
+    expect(fulfilledAction1.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/fulfilled"
+    );
+    expect(fulfilledAction1.payload).toHaveLength(1);
+    expect(fulfilledAction1.payload[0].imageId).toEqual(unloadedImage1Id);
+    expect(fulfilledAction1.payload[0].imageUrl).toEqual(imageUrl);
+
+    const pendingAction2 = actions[2];
+    expect(pendingAction2.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/pending"
+    );
+
+    const fulfilledAction2 = actions[3];
+    expect(fulfilledAction2.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/fulfilled"
+    );
+    expect(fulfilledAction2.payload).toHaveLength(1);
+    expect(fulfilledAction2.payload[0].imageId).toEqual(unloadedImage2Id);
+    expect(fulfilledAction2.payload[0].imageUrl).toEqual(imageUrl);
   });
 
   it("does not reload a thumbnails when they're all already loaded", async () => {
@@ -369,7 +397,11 @@ describe("thumbnail-grid-slice action creators", () => {
     const store = mockStoreCreator(state);
 
     // Act.
-    await thunkLoadThumbnails([imageId])(store.dispatch, store.getState, {});
+    await thunkLoadThumbnails([imageId])(
+      store.dispatch,
+      store.getState as () => RootState,
+      {}
+    );
 
     // Assert.
     // It should not have loaded the thumbnail.
@@ -1724,7 +1756,7 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.search.autocompleteSuggestions).toEqual(suggestions);
   });
 
-  it(`handles a ${thunkLoadThumbnails.pending.type} action`, () => {
+  it("handles a thumbnailGrid/loadThumbnailsChunk/pending action", () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
@@ -1735,7 +1767,7 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Act.
     const newState: ImageViewState = thumbnailGridReducer(state, {
-      type: thunkLoadThumbnails.pending,
+      type: "thumbnailGrid/loadThumbnailsChunk/pending",
       meta: {
         arg: images.ids,
       },
@@ -1750,7 +1782,7 @@ describe("thumbnail-grid-slice reducers", () => {
     }
   });
 
-  it(`handles a ${thunkLoadThumbnails.fulfilled.type} action`, () => {
+  it("handles a thumbnailGrid/loadThumbnailsChunk/fulfilled action", () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
 
@@ -1769,7 +1801,7 @@ describe("thumbnail-grid-slice reducers", () => {
       meta: {
         arg: images.ids,
       },
-      type: thunkLoadThumbnails.fulfilled.type,
+      type: "thumbnailGrid/loadThumbnailsChunk/fulfilled",
       payload: imageInfo,
     };
 

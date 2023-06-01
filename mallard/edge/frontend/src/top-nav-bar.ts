@@ -59,9 +59,6 @@ export class TopNavBar extends LitElement {
 
     #app_bar {
       --mdc-theme-on-primary: var(--theme-whitish);
-      --mdc-typography-headline6-font-family: deftone-stylus;
-      --mdc-typography-headline6-font-size: 28pt;
-
       overflow-x: hidden;
     }
 
@@ -76,6 +73,8 @@ export class TopNavBar extends LitElement {
 
     #title {
       margin-right: 10px;
+      font-family: deftone-stylus;
+      font-size: 38px;
     }
   `;
 

@@ -1,4 +1,4 @@
-import { css, html, LitElement, nothing } from "lit";
+import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/mwc-textfield";
 import { TextField } from "@material/mwc-textfield";
@@ -11,7 +11,7 @@ import store from "./store";
 import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import {
-  clearAutocomplete,
+  setSearchString,
   thunkDoAutocomplete,
   thunkTextSearch,
 } from "./thumbnail-grid-slice";
@@ -122,10 +122,15 @@ export class SearchBox extends LitElement {
    */
   static SEARCH_STARTED_EVENT_NAME = `${SearchBox.tagName}-search-started`;
 
+  /** Name for the custom event signaling that the search string should be
+   * cleared.
+   */
+  static CLEAR_SEARCH_STRING_EVENT_NAME = `${SearchBox.tagName}-clear-search-string`;
+
   /** Name for the custom event signaling that the autocomplete suggestions
    * should be cleared.
    */
-  static CLEARED_AUTOCOMPLETE_EVENT_NAME = `${SearchBox.tagName}-cleared-autocomplete`;
+  static HIDE_AUTOCOMPLETE_EVENT_NAME = `${SearchBox.tagName}-hide-autocomplete`;
 
   /**
    * Suggested completions that will be shown below the search bar.
@@ -137,7 +142,7 @@ export class SearchBox extends LitElement {
   @property({ type: Boolean })
   showProgress: boolean = false;
 
-  /** The initial string to show in the search box. */
+  /** The string to show in the search box. */
   @property()
   searchString: string = "";
 
@@ -166,11 +171,8 @@ export class SearchBox extends LitElement {
    * @private
    */
   private clear(): void {
-    this.searchBox.value = "";
-    this.showClear = false;
-
     this.dispatchEvent(
-      new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
+      new CustomEvent(SearchBox.CLEAR_SEARCH_STRING_EVENT_NAME, {
         bubbles: true,
         composed: false,
       })
@@ -182,9 +184,6 @@ export class SearchBox extends LitElement {
    * @private
    */
   private onTextChange(): void {
-    // Update whether the clear button is visible.
-    this.showClear = this.searchBox.value.length > 0;
-
     // Indicate that the text changed.
     this.dispatchEvent(
       new CustomEvent<string>(SearchBox.SEARCH_STRING_CHANGED_EVENT_NAME, {
@@ -211,7 +210,7 @@ export class SearchBox extends LitElement {
     // Also, once the search has been run, we should not show suggestions
     // anymore.
     this.dispatchEvent(
-      new CustomEvent(SearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME, {
+      new CustomEvent(SearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME, {
         bubbles: true,
         composed: false,
       })
@@ -426,6 +425,18 @@ export class SearchBox extends LitElement {
       </div>
     `;
   }
+
+  /**
+   * @inheritDoc
+   */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    if (_changedProperties.has("searchString")) {
+      // Update the value in the text box.
+      this.searchBox.value = this.searchString;
+    }
+  }
 }
 
 /**
@@ -479,7 +490,10 @@ export class ConnectedSearchBox extends connect(store, SearchBox) {
 
       if (searchEvent.detail.length < 3) {
         // We need at least three characters for meaningful autocomplete.
-        return clearAutocomplete(null);
+        return setSearchString({
+          searchString: searchEvent.detail,
+          clearAutocomplete: true,
+        });
       } else {
         return thunkDoAutocomplete({
           searchString: searchEvent.detail,
@@ -491,8 +505,10 @@ export class ConnectedSearchBox extends connect(store, SearchBox) {
       thunkTextSearch(
         (event as SearchStartedEvent).detail
       ) as unknown as Action;
-    handlers[ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME] = (_: Event) =>
-      clearAutocomplete(null);
+    handlers[ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME] = (_: Event) =>
+      setSearchString({ clearAutocomplete: true });
+    handlers[ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME] = (_: Event) =>
+      setSearchString({ searchString: "", clearAutocomplete: true });
 
     return handlers;
   }

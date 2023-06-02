@@ -1,5 +1,5 @@
 import {
-  clearAutocomplete,
+  setSearchString,
   thunkDoAutocomplete,
   thunkTextSearch,
 } from "../thumbnail-grid-slice";
@@ -23,13 +23,13 @@ import { faker } from "@faker-js/faker";
 
 jest.mock("../thumbnail-grid-slice", () => {
   return {
-    clearAutocomplete: jest.fn(),
+    setSearchString: jest.fn(),
     thunkDoAutocomplete: jest.fn(),
     thunkTextSearch: jest.fn(),
   };
 });
-const mockClearAutocomplete = clearAutocomplete as jest.MockedFn<
-  typeof clearAutocomplete
+const mockSetSearchString = setSearchString as jest.MockedFn<
+  typeof setSearchString
 >;
 const mockThunkDoAutocomplete = thunkDoAutocomplete as jest.MockedFn<
   typeof thunkDoAutocomplete
@@ -185,6 +185,19 @@ describe("search-box", () => {
     expect(buttons[1].label).toEqual("aerial");
   });
 
+  it("updates the value in the search box when the property changes", async () => {
+    // Act.
+    // Set the text property.
+    searchBoxElement.searchString = faker.lorem.words();
+    await searchBoxElement.updateComplete;
+
+    // Assert.
+    // It should have set the text in the actual text box.
+    const root = getShadowRoot(ConnectedSearchBox.tagName);
+    const textField = root.querySelector("#search") as HTMLInputElement;
+    expect(textField.value).toEqual(searchBoxElement.searchString);
+  });
+
   it("fires an event when the user types something", async () => {
     // Arrange.
     // Listen for the event.
@@ -210,9 +223,6 @@ describe("search-box", () => {
     // It should have gotten the current search string.
     const event = searchStringChangedEventHandler.mock.calls[0][0];
     expect(event.detail).toEqual(textField.value);
-
-    // It should also show the clear button.
-    expect(root.querySelector("#clear_button")).not.toBeNull();
   });
 
   it("fires an event when the user hits enter", async () => {
@@ -226,7 +236,7 @@ describe("search-box", () => {
 
     const clearHandler = jest.fn();
     searchBoxElement.addEventListener(
-      ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME,
+      ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME,
       clearHandler
     );
 
@@ -263,7 +273,7 @@ describe("search-box", () => {
 
     const clearHandler = jest.fn();
     searchBoxElement.addEventListener(
-      ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME,
+      ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME,
       clearHandler
     );
 
@@ -314,7 +324,7 @@ describe("search-box", () => {
         searchStartedEventListener
       );
       searchBoxElement.addEventListener(
-        ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME,
+        ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME,
         clearedAutocompleteEventListener
       );
 
@@ -351,7 +361,7 @@ describe("search-box", () => {
     // Listen for the events.
     const clearHandler = jest.fn();
     searchBoxElement.addEventListener(
-      ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME,
+      ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME,
       clearHandler
     );
 
@@ -359,8 +369,8 @@ describe("search-box", () => {
     const root = getShadowRoot(ConnectedSearchBox.tagName);
     const textField = root.querySelector("#search") as HTMLInputElement;
     textField.value = faker.lorem.words();
-    // Force it to update the showClear state value.
-    textField.dispatchEvent(new InputEvent("input", {}));
+    // Force it to show the clear button.
+    searchBoxElement.showClear = true;
 
     // Do a preliminary render to make sure the clear button shows.
     await searchBoxElement.updateComplete;
@@ -372,8 +382,6 @@ describe("search-box", () => {
     await searchBoxElement.updateComplete;
 
     // Assert.
-    // It should have removed the search text.
-    expect(textField.value).toEqual("");
     // It should have dispatched the clear event.
     expect(clearHandler).toBeCalledTimes(1);
   });
@@ -560,7 +568,10 @@ describe("search-box", () => {
 
       if (searchString.length < 3) {
         // It should not be showing autocomplete.
-        expect(mockClearAutocomplete).toBeCalledTimes(1);
+        expect(mockSetSearchString).toBeCalledWith({
+          searchString: searchString,
+          clearAutocomplete: true,
+        });
       } else {
         // It should be showing autocomplete.
         expect(mockThunkDoAutocomplete).toBeCalledWith({
@@ -592,22 +603,46 @@ describe("search-box", () => {
     expect(mockThunkTextSearch).toBeCalledWith(testEvent.detail);
   });
 
-  it(`maps the correct actions to the ${ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME} event`, () => {
+  it(`maps the correct actions to the ${ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME} event`, () => {
     // Act.
     const eventMap = searchBoxElement.mapEvents();
 
     // Assert.
     // It should have a mapping for the proper events.
     expect(eventMap).toHaveProperty(
-      ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME
+      ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME
     );
 
     // This should fire the appropriate action creator.
     const testEvent = new CustomEvent(
-      ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME
+      ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME
     );
-    eventMap[ConnectedSearchBox.CLEARED_AUTOCOMPLETE_EVENT_NAME](testEvent);
+    eventMap[ConnectedSearchBox.HIDE_AUTOCOMPLETE_EVENT_NAME](testEvent);
 
-    expect(mockClearAutocomplete).toBeCalledTimes(1);
+    expect(mockSetSearchString).toBeCalledTimes(1);
+    expect(mockSetSearchString).toBeCalledWith({ clearAutocomplete: true });
+  });
+
+  it(`maps the correct actions to the ${ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME} event`, () => {
+    // Act.
+    const eventMap = searchBoxElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty(
+      ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME
+    );
+
+    // This should fire the appropriate action creator.
+    const testEvent = new CustomEvent(
+      ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME
+    );
+    eventMap[ConnectedSearchBox.CLEAR_SEARCH_STRING_EVENT_NAME](testEvent);
+
+    expect(mockSetSearchString).toBeCalledTimes(1);
+    expect(mockSetSearchString).toBeCalledWith({
+      searchString: "",
+      clearAutocomplete: true,
+    });
   });
 });

@@ -1,7 +1,7 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
   addArtifacts,
-  clearAutocomplete,
+  setSearchString,
   clearFullSizedImages,
   clearImageView,
   clearThumbnails,
@@ -1371,33 +1371,56 @@ describe("thumbnail-grid-slice reducers", () => {
     }
   );
 
-  it("handles a clearAutocomplete action", () => {
-    // Arrange.
-    const state: RootState = fakeState();
-    // Make it look like we have some autocomplete suggestions.
-    state.imageView.search.searchString = faker.lorem.words();
-    state.imageView.search.autocompleteSuggestions = fakeSuggestions();
-    state.imageView.search.queryState = RequestState.SUCCEEDED;
+  each([
+    ["preserve search string", true, undefined],
+    ["clear autocomplete", true, faker.lorem.words()],
+    ["keep autocomplete", true, faker.lorem.words()],
+  ]).it(
+    "handles a setSearchString action (%s)",
+    (_, clearAutocomplete: boolean, searchString?: string) => {
+      // Arrange.
+      const state: RootState = fakeState();
+      // Make it look like we have some autocomplete suggestions.
+      state.imageView.search.searchString = faker.lorem.words();
+      state.imageView.search.autocompleteSuggestions = fakeSuggestions();
+      state.imageView.search.queryState = RequestState.SUCCEEDED;
 
-    // Act.
-    const newImageState = thumbnailGridSlice.reducer(
-      state.imageView,
-      clearAutocomplete(null)
-    );
+      // Act.
+      const newImageState = thumbnailGridSlice.reducer(
+        state.imageView,
+        setSearchString({
+          searchString: searchString,
+          clearAutocomplete: clearAutocomplete,
+        })
+      );
 
-    // Assert.
-    // It should not actually change the search string.
-    expect(newImageState.search.searchString).toEqual(
-      state.imageView.search.searchString
-    );
-    expect(newImageState.search.autocompleteSuggestions.menu).toEqual(
-      AutocompleteMenu.NONE
-    );
-    expect(
-      newImageState.search.autocompleteSuggestions.textCompletions
-    ).toHaveLength(0);
-    expect(newImageState.search.queryState).toEqual(RequestState.IDLE);
-  });
+      // Assert.
+      if (searchString === undefined) {
+        // It should not actually change the search string.
+        expect(newImageState.search.searchString).toEqual(
+          state.imageView.search.searchString
+        );
+      } else {
+        expect(newImageState.search.searchString).toEqual(searchString);
+      }
+
+      if (clearAutocomplete) {
+        // It should have cleared the autocomplete suggestions.
+        expect(newImageState.search.autocompleteSuggestions.menu).toEqual(
+          AutocompleteMenu.NONE
+        );
+        expect(
+          newImageState.search.autocompleteSuggestions.textCompletions
+        ).toHaveLength(0);
+        expect(newImageState.search.queryState).toEqual(RequestState.IDLE);
+      } else {
+        // It should have preserved the suggestions.
+        expect(newImageState.search.autocompleteSuggestions).toEqual(
+          state.imageView.search.autocompleteSuggestions
+        );
+      }
+    }
+  );
 
   it("handles a selectImages action", () => {
     // Arrange.

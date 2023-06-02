@@ -820,13 +820,22 @@ export const thumbnailGridSlice = createSlice({
       state.currentQueryError = null;
       state.currentQueryHasMorePages = true;
     },
-    // Removes any current autocomplete suggestions.
-    clearAutocomplete(state, _) {
-      state.search.autocompleteSuggestions = {
-        menu: AutocompleteMenu.NONE,
-        textCompletions: [],
-      };
-      state.search.queryState = RequestState.IDLE;
+    // Sets a value for the current search string, optionally clearing
+    // autocomplete suggestions.
+    setSearchString(state, action) {
+      if (action.payload.searchString !== undefined) {
+        // If we don't specify a new search string, it will do nothing.
+        state.search.searchString = action.payload.searchString;
+      }
+
+      if (action.payload.clearAutocomplete) {
+        // Don't show autocomplete suggestions.
+        state.search.autocompleteSuggestions = {
+          menu: AutocompleteMenu.NONE,
+          textCompletions: [],
+        };
+        state.search.queryState = RequestState.IDLE;
+      }
     },
     // Selects or deselects images.
     selectImages(state, action) {
@@ -1023,7 +1032,7 @@ export const {
   clearThumbnails,
   addArtifacts,
   clearImageView,
-  clearAutocomplete,
+  setSearchString,
   selectImages,
   showDetails,
   setExportedImagesUrl,

@@ -57,6 +57,13 @@ export class TopNavBar extends LitElement {
       align-items: center;
     }
 
+    /* Styles for the MALLARD logo. */
+    .logo {
+      margin-right: 10px;
+      font-family: deftone-stylus;
+      font-size: 38px;
+    }
+
     #app_bar {
       --mdc-theme-on-primary: var(--theme-whitish);
       overflow-x: hidden;
@@ -69,12 +76,6 @@ export class TopNavBar extends LitElement {
       /* Put the search box on top of the navigation bar. */
       top: 0;
       z-index: 10;
-    }
-
-    #title {
-      margin-right: 10px;
-      font-family: deftone-stylus;
-      font-size: 38px;
     }
   `;
 
@@ -232,6 +233,7 @@ export class TopNavBar extends LitElement {
             ></mwc-icon-button>
             ${this.numItemsSelected} Selected`
         : html`${this.title}`;
+    const titleClass = this.numItemsSelected > 0 ? "" : "logo";
 
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
@@ -246,7 +248,7 @@ export class TopNavBar extends LitElement {
           @click="${() => history.back()}"
         ></mwc-icon-button>
         <!-- Title -->
-        <span slot="title" class="vertical-centered" id="title">
+        <span slot="title" class="vertical-centered ${titleClass}" id="title">
           ${title}
         </span>
         ${this.numItemsSelected == 0

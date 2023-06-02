@@ -94,9 +94,10 @@ describe("top-nav-bar", () => {
     expect(topBar).not.toBe(null);
 
     // It should have rendered the title.
-    const titleDiv = topBar?.querySelector("span");
-    expect(titleDiv).not.toBe(null);
-    expect(titleDiv?.textContent).toContain(fakeTitle);
+    const titleSpan = topBar?.querySelector("span");
+    expect(titleSpan).not.toBe(null);
+    expect(titleSpan?.textContent).toContain(fakeTitle);
+    expect(titleSpan?.classList).toContainEqual("logo");
 
     // It should have rendered the dialog, but not opened it.
     const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
@@ -162,6 +163,8 @@ describe("top-nav-bar", () => {
     expect(title.innerHTML).toContain(
       `${navBarElement.numItemsSelected} Selected`
     );
+    // It should have used the default style instead of the special logo style.
+    expect(title.classList).not.toContain("logo");
 
     // It should also show a button to cancel the selection.
     const cancelButton = topBar?.querySelector(

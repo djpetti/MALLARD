@@ -1386,7 +1386,10 @@ describe("thumbnail-grid-slice reducers", () => {
     );
 
     // Assert.
-    expect(newImageState.search.searchString).toEqual("");
+    // It should not actually change the search string.
+    expect(newImageState.search.searchString).toEqual(
+      state.imageView.search.searchString
+    );
     expect(newImageState.search.autocompleteSuggestions.menu).toEqual(
       AutocompleteMenu.NONE
     );

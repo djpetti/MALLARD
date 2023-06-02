@@ -496,17 +496,19 @@ describe("search-box", () => {
   );
 
   each([
-    ["running", RequestState.LOADING],
-    ["finished", RequestState.SUCCEEDED],
+    ["search request is running", RequestState.LOADING, faker.lorem.words()],
+    ["search request is finished", RequestState.SUCCEEDED, faker.lorem.words()],
+    ["search string is empty", RequestState.SUCCEEDED, ""],
   ]).it(
-    "updates the properties from the Redux state when the search request is %s",
-    (_, queryState: RequestState) => {
+    "updates the properties from the Redux state when the %s",
+    (_, queryState: RequestState, searchString: string) => {
       // Arrange.
       // Create a fake state.
       const state = fakeState();
       const searchState = state.imageView.search;
       searchState.autocompleteSuggestions = fakeSuggestions();
       searchState.queryState = queryState;
+      searchState.searchString = searchString;
 
       // Act.
       const updates = searchBoxElement.mapState(state);
@@ -525,6 +527,12 @@ describe("search-box", () => {
       expect(updates["showProgress"]).toEqual(
         queryState == RequestState.LOADING
       );
+
+      expect(updates).toHaveProperty("searchString");
+      expect(updates["searchString"]).toEqual(searchString);
+
+      expect(updates).toHaveProperty("showClear");
+      expect(updates["showClear"]).toEqual(searchString.length > 0);
     }
   );
 

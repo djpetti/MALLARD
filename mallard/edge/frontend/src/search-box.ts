@@ -137,6 +137,10 @@ export class SearchBox extends LitElement {
   @property({ type: Boolean })
   showProgress: boolean = false;
 
+  /** The initial string to show in the search box. */
+  @property()
+  searchString: string = "";
+
   /** Which autocomplete menu to show. */
   @property({ attribute: false })
   autocompleteMenu: AutocompleteMenu = AutocompleteMenu.NONE;
@@ -375,6 +379,7 @@ export class SearchBox extends LitElement {
           class="rounded"
           label="Search"
           icon="search"
+          value="${this.searchString}"
           @input="${this.onTextChange}"
           @keypress="${this.onKeyPress}"
         >
@@ -452,6 +457,8 @@ export class ConnectedSearchBox extends connect(store, SearchBox) {
         searchState.autocompleteSuggestions.textCompletions,
       autocompleteMenu: searchState.autocompleteSuggestions.menu,
       showProgress: searchState.queryState == RequestState.LOADING,
+      searchString: searchState.searchString,
+      showClear: searchState.searchString.length > 0,
     };
   }
 

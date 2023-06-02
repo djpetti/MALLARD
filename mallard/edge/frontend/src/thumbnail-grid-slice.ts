@@ -822,7 +822,6 @@ export const thumbnailGridSlice = createSlice({
     },
     // Removes any current autocomplete suggestions.
     clearAutocomplete(state, _) {
-      state.search.searchString = "";
       state.search.autocompleteSuggestions = {
         menu: AutocompleteMenu.NONE,
         textCompletions: [],

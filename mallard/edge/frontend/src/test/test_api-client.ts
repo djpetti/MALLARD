@@ -22,6 +22,7 @@ import {
 } from "mallard-api";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
+import { cloneDeep } from "lodash";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
@@ -398,31 +399,48 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  it("can update existing image metadata", async () => {
-    // Arrange.
-    const metadata = fakeImageMetadata();
-    const images: ObjectRef[] = [];
-    for (let i = 0; i < 10; ++i) {
-      images.push(fakeObjectRef());
+  each([
+    ["ignoring the names", true],
+    ["setting the names", false],
+  ]).it(
+    "can update existing image metadata, %s",
+    async (_, ignoreName: boolean) => {
+      // Arrange.
+      const metadata = fakeImageMetadata();
+      const images: ObjectRef[] = [];
+      for (let i = 0; i < 10; ++i) {
+        images.push(fakeObjectRef());
+      }
+
+      const incrementSequence = faker.datatype.boolean();
+
+      const mockUpdateMetadata =
+        mockImagesApiClass.prototype
+          .batchUpdateMetadataImagesMetadataBatchUpdatePatch;
+      mockUpdateMetadata.mockResolvedValue({});
+
+      // Act.
+      await batchUpdateMetadata(
+        metadata,
+        images,
+        incrementSequence,
+        ignoreName
+      );
+
+      // Assert.
+      const expectedMetadata = cloneDeep(metadata);
+      if (ignoreName) {
+        // We shouldn't have set the name.
+        expectedMetadata.name = undefined;
+      }
+
+      // It should have updated the metadata.
+      expect(mockUpdateMetadata).toBeCalledWith(
+        { metadata: expectedMetadata, images: images },
+        incrementSequence
+      );
     }
-
-    const incrementSequence = faker.datatype.boolean();
-
-    const mockUpdateMetadata =
-      mockImagesApiClass.prototype
-        .batchUpdateMetadataImagesMetadataBatchUpdatePatch;
-    mockUpdateMetadata.mockResolvedValue({});
-
-    // Act.
-    await batchUpdateMetadata(metadata, images, incrementSequence);
-
-    // Assert.
-    // It should have updated the metadata.
-    expect(mockUpdateMetadata).toBeCalledWith(
-      { metadata: metadata, images: images },
-      incrementSequence
-    );
-  });
+  );
 
   it("handles a failure when updating metadata", async () => {
     // Arrange.

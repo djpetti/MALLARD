@@ -16,6 +16,7 @@ import {
   RootState,
 } from "./types";
 import {
+  batchUpdateMetadata,
   DEFAULT_ORDERINGS,
   deleteImages,
   getMetadata,
@@ -148,8 +149,10 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   numItemsSelected: 0,
   numThumbnailsLoaded: 0,
   bulkDownloadState: RequestState.IDLE,
+  metadataEditingState: RequestState.IDLE,
   exportedImagesUrl: null,
   collapsedSections: {},
+  editingDialogOpen: false,
 });
 
 /** Memoized selectors for the state. */
@@ -456,6 +459,33 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
       // Don't allow it to run multiple bulk downloads at once.
       return state.imageView.bulkDownloadState != RequestState.LOADING;
     },
+  }
+);
+
+/**
+ * Action creator that updates the metadata for a set of selected images. It
+ * will also close the editing dialog when done.
+ */
+export const thunkUpdateSelectedMetadata = createAsyncThunk(
+  "thumbnailGrid/updateSelectedMetadata",
+  async (
+    metadata: UavImageMetadata,
+    { getState, dispatch }
+  ): Promise<EntityId[]> => {
+    // Determine which images are selected.
+    const state = getState() as RootState;
+    const selectedIds = getSelectedImageIds(state);
+    const selectedBackendIds = selectedIds.map(
+      (id) =>
+        (thumbnailGridSelectors.selectById(state, id) as ImageEntity).backendId
+    );
+
+    // Update the metadata.
+    await batchUpdateMetadata(metadata, selectedBackendIds);
+
+    dispatch(setEditingDialogOpen(false));
+
+    return selectedIds;
   }
 );
 
@@ -809,16 +839,20 @@ export const thumbnailGridSlice = createSlice({
         // Keep the current query, but reset the page number since we're
         // clearing all the loaded artifacts.
         state.currentQueryOptions.pageNum = 0;
-      }
-      if (!action.payload.preserveQuery) {
+      } else {
         // Reset the query state.
         state.currentQuery = [];
         state.currentQueryOptions = {};
       }
+
       state.currentQueryState = RequestState.IDLE;
       state.metadataLoadingState = RequestState.IDLE;
       state.currentQueryError = null;
       state.currentQueryHasMorePages = true;
+
+      state.numItemsSelected = 0;
+      state.numThumbnailsLoaded = 0;
+      state.collapsedSections = {};
     },
     // Sets a value for the current search string, optionally clearing
     // autocomplete suggestions.
@@ -867,6 +901,10 @@ export const thumbnailGridSlice = createSlice({
       state.collapsedSections[action.payload.sectionName] =
         !action.payload.expand;
     },
+    // Sets whether the metadata editing dialog is open.
+    setEditingDialogOpen(state, action) {
+      state.editingDialogOpen = action.payload;
+    },
   },
   extraReducers: (builder) => {
     // We initiated a new query for home screen data.
@@ -907,6 +945,27 @@ export const thumbnailGridSlice = createSlice({
     // We completed a bulk download.
     builder.addCase(thunkBulkDownloadSelected.fulfilled, (state) => {
       state.bulkDownloadState = RequestState.SUCCEEDED;
+    });
+
+    // We initiated bulk metadata editing.
+    builder.addCase(thunkUpdateSelectedMetadata.pending, (state) => {
+      state.metadataEditingState = RequestState.LOADING;
+    });
+
+    // We completed bulk metadata editing.
+    builder.addCase(thunkUpdateSelectedMetadata.fulfilled, (state, action) => {
+      state.metadataEditingState = RequestState.SUCCEEDED;
+
+      // Also update the frontend state with new metadata.
+      const updatedIds = action.payload;
+      const metadata = action.meta.arg;
+      thumbnailGridAdapter.updateMany(
+        state,
+        updatedIds.map((id) => ({
+          id: id,
+          changes: { metadata: metadata },
+        }))
+      );
     });
 
     // We initiated a new autocomplete query.
@@ -1037,5 +1096,6 @@ export const {
   showDetails,
   setExportedImagesUrl,
   setSectionExpanded,
+  setEditingDialogOpen,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

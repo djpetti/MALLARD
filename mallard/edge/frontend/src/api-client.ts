@@ -10,6 +10,7 @@ import {
   UavImageMetadata,
 } from "mallard-api";
 import { ImageQuery } from "./types";
+import { cloneDeep } from "lodash";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
@@ -255,16 +256,26 @@ export async function inferMetadata(
  * @param {ObjectRef[]} images The images to update.
  * @param {boolean} incrementSequence Whether to auto-increment sequence numbers
  *  for these image.
+ * @param {boolean} ignoreName If true, it will not overwrite the name
+ *  parameter of the individual artifacts.
  */
 export async function batchUpdateMetadata(
   metadata: UavImageMetadata,
   images: ObjectRef[],
-  incrementSequence?: boolean
+  incrementSequence?: boolean,
+  ignoreName: boolean = true
 ): Promise<void> {
+  // Copy to avoid surprising the user by modifying the argument.
+  const metadataCopy = cloneDeep(metadata);
+  if (ignoreName) {
+    // Don't overwrite the names.
+    metadataCopy.name = undefined;
+  }
+
   await api
     .batchUpdateMetadataImagesMetadataBatchUpdatePatch(
       {
-        metadata: metadata,
+        metadata: metadataCopy,
         images: images,
       },
       incrementSequence

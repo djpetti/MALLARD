@@ -190,7 +190,7 @@ export class ConnectedMallardApp extends connect(store, MallardApp) {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     handlers[ConnectedMallardApp.UPLOAD_MODAL_OPEN_EVENT_NAME] = (_: Event) =>
-      dialogOpened(null);
+      dialogOpened();
     handlers[ConnectedMallardApp.DONE_BUTTON_EVENT_NAME] = (_: Event) =>
       thunkFinishUpload() as unknown as Action;
     return handlers;

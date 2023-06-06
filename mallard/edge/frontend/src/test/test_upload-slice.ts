@@ -37,7 +37,6 @@ import imageBlobReduce, {
 } from "image-blob-reduce";
 import { faker } from "@faker-js/faker";
 import { UavImageMetadata } from "mallard-api";
-import { cloneDeep } from "lodash";
 
 // Using older require syntax here so we get the correct mock type.
 const apiClient = require("../api-client");
@@ -286,13 +285,11 @@ describe("upload-slice action creators", () => {
         if (hasNewMetadata) {
           // It should have updated the metadata on the backend.
           if (metadata !== null) {
-            // It should not have sent the metadata name.
-            const expectedMetadata = cloneDeep(state.uploads.metadata);
-            (expectedMetadata as UavImageMetadata).name = undefined;
             // It should have performed the request.
-            expect(mockUpdateMetadata).toHaveBeenCalledWith(expectedMetadata, [
-              uploadFile.backendRef,
-            ]);
+            expect(mockUpdateMetadata).toHaveBeenCalledWith(
+              state.uploads.metadata,
+              [uploadFile.backendRef]
+            );
           } else {
             // It should have just used the empty metadata.
             expect(mockUpdateMetadata).toHaveBeenCalledWith(null, [
@@ -356,7 +353,7 @@ describe("upload-slice reducers", () => {
     state.dialogOpen = false;
 
     // Act.
-    const newState = uploadSlice.reducer(state, dialogOpened(null));
+    const newState = uploadSlice.reducer(state, dialogOpened());
 
     // Assert.
     // It should have set the dialog to opened.
@@ -373,7 +370,7 @@ describe("upload-slice reducers", () => {
     state.entities[uploadFile.id] = uploadFile;
 
     // Act.
-    const newState = uploadSlice.reducer(state, dialogClosed(null));
+    const newState = uploadSlice.reducer(state, dialogClosed());
 
     // Assert.
     // It should have set the dialog to opened.

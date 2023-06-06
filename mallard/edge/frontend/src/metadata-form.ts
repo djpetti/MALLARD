@@ -11,6 +11,7 @@ import store from "./store";
 import { PlatformType, UavImageMetadata } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
+import { thumbnailGridSelectors } from "./thumbnail-grid-slice";
 
 /** Keeps track of what state the form is in. */
 export enum FormState {
@@ -24,7 +25,7 @@ export enum FormState {
  * @customElement metadata-form
  */
 export class MetadataForm extends LitElement {
-  static tagName: string = "metadata-form";
+  static readonly tagName: string = "metadata-form";
   static styles = css`
     .hidden {
       display: none;
@@ -334,5 +335,43 @@ export class ConnectedMetadataForm extends connect(store, MetadataForm) {
       setMetadata((event as CustomEvent<UavImageMetadata>).detail);
 
     return handlers;
+  }
+}
+
+/**
+ * Extension of `MetadataForm` that connects to Redux and is designed to
+ * support editing for selected artifacts.
+ */
+export class ConnectedMetadataEditingForm extends connect(store, MetadataForm) {
+  static readonly tagName: string = "metadata-editing-form";
+
+  /**
+   * @inheritDoc
+   */
+  mapState(state: any): { [p: string]: any } {
+    // Update the displayed metadata based on the selected items.
+    const ids = thumbnailGridSelectors.selectIds(state);
+    let showMetadata = this.metadata;
+    if (!this.userModified) {
+      // If the user has not set custom metadata, read it from the selected
+      // images.
+      for (const id of ids) {
+        const imageEntity = thumbnailGridSelectors.selectById(state, id);
+        if (imageEntity?.isSelected) {
+          showMetadata = imageEntity.metadata;
+          break;
+        }
+      }
+    }
+
+    return {
+      metadata: showMetadata,
+      // When editing, we always show the form.
+      state: FormState.READY,
+      // Don't track user updates if the dialog is closed.
+      userModified: state.imageView.editingDialogOpen
+        ? this.userModified
+        : false,
+    };
   }
 }

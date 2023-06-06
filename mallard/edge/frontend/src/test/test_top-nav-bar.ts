@@ -1,14 +1,20 @@
 import { ConnectedTopNavBar, TopNavBar } from "../top-nav-bar";
-import { fakeState, getShadowRoot } from "./element-test-utils";
+import {
+  fakeImageMetadata,
+  fakeState,
+  getShadowRoot,
+} from "./element-test-utils";
 import each from "jest-each";
 import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
 import { IconButton } from "@material/mwc-icon-button";
 import {
+  setEditingDialogOpen,
   thunkBulkDownloadSelected,
   thunkClearExportedImages,
   thunkDeleteSelected,
   thunkExportSelected,
   thunkSelectAll,
+  thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
 import { Button } from "@material/mwc-button";
@@ -16,6 +22,8 @@ import { RequestState } from "../types";
 import { Menu } from "@material/mwc-menu";
 import { ListItem } from "@material/mwc-list/mwc-list-item";
 import { faker } from "@faker-js/faker";
+import { ConnectedMetadataEditingForm } from "../metadata-form";
+import { UavImageMetadata } from "mallard-api";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -26,6 +34,9 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkSelectAll: jest.fn(),
     thunkExportSelected: jest.fn(),
     thunkClearExportedImages: jest.fn(),
+    thunkUpdateSelectedMetadata: jest.fn(),
+
+    setEditingDialogOpen: jest.fn(),
 
     // Use the actual implementation for this function.
     thumbnailGridSelectors: {
@@ -45,6 +56,12 @@ const mockExportSelected = thunkExportSelected as jest.MockedFn<
 >;
 const mockClearExportedImages = thunkClearExportedImages as jest.MockedFn<
   typeof thunkClearExportedImages
+>;
+const mockUpdateSelectedMetadata = thunkUpdateSelectedMetadata as jest.MockedFn<
+  typeof thunkUpdateSelectedMetadata
+>;
+const mockSetEditingDialogOpen = setEditingDialogOpen as jest.MockedFn<
+  typeof setEditingDialogOpen
 >;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -99,10 +116,13 @@ describe("top-nav-bar", () => {
     expect(titleSpan?.textContent).toContain(fakeTitle);
     expect(titleSpan?.classList).toContainEqual("logo");
 
-    // It should have rendered the dialog, but not opened it.
+    // It should have rendered the deletion dialog, but not opened it.
     const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
     expect(deleteConfirmDialog).not.toBeNull();
     expect((deleteConfirmDialog as Dialog).open).toEqual(false);
+
+    // It should not have rendered the editing dialog.
+    expect(root.querySelector("#edit_metadata_dialog")).toBeNull();
 
     // Both buttons should be visible and enabled.
     const buttons = deleteConfirmDialog?.querySelectorAll(
@@ -139,6 +159,61 @@ describe("top-nav-bar", () => {
     expect(buttons[0].disabled).toEqual(true);
 
     // The delete button should have been replaced by a loading indicator.
+    const loader = root.querySelector("mwc-circular-progress");
+    expect(loader).not.toBeNull();
+  });
+
+  it("renders when showing the metadata editing dialog", async () => {
+    // Arrange.
+    // Show the editing dialog.
+    navBarElement.showEditingDialog = true;
+
+    // Act.
+    await navBarElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar");
+    expect(topBar).not.toBe(null);
+
+    // It should have rendered the dialog.
+    const editMetadataDialog = root.querySelector("#edit_metadata_dialog");
+    expect(editMetadataDialog).not.toBeNull();
+
+    // The dialog should be open.
+    expect((editMetadataDialog as Dialog).open).toEqual(true);
+
+    // The dialog should contain the metadata editing form.
+    const metadataForm = root.querySelector("#metadata_form");
+    expect(metadataForm).not.toBeNull();
+  });
+
+  it("renders when showing the editing progress indicator", async () => {
+    // Arrange.
+    // Show the editing progress indicator.
+    navBarElement.showEditingDialog = true;
+    navBarElement.showEditingProgress = true;
+
+    // Act.
+    await navBarElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar");
+    expect(topBar).not.toBe(null);
+
+    // It should have rendered the dialog.
+    const editMetadataDialog = root.querySelector("#edit_metadata_dialog");
+    expect(editMetadataDialog).not.toBeNull();
+
+    // Only the cancel button should be visible and disabled.
+    const buttons = editMetadataDialog?.querySelectorAll(
+      "mwc-button"
+    ) as NodeListOf<Button>;
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].disabled).toEqual(true);
+
+    // The confirm button should have been replaced by a loading indicator.
     const loader = root.querySelector("mwc-circular-progress");
     expect(loader).not.toBeNull();
   });
@@ -209,6 +284,32 @@ describe("top-nav-bar", () => {
     expect(downloadHandler).toBeCalledTimes(1);
   });
 
+  it("dispatches an event when the edit button is clicked", async () => {
+    // Arrange.
+    // Make it look like items are selected.
+    navBarElement.numItemsSelected = 3;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const editHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME,
+      editHandler
+    );
+
+    // Act.
+    // Simulate a click on the edit button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const editButton = topBar.querySelector("#edit_button") as IconButton;
+
+    editButton.dispatchEvent(new MouseEvent("click"));
+
+    // Assert.
+    // It should have fired the event.
+    expect(editHandler).toBeCalledTimes(1);
+  });
+
   it("opens the confirmation when the delete button is clicked", async () => {
     // Arrange.
     // Make it look like items are selected.
@@ -258,6 +359,78 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have fired the event.
     expect(deleteHandler).toBeCalledTimes(1);
+  });
+
+  it("dispatches an event when the edit dialog confirmation button is clicked", async () => {
+    // Arrange.
+    // Make it show the dialog.
+    navBarElement.showEditingDialog = true;
+    await navBarElement.updateComplete;
+
+    // Set the metadata object on the component.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const metadataForm = root.querySelector(
+      "#metadata_form"
+    ) as ConnectedMetadataEditingForm;
+    const mockMetadata = fakeImageMetadata();
+    metadataForm.metadata = mockMetadata;
+
+    // Add a handler for the event.
+    const metadataEditedHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME,
+      metadataEditedHandler
+    );
+
+    // Act.
+    // Simulate a click on the edit dialog confirmation button.
+    const editConfirmButton = root.querySelector(
+      "#edit_confirm_button"
+    ) as Button;
+    expect(editConfirmButton).not.toBeNull();
+
+    editConfirmButton.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event with the correct metadata.
+    expect(metadataEditedHandler).toBeCalledTimes(1);
+    expect(metadataEditedHandler).toBeCalledWith(
+      expect.objectContaining({
+        detail: mockMetadata,
+      })
+    );
+  });
+
+  it("dispatches an event when the edit dialog cancel button is clicked", async () => {
+    // Arrange.
+    // Make it show the dialog.
+    navBarElement.showEditingDialog = true;
+    await navBarElement.updateComplete;
+
+    // Add a handler for the event.
+    const metadataEditingCancelledHandler = jest.fn();
+    navBarElement.addEventListener(
+      ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME,
+      metadataEditingCancelledHandler
+    );
+
+    // Act.
+    // Simulate a click on the edit dialog cancel button.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const cancelEditingButton = root.querySelector(
+      "#edit_cancel_button"
+    ) as Button;
+    expect(cancelEditingButton).not.toBeNull();
+
+    cancelEditingButton.dispatchEvent(new MouseEvent("click"));
+
+    await navBarElement.updateComplete;
+
+    // Assert.
+    // It should have fired the event.
+    expect(metadataEditingCancelledHandler).toBeCalledTimes(1);
   });
 
   it("opens the overflow menu when the button is clicked", async () => {
@@ -563,5 +736,69 @@ describe("top-nav-bar", () => {
 
     // It should have used the correct action creator.
     expect(mockClearExportedImages).toBeCalledWith();
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME](
+      new CustomEvent<void>(ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME)
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME
+    );
+
+    // It should have used the correct action creator.
+    expect(mockSetEditingDialogOpen).toBeCalledWith(true);
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    const metadata = fakeImageMetadata();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME](
+      new CustomEvent<UavImageMetadata>(
+        ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME,
+        { detail: metadata }
+      )
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME
+    );
+
+    // It should have used the correct action creator.
+    expect(mockUpdateSelectedMetadata).toBeCalledWith(metadata);
+  });
+
+  it(`fires the correct action creator for the ${ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME} event`, () => {
+    // Arrange.
+    const eventMap = navBarElement.mapEvents();
+
+    // Act.
+    eventMap[ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME](
+      new CustomEvent<void>(
+        ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME
+      )
+    );
+
+    // Assert.
+    // It should have a mapping for the event.
+    expect(eventMap).toHaveProperty(
+      ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME
+    );
+
+    // It should have used the correct action creator.
+    expect(mockSetEditingDialogOpen).toBeCalledWith(false);
   });
 });

@@ -13,15 +13,20 @@ import store from "./store";
 import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import {
+  setEditingDialogOpen,
   thunkBulkDownloadSelected,
   thunkClearExportedImages,
   thunkDeleteSelected,
   thunkExportSelected,
   thunkSelectAll,
+  thunkUpdateSelectedMetadata,
 } from "./thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
 import { Button } from "@material/mwc-button";
 import { Menu } from "@material/mwc-menu";
+import "./metadata-form";
+import { UavImageMetadata } from "mallard-api";
+import { MetadataForm } from "./metadata-form";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -105,10 +110,31 @@ export class TopNavBar extends LitElement {
   static SELECT_CANCEL_EVENT_NAME = `${TopNavBar.tagName}-select-cancel`;
 
   /**
+   * The name of the event to fire when the edit button is clicked.
+   */
+  static EDIT_METADATA_EVENT_NAME = `${TopNavBar.tagName}-edit-metadata`;
+
+  /**
+   * The name of the event to fire when the user finishes editing metadata.
+   */
+  static METADATA_EDITED_EVENT_NAME = `${TopNavBar.tagName}-metadata-edited`;
+
+  /**
+   * The name of the event to fire when the user cancels editing metadata.
+   */
+  static METADATA_EDITING_CANCELLED_EVENT_NAME = `${TopNavBar.tagName}-metadata-editing-cancelled`;
+
+  /**
    * If true, it will show the back button on the left.
    */
   @property({ type: Boolean })
   showBack: boolean = false;
+
+  /**
+   * If true, it will show the metadata editing dialog.
+   */
+  @property({ type: Boolean })
+  showEditingDialog: boolean = false;
 
   /**
    * The title of the application to show on the top bar.
@@ -129,6 +155,12 @@ export class TopNavBar extends LitElement {
   showDeletionProgress: boolean = false;
 
   /**
+   * Whether to show the progress indicator in the editing modal.
+   */
+  @property({ type: Boolean })
+  showEditingProgress: boolean = false;
+
+  /**
    * Link to the exported image URL file, if we have it.
    */
   @property({ type: String })
@@ -139,6 +171,15 @@ export class TopNavBar extends LitElement {
    */
   @query("#confirm_delete_dialog", true)
   private confirmDeleteDialog!: Dialog;
+
+  /**
+   * The metadata editing modal.
+   */
+  @query("#edit_metadata_dialog", true)
+  private editMetadataDialog!: Dialog;
+
+  @query("#metadata_form")
+  private metadataForm?: MetadataForm;
 
   /**
    * The "more actions" button
@@ -215,6 +256,47 @@ export class TopNavBar extends LitElement {
   }
 
   /**
+   * Run when the edit button is clicked.
+   * @private
+   */
+  private onEditButtonClicked(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<void>(TopNavBar.EDIT_METADATA_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
+   * Run when the confirm button is clicked in the editing dialog.
+   */
+  private onEditingDone(): void {
+    // Dispatch the event.
+    this.dispatchEvent(
+      new CustomEvent<UavImageMetadata>(TopNavBar.METADATA_EDITED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.metadataForm?.metadata as UavImageMetadata,
+      })
+    );
+  }
+
+  /**
+   * Run when the cancel button is clicked in the editing dialog
+   * @private
+   */
+  private onEditingCancelled(): void {
+    this.dispatchEvent(
+      new CustomEvent(TopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+      })
+    );
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
@@ -272,6 +354,13 @@ export class TopNavBar extends LitElement {
                 @click="${() => this.confirmDeleteDialog.show()}"
               >
               </mwc-icon-button>
+              <mwc-icon-button
+                icon="edit"
+                slot="actionItems"
+                id="edit_button"
+                @click="${this.onEditButtonClicked}"
+              >
+              </mwc-icon-button>
               <div class="relative" slot="actionItems">
                 <mwc-icon-button
                   icon="more_vert"
@@ -321,6 +410,41 @@ export class TopNavBar extends LitElement {
             >Cancel</mwc-button
           >
         </mwc-dialog>
+
+        <!-- Metadata editing dialog -->
+        ${this.showEditingDialog
+          ? html`<mwc-dialog
+              heading="Edit Metadata"
+              id="edit_metadata_dialog"
+              open
+            >
+              Edit the saved metadata for the selected images:
+              <metadata-editing-form id="metadata_form"></metadata-editing-form>
+              ${this.showEditingProgress
+                ? html`
+                    <div slot="primaryAction" class="no-overflow">
+                      <mwc-circular-progress
+                        indeterminate
+                        density="-4"
+                      ></mwc-circular-progress>
+                    </div>
+                  `
+                : html` <mwc-button
+                    slot="primaryAction"
+                    id="edit_confirm_button"
+                    icon="edit"
+                    @click="${this.onEditingDone}"
+                    >Confirm</mwc-button
+                  >`}
+              <mwc-button
+                id="edit_cancel_button"
+                slot="secondaryAction"
+                @click="${this.onEditingCancelled}"
+                ?disabled="${this.showEditingProgress}"
+                >Cancel</mwc-button
+              >
+            </mwc-dialog>`
+          : nothing}
 
         <!-- Hidden link for downloading files. -->
         ${this.exportedUrlFileLink
@@ -383,6 +507,9 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       numItemsSelected: state.imageView.numItemsSelected,
       showDeletionProgress:
         state.imageView.imageDeletionState == RequestState.LOADING,
+      showEditingDialog: state.imageView.editingDialogOpen,
+      showEditingProgress:
+        state.imageView.metadataEditingState == RequestState.LOADING,
       exportedUrlFileLink: state.imageView.exportedImagesUrl,
     };
   }
@@ -407,6 +534,14 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       thunkExportSelected() as unknown as Action;
     handlers[ConnectedTopNavBar.URL_EXPORT_FINISHED_EVENT_NAME] = (_) =>
       thunkClearExportedImages() as unknown as Action;
+    handlers[ConnectedTopNavBar.EDIT_METADATA_EVENT_NAME] = (_) =>
+      setEditingDialogOpen(true);
+    handlers[ConnectedTopNavBar.METADATA_EDITED_EVENT_NAME] = (event) =>
+      thunkUpdateSelectedMetadata(
+        (event as CustomEvent<UavImageMetadata>).detail
+      ) as unknown as Action;
+    handlers[ConnectedTopNavBar.METADATA_EDITING_CANCELLED_EVENT_NAME] = (_) =>
+      setEditingDialogOpen(false);
 
     return handlers;
   }

@@ -155,6 +155,8 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
   numThumbnailsLoaded: number;
   /** State of the image bulk download request. */
   bulkDownloadState: RequestState;
+  /** State of the metadata editing request. */
+  metadataEditingState: RequestState;
   /** URL of the exported list of images. */
   exportedImagesUrl: string | null;
 
@@ -162,6 +164,9 @@ export interface ImageViewState extends NormalizedState<ImageEntity> {
    * collapsed.
    */
   collapsedSections: Dictionary<boolean>;
+
+  /** Whether the metadata editing dialog is currently open. */
+  editingDialogOpen: boolean;
 }
 
 /**
@@ -234,7 +239,7 @@ export interface FrontendFileEntity {
  * Represents the state of the upload flow.
  */
 export interface UploadState extends NormalizedState<FrontendFileEntity> {
-  /** True if the upload dialog is currently open. */
+  /** Tracks whether the upload dialog is currently open. */
   dialogOpen: boolean;
   /** True if the user is currently dragging a file. */
   isDragging: boolean;

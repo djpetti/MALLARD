@@ -7,6 +7,7 @@ import thumbnailGridReducer, {
   clearThumbnails,
   createImageEntityId,
   selectImages,
+  setEditingDialogOpen,
   setExportedImagesUrl,
   setSectionExpanded,
   showDetails,
@@ -29,6 +30,7 @@ import thumbnailGridReducer, {
   thunkShowDetails,
   thunkStartNewQuery,
   thunkTextSearch,
+  thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
 import {
   ImageEntity,
@@ -43,6 +45,7 @@ import {
   fakeFile,
   fakeImageEntities,
   fakeImageEntity,
+  fakeImageMetadata,
   fakeImageQuery,
   fakeObjectRef,
   fakeState,
@@ -51,6 +54,7 @@ import {
 import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
 import each from "jest-each";
 import {
+  batchUpdateMetadata,
   deleteImages,
   getMetadata,
   loadImage,
@@ -72,6 +76,7 @@ jest.mock("../api-client", () => ({
   loadImage: jest.fn(),
   deleteImages: jest.fn(),
   getMetadata: jest.fn(),
+  batchUpdateMetadata: jest.fn(),
 }));
 
 const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
@@ -79,6 +84,9 @@ const mockLoadThumbnail = loadThumbnail as jest.MockedFn<typeof loadThumbnail>;
 const mockLoadImage = loadImage as jest.MockedFn<typeof loadImage>;
 const mockGetMetadata = getMetadata as jest.MockedFn<typeof getMetadata>;
 const mockDeleteImages = deleteImages as jest.MockedFn<typeof deleteImages>;
+const mockBatchUpdateMetadata = batchUpdateMetadata as jest.MockedFn<
+  typeof batchUpdateMetadata
+>;
 
 // Mock out the autocomplete functions.
 jest.mock("../autocomplete", () => {
@@ -541,111 +549,35 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(store.getActions()).toHaveLength(0);
   });
 
-  it("creates a BulkDownloadSelected action", async () => {
-    // Arrange.
-    // Make it look like some items are selected.
-    const state = fakeState();
-    const imageView = state.imageView;
-    const selectedImage1 = fakeImageEntity();
-    const selectedImage2 = fakeImageEntity();
-    selectedImage1.isSelected = true;
-    selectedImage2.isSelected = true;
-    const unselectedImage = fakeImageEntity();
-    unselectedImage.isSelected = false;
+  describe("actions with selected images", () => {
+    /**
+     * Fake image entities to use for testing.
+     */
+    let imageEntities: ImageEntity[];
+    /**
+     * Fake frontend IDs to use for testing.
+     */
+    let frontendIds: string[];
+    /**
+     * We make it look like these images are selected.
+     */
+    let selectedIds: string[];
+    /**
+     * Fake Redux state to use for testing.
+     */
+    let state: RootState;
 
-    imageView.ids = [
-      faker.datatype.uuid(),
-      faker.datatype.uuid(),
-      faker.datatype.uuid(),
-    ];
-    imageView.entities[imageView.ids[0]] = selectedImage1;
-    imageView.entities[imageView.ids[1]] = selectedImage2;
-    imageView.entities[imageView.ids[2]] = unselectedImage;
-
-    const store = mockStoreCreator(state);
-
-    // Act.
-    await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
-
-    // Assert.
-    // It should have downloaded the selected items.
-    expect(mockDownloadImageZip).toBeCalledTimes(1);
-    const downloadList = mockDownloadImageZip.mock.calls[0][0];
-    expect(downloadList).toHaveLength(2);
-    expect(downloadList).toContainEqual({
-      id: selectedImage1.backendId,
-      metadata: selectedImage1.metadata,
-    });
-    expect(downloadList).toContainEqual({
-      id: selectedImage2.backendId,
-      metadata: selectedImage2.metadata,
-    });
-
-    const actions = store.getActions();
-    expect(actions).toHaveLength(3);
-
-    // It should have dispatched the pending action first.
-    const pendingAction = actions[0];
-    expect(pendingAction.type).toEqual(
-      thunkBulkDownloadSelected.typePrefix + "/pending"
-    );
-
-    // It should have dispatched an action to clear the selected items.
-    const clearAction = actions[1];
-    expect(clearAction.type).toEqual(
-      thumbnailGridSlice.actions.selectImages.type
-    );
-    // It should clear only the items that were selected.
-    expect(clearAction.payload.imageIds).toHaveLength(2);
-    expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[0]);
-    expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[1]);
-    expect(clearAction.payload.select).toEqual(false);
-
-    // It should have dispatched the fulfilled action.
-    const fulfilledAction = actions[2];
-    expect(fulfilledAction.type).toEqual(
-      thunkBulkDownloadSelected.typePrefix + "/fulfilled"
-    );
-  });
-
-  it("does not try to perform two bulk downloads at once", async () => {
-    // Arrange.
-    const state = fakeState();
-    const imageView = state.imageView;
-    // Make it look like a bulk download is already running.
-    imageView.bulkDownloadState = RequestState.LOADING;
-
-    // Make it look like we still have at least 1 selected image.
-    imageView.ids = [faker.datatype.uuid()];
-    const selectedImage = fakeImageEntity();
-    selectedImage.isSelected = true;
-    imageView.entities[imageView.ids[0]] = selectedImage;
-
-    const store = mockStoreCreator(state);
-
-    // Act.
-    await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
-
-    // Assert.
-    // It should not have run any downloads.
-    expect(mockDownloadImageZip).not.toBeCalled();
-  });
-
-  describe("thunkDeleteSelected", () => {
-    it("should delete selected images and return their IDs", async () => {
-      // Arrange
-      const imageEntities = [
+    beforeEach(() => {
+      imageEntities = [
         fakeImageEntity(true, true),
         fakeImageEntity(true, true),
         fakeImageEntity(true, true),
       ];
-      const frontendIds = imageEntities.map((e) =>
-        createImageEntityId(e.backendId)
-      );
-      const selectedIds = frontendIds.slice(0, 2);
+      frontendIds = imageEntities.map((e) => createImageEntityId(e.backendId));
+      selectedIds = frontendIds.slice(0, 2);
 
       // Set up the state correctly.
-      const state = fakeState();
+      state = fakeState();
       state.imageView.ids = frontendIds;
       for (let i = 0; i < imageEntities.length; ++i) {
         state.imageView.entities[frontendIds[i]] = imageEntities[i];
@@ -655,182 +587,288 @@ describe("thumbnail-grid-slice action creators", () => {
       for (const id of selectedIds) {
         (state.imageView.entities[id] as ImageEntity).isSelected = true;
       }
+    });
+
+    it("creates a BulkDownloadSelected action", async () => {
+      // Arrange.
+      // Make it look like some items are selected.
+      const imageView = state.imageView;
+      const selectedImage1 = imageView.entities[selectedIds[0]] as ImageEntity;
+      const selectedImage2 = imageView.entities[selectedIds[1]] as ImageEntity;
+
+      const store = mockStoreCreator(state);
+
+      // Act.
+      await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
+
+      // Assert.
+      // It should have downloaded the selected items.
+      expect(mockDownloadImageZip).toBeCalledTimes(1);
+      const downloadList = mockDownloadImageZip.mock.calls[0][0];
+      expect(downloadList).toHaveLength(2);
+      expect(downloadList).toContainEqual({
+        id: selectedImage1.backendId,
+        metadata: selectedImage1.metadata,
+      });
+      expect(downloadList).toContainEqual({
+        id: selectedImage2.backendId,
+        metadata: selectedImage2.metadata,
+      });
+
+      const actions = store.getActions();
+      expect(actions).toHaveLength(3);
+
+      // It should have dispatched the pending action first.
+      const pendingAction = actions[0];
+      expect(pendingAction.type).toEqual(
+        thunkBulkDownloadSelected.typePrefix + "/pending"
+      );
+
+      // It should have dispatched an action to clear the selected items.
+      const clearAction = actions[1];
+      expect(clearAction.type).toEqual(
+        thumbnailGridSlice.actions.selectImages.type
+      );
+      // It should clear only the items that were selected.
+      expect(clearAction.payload.imageIds).toHaveLength(2);
+      expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[0]);
+      expect(clearAction.payload.imageIds).toContainEqual(imageView.ids[1]);
+      expect(clearAction.payload.select).toEqual(false);
+
+      // It should have dispatched the fulfilled action.
+      const fulfilledAction = actions[2];
+      expect(fulfilledAction.type).toEqual(
+        thunkBulkDownloadSelected.typePrefix + "/fulfilled"
+      );
+    });
+
+    it("does not try to perform two bulk downloads at once", async () => {
+      // Arrange.
+      const imageView = state.imageView;
+      // Make it look like a bulk download is already running.
+      imageView.bulkDownloadState = RequestState.LOADING;
+
+      const store = mockStoreCreator(state);
+
+      // Act.
+      await thunkBulkDownloadSelected()(store.dispatch, store.getState, {});
+
+      // Assert.
+      // It should not have run any downloads.
+      expect(mockDownloadImageZip).not.toBeCalled();
+    });
+
+    it("updates the metadata of selected images", async () => {
+      // Arrange.
+      const metadata = fakeImageMetadata();
 
       const store = mockStoreCreator(state);
       // It doesn't actually have to return anything.
-      mockDeleteImages.mockResolvedValue(undefined);
+      mockBatchUpdateMetadata.mockResolvedValue(undefined);
 
-      // Act
-      const result = await thunkDeleteSelected()(
+      // Act.
+      const result = await thunkUpdateSelectedMetadata(metadata)(
         store.dispatch,
         store.getState,
         {}
       );
 
-      // Assert
+      // Assert.
       const actions = store.getActions();
-      expect(actions).toHaveLength(4);
+      expect(actions).toHaveLength(3);
 
       // It should have dispatched the pending action.
-      const deletePendingAction = actions[0];
-      expect(deletePendingAction.type).toEqual(
-        thunkDeleteSelected.pending.type
+      const updatePendingAction = actions[0];
+      expect(updatePendingAction.type).toEqual(
+        thunkUpdateSelectedMetadata.pending.type
       );
 
-      // It should have cleared any loaded images.
-      const imageClearAction = actions[1];
-      expect(imageClearAction.type).toEqual(clearFullSizedImages.type);
-      expect(imageClearAction.payload).toEqual(selectedIds);
-
-      // It should have cleared any loaded thumbnails.
-      const thumbnailClearAction = actions[2];
-      expect(thumbnailClearAction.type).toEqual(clearThumbnails.type);
-      expect(thumbnailClearAction.payload).toEqual(selectedIds);
+      // It should have closed the editing dialog.
+      const closeDialogAction = actions[1];
+      expect(closeDialogAction).toBeDefined();
+      expect(closeDialogAction.payload).toBe(false);
 
       // It should have dispatched the fulfilled action.
-      const deleteFullfilledAction = actions[3];
-      expect(deleteFullfilledAction.type).toEqual(
-        thunkDeleteSelected.fulfilled.type
+      const updateFulfilledAction = actions[2];
+      expect(updateFulfilledAction.type).toEqual(
+        thunkUpdateSelectedMetadata.fulfilled.type
       );
-      expect(deleteFullfilledAction.payload).toEqual(selectedIds);
+      expect(updateFulfilledAction.payload).toEqual(selectedIds);
 
-      // It should have deleted the selected images.
-      const selectedBackendIds = selectedIds.map(
-        (id) => state.imageView.entities[id]?.backendId
+      // It should have updated the metadata.
+      expect(mockBatchUpdateMetadata).toHaveBeenCalledWith(
+        metadata,
+        selectedIds.map((id) => state.imageView.entities[id]?.backendId)
       );
-      expect(mockDeleteImages).toHaveBeenCalledWith(selectedBackendIds);
-      // It should have returned the IDs of the images that it deleted.
+
+      // It should have returned the IDs of the updated images.
       expect(result.payload).toEqual(selectedIds);
     });
 
-    it("should do nothing if no images are selected", async () => {
-      // Arrange
-      // We add a single image that is not selected.
-      const state = fakeState();
-      const imageEntity = fakeImageEntity();
-      imageEntity.isSelected = false;
-      const frontendId = createImageEntityId(imageEntity.backendId);
-      state.imageView.ids = [frontendId];
-      state.imageView.entities[frontendId] = imageEntity;
+    describe("thunkDeleteSelected", () => {
+      it("should delete selected images and return their IDs", async () => {
+        // Arrange
+        const store = mockStoreCreator(state);
+        // It doesn't actually have to return anything.
+        mockDeleteImages.mockResolvedValue(undefined);
 
+        // Act
+        const result = await thunkDeleteSelected()(
+          store.dispatch,
+          store.getState,
+          {}
+        );
+
+        // Assert
+        const actions = store.getActions();
+        expect(actions).toHaveLength(4);
+
+        // It should have dispatched the pending action.
+        const deletePendingAction = actions[0];
+        expect(deletePendingAction.type).toEqual(
+          thunkDeleteSelected.pending.type
+        );
+
+        // It should have cleared any loaded images.
+        const imageClearAction = actions[1];
+        expect(imageClearAction.type).toEqual(clearFullSizedImages.type);
+        expect(imageClearAction.payload).toEqual(selectedIds);
+
+        // It should have cleared any loaded thumbnails.
+        const thumbnailClearAction = actions[2];
+        expect(thumbnailClearAction.type).toEqual(clearThumbnails.type);
+        expect(thumbnailClearAction.payload).toEqual(selectedIds);
+
+        // It should have dispatched the fulfilled action.
+        const deleteFullfilledAction = actions[3];
+        expect(deleteFullfilledAction.type).toEqual(
+          thunkDeleteSelected.fulfilled.type
+        );
+        expect(deleteFullfilledAction.payload).toEqual(selectedIds);
+
+        // It should have deleted the selected images.
+        const selectedBackendIds = selectedIds.map(
+          (id) => state.imageView.entities[id]?.backendId
+        );
+        expect(mockDeleteImages).toHaveBeenCalledWith(selectedBackendIds);
+        // It should have returned the IDs of the images that it deleted.
+        expect(result.payload).toEqual(selectedIds);
+      });
+
+      it("should do nothing if no images are selected", async () => {
+        // Arrange
+        // We add a single image that is not selected.
+        const state = fakeState();
+        const imageEntity = fakeImageEntity();
+        imageEntity.isSelected = false;
+        const frontendId = createImageEntityId(imageEntity.backendId);
+        state.imageView.ids = [frontendId];
+        state.imageView.entities[frontendId] = imageEntity;
+
+        const store = mockStoreCreator(state);
+
+        // Act
+        const result = await thunkDeleteSelected()(
+          store.dispatch,
+          store.getState,
+          {}
+        );
+
+        // Assert
+        expect(mockDeleteImages).toBeCalledWith([]);
+        expect(result.payload).toEqual([]);
+      });
+    });
+
+    it("can export selected images with thunkExportSelected", () => {
+      // Arrange.
       const store = mockStoreCreator(state);
+      const exportedUrl = faker.internet.url();
+      mockMakeImageUrlList.mockReturnValue(exportedUrl);
 
-      // Act
-      const result = await thunkDeleteSelected()(
+      // Act.
+      thunkExportSelected()(
         store.dispatch,
-        store.getState,
+        store.getState as () => RootState,
         {}
       );
 
-      // Assert
-      expect(mockDeleteImages).toBeCalledWith([]);
-      expect(result.payload).toEqual([]);
+      // Assert.
+      // It should have made the list of URLs.
+      expect(makeImageUrlList).toHaveBeenCalledTimes(1);
+      expect(makeImageUrlList).toHaveBeenCalledWith(
+        selectedIds.map((id) => state.imageView.entities[id]?.backendId)
+      );
+
+      const actions = store.getActions();
+      expect(actions).toHaveLength(2);
+
+      // It should have set the URL in the state.
+      const setExportedImagesUrlAction = actions[0];
+      expect(setExportedImagesUrlAction.type).toEqual(
+        setExportedImagesUrl.type
+      );
+      expect(setExportedImagesUrlAction.payload).toEqual(exportedUrl);
+
+      // It should have de-selected all the images.
+      const thunkSelectAllAction = actions[1];
+      expect(thunkSelectAllAction.type).toEqual(selectImages.type);
+      expect(thunkSelectAllAction.payload).toEqual({
+        imageIds: expect.anything(),
+        select: false,
+      });
     });
-  });
 
-  it("can export selected images with thunkExportSelected", () => {
-    // Arrange.
-    const images = [fakeImageEntity(), fakeImageEntity(), fakeImageEntity()];
-    const frontendIds = images.map((e) => createImageEntityId(e.backendId));
-    // Select two of the images.
-    const selectedImages = images.slice(0, 2);
-    for (const image of images) {
-      image.isSelected = false;
-    }
-    for (const image of selectedImages) {
-      image.isSelected = true;
-    }
+    it("can clear exported images URL with thunkClearExportedImages", () => {
+      // Arrange.
+      const exportedUrl = faker.internet.url();
 
-    // Create the fake state.
-    const state = fakeState();
-    state.imageView.ids = frontendIds;
-    for (let i = 0; i < frontendIds.length; ++i) {
-      state.imageView.entities[frontendIds[i]] = images[i];
-    }
+      // Create the fake state.
+      state.imageView.exportedImagesUrl = exportedUrl;
 
-    const store = mockStoreCreator(state);
-    const exportedUrl = faker.internet.url();
-    mockMakeImageUrlList.mockReturnValue(exportedUrl);
+      const store = mockStoreCreator(state);
 
-    // Act.
-    thunkExportSelected()(
-      store.dispatch,
-      store.getState as () => RootState,
-      {}
-    );
+      // Act.
+      thunkClearExportedImages()(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
 
-    // Assert.
-    // It should have made the list of URLs.
-    expect(makeImageUrlList).toHaveBeenCalledTimes(1);
-    expect(makeImageUrlList).toHaveBeenCalledWith(
-      selectedImages.map((e) => e.backendId)
-    );
+      // Assert.
+      // It should have revoked the URL.
+      expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith(exportedUrl);
 
-    const actions = store.getActions();
-    expect(actions).toHaveLength(2);
+      const actions = store.getActions();
+      expect(actions).toHaveLength(1);
 
-    // It should have set the URL in the state.
-    const setExportedImagesUrlAction = actions[0];
-    expect(setExportedImagesUrlAction.type).toEqual(setExportedImagesUrl.type);
-    expect(setExportedImagesUrlAction.payload).toEqual(exportedUrl);
-
-    // It should have de-selected all the images.
-    const thunkSelectAllAction = actions[1];
-    expect(thunkSelectAllAction.type).toEqual(selectImages.type);
-    expect(thunkSelectAllAction.payload).toEqual({
-      imageIds: expect.anything(),
-      select: false,
+      // It should have cleared the URL in the state.
+      const setExportedImagesUrlAction = actions[0];
+      expect(setExportedImagesUrlAction.type).toEqual(
+        setExportedImagesUrl.type
+      );
+      expect(setExportedImagesUrlAction.payload).toEqual(null);
     });
-  });
 
-  it("can clear exported images URL with thunkClearExportedImages", () => {
-    // Arrange.
-    const exportedUrl = faker.internet.url();
+    it("does nothing if the exported images URL is null", () => {
+      // Arrange.
+      const store = mockStoreCreator(fakeState());
 
-    // Create the fake state.
-    const state = fakeState();
-    state.imageView.exportedImagesUrl = exportedUrl;
+      // Act.
+      thunkClearExportedImages()(
+        store.dispatch,
+        store.getState as () => RootState,
+        {}
+      );
 
-    const store = mockStoreCreator(state);
+      // Assert.
+      // It should not have revoked anything.
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
 
-    // Act.
-    thunkClearExportedImages()(
-      store.dispatch,
-      store.getState as () => RootState,
-      {}
-    );
-
-    // Assert.
-    // It should have revoked the URL.
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith(exportedUrl);
-
-    const actions = store.getActions();
-    expect(actions).toHaveLength(1);
-
-    // It should have cleared the URL in the state.
-    const setExportedImagesUrlAction = actions[0];
-    expect(setExportedImagesUrlAction.type).toEqual(setExportedImagesUrl.type);
-    expect(setExportedImagesUrlAction.payload).toEqual(null);
-  });
-
-  it("does nothing if the exported images URL is null", () => {
-    // Arrange.
-    const store = mockStoreCreator(fakeState());
-
-    // Act.
-    thunkClearExportedImages()(
-      store.dispatch,
-      store.getState as () => RootState,
-      {}
-    );
-
-    // Assert.
-    // It should not have revoked anything.
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
-
-    const actions = store.getActions();
-    expect(actions).toHaveLength(0);
+      const actions = store.getActions();
+      expect(actions).toHaveLength(0);
+    });
   });
 
   it("creates a doAutocomplete action", async () => {
@@ -1354,10 +1392,15 @@ describe("thumbnail-grid-slice reducers", () => {
       expect(imageEntities).toHaveLength(0);
       // It should have reset state parameters.
       expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
-      expect(newImageState.currentQueryState).toEqual(RequestState.IDLE);
+      expect(newImageState.metadataLoadingState).toEqual(RequestState.IDLE);
+      expect(newImageState.currentQueryError).toEqual(null);
+      expect(newImageState.currentQueryHasMorePages).toEqual(true);
+      expect(newImageState.numItemsSelected).toEqual(0);
+      expect(newImageState.numThumbnailsLoaded).toEqual(0);
+      expect(newImageState.collapsedSections).toEqual({});
 
       if (preserveQuery) {
-        // It should have maintained the current query, but reset the page
+        // It should have maintained the current query but reset the page
         // number.
         expect(newImageState.currentQuery).toEqual(
           state.imageView.currentQuery
@@ -1500,6 +1543,21 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newImageState.exportedImagesUrl).toEqual(url);
+  });
+
+  it("handles a setEditingDialogOpen action", () => {
+    // Arrange.
+    const state: RootState = fakeState();
+    const isOpen = faker.datatype.boolean();
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      setEditingDialogOpen(isOpen)
+    );
+
+    // Assert.
+    expect(newImageState.editingDialogOpen).toEqual(isOpen);
   });
 
   each([
@@ -1663,6 +1721,55 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have marked the bulk download as running.
     expect(newState.bulkDownloadState).toEqual(RequestState.LOADING);
+  });
+
+  it(`handles a ${thunkUpdateSelectedMetadata.pending} action`, () => {
+    // Arrange.
+    const state = fakeState().imageView;
+    state.metadataEditingState = RequestState.IDLE;
+
+    // Act.
+    const newState = thumbnailGridReducer(state, {
+      type: thunkUpdateSelectedMetadata.pending.type,
+    });
+
+    // Assert.
+    // It should have marked the bulk download as running.
+    expect(newState.metadataEditingState).toEqual(RequestState.LOADING);
+  });
+
+  it(`handles a ${thunkUpdateSelectedMetadata.fulfilled} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+
+    // Images that we are updating metadata for.
+    const images = fakeImageEntities(undefined);
+    state.ids = images.ids;
+    state.entities = images.entities;
+
+    // Create fake updated image IDs.
+    const updatedIds = images.ids.slice(0, 2);
+    // Create fake metadata.
+    const metadata = fakeImageMetadata();
+    // Create the action.
+    const action = {
+      type: thunkUpdateSelectedMetadata.fulfilled.type,
+      payload: updatedIds,
+      meta: { arg: metadata },
+    };
+
+    // Act.
+    const newState: ImageViewState = thumbnailGridReducer(state, action);
+
+    // Assert.
+    // It should have updated the metadata editing state to SUCCEEDED.
+    expect(newState.metadataEditingState).toEqual(RequestState.SUCCEEDED);
+
+    // It should have updated the metadata for the selected images.
+    for (const id of updatedIds) {
+      const imageEntity = newState.entities[id];
+      expect(imageEntity?.metadata).toEqual(metadata);
+    }
   });
 
   it(`handles a ${thunkBulkDownloadSelected.fulfilled.type} action`, () => {

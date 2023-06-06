@@ -18,7 +18,6 @@ import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
 import { ThunkAction } from "redux-thunk";
 import { ObjectRef, UavImageMetadata } from "mallard-api";
-import { cloneDeep } from "lodash";
 import { thunkClearImageView } from "./thumbnail-grid-slice";
 import pica from "pica";
 import imageBlobReduce from "image-blob-reduce";
@@ -35,6 +34,19 @@ const initialState: UploadState = uploadAdapter.getInitialState({
 
   status: UploadWorkflowStatus.WAITING,
 });
+
+// WORKAROUND for immer.js esm
+// (see https://github.com/immerjs/immer/issues/557)
+/* istanbul ignore next */
+// @ts-ignore
+window.process =
+  window.process != undefined
+    ? window.process
+    : {
+        env: {
+          NODE_ENV: "production",
+        },
+      };
 
 /** Memoized selectors for the state. */
 export const uploadSelectors = uploadAdapter.getSelectors<RootState>(
@@ -275,15 +287,11 @@ async function updateMetadataFromState(
     return file.backendRef as ObjectRef;
   });
 
-  // Do not specify names, because we want these to be inferred so that
-  // they're all unique.
-  const useMetadata = cloneDeep(state.uploads.metadata);
-  if (useMetadata !== null) {
-    useMetadata.name = undefined;
-  }
-
   // Perform the updates.
-  await batchUpdateMetadata(useMetadata as UavImageMetadata, objectRefs);
+  await batchUpdateMetadata(
+    state.uploads.metadata as UavImageMetadata,
+    objectRefs
+  );
 }
 
 /**
@@ -308,7 +316,7 @@ export const thunkFinishUpload = createAsyncThunk(
       }
     }
 
-    dispatch(uploadSlice.actions.dialogClosed(null));
+    dispatch(uploadSlice.actions.dialogClosed());
     // Force a refresh of the thumbnail grid to display new uploaded data.
     type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
     dispatch(thunkClearImageView() as ActionType);
@@ -320,12 +328,12 @@ export const uploadSlice = createSlice({
   initialState: initialState,
   reducers: {
     // The user is initiating an upload.
-    dialogOpened(state, _) {
+    dialogOpened(state) {
       state.dialogOpen = true;
       state.status = UploadWorkflowStatus.WAITING;
     },
     // The user is closing the upload dialog.
-    dialogClosed(state, _) {
+    dialogClosed(state) {
       state.dialogOpen = false;
 
       // Clear the state for the uploaded files.

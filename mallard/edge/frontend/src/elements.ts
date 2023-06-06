@@ -3,7 +3,10 @@ import { ConnectedArtifactThumbnail } from "./artifact-thumbnail";
 import { ConnectedThumbnailGrid } from "./thumbnail-grid";
 import { ConnectedFileUploader } from "./file-uploader";
 import { FileListDisplay } from "./file-list-display";
-import { ConnectedMetadataForm } from "./metadata-form";
+import {
+  ConnectedMetadataEditingForm,
+  ConnectedMetadataForm,
+} from "./metadata-form";
 import { ConnectedLargeImageDisplay } from "./large-image-display";
 import { ConnectedMallardApp } from "./mallard-app";
 import { ConnectedSearchBox } from "./search-box";
@@ -28,6 +31,7 @@ const componentClasses: ComponentType[] = [
   ConnectedFileUploader,
   FileListDisplay,
   ConnectedMetadataForm,
+  ConnectedMetadataEditingForm,
   ConnectedLargeImageDisplay,
   ConnectedMallardApp,
   ConnectedSearchBox,

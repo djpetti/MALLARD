@@ -8,7 +8,6 @@ import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
 import {
   createImageEntityId,
-  thunkLoadThumbnails,
   thunkSelectImages,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
@@ -18,7 +17,6 @@ import { faker } from "@faker-js/faker";
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
-    thunkLoadThumbnails: jest.fn(),
     thunkSelectImages: jest.fn(),
     // Use the actual implementation for these functions.
     createImageEntityId: actualSlice.createImageEntityId,
@@ -27,9 +25,6 @@ jest.mock("../thumbnail-grid-slice", () => {
     },
   };
 });
-const mockThunkLoadThumbnails = thunkLoadThumbnails as jest.MockedFn<
-  typeof thunkLoadThumbnails
->;
 const mockSelectImages = thunkSelectImages as jest.MockedFn<
   typeof thunkSelectImages
 >;

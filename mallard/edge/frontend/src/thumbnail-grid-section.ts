@@ -267,6 +267,7 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
               (i) =>
                 html` <artifact-thumbnail
                   .frontendId=${i}
+                  ?selected="${this.selected}"
                 ></artifact-thumbnail>`
             )}`
           : nothing}

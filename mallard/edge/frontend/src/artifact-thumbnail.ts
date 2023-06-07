@@ -5,7 +5,6 @@ import store from "./store";
 import { ImageEntity, RootState, ImageStatus } from "./types";
 import {
   thumbnailGridSelectors,
-  thunkLoadThumbnails,
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -98,6 +97,14 @@ export class ArtifactThumbnail extends ImageDisplay {
    */
   private onSelect(): void {
     this.selected = !this.selected;
+
+    this.dispatchEvent(
+      new CustomEvent<boolean>(ArtifactThumbnail.SELECTED_EVENT_NAME, {
+        bubbles: true,
+        composed: false,
+        detail: this.selected,
+      })
+    );
   }
 
   /**
@@ -138,24 +145,6 @@ export class ArtifactThumbnail extends ImageDisplay {
     // selection button.
     this.addEventListener("mouseenter", () => (this.isHovering = true));
     this.addEventListener("mouseleave", () => (this.isHovering = false));
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected override updated(_changedProperties: PropertyValues) {
-    super.updated(_changedProperties);
-
-    if (_changedProperties.has("selected")) {
-      // Indicate that the selection status changed.
-      this.dispatchEvent(
-        new CustomEvent<boolean>(ArtifactThumbnail.SELECTED_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-          detail: this.selected,
-        })
-      );
-    }
   }
 }
 

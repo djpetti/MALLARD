@@ -735,14 +735,14 @@ export function thunkSelectImages({
   select: boolean;
 }): ThunkResult<void> {
   return (dispatch, getState) => {
-    const state = getState().imageView;
+    const state = getState();
 
     // Filter out updates that won't actually change anything. This can help
     // us avoid dispatching spurious actions, which are expensive.
     const updateIds = [];
     for (const id of imageIds) {
-      const entity = state.entities[id] as ImageEntity;
-      if (entity.isSelected != select) {
+      const entity = thumbnailGridSelectors.selectById(state, id);
+      if (entity?.isSelected !== select) {
         updateIds.push(id);
       }
     }

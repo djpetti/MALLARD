@@ -124,37 +124,52 @@ describe("thumbnail-grid-section", () => {
     expect(root.querySelectorAll(".section_divider").length).toEqual(0);
   });
 
-  it("correctly renders when not empty", async () => {
-    // Arrange.
-    // Add a few thumbnails.
-    gridSectionElement.displayedArtifacts = [
-      faker.datatype.uuid(),
-      faker.datatype.uuid(),
-    ];
-    // Set a header.
-    gridSectionElement.sectionHeader = "My Header";
+  each([
+    ["selected", true],
+    ["not selected", false],
+  ]).it(
+    "correctly renders when not empty and %s",
+    async (_, selected: boolean) => {
+      // Arrange.
+      // Add a few thumbnails.
+      gridSectionElement.displayedArtifacts = [
+        faker.datatype.uuid(),
+        faker.datatype.uuid(),
+      ];
+      // Set a header.
+      gridSectionElement.sectionHeader = "My Header";
 
-    // Act.
-    await gridSectionElement.updateComplete;
+      gridSectionElement.selected = selected;
 
-    // Assert.
-    const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
+      // Act.
+      await gridSectionElement.updateComplete;
 
-    // It should have rendered the correct header.
-    const divider = root.querySelector("#section_divider") as HTMLElement;
-    expect(divider).not.toBe(null);
-    expect(divider.textContent).toContain("My Header");
+      // Assert.
+      const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
 
-    // It should have rendered the correct thumbnails.
-    const contents = root.querySelector("#section_contents") as HTMLElement;
-    expect(contents).not.toBe(null);
-    expect(contents.childElementCount).toBe(2);
-    for (const thumbnail of contents.children) {
-      expect(gridSectionElement.displayedArtifacts).toContain(
-        (thumbnail as ArtifactThumbnail).frontendId
-      );
+      // It should have rendered the correct header.
+      const divider = root.querySelector("#section_divider") as HTMLElement;
+      expect(divider).not.toBe(null);
+      expect(divider.textContent).toContain("My Header");
+
+      // It should have rendered the correct thumbnails.
+      const contents = root.querySelector("#section_contents") as HTMLElement;
+      expect(contents).not.toBe(null);
+      expect(contents.childElementCount).toBe(2);
+      for (const thumbnail of contents.children) {
+        expect(gridSectionElement.displayedArtifacts).toContain(
+          (thumbnail as ArtifactThumbnail).frontendId
+        );
+
+        // It should render with the selected attribute.
+        if (selected) {
+          expect(thumbnail.attributes).toHaveProperty("selected");
+        } else {
+          expect(thumbnail.attributes).not.toHaveProperty("selected");
+        }
+      }
     }
-  });
+  );
 
   it("correctly renders when the section is collapsed", async () => {
     // Arrange.

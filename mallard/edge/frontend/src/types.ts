@@ -245,6 +245,8 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   isDragging: boolean;
   /** Counts the number of uploads that are in-progress. */
   uploadsInProgress: number;
+  /** Counts the number of uploads that have completed. */
+  uploadsCompleted: number;
 
   /** Status of metadata inference. */
   metadataStatus: MetadataInferenceStatus;

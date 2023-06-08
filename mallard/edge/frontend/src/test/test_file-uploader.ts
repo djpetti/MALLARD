@@ -89,6 +89,11 @@ describe("file-uploader", () => {
   it("can be instantiated", () => {
     // Assert.
     expect(fileUploader.uploadingFiles).toHaveLength(0);
+
+    // It should not be displaying the pill.
+    const root = getShadowRoot(fileUploader.tagName);
+    const pill = root.querySelector("#pill") as HTMLDivElement;
+    expect(pill.classList).toContainEqual("pill-hidden");
   });
 
   it("can display some files", async () => {
@@ -102,12 +107,19 @@ describe("file-uploader", () => {
     await fileUploader.updateComplete;
 
     // Assert.
-    const shadowRoot = getShadowRoot(fileUploader.tagName);
-    const fileListDiv = shadowRoot.querySelector(".file_list");
+    const root = getShadowRoot(fileUploader.tagName);
+    const fileListDiv = root.querySelector(".file_list");
     const fileList = fileListDiv?.querySelector("file-list") as FileListDisplay;
 
     // It should have updated the displayed files.
     expect(fileList.files).toEqual([file1, file2]);
+
+    // It should be showing the pill.
+    const pill = root.querySelector("#pill") as HTMLDivElement;
+    expect(pill.classList).not.toContainEqual("pill-hidden");
+    const pillText = pill.querySelector("p") as HTMLParagraphElement;
+    // There should be two files to upload in this case.
+    expect(pillText.textContent).toContain("2");
   });
 
   each([

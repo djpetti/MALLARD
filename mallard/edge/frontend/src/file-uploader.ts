@@ -109,6 +109,38 @@ export class FileUploader extends LitElement {
       color: var(--theme-primary);
     }
 
+    .pill {
+      position: sticky;
+      z-index: 20;
+      top: calc(100% - 75px);
+      left: 25%;
+      max-width: 50%;
+      min-width: 50%;
+      min-height: 50px;
+      border-radius: 30px;
+
+      transition: opacity 0.25s;
+    }
+
+    .pill:hover {
+      opacity: 0;
+    }
+
+    .pill-hidden {
+      opacity: 0;
+    }
+
+    .pill-content {
+      margin-left: 20px;
+      margin-right: 20px;
+    }
+
+    .flex-center {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
     #browse {
       position: absolute;
       z-index: 15;
@@ -120,6 +152,10 @@ export class FileUploader extends LitElement {
       position: absolute;
       top: 200px;
       width: 100%;
+    }
+
+    #upload_progress_text {
+      margin-left: 10px;
     }
   `;
 
@@ -171,6 +207,10 @@ export class FileUploader extends LitElement {
   @property({ attribute: false })
   uploadingFiles: FrontendFileEntity[] = [];
 
+  /** How many uploads have completed so far. */
+  @property({ type: Number })
+  numFilesUploaded: number = 0;
+
   @query("#file_list", true)
   private fileList!: FileListDisplay;
 
@@ -209,6 +249,10 @@ export class FileUploader extends LitElement {
   protected render() {
     // React to drag events.
     const dropZoneClass: string = this.isDragging ? "active_drag" : "no_drag";
+    // Number of remaining files to upload.
+    const numRemainingUploads =
+      this.uploadingFiles.length - this.numFilesUploaded;
+    const pillVisibilityClass = numRemainingUploads > 0 ? "" : "pill-hidden";
 
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
@@ -277,6 +321,20 @@ export class FileUploader extends LitElement {
 
       <div class="file_list bottom_layer">
         <file-list id="file_list"></file-list>
+
+        <!-- Bottom pill showing upload progress. -->
+        <div class="mdc-card pill ${pillVisibilityClass}" id="pill">
+            <div class="pill-content flex-center">
+              <mwc-circular-progress
+                progress="${this.numFilesUploaded / this.uploadingFiles.length}"
+                density="-5"
+              ></mwc-circular-progress>
+              <p id="upload_progress_text">
+                ${numRemainingUploads} files to upload
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -437,6 +495,7 @@ export class ConnectedFileUploader extends connect(store, FileUploader) {
     const allFiles: FrontendFileEntity[] = uploadSelectors.selectAll(state);
     return {
       uploadingFiles: allFiles,
+      numFilesUploaded: state.uploads.uploadsCompleted,
     };
   }
 

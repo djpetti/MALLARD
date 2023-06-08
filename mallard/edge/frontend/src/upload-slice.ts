@@ -27,6 +27,7 @@ const initialState: UploadState = uploadAdapter.getInitialState({
   isDragging: false,
   dialogOpen: false,
   uploadsInProgress: 0,
+  uploadsCompleted: 0,
 
   metadataStatus: MetadataInferenceStatus.NOT_STARTED,
   metadata: null,
@@ -342,6 +343,7 @@ export const uploadSlice = createSlice({
       state.metadata = null;
       state.metadataChanged = false;
       state.status = UploadWorkflowStatus.WAITING;
+      state.uploadsCompleted = 0;
     },
 
     // The user is dragging files to be uploaded, and they have entered
@@ -379,6 +381,7 @@ export const uploadSlice = createSlice({
       });
 
       --state.uploadsInProgress;
+      ++state.uploadsCompleted;
     });
     // Updates the state when metadata inference starts.
     builder.addCase(thunkInferMetadata.pending, (state, _) => {

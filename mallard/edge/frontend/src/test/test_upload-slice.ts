@@ -377,6 +377,8 @@ describe("upload-slice reducers", () => {
     expect(newState.dialogOpen).toEqual(false);
     // It should have cleared any existing files.
     expect(newState.ids).toHaveLength(0);
+    // It should have reset the number of completed uploads.
+    expect(newState.uploadsCompleted).toEqual(0);
   });
 
   it("handles a fileDropZoneEntered action", () => {
@@ -458,6 +460,8 @@ describe("upload-slice reducers", () => {
     state.entities[processingFile.id] = processingFile;
     state.entities[doneFile.id] = doneFile;
 
+    state.uploadsInProgress = 1;
+
     // Act.
     const newState = uploadReducer(state, {
       type: thunkUploadFile.typePrefix + "/fulfilled",
@@ -471,6 +475,11 @@ describe("upload-slice reducers", () => {
     );
     // It should not have changed the status of the complete file.
     expect(newState.entities[doneFile.id]?.status).toEqual(FileStatus.COMPLETE);
+
+    // It should have decremented the number of uploads in progress.
+    expect(newState.uploadsInProgress).toEqual(0);
+    // It should have incremented the number of completed uploads.
+    expect(newState.uploadsCompleted).toEqual(1);
   });
 
   it("handles an inferMetadata/pending action", () => {

@@ -15,6 +15,8 @@ from typing import Iterator
 import uvicorn
 from loguru import logger
 
+from mallard.cli_utils import find_exe
+
 _REPO_ROOT = Path(__file__).parent
 """
 Path to the root directory of the repository.
@@ -27,30 +29,6 @@ _GATEWAY_PORT = 8000
 """
 Port to use for the gateway server.
 """
-
-
-@cache
-def _find_tool(tool_name: str) -> Path:
-    """
-    Finds a particular command-line tool.
-
-    Args:
-        tool_name: The name of the tool.
-
-    Returns:
-        The path to the tool.
-
-    """
-    which_result = subprocess.run(
-        ["/usr/bin/which", tool_name], check=True, capture_output=True
-    )
-    which_output = which_result.stdout.decode("utf8")
-    if not which_output:
-        raise OSError(f"Could not find '{tool_name}'. Is it installed?")
-
-    tool_path = Path(which_output.rstrip("\n"))
-    logger.debug("Using {} executable: {}", tool_name, tool_path)
-    return tool_path
 
 
 @contextmanager
@@ -66,7 +44,7 @@ def _requirements_txt() -> Iterator[None]:
     try:
         subprocess.run(
             [
-                _find_tool("poetry").as_posix(),
+                find_exe("poetry").as_posix(),
                 "export",
                 "-f",
                 "requirements.txt",
@@ -158,7 +136,7 @@ def _generate_api_client() -> None:
 
     """
     with _gateway_server(), _working_dir(_EDGE_ROOT / "frontend"):
-        npm_path = _find_tool("npm")
+        npm_path = find_exe("npm")
 
         # Generate the API client.
         subprocess.run([npm_path.as_posix(), "run", "api"], check=True)
@@ -180,7 +158,7 @@ def _build_frontend(cli_args: Namespace) -> None:
         _generate_api_client()
 
     with _working_dir(_EDGE_ROOT / "frontend"):
-        npm_path = _find_tool("npm")
+        npm_path = find_exe("npm")
 
         # Format, lint, build and bundle.
         if not cli_args.build_only:

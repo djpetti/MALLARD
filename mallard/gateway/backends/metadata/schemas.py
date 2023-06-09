@@ -16,20 +16,6 @@ from ...fastapi_utils import as_form
 from ...schemas import ApiModel, GenericApiModel
 
 
-class Metadata(ApiModel):
-    """
-    Represents a row in a metadata table.
-
-    Attributes:
-        size: The size of the artifact, in bytes.
-    """
-
-    class Config(ApiModel.Config):
-        orm_mode = True
-
-    size: Optional[int] = None
-
-
 @as_form
 class GeoPoint(ApiModel):
     """
@@ -103,7 +89,7 @@ class PlatformType(str, enum.Enum):
 @enum.unique
 class ImageFormat(str, enum.Enum):
     """
-    Enumeration of various images formats that are allowed.
+    Enumeration of various image formats that are allowed.
 
     The values of the enumeration must correspond to the strings returned by
     `imghdr.what()`.
@@ -116,38 +102,52 @@ class ImageFormat(str, enum.Enum):
     PNG = "png"
 
 
-@as_form
-class ImageMetadata(Metadata):
+@enum.unique
+class VideoFormat(str, enum.Enum):
     """
-    Represents metadata for an image.
+    Enumeration of various video formats that are allowed.
+    """
+
+    AV1 = "av1"
+    AVC = "avc"
+    H263 = "h263"
+    HEVC = "hevc"
+    MP4V_ES = "mp4v-es"
+    MPEG1 = "mpeg1"
+    MPEG2 = "mpeg2"
+    THEORA = "theora"
+    VP8 = "vp8"
+    VP9 = "vp9"
+
+
+class Metadata(ApiModel):
+    """
+    Represents a row in a metadata table.
 
     Attributes:
-        name: A human-readable name for the image. If not provided, it will be
-            inferred from the image filename.
-        format: The format that the image is in. This will be deduced
-            automatically, but an expected format can be provided by the user
-            for verification.
+        size: The size of the artifact, in bytes.
+        name: A human-readable name for the artifact. If not provided,
+            it will be inferred from the filename.
         platform_type: The type of platform that these data were collected from.
-        notes: Arbitrary full-text notes for this image.
+        notes: Arbitrary full-text notes for this artifact.
 
         session_name: Name used to group images as part of the same session.
         sequence_number: An optional sequence number that can be used to
             define ordering of images within the same session.
 
-        capture_date: Date that the image was captured. If not provided, it will
-            attempt to fill it automatically based on image metadata. If
-            there is no such metadata, it will use the current date.
-        camera: The camera model that was used. If not provided, it will attempt
-            to fill it automatically based on image metadata.
-
+        capture_date: Date that the artifact was captured.
         location: The location where the image was captured. If not provided, it
             will attempt to fill it automatically based on image metadata.
         location_description: An optional, human-readable description of the
             location.
+
     """
 
+    class Config(ApiModel.Config):
+        orm_mode = True
+
+    size: Optional[int] = None
     name: Optional[str] = None
-    format: Optional[ImageFormat] = None
     platform_type: PlatformType = PlatformType.GROUND
     notes: str = ""
 
@@ -155,9 +155,54 @@ class ImageMetadata(Metadata):
     sequence_number: Optional[int] = None
 
     capture_date: Optional[date] = None
-    camera: Optional[str] = None
     location: GeoPoint = GeoPoint()
     location_description: Optional[str] = None
+
+
+@as_form
+class RasterMetadata(Metadata):
+    """
+    Represents metadata for raster artifacts.
+
+    camera: The camera model that was used.
+
+    """
+
+    camera: Optional[str] = None
+
+
+@as_form
+class ImageMetadata(RasterMetadata):
+    """
+    Represents metadata for an image.
+
+    Attributes:
+        format: The format that the image is in. This will be deduced
+            automatically, but an expected format can be provided by the user
+            for verification.
+
+    """
+
+    format: Optional[ImageFormat] = None
+
+
+@as_form
+class VideoMetadata(RasterMetadata):
+    """
+    Represents metadata for a video.
+
+    Attributes:
+        format: The format that the video is in.
+
+        frame_rate: The video framerate, in FPS.
+        num_frames: The total number of frames in the video.
+
+    """
+
+    format: Optional[VideoFormat]
+
+    frame_rate: Optional[float] = None
+    num_frames: Optional[int] = None
 
 
 @as_form

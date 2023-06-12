@@ -8,7 +8,7 @@ import io
 import uuid
 from contextlib import contextmanager
 from datetime import date, timedelta, timezone
-from typing import Iterable, List, cast
+from typing import Annotated, Iterable, List, cast
 
 from fastapi import (
     APIRouter,
@@ -177,7 +177,7 @@ async def use_bucket(
     return bucket_name
 
 
-def user_timezone(tz: float = Query(..., ge=-24, le=24)) -> timezone:
+def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:
     """
     Adds the user's current timezone offset as a query parameter so we can
     show correct timings.
@@ -443,7 +443,7 @@ async def find_image_metadata(
 async def batch_update_metadata(
     metadata: UavImageMetadata,
     images: List[ObjectRef] = Body(...),
-    increment_sequence: bool = Query(False),
+    increment_sequence: bool = False,
     metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> None:
     """
@@ -503,8 +503,8 @@ async def infer_image_metadata(
 async def query_images(
     queries: List[ImageQuery] = Body([ImageQuery()]),
     orderings: List[Ordering] = Body([]),
-    results_per_page: int = Query(50, gt=0),
-    page_num: int = Query(1, gt=0),
+    results_per_page: Annotated[int, Query(gt=0)] = 50,
+    page_num: Annotated[int, Query(gt=0)] = 1,
     metadata_store: MetadataStore = Depends(backends.metadata_store),
 ) -> QueryResponse:
     """

@@ -30,7 +30,7 @@ def valid_video(faker: Faker) -> UploadFile:
     """
     filename = faker.file_name(category="video")
     with BIG_BUCK_BUNNY_PATH.open("rb") as raw_file:
-        yield UploadFile(filename, raw_file)
+        yield UploadFile(raw_file, filename=filename)
 
 
 @pytest.fixture()
@@ -48,7 +48,8 @@ def invalid_video(faker: Faker) -> UploadFile:
     """
     filename = faker.file_name(category="video")
     return UploadFile(
-        filename, io.BytesIO("This is not a video " "file.".encode("utf8"))
+        io.BytesIO("This is not a video " "file.".encode("utf8")),
+        filename=filename,
     )
 
 
@@ -113,7 +114,7 @@ async def test_create_preview(valid_video) -> None:
 
     # The preview should be a valid video. To test this, we'll run it back
     # through ffprobe and see what it says.
-    preview_file = UploadFile("preview.mp4")
+    preview_file = UploadFile(io.BytesIO(), filename="preview.mp4")
     await preview_file.write(preview)
     await preview_file.seek(0)
 

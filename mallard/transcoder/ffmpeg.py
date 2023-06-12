@@ -11,6 +11,7 @@ import json
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
 from fastapi import UploadFile
+from loguru import logger
 
 from mallard.cli_utils import find_exe
 
@@ -214,6 +215,7 @@ async def ffprobe(source: UploadFile) -> Dict[str, Any]:
     # There should be minimal output here, so we can just read it all at once.
     stdout = "".join([c.decode("utf8") async for c in stdout])
     stderr = "".join([c.decode("utf8") async for c in stderr])
+    logger.debug("ffprobe stderr: {}", stderr)
     await ffprobe_process.wait()
 
     # Otherwise, parse the output.

@@ -205,10 +205,9 @@ class VideoMetadata(RasterMetadata):
     num_frames: Optional[int] = None
 
 
-@as_form
-class UavImageMetadata(ImageMetadata):
+class UavPlatformMixin:
     """
-    Represents metadata for an image taken by a UAV.
+    Adds attributes specific to the UAV platform.
 
     Attributes:
         platform_type: The type of platform that these data were collected from.
@@ -221,6 +220,20 @@ class UavImageMetadata(ImageMetadata):
 
     altitude_meters: Optional[float] = None
     gsd_cm_px: Optional[float] = None
+
+
+@as_form
+class UavImageMetadata(ImageMetadata, UavPlatformMixin):
+    """
+    Represents metadata for an image taken by a UAV.
+    """
+
+
+@as_form
+class UavVideoMetadata(VideoMetadata, UavPlatformMixin):
+    """
+    Represents metadata for a video taken by a UAV.
+    """
 
 
 class Ordering(ApiModel):

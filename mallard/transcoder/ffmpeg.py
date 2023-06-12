@@ -46,6 +46,37 @@ Default configuration for stdin, stdout, and stderr for subprocesses.
 """
 
 
+async def _read_from_queue_until_finished(
+    queue: asyncio.Queue, process_wait_task: asyncio.Task
+) -> AsyncIterable[bytes]:
+    """
+    Reads output from a subprocess on a queue until the subprocess exits.
+
+    Args:
+        queue: The queue to read data from.
+        process_wait_task: The task that completes once the process is finished.
+
+    Returns:
+
+    """
+    # Iterates the messages it reads from the queue.
+    while True:
+        chunk = await queue.get()
+        if len(chunk) > 0:
+            yield chunk
+        else:
+            # Empty chunk indicates that we have no more data.
+            break
+
+    await process_wait_task
+    if process_wait_task.result() != 0:
+        # If the process exited with an error, we should raise an
+        # exception.
+        raise OSError(
+            "Process exited with error code {}", process_wait_task.result()
+        )
+
+
 async def _streaming_communicate(
     process: asyncio.subprocess.Process, *, input_source: UploadFile
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
@@ -66,13 +97,21 @@ async def _streaming_communicate(
     """
     stdout_queue = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
     stderr_queue = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
-    num_bytes_read = 0
 
     # Keeps track of tasks that are currently running.
     running_tasks = set()
 
-    def _finalize_background_task(task: asyncio.Task) -> None:
-        if task.exception():
+    # Coverage is disabled on some of these functions because their behavior
+    # is dependent on race conditions that are difficult to replicate reliably.
+    def _finalize_background_task(
+        task: asyncio.Task,
+    ) -> None:  # pragma: no coverage
+        if task.exception() and not isinstance(
+            # This usually happens because the process exited before we
+            # finished writing the input, and can be ignored.
+            task.exception(),
+            BrokenPipeError,
+        ):
             # Report exceptions if we have them.
             raise task.exception()
         running_tasks.discard(task)
@@ -86,11 +125,8 @@ async def _streaming_communicate(
         next_task.add_done_callback(_finalize_background_task)
 
     async def _feed_input() -> None:
-        nonlocal num_bytes_read
-
         # Feed data from the source to the process stdin.
         chunk = await input_source.read(_INPUT_CHUNK_SIZE)
-        num_bytes_read += len(chunk)
         if len(chunk) == 0:
             # We have exhausted the input.
             process.stdin.close()
@@ -99,7 +135,7 @@ async def _streaming_communicate(
         process.stdin.write(chunk)
         try:
             await process.stdin.drain()
-        except ConnectionResetError:
+        except ConnectionResetError:  # pragma: no coverage
             # The process probably exited, so we should terminate nicely.
             return
 
@@ -126,16 +162,19 @@ async def _streaming_communicate(
     async def _read_from_queue(
         queue: asyncio.Queue, wait_task_: asyncio.Task
     ) -> AsyncIterable[bytes]:
-        # Iterates the messages it reads from the queue.
-        while not wait_task_.done():
-            chunk = await queue.get()
-            if len(chunk) > 0:
-                yield chunk
-            else:
-                # Empty chunk indicates that we have no more data.
-                break
+        async for chunk in _read_from_queue_until_finished(queue, wait_task_):
+            yield chunk
 
-        await wait_task_
+        # Wait for background tasks to complete.
+        try:
+            await asyncio.gather(*running_tasks)
+        except BrokenPipeError:  # pragma: no coverage
+            # Ignore this, because it probably just means the process exited
+            # before it was finished writing.
+            pass
+        except Exception as err:  # pragma: no coverage
+            # If we have other errors, we should raise them.
+            raise err
 
     # We'll always be waiting for the process to exit.
     wait_task = asyncio.create_task(process.wait())
@@ -175,11 +214,7 @@ async def ffprobe(source: UploadFile) -> Dict[str, Any]:
     # There should be minimal output here, so we can just read it all at once.
     stdout = "".join([c.decode("utf8") async for c in stdout])
     stderr = "".join([c.decode("utf8") async for c in stderr])
-
-    # Check that it worked.
     await ffprobe_process.wait()
-    if ffprobe_process.returncode != 0:
-        raise OSError("FFProbe execution failed: {}", stderr)
 
     # Otherwise, parse the output.
     return json.loads(stdout)
@@ -211,6 +246,38 @@ async def create_preview(
         "libx264",
         "-f",
         "h264",
+        "-",
+        **_DEFAULT_PIPES,
+    )
+    return await _streaming_communicate(ffmpeg_process, input_source=source)
+
+
+async def create_thumbnail(
+    source: UploadFile, thumbnail_width: int = 128
+) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
+    """
+    Creates a thumbnail of the video based on the first frame.
+
+    Args:
+        source: The source video to process.
+        thumbnail_width: The width of the thumbnail to generate, in pixels.
+            (Aspect ratio will be maintained.)
+
+    Returns:
+        The video thumbnail, as a raw JPEG stream, and the stderr from FFMpeg.
+
+    """
+    ffmpeg = find_exe("ffmpeg")
+    ffmpeg_process = await asyncio.create_subprocess_exec(
+        ffmpeg,
+        "-i",
+        "pipe:",
+        "-vf",
+        f"scale={thumbnail_width}*sar:-2,setsar=1",
+        "-vframes",
+        "1",
+        "-f",
+        "singlejpeg",
         "-",
         **_DEFAULT_PIPES,
     )

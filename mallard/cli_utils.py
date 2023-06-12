@@ -6,6 +6,7 @@ Utilities for interacting with CLI applications.
 import subprocess
 from functools import cache
 from pathlib import Path
+from subprocess import CalledProcessError
 
 from loguru import logger
 
@@ -22,10 +23,18 @@ def find_exe(tool_name: str) -> Path:
         The path to the tool.
 
     """
-    which_result = subprocess.run(
-        ["/usr/bin/which", tool_name], check=True, capture_output=True
-    )
-    which_output = which_result.stdout.decode("utf8")
+    which_output = ""
+    try:
+        which_result = subprocess.run(
+            ["/usr/bin/which", tool_name], check=True, capture_output=True
+        )
+        which_output = which_result.stdout.decode("utf8")
+    except CalledProcessError as err:
+        if err.returncode != 1:  # pragma: no cover
+            # If it returns 1, it's probably because the executable does not
+            # exist. Otherwise, something weird happened.
+            raise err
+        pass
     if not which_output:
         raise OSError(f"Could not find '{tool_name}'. Is it installed?")
 

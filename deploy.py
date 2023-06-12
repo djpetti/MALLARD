@@ -8,7 +8,6 @@ import os
 import subprocess
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
-from functools import cache
 from pathlib import Path
 from typing import Iterator
 

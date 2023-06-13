@@ -39,8 +39,8 @@ FROM python:3.11.1-slim AS service_base
 
 # Run as a non-root user.
 RUN useradd -ms /bin/bash gateway
-USER gateway
-WORKDIR /home/gateway/
+USER mallard
+WORKDIR /home/mallard/
 
 # Copy dependencies.
 COPY --from=gateway_builder /install/deps /usr/local
@@ -61,7 +61,7 @@ COPY config/local/local_config.yaml .config/mallard/config.yaml
 ENV SCRIPT_NAME="/api/v1/"
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
-     -k mallard.gateway.configurable_worker.ConfigurableWorker \
+     -k mallard.configurable_worker.ConfigurableWorker \
      mallard.gateway.main:app
 
 ####
@@ -76,7 +76,7 @@ USER root
 RUN apt-get update
 RUN apt-get install -y curl
 
-WORKDIR /home/gateway/
+WORKDIR /home/mallard/
 
 # Install Node.
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
@@ -92,7 +92,7 @@ RUN apt-get update
 RUN mkdir -p /usr/share/man/man1
 RUN apt-get install -y default-jre
 # Make sure the root user sees the proper config file.
-ENV MALLARDDIR=/home/gateway/.config/mallard
+ENV MALLARDDIR=/home/mallard/.config/mallard
 COPY deploy.py deploy.py
 RUN . ~/.nvm/nvm.sh && python deploy.py build
 
@@ -102,10 +102,28 @@ RUN . ~/.nvm/nvm.sh && python deploy.py build
 FROM service_base AS edge
 
 # Copy frontend package.
-COPY --from=edge_builder /home/gateway/mallard/edge/frontend/bundled \
-    /home/gateway/mallard/edge/frontend/bundled
-COPY --from=edge_builder /home/gateway/.config /home/gateway/.config
+COPY --from=edge_builder /home/mallard/mallard/edge/frontend/bundled \
+    /home/mallard/mallard/edge/frontend/bundled
+COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
-     -k uvicorn.workers.UvicornWorker \
+     -k mallard.configurable_worker.ConfigurableWorker \
      mallard.edge.main:app
+
+#####
+# transcoder image is used for running the transcoder service.
+#####
+FROM service_base as transcoder
+
+# Install runtime dependencies.
+USER root
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+USER mallard
+
+# Copy configuration.
+COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
+
+# Deliberately limiting number of workers here because FFMpeg is multi-threaded.
+CMD gunicorn -w 2 -b 0.0.0.0:8000 \
+     -k mallard.configurable_worker.ConfigurableWorker \
+     mallard.transcoder.main:app

@@ -28,7 +28,6 @@ services:
       - mallard
     << : *local_volumes
 
-
   # Edge service.
   edge:
     build:
@@ -39,6 +38,17 @@ services:
     networks:
       - mallard
     << : *local_volumes
+
+  # Transcoder service.
+  transcoder:
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: transcoder
+    hostname: transcoder
+    networks:
+      - mallard
+    <<: *local_volumes
 
   # Object storage service.
   object_store:

@@ -10,7 +10,7 @@ import enum
 from datetime import date
 from typing import Dict, Generic, Optional, TypeVar
 
-from pydantic import root_validator, validator
+from pydantic import BaseModel, root_validator, validator
 
 from ...fastapi_utils import as_form
 from ...schemas import ApiModel, GenericApiModel
@@ -205,7 +205,7 @@ class VideoMetadata(RasterMetadata):
     num_frames: Optional[int] = None
 
 
-class UavPlatformMixin:
+class UavPlatformMixin(BaseModel):
     """
     Adds attributes specific to the UAV platform.
 

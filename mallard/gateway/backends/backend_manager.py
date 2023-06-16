@@ -15,18 +15,17 @@ async def get_test(
 
 import importlib
 import re
-from typing import AsyncIterator, Type, TypeVar
-from functools import cache
 from contextlib import asynccontextmanager
+from functools import cache
+from typing import AsyncIterator, Type, TypeVar
 
 from confuse import ConfigTypeError, ConfigView
 from loguru import logger
 
 from ...config import config
 from .injectable import Injectable
-from .metadata import MetadataStore
+from .metadata import RasterMetadataStore
 from .objects import ObjectStore
-
 
 _IMPORT_RE = re.compile(r"(?P<module>.+)\.(?P<class>\w+)")
 """
@@ -122,13 +121,27 @@ async def object_store() -> AsyncIterator[ObjectStore]:
         yield store
 
 
-async def metadata_store() -> AsyncIterator[MetadataStore]:
+async def image_metadata_store() -> AsyncIterator[RasterMetadataStore]:
     """
     Returns:
         The `MetadataStore` subclass to use.
 
     """
     async with _load_dependency(
-        config["backends"]["metadata_store"], check_type=MetadataStore
+        config["backends"]["image_metadata_store"],
+        check_type=RasterMetadataStore,
+    ) as store:
+        yield store
+
+
+async def video_metadata_store() -> AsyncIterator[RasterMetadataStore]:
+    """
+    Returns:
+        The `MetadataStore` subclass to use.
+
+    """
+    async with _load_dependency(
+        config["backends"]["video_metadata_store"],
+        check_type=RasterMetadataStore,
     ) as store:
         yield store

@@ -135,5 +135,5 @@ venv.bak/
 docker-compose*.yml
 
 # These are the default locations for saved data.
-objects/
-metadata/
+./objects/
+./metadata/

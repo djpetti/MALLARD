@@ -14,9 +14,11 @@ from fastapi import HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+import mallard.gateway.dependencies
+from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import (
-    ImageMetadataStore,
     MetadataOperationError,
+    RasterMetadataStore,
 )
 from mallard.gateway.backends.metadata.schemas import (
     ImageQuery,
@@ -24,11 +26,7 @@ from mallard.gateway.backends.metadata.schemas import (
 )
 from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
 from mallard.gateway.backends.objects.models import ObjectRef
-from mallard.gateway.routers.images import (
-    InvalidImageError,
-    MissingLengthError,
-    endpoints,
-)
+from mallard.gateway.routers.images import InvalidImageError, endpoints
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
@@ -44,7 +42,7 @@ class ConfigForTests:
     """
 
     mock_object_store: ObjectStore
-    mock_metadata_store: ImageMetadataStore
+    mock_metadata_store: RasterMetadataStore
     mock_streaming_response_class: mock.Mock
 
 
@@ -81,7 +79,7 @@ def config(mocker: MockFixture) -> ConfigForTests:
     """
     mock_object_store = mocker.create_autospec(ObjectStore, instance=True)
     mock_metadata_store = mocker.create_autospec(
-        ImageMetadataStore, instance=True
+        RasterMetadataStore, instance=True
     )
 
     mock_streaming_response_class = mocker.patch(
@@ -746,7 +744,9 @@ async def test_use_bucket(
         config.mock_object_store.bucket_exists.return_value = True
 
     # Act.
-    got_bucket = await endpoints.use_bucket(config.mock_object_store)
+    got_bucket = await mallard.gateway.dependencies.use_bucket_images(
+        config.mock_object_store
+    )
 
     # Assert.
     # It should have produced a good name.
@@ -774,7 +774,7 @@ def test_user_timezone(faker: Faker) -> None:
     offset = faker.random_int(min=-24, max=24)
 
     # Act.
-    got_timezone = endpoints.user_timezone(offset)
+    got_timezone = mallard.gateway.dependencies.user_timezone(offset)
 
     # Assert.
     assert got_timezone.utcoffset(None) == timedelta(hours=offset)

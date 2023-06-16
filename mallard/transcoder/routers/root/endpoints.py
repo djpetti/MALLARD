@@ -10,7 +10,7 @@ from starlette.responses import StreamingResponse
 
 from ...ffmpeg import create_preview, create_thumbnail, ffprobe
 
-router = APIRouter()
+router = APIRouter(tags=["transcoder"])
 
 
 @router.post("/metadata/infer")

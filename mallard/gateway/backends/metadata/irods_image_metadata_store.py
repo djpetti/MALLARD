@@ -17,9 +17,9 @@ from loguru import logger
 from mallard.gateway.async_utils import make_async_iter
 
 from ..objects.models import ObjectRef
-from .image_metadata_store import ImageMetadataStore
 from .irods_metadata_helpers import to_irods_string
 from .irods_metadata_store import IrodsMetadataStore
+from .raster_metadata_store import RasterMetadataStore
 from .schemas import (
     GeoPoint,
     ImageMetadata,
@@ -29,7 +29,7 @@ from .schemas import (
 )
 
 
-class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
+class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
     """
     An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
     """
@@ -335,7 +335,7 @@ class IrodsImageMetadataStore(IrodsMetadataStore, ImageMetadataStore):
             yield result
 
 
-class IrodsUavImageMetadataStore(IrodsImageMetadataStore):
+class IrodsUavImageMetadataStore(IrodsRasterMetadataStore):
     """
     An `ImageMetadataStore` for UAV data that uses iRODS as a backend.
     """

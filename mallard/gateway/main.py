@@ -7,8 +7,9 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from mallard.gateway.aiohttp_session import close_session, init_session
+
 from ..config import config
-from .aiohttp_session import close_session, init_session
 from .authentication import check_auth_token
 from .routers import images
 

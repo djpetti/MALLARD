@@ -4,16 +4,21 @@ Metadata storage backend specifically for image data.
 
 
 import abc
-from typing import AsyncIterable, Iterable
+from typing import AsyncIterable, Generic, Iterable, TypeVar
 
 from loguru import logger
 
 from ..objects.models import ObjectRef
 from .metadata_store import MetadataStore
-from .schemas import ImageMetadata, ImageQuery, Ordering
+from .schemas import ImageQuery, Ordering, RasterMetadata
+
+MetadataTypeVar = TypeVar("MetadataTypeVar", bound=RasterMetadata)
+"""
+Used to specify the type of metadata stored in the database.
+"""
 
 
-class ImageMetadataStore(MetadataStore, abc.ABC):
+class RasterMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
     """
     Metadata storage backend specifically for image data.
     """
@@ -23,7 +28,7 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
         self,
         *,
         object_id: ObjectRef,
-        metadata: ImageMetadata,
+        metadata: MetadataTypeVar,
         overwrite: bool = False,
     ) -> None:
         """
@@ -45,7 +50,7 @@ class ImageMetadataStore(MetadataStore, abc.ABC):
         self,
         *,
         object_id: ObjectRef,
-        metadata: ImageMetadata,
+        metadata: MetadataTypeVar,
         merge: bool = True,
     ) -> None:
         """

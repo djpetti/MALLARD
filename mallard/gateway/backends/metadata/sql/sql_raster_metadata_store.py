@@ -9,10 +9,11 @@ from typing import (
     Any,
     AsyncIterable,
     AsyncIterator,
-    Dict,
+    Generic,
     Iterable,
     Optional,
     Tuple,
+    Type,
 )
 
 from confuse import ConfigView
@@ -25,15 +26,15 @@ from sqlalchemy.sql.expression import Select, delete, select
 
 from ...objects.models import ObjectRef
 from ...time_expiring_cache import time_expiring_cache
-from .. import ImageMetadataStore
+from .. import MetadataTypeVar, RasterMetadataStore
 from ..schemas import (
     GeoPoint,
-    ImageMetadata,
     ImageQuery,
     Ordering,
     UavImageMetadata,
+    UavVideoMetadata,
 )
-from .models import Image
+from .models import Image, Raster, Video
 
 _SQL_CONNECTION_TIMEOUT = timedelta(minutes=30)
 """
@@ -61,27 +62,16 @@ def _create_session_maker(db_url: str) -> sessionmaker:
     return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
-class SqlImageMetadataStore(ImageMetadataStore):
+class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
     """
-    A metadata store that interfaces with a SQL database.
-    """
-
-    _ORDER_TO_COLUMN: Dict[Ordering.Field, InstrumentedAttribute] = {
-        Ordering.Field.NAME: Image.name,
-        Ordering.Field.SESSION: Image.session_name,
-        Ordering.Field.SEQUENCE_NUM: Image.sequence_number,
-        Ordering.Field.CAPTURE_DATE: Image.capture_date,
-        Ordering.Field.CAMERA: Image.camera,
-    }
-    """
-    Maps orderings to corresponding columns in the ORM.
+    A metadata store for rasters that interfaces with a SQL database.
     """
 
     @classmethod
     @asynccontextmanager
     async def from_config(
-        cls: ImageMetadataStore.ClassType, config: ConfigView
-    ) -> AsyncIterator[ImageMetadataStore.ClassType]:
+        cls: RasterMetadataStore.ClassType, config: ConfigView
+    ) -> AsyncIterator[RasterMetadataStore.ClassType]:
         # Extract the configuration.
         db_url = config["endpoint_url"].as_str()
 
@@ -92,16 +82,35 @@ class SqlImageMetadataStore(ImageMetadataStore):
         async with session_maker() as session:
             yield cls(session)
 
-    def __init__(self, session: AsyncSession):
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        model_type: Type[Raster],
+        pydantic_type: Type[MetadataTypeVar],
+    ):
         """
         Args:
             session: The session to use for communicating with the database.
+            model_type: The model type used by the database.
+            pydantic_type: Corresponding `pydantic` type for this model type.
 
         """
         self.__unsafe_session = session
+        self.__model_type = model_type
+        self.__pydantic_type = pydantic_type
 
         # Manages access to the raw session between concurrent tasks.
         self.__session_lock = asyncio.Lock()
+
+        # Maps orderings to corresponding columns in the ORM.
+        self.__order_to_column = {
+            Ordering.Field.NAME: self.__model_type.name,
+            Ordering.Field.SESSION: self.__model_type.session_name,
+            Ordering.Field.SEQUENCE_NUM: self.__model_type.sequence_number,
+            Ordering.Field.CAPTURE_DATE: self.__model_type.capture_date,
+            Ordering.Field.CAMERA: self.__model_type.camera,
+        }
 
     @asynccontextmanager
     async def __session_begin(self) -> AsyncIterator[AsyncSession]:
@@ -126,10 +135,9 @@ class SqlImageMetadataStore(ImageMetadataStore):
         async with self.__session_lock, self.__unsafe_session.begin():
             yield self.__unsafe_session
 
-    @staticmethod
-    def __orm_image_to_pydantic(image: Image) -> UavImageMetadata:
+    def __orm_model_to_pydantic(self, image: Image) -> MetadataTypeVar:
         """
-        Converts an ORM image model to a Pydantic model.
+        Converts an ORM model to a Pydantic model.
 
         Args:
             image: The image model to convert.
@@ -138,7 +146,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
             The converted model.
 
         """
-        metadata = UavImageMetadata.from_orm(image)
+        metadata = self.__pydantic_type.from_orm(image)
 
         # Set the location correctly.
         location = GeoPoint(
@@ -146,12 +154,11 @@ class SqlImageMetadataStore(ImageMetadataStore):
         )
         return metadata.copy(update=dict(location=location))
 
-    @staticmethod
     def __pydantic_to_orm_image(
-        object_id: ObjectRef, metadata: ImageMetadata
-    ) -> Image:
+        self, object_id: ObjectRef, metadata: MetadataTypeVar
+    ) -> Raster:
         """
-        Converts a Pydantic metadata model to an ORM image model.
+        Converts a Pydantic metadata model to an ORM model.
 
         Args:
             object_id: The corresponding reference to the image in the object
@@ -168,7 +175,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         location_lat = metadata.location.latitude_deg
         location_lon = metadata.location.longitude_deg
 
-        return Image(
+        return self.__model_type(
             bucket=object_id.bucket,
             key=object_id.name,
             location_lat=location_lat,
@@ -176,10 +183,9 @@ class SqlImageMetadataStore(ImageMetadataStore):
             **model_attributes,
         )
 
-    @staticmethod
     async def __get_by_id(
-        object_id: ObjectRef, *, session: AsyncSession
-    ) -> Image:
+        self, object_id: ObjectRef, *, session: AsyncSession
+    ) -> Raster:
         """
         Gets a particular image from the database by its unique ID.
 
@@ -194,15 +200,16 @@ class SqlImageMetadataStore(ImageMetadataStore):
             - `KeyError` if no such image exists.
 
         """
-        query = select(Image).where(
-            Image.bucket == object_id.bucket, Image.key == object_id.name
+        query = select(self.__model_type).where(
+            self.__model_type.bucket == object_id.bucket,
+            self.__model_type.key == object_id.name,
         )
         query_results = await session.execute(query)
 
         try:
             return query_results.scalar_one()
         except NoResultFound:
-            raise KeyError(f"No metadata for image '{object_id}'.")
+            raise KeyError(f"No metadata for raster '{object_id}'.")
 
     # TODO (danielp): These should be classmethods, but Python issue 39679
     #  prevents this.
@@ -299,7 +306,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
             lon_column >= value.south_west.longitude_deg,
         )
 
-    def __update_image_query(
+    def __update_raster_query(
         self,
         value: ImageQuery,
         *,
@@ -319,29 +326,33 @@ class SqlImageMetadataStore(ImageMetadataStore):
         # Build the complete query.
         query = _apply_query_updates(
             [
-                (value.platform_type, Image.platform_type),
-                (value.name, Image.name),
-                (value.notes, Image.notes),
-                (value.camera, Image.camera),
-                (value.session, Image.session_name),
-                (value.sequence_numbers, Image.sequence_number),
-                (value.capture_dates, Image.capture_date),
-                (value.location_description, Image.location_description),
-                (value.altitude_meters, Image.altitude_meters),
-                (value.gsd_cm_px, Image.gsd_cm_px),
+                (value.platform_type, self.__model_type.platform_type),
+                (value.name, self.__model_type.name),
+                (value.notes, self.__model_type.notes),
+                (value.camera, self.__model_type.camera),
+                (value.session, self.__model_type.session_name),
+                (value.sequence_numbers, self.__model_type.sequence_number),
+                (value.capture_dates, self.__model_type.capture_date),
+                (
+                    value.location_description,
+                    self.__model_type.location_description,
+                ),
+                (value.altitude_meters, self.__model_type.altitude_meters),
+                (value.gsd_cm_px, self.__model_type.gsd_cm_px),
             ]
         )
         query = self.__update_location_query(
             value.bounding_box,
             query=query,
-            lat_column=Image.location_lat,
-            lon_column=Image.location_lon,
+            lat_column=self.__model_type.location_lat,
+            lon_column=self.__model_type.location_lon,
         )
 
         return query
 
-    @classmethod
-    def __update_query_order(cls, order: Ordering, *, query: Select) -> Select:
+    def __update_query_order(
+        self, order: Ordering, *, query: Select
+    ) -> Select:
         """
         Updates a query with the specified ordering.
 
@@ -353,7 +364,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
             The updated query.
 
         """
-        column_spec = cls._ORDER_TO_COLUMN[order.field]
+        column_spec = self.__order_to_column[order.field]
         if not order.ascending:
             # It should be in descending order.
             column_spec = column_spec.desc()
@@ -364,7 +375,7 @@ class SqlImageMetadataStore(ImageMetadataStore):
         self,
         *,
         object_id: ObjectRef,
-        metadata: ImageMetadata,
+        metadata: MetadataTypeVar,
         overwrite: bool = False,
     ) -> None:
         logger.debug("Adding metadata for object {}.", object_id)
@@ -377,17 +388,18 @@ class SqlImageMetadataStore(ImageMetadataStore):
             else:
                 session.add(image)
 
-    async def get(self, object_id: ObjectRef) -> UavImageMetadata:
+    async def get(self, object_id: ObjectRef) -> MetadataTypeVar:
         async with self.__session_begin() as session:
             model = await self.__get_by_id(object_id, session=session)
 
-        return self.__orm_image_to_pydantic(model)
+        return self.__orm_model_to_pydantic(model)
 
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
         deletion = delete(Image).where(
-            Image.bucket == object_id.bucket, Image.key == object_id.name
+            self.__model_type.bucket == object_id.bucket,
+            self.__model_type.key == object_id.name,
         )
         async with self.__session_begin() as session:
             await session.execute(deletion)
@@ -402,9 +414,9 @@ class SqlImageMetadataStore(ImageMetadataStore):
         # Create the SQL query.
         selections = []
         for query in queries:
-            selection = select(Image)
+            selection = select(self.__model_type)
             selections.append(
-                self.__update_image_query(query, query=selection)
+                self.__update_raster_query(query, query=selection)
             )
         if len(selections) == 0:
             # No queries at all.
@@ -426,3 +438,37 @@ class SqlImageMetadataStore(ImageMetadataStore):
 
         for result in query_results.all():
             yield ObjectRef(bucket=result.bucket, name=result.key)
+
+
+class SqlImageMetadataStore(SqlRasterMetadataStore[UavImageMetadata]):
+    """
+    A metadata store that stores image metadata in a SQL database.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """
+        Args:
+            *args: Will be forwarded to the superclass.
+            **kwargs: Will be forwarded to the superclass.
+
+        """
+        super().__init__(
+            *args, model_type=Image, pydantic_type=UavImageMetadata, **kwargs
+        )
+
+
+class SqlVideoMetadataStore(SqlRasterMetadataStore[UavVideoMetadata]):
+    """
+    A metadata store that stores image metadata in a SQL database.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """
+        Args:
+            *args: Will be forwarded to the superclass.
+            **kwargs: Will be forwarded to the superclass.
+
+        """
+        super().__init__(
+            *args, model_type=Video, pydantic_type=UavVideoMetadata, **kwargs
+        )

@@ -1,5 +1,5 @@
 """
-Tests for the `sql_image_metadata_store` module.
+Tests for the `sql_raster_metadata_store` module.
 """
 
 
@@ -23,7 +23,7 @@ from mallard.gateway.backends.metadata.schemas import (
     Ordering,
     UavImageMetadata,
 )
-from mallard.gateway.backends.metadata.sql import sql_image_metadata_store
+from mallard.gateway.backends.metadata.sql import sql_raster_metadata_store
 from mallard.gateway.backends.metadata.sql.models import Base
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -46,7 +46,7 @@ class TestSqlImageMetadataStore:
             mock_delete: The mocked `delete` function to use.
         """
 
-        store: sql_image_metadata_store.SqlImageMetadataStore
+        store: sql_raster_metadata_store.SqlImageMetadataStore
 
         mock_session: AsyncSession
         mock_select: mock.Mock
@@ -66,7 +66,7 @@ class TestSqlImageMetadataStore:
 
         """
         # Mock the dependencies.
-        module_name = sql_image_metadata_store.__name__
+        module_name = sql_raster_metadata_store.__name__
         mock_session = mocker.create_autospec(AsyncSession, instance=True)
         mock_select = mocker.patch(f"{module_name}.select")
         mock_delete = mocker.patch(f"{module_name}.delete")
@@ -85,7 +85,7 @@ class TestSqlImageMetadataStore:
         mock_query.offset.return_value = mock_query
         mock_query.union.return_value = mock_query
 
-        store = sql_image_metadata_store.SqlImageMetadataStore(mock_session)
+        store = sql_raster_metadata_store.SqlImageMetadataStore(mock_session)
 
         return cls.ConfigForTests(
             store=store,
@@ -505,14 +505,14 @@ class TestSqlImageMetadataStore:
 
         # Mock the SQLAlchemy functions.
         mock_create_async_engine = mocker.patch(
-            f"{sql_image_metadata_store.__name__}.create_async_engine"
+            f"{sql_raster_metadata_store.__name__}.create_async_engine"
         )
         mock_session_maker = mocker.patch(
-            f"{sql_image_metadata_store.__name__}.sessionmaker"
+            f"{sql_raster_metadata_store.__name__}.sessionmaker"
         )
 
         # Act.
-        async with sql_image_metadata_store.SqlImageMetadataStore.from_config(
+        async with sql_raster_metadata_store.SqlImageMetadataStore.from_config(
             mock_config
         ):
             # Assert.
@@ -542,7 +542,7 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
 
         metadata = faker.uav_image_metadata()
         object_id = faker.object_ref()
@@ -571,7 +571,7 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
 
         metadata = faker.uav_image_metadata()
         object_id = faker.object_ref()
@@ -604,7 +604,7 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_image_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
 
         # Add various records.
         metadata1 = faker.uav_image_metadata()

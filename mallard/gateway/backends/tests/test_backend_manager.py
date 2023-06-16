@@ -132,7 +132,7 @@ async def test_metadata_store(
     """
     # Arrange.
     # Act.
-    metadata_store = await anext(backend_manager.metadata_store())
+    metadata_store = await anext(backend_manager.image_metadata_store())
 
     # Assert.
     # It should have used the fake ObjectStore class.

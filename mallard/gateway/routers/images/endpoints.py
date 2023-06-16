@@ -7,7 +7,7 @@ import asyncio
 import io
 import uuid
 from contextlib import contextmanager
-from datetime import date, timedelta, timezone
+from datetime import timezone
 from typing import Annotated, Iterable, List, cast
 
 from fastapi import (
@@ -23,12 +23,13 @@ from loguru import logger
 from PIL import Image
 from starlette.responses import StreamingResponse
 
+from ...artifact_metadata import MissingLengthError
 from ...async_utils import get_process_pool
 from ...backends import backend_manager as backends
 from ...backends.metadata import (
-    ImageMetadataStore,
     MetadataOperationError,
     MetadataStore,
+    RasterMetadataStore,
 )
 from ...backends.metadata.schemas import (
     ImageFormat,
@@ -37,12 +38,9 @@ from ...backends.metadata.schemas import (
     UavImageMetadata,
 )
 from ...backends.objects import ObjectOperationError, ObjectStore
-from ...backends.objects.models import ObjectRef
-from .image_metadata import (
-    InvalidImageError,
-    MissingLengthError,
-    fill_metadata,
-)
+from ...backends.objects.models import ObjectRef, derived_id
+from ...dependencies import use_bucket_images, user_timezone
+from .image_metadata import InvalidImageError, fill_metadata
 from .schemas import CreateResponse, MetadataResponse, QueryResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -63,21 +61,6 @@ _THUMBNAIL_SIZE = (128, 128)
 """
 Max size in pixels of generated thumbnails.
 """
-
-
-def _thumbnail_id(object_id: ObjectRef) -> ObjectRef:
-    """
-    Transforms an object ID to the ID for the corresponding thumbnail.
-
-    Args:
-        object_id: The object ID.
-
-    Returns:
-        The ID for the corresponding thumbnail.
-
-    """
-    thumbnail_name = f"{object_id.name}.thumbnail"
-    return ObjectRef(bucket=object_id.bucket, name=thumbnail_name)
 
 
 def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
@@ -154,44 +137,6 @@ def _check_key_errors() -> Iterable[None]:
             raise others
 
 
-async def use_bucket(
-    object_store: ObjectStore = Depends(backends.object_store),
-) -> str:
-    """
-    Args:
-        object_store: The object store to use.
-
-    Returns:
-        The bucket to use for saving new images. It will create it if it
-        doesn't exist.
-
-    """
-    bucket_name = f"{date.today().isoformat()}-images"
-
-    if not await object_store.bucket_exists(bucket_name):
-        logger.debug("Creating a new bucket: {}", bucket_name)
-        # We specify exists_ok because there is a possible race-condition if
-        # it is servicing multiple requests concurrently.
-        await object_store.create_bucket(bucket_name, exists_ok=True)
-
-    return bucket_name
-
-
-def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:
-    """
-    Adds the user's current timezone offset as a query parameter so we can
-    show correct timings.
-
-    Args:
-        tz: The offset of the user's local timezone from GMT, in hours.
-
-    Returns:
-        The offset of the user's local timezone from GMT, in hours.
-
-    """
-    return timezone(timedelta(hours=tz))
-
-
 async def filled_uav_metadata(
     metadata: UavImageMetadata = Depends(UavImageMetadata.as_form),
     image_data: UploadFile = File(...),
@@ -240,8 +185,10 @@ async def create_uav_image(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
     image_data: UploadFile = File(...),
     object_store: ObjectStore = Depends(backends.object_store),
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
-    bucket: str = Depends(use_bucket),
+    metadata_store: RasterMetadataStore = Depends(
+        backends.image_metadata_store
+    ),
+    bucket: str = Depends(use_bucket_images),
 ) -> CreateResponse:
     """
     Uploads a new image captured from a UAV.
@@ -257,10 +204,6 @@ async def create_uav_image(
         A `CreateResponse` object for this image.
 
     """
-    # Since we are uploading images, the metadata store should be able to
-    # handle them.
-    metadata_store = cast(ImageMetadataStore, metadata_store)
-
     # We need the raw image data to create the thumbnail.
     image_bytes = await image_data.read()
     # Reset so we can read it again when storing it.
@@ -280,7 +223,7 @@ async def create_uav_image(
     )
 
     # Create and save the thumbnail.
-    thumbnail_object_id = _thumbnail_id(object_id)
+    thumbnail_object_id = derived_id(object_id, "thumbnail")
 
     async def _create_and_save_thumbnail() -> None:
         thumbnail = await _create_thumbnail(image_bytes)
@@ -309,7 +252,7 @@ async def create_uav_image(
 async def delete_images(
     images: List[ObjectRef] = Body(...),
     object_store: ObjectStore = Depends(backends.object_store),
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
+    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
 ) -> None:
     """
     Deletes existing images from the server.
@@ -334,7 +277,7 @@ async def get_image(
     bucket: str,
     name: str,
     object_store: ObjectStore = Depends(backends.object_store),
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
+    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
 ) -> StreamingResponse:
     """
     Gets the contents of a specific image.
@@ -396,7 +339,7 @@ async def get_thumbnail(
     logger.debug("Getting thumbnail for image {} in bucket {}.", name, bucket)
     object_id = ObjectRef(bucket=bucket, name=name)
 
-    thumbnail_object_id = _thumbnail_id(object_id)
+    thumbnail_object_id = derived_id(object_id)
     try:
         image_stream = await object_store.get_object(thumbnail_object_id)
     except KeyError:
@@ -412,7 +355,7 @@ async def get_thumbnail(
 @router.post("/metadata", response_model=MetadataResponse)
 async def find_image_metadata(
     images: List[ObjectRef] = Body(...),
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
+    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
 ) -> MetadataResponse:
     """
     Retrieves the metadata for a set of images.
@@ -444,7 +387,7 @@ async def batch_update_metadata(
     metadata: UavImageMetadata,
     images: List[ObjectRef] = Body(...),
     increment_sequence: bool = False,
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
+    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
 ) -> None:
     """
     Updates the metadata for a large number of images at once. Note that any
@@ -463,7 +406,7 @@ async def batch_update_metadata(
     """
     # Since we are dealing with images, the metadata store should be able to
     # handle them.
-    metadata_store = cast(ImageMetadataStore, metadata_store)
+    metadata_store = cast(RasterMetadataStore, metadata_store)
 
     update_tasks = []
     for image_id in images:
@@ -505,7 +448,7 @@ async def query_images(
     orderings: List[Ordering] = Body([]),
     results_per_page: Annotated[int, Query(gt=0)] = 50,
     page_num: Annotated[int, Query(gt=0)] = 1,
-    metadata_store: MetadataStore = Depends(backends.metadata_store),
+    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
 ) -> QueryResponse:
     """
     Performs a query for images that meet certain criteria.
@@ -530,7 +473,7 @@ async def query_images(
         " OR ".join((str(q) for q in queries)),
     )
     # First, we assume that this particular backend can query images.
-    metadata = cast(ImageMetadataStore, metadata_store)
+    metadata = cast(RasterMetadataStore, metadata_store)
 
     skip_first = (page_num - 1) * results_per_page
     results = metadata.query(

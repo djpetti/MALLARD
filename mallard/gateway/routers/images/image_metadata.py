@@ -13,19 +13,14 @@ import exifread
 from fastapi import UploadFile
 from loguru import logger
 
+from ...artifact_metadata import MissingLengthError
+from ...artifact_metadata import fill_metadata as artifact_fill_metadata
 from ...backends.metadata.schemas import GeoPoint, ImageFormat, ImageMetadata
 
 
 class InvalidImageError(Exception):
     """
     Raised when an image is invalid.
-    """
-
-
-class MissingLengthError(Exception):
-    """
-    Raised when the file length is not specified,
-    and the content-length header is missing.
     """
 
 
@@ -281,38 +276,20 @@ async def fill_metadata(
 
     """
     # Fill in missing fields.
-    size = metadata.size
-    if size is None:
-        size = image.headers.get("content-length")
-    if size is None:
-        raise MissingLengthError("No size specified for image upload.")
-
-    name = metadata.name
-    if name is None:
-        name = image.filename
-
     exif = ExifReader(image, local_tz=local_tz)
 
     # Reset the image file after reading the EXIF data.
     await image.seek(0)
 
-    capture_date = metadata.capture_date
-    if capture_date is None:
-        capture_date = exif.capture_datetime.date()
-    camera = metadata.camera
-    if camera is None:
-        camera = exif.camera
     location = metadata.location
     if location.latitude_deg is None or location.longitude_deg is None:
         location = exif.location
 
-    update_fields = dict(
-        size=size,
-        name=name,
-        capture_date=capture_date,
-        camera=camera,
+    return artifact_fill_metadata(
+        metadata,
+        artifact=image,
+        capture_date=exif.capture_datetime.date(),
+        camera=exif.camera,
         location=location,
         format=await _check_format(metadata, image=image),
     )
-    logger.debug("Updating metadata with fields {}.", update_fields)
-    return metadata.copy(update=update_fields)

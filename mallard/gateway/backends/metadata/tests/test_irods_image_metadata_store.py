@@ -49,7 +49,7 @@ class TestIrodsImageMetadataStore:
 
         """
 
-        subclass: Type[irods_image_metadata_store.IrodsImageMetadataStore]
+        subclass: Type[irods_image_metadata_store.IrodsRasterMetadataStore]
         metadata_type: Type[ImageMetadata]
 
     @dataclass(frozen=True, config=ArbitraryTypesConfig)
@@ -68,7 +68,7 @@ class TestIrodsImageMetadataStore:
 
         """
 
-        store: irods_image_metadata_store.IrodsImageMetadataStore
+        store: irods_image_metadata_store.IrodsRasterMetadataStore
         mock_session: iRODSSession
         mock_to_irods_string: mock.Mock
         mock_make_async_iter: mock.Mock
@@ -80,7 +80,7 @@ class TestIrodsImageMetadataStore:
     @pytest.fixture(
         params=[
             ClassSpecificConfig(
-                subclass=irods_image_metadata_store.IrodsImageMetadataStore,
+                subclass=irods_image_metadata_store.IrodsRasterMetadataStore,
                 metadata_type=ImageMetadata,
             ),
             ClassSpecificConfig(

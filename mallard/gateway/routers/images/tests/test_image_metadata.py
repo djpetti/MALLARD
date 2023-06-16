@@ -16,6 +16,7 @@ from fastapi import UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+import mallard.gateway.artifact_metadata
 from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
@@ -544,7 +545,7 @@ async def test_fill_metadata_missing_length(
     fill_meta_config.mock_upload_file.headers = {}
 
     # Act and assert.
-    with pytest.raises(image_metadata.MissingLengthError):
+    with pytest.raises(mallard.gateway.artifact_metadata.MissingLengthError):
         await image_metadata.fill_metadata(
             ImageMetadata(),
             image=fill_meta_config.mock_upload_file,

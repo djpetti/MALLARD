@@ -64,16 +64,16 @@ class Image(Base):
 
     size = Column(Integer)
 
-    name = Column(String(100))
+    name = Column(String(100), index=True)
     format = Column(Enum(ImageFormat))
-    platform_type = Column(Enum(PlatformType), nullable=False)
+    platform_type = Column(Enum(PlatformType), nullable=False, index=True)
     notes = Column(Text, default="")
 
-    session_name = Column(String(50))
+    session_name = Column(String(50), index=True)
     sequence_number = Column(Integer)
 
-    capture_date = Column(Date)
-    camera = Column(String(50))
+    capture_date = Column(Date, index=True)
+    camera = Column(String(50), index=True)
 
     location_lat = Column(Float)
     location_lon = Column(Float)

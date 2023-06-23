@@ -7,3 +7,5 @@ mallard/edge/frontend/bundled/
 mallard/edge/frontend/coverage/
 mallard/edge/frontend/gen/
 mallard/edge/frontend/node_modules/
+/metadata/
+/objects/

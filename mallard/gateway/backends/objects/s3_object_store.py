@@ -15,6 +15,7 @@ from confuse import ConfigView
 from loguru import logger
 from starlette.datastructures import UploadFile
 
+from ...async_utils import read_file_chunks
 from .models import ObjectRef
 from .object_store import (
     BucketOperationError,
@@ -219,11 +220,6 @@ class S3ObjectStore(ObjectStore):
     """
     Number of concurrent uploads to allow for multi-part uploads.
     """
-    _CHUNK_SIZE = 5 * 2**20
-    """
-    Chunk size to use for multi-part uploads, in bytes. Note that this can't
-    be below 5 MiB, which is a limitation imposed by the S3 API.
-    """
 
     _BUCKET_EXISTS_ERROR_CODE = "BucketAlreadyOwnedByYou"
     """
@@ -349,19 +345,29 @@ class S3ObjectStore(ObjectStore):
                 continuation_token = response["NextContinuationToken"]
 
     async def create_object(
-        self, object_id: ObjectRef, *, data: Union[bytes, BytesIO, UploadFile]
+        self,
+        object_id: ObjectRef,
+        *,
+        data: bytes | BytesIO | UploadFile | AsyncIterable[bytes],
     ) -> None:
         if not await self.bucket_exists(object_id.bucket):
             raise KeyError(f"Bucket '{object_id.bucket}' does not exist.")
         logger.info("Requesting creation of new object {}.", object_id)
 
-        async def _file_chunks(file: UploadFile) -> AsyncIterable[bytes]:
-            # Gets the file data in chunks.
-            while chunk := await file.read(self._CHUNK_SIZE):
-                yield chunk
-
         @singledispatch
-        async def _do_upload(data_: Union[bytes, BytesIO]) -> None:
+        async def _do_upload(data_: AsyncIterable[bytes]) -> None:
+            # For async iterables, we do a multi-part upload.
+            async with _MultiPartUploadHelper.create(
+                client=self.__client, object_id=object_id
+            ) as uploader:
+                async for chunk in data_:
+                    if uploader.num_pending >= self._MAX_CONCURRENT_UPLOADS:
+                        # Wait for some uploads to finish.
+                        await uploader.wait_for_upload()
+                    uploader.add_data(chunk)
+
+        @_do_upload.register
+        async def _(data_: bytes | BytesIO) -> None:
             # For in-memory data, we just do a normal upload.
             await self.__client.put_object(
                 Body=data_, Bucket=object_id.bucket, Key=object_id.name
@@ -369,15 +375,9 @@ class S3ObjectStore(ObjectStore):
 
         @_do_upload.register
         async def _(data_: UploadFile) -> None:
-            # For files, we do a multi-part upload.
-            async with _MultiPartUploadHelper.create(
-                client=self.__client, object_id=object_id
-            ) as uploader:
-                async for chunk in _file_chunks(data_):
-                    if uploader.num_pending >= self._MAX_CONCURRENT_UPLOADS:
-                        # Wait for some uploads to finish.
-                        await uploader.wait_for_upload()
-                    uploader.add_data(chunk)
+            await _do_upload(
+                read_file_chunks(data_, chunk_size=self.UPLOAD_CHUNK_SIZE)
+            )
 
         await _do_upload(data)
 

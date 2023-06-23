@@ -5,7 +5,7 @@ Common interface for all object storage backends.
 
 import abc
 from io import BytesIO
-from typing import AsyncIterable, Iterable, Union
+from typing import AsyncIterable, Iterable
 
 from starlette.datastructures import UploadFile
 
@@ -28,6 +28,12 @@ class ObjectOperationError(Exception):
 class ObjectStore(Injectable):
     """
     Common interface for all object storage backends.
+    """
+
+    UPLOAD_CHUNK_SIZE = 10 * 2**20
+    """
+    Chunk size to use for multi-part uploads, in bytes. Note that this shouldn't
+    be below 5 MiB, which is a limitation imposed by the S3 API.
     """
 
     @abc.abstractmethod
@@ -93,7 +99,10 @@ class ObjectStore(Injectable):
 
     @abc.abstractmethod
     async def create_object(
-        self, object_id: ObjectRef, *, data: Union[bytes, BytesIO, UploadFile]
+        self,
+        object_id: ObjectRef,
+        *,
+        data: bytes | BytesIO | UploadFile | AsyncIterable[bytes]
     ) -> None:
         """
         Creates a new object.
@@ -148,7 +157,7 @@ class ObjectStore(Injectable):
     @abc.abstractmethod
     async def get_object(
         self, object_id: ObjectRef
-    ) -> Union[Iterable[bytes], AsyncIterable[bytes]]:
+    ) -> Iterable[bytes] | AsyncIterable[bytes]:
         """
         Gets an existing object from the object store.
 

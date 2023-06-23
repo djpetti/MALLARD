@@ -1,9 +1,16 @@
 # Config file for local MALLARD deployments. This is used by the default
 # docker-compose configuration.
 
+# Common SQL configuration.
+_sql_config: &sql_config
+  config:
+    endpoint_url: "mysql+aiomysql://root:TnrHYavLF7WF38@metadata-store/mallard_meta?charset=utf8mb4"
+
 # Base URL for the API that the frontend will use to communicate
 # with the backend.
 api_base_url: "https://localhost:8081/api/v1"
+# Base URL of the transcoder service.
+transcoder_base_url: http://transcoder:8000
 
 backends:
   # Configuration for the object store backend.
@@ -16,10 +23,13 @@ backends:
       endpoint_url: http://object-store:9000
 
   # Configuration for the metadata store backend.
-  metadata_store:
+  image_metadata_store:
     type: mallard.gateway.backends.metadata.sql.SqlImageMetadataStore
-    config:
-      endpoint_url: "mysql+aiomysql://root:TnrHYavLF7WF38@metadata-store/mallard_meta?charset=utf8mb4"
+    <<: *sql_config
+
+  video_metadata_store:
+    type: mallard.gateway.backends.metadata.sql.SqlVideoMetadataStore
+    <<: *sql_config
 
 security:
   # Disable authentication.

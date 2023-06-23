@@ -48,7 +48,9 @@ Default configuration for stdin, stdout, and stderr for subprocesses.
 
 
 async def _read_from_queue_until_finished(
-    queue: asyncio.Queue, process_wait_task: asyncio.Task
+    queue: asyncio.Queue,
+    process_wait_task: asyncio.Task,
+    ignore_errors: bool = False,
 ) -> AsyncIterable[bytes]:
     """
     Reads output from a subprocess on a queue until the subprocess exits.
@@ -56,6 +58,8 @@ async def _read_from_queue_until_finished(
     Args:
         queue: The queue to read data from.
         process_wait_task: The task that completes once the process is finished.
+        ignore_errors: If tru, it will not raise an exception if the process
+            exits with a non-zero code.
 
     Returns:
 
@@ -70,7 +74,7 @@ async def _read_from_queue_until_finished(
             break
 
     await process_wait_task
-    if process_wait_task.result() != 0:
+    if not ignore_errors and process_wait_task.result() != 0:
         # If the process exited with an error, we should raise an
         # exception.
         raise OSError(
@@ -161,9 +165,13 @@ async def _streaming_communicate(
             _submit_background_task(_stream_output(reader, queue))
 
     async def _read_from_queue(
-        queue: asyncio.Queue, wait_task_: asyncio.Task
+        queue: asyncio.Queue,
+        wait_task_: asyncio.Task,
+        ignore_errors: bool = False,
     ) -> AsyncIterable[bytes]:
-        async for chunk in _read_from_queue_until_finished(queue, wait_task_):
+        async for chunk in _read_from_queue_until_finished(
+            queue, wait_task_, ignore_errors=ignore_errors
+        ):
             yield chunk
 
         # Wait for background tasks to complete.
@@ -186,8 +194,11 @@ async def _streaming_communicate(
     _submit_background_task(_stream_output(process.stderr, stderr_queue))
 
     # Read the data from the queues.
-    return _read_from_queue(stdout_queue, wait_task), _read_from_queue(
-        stderr_queue, wait_task
+    return (
+        _read_from_queue(stdout_queue, wait_task),
+        # Ignore errors on stderr, because we still want to read this
+        # output even if the command failed.
+        _read_from_queue(stderr_queue, wait_task, ignore_errors=True),
     )
 
 

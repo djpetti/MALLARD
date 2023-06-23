@@ -26,7 +26,8 @@ backends:
     << : *sql_config
 
 
-# URL endpoint we use for authentication.
-auth_url: https://example.com/auth/
+security:
+  # URL endpoint we use for authentication.
+  auth_url: https://example.com/auth/
 # Base URL of the transcoder service.
 transcoder_base_url: http://transcoder:8000

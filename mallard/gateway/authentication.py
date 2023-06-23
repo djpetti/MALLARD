@@ -8,9 +8,11 @@ from fastapi import Header, HTTPException
 from loguru import logger
 
 from ..config import config
-from .aiohttp_session import session
+from .aiohttp_session import Session
 
 ResponseType = TypeVar("ResponseType")
+
+get_session = Session()
 
 
 async def check_auth_token(x_api_token: str = Header(...)) -> None:
@@ -28,7 +30,9 @@ async def check_auth_token(x_api_token: str = Header(...)) -> None:
     # Check the validity of the token.
     logger.debug("Verifying token validity...")
     auth_url = config["security"]["auth_url"].as_str()
-    async with session.post(auth_url, data={"token": x_api_token}) as response:
+    async with get_session().post(
+        auth_url, data={"token": x_api_token}
+    ) as response:
         await response.raise_for_status()
         json_response = await response.json()
 

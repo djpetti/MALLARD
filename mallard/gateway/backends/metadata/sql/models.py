@@ -117,8 +117,14 @@ class Video(Raster):
         format: The format that the video is in. This will be deduced
             automatically, but an expected format can be provided by the user
             for verification.
+
+        frame_rate: The video framerate, in FPS.
+        num_frames: The total number of frames in the video.
     """
 
     __tablename__ = "videos"
 
     format = Column(Enum(VideoFormat))
+
+    frame_rate = Column(Float)
+    num_frames = Column(Integer)

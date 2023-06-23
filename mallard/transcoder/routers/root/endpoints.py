@@ -3,14 +3,51 @@ API endpoints for the video transcoding microservice.
 """
 
 
-from typing import Annotated, Any, Dict
+from typing import Annotated, Any, AsyncIterable, Dict
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile
+from loguru import logger
 from starlette.responses import StreamingResponse
 
 from ...ffmpeg import create_preview, create_thumbnail, ffprobe
 
 router = APIRouter(tags=["transcoder"])
+
+
+def _streaming_response_with_errors(
+    data_stream: AsyncIterable[bytes], *, error_stream: AsyncIterable[bytes]
+) -> StreamingResponse:
+    """
+    Creates a `StreamingResponse` and handles any errors that might occur
+    while reading the stream.
+
+    Args:
+        data_stream: The stream to read from.
+        error_stream: The stream containing error information. This will NOT
+            be included in the response, but will be used to craft a useful
+            error message.
+
+    Returns:
+        The `StreamingResponse`.
+
+    """
+
+    async def _read_and_handle_errors(stream: AsyncIterable[bytes]):
+        try:
+            async for chunk in stream:
+                yield chunk
+
+        except OSError:
+            logger.error(
+                "ffmpeg stderr: {}",
+                "".join([c.decode("utf8") async for c in error_stream]),
+            )
+            raise HTTPException(
+                status_code=422,
+                detail="Could not process the provided video. Is it valid?",
+            )
+
+    return StreamingResponse(_read_and_handle_errors(data_stream))
 
 
 @router.post("/metadata/infer")
@@ -49,17 +86,12 @@ async def create_video_preview(
         The preview that was created.
 
     """
-    try:
-        preview_stream, _ = await create_preview(
-            video, preview_width=preview_width
-        )
-    except OSError:
-        raise HTTPException(
-            status_code=422,
-            detail="Could not process the provided video. Is it valid?",
-        )
-
-    return StreamingResponse(preview_stream, media_type="video/mp4")
+    preview_stream, error_stream = await create_preview(
+        video, preview_width=preview_width
+    )
+    return _streaming_response_with_errors(
+        preview_stream, error_stream=error_stream
+    )
 
 
 @router.post("/create_thumbnail")
@@ -77,14 +109,9 @@ async def create_video_thumbnail(
         The thumbnail that was created.
 
     """
-    try:
-        thumbnail_stream, _ = await create_thumbnail(
-            video, thumbnail_width=thumbnail_width
-        )
-    except OSError:
-        raise HTTPException(
-            status_code=422,
-            detail="Could not process the provided video. Is it valid?",
-        )
-
-    return StreamingResponse(thumbnail_stream, media_type="image/jpeg")
+    thumbnail_stream, error_stream = await create_thumbnail(
+        video, thumbnail_width=thumbnail_width
+    )
+    return _streaming_response_with_errors(
+        thumbnail_stream, error_stream=error_stream
+    )

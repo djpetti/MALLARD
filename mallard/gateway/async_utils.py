@@ -8,6 +8,7 @@ from concurrent import futures
 from functools import cache
 from typing import AsyncIterable, Iterable, TypeVar
 
+from fastapi import UploadFile
 from loguru import logger
 
 IterType = TypeVar("IterType")
@@ -94,3 +95,21 @@ async def make_async_iter(
 
     for task in pending:
         task.cancel()
+
+
+async def read_file_chunks(
+    file_data: UploadFile, chunk_size: int = 2**20
+) -> AsyncIterable[bytes]:
+    """
+    Helper function that reads file data in chunks asynchronously.
+
+    Args:
+        file_data: The raw video data.
+        chunk_size: The size of the chunks to read.
+
+    Yields:
+        The next chunk of the video data.
+
+    """
+    while chunk := await file_data.read(chunk_size):
+        yield chunk

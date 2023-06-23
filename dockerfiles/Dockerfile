@@ -38,7 +38,7 @@ RUN mkdir deps && python -m pip install --prefix=deps -r requirements.txt
 FROM python:3.11.1-slim AS service_base
 
 # Run as a non-root user.
-RUN useradd -ms /bin/bash gateway
+RUN useradd -ms /bin/bash mallard
 USER mallard
 WORKDIR /home/mallard/
 

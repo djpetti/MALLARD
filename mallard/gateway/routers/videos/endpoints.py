@@ -2,12 +2,13 @@
 API endpoints for managing video data.
 """
 import asyncio
-import io
 import uuid
+from typing import List
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Body,
     Depends,
     File,
     HTTPException,
@@ -15,21 +16,16 @@ from fastapi import (
 )
 from loguru import logger
 
+from ...artifact_metadata import MissingLengthError
 from ...backends import backend_manager as backends
-from ...backends.metadata import RasterMetadataStore
+from ...backends.metadata import MetadataOperationError, RasterMetadataStore
 from ...backends.metadata.schemas import UavVideoMetadata
-from ...backends.objects import ObjectStore
+from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
 from ...dependencies import use_bucket_videos
 from .schemas import CreateResponse
 from .transcoder_client import create_preview, create_thumbnail
 from .video_metadata import InvalidVideoError, fill_metadata
-
-_TRANSCODER_BASE_URL = "http://transcoder:8000"
-"""
-Base URL of the transcoder service.
-"""
-
 
 router = APIRouter(prefix="/video", tags=["videos"])
 
@@ -61,6 +57,12 @@ async def filled_uav_metadata(
             detail="The uploaded video has an invalid format, or does not "
             "match the specified format.",
         )
+    except MissingLengthError:
+        raise HTTPException(
+            status_code=411,
+            detail="You must provide a size for the uploaded video, either in "
+            "the metadata, or in the content-length header.",
+        )
 
 
 @router.post("/create_uav", response_model=CreateResponse, status_code=201)
@@ -72,6 +74,7 @@ async def create_uav_video(
         backends.video_metadata_store
     ),
     bucket: str = Depends(use_bucket_videos),
+    background_tasks: BackgroundTasks = BackgroundTasks,
 ) -> CreateResponse:
     """
     Uploads a new video captured from a UAV.
@@ -82,6 +85,7 @@ async def create_uav_video(
         object_store: The object store to upload the video to.
         metadata_store: The metadata store to upload the metadata to.
         bucket: The bucket to use for new videos.
+        background_tasks: Handle to use for submitting background tasks.
 
     Returns:
         A `CreateResponse` object for this video.
@@ -100,6 +104,19 @@ async def create_uav_video(
         metadata_store.add(object_id=object_id, metadata=metadata)
     )
 
+    try:
+        await asyncio.gather(object_task, metadata_task)
+    except MetadataOperationError as error:
+        # If one operation fails, it would be best to try and roll back the
+        # other.
+        logger.info("Rolling back object creation {} upon error.", object_id)
+        await object_store.delete_object(object_id)
+        raise error
+    except ObjectOperationError as error:
+        logger.info("Rolling back metadata creation {} upon error.", object_id)
+        await metadata_store.delete(object_id)
+        raise error
+
     # Create and save the preview.
     thumbnail_object_id = derived_id(object_id, "thumbnail")
     preview_object_id = derived_id(object_id, "preview")
@@ -107,5 +124,31 @@ async def create_uav_video(
     async def _create_preview_and_thumbnail() -> None:
         # Do this sequentially so that it doesn't try to read from the file
         # concurrently.
-        thumbnail = create_thumbnail(video_data)
+        logger.debug("Starting video transcode background task...")
+        await video_data.seek(0)
+        thumbnail = create_thumbnail(
+            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+        )
         await object_store.create_object(thumbnail_object_id, data=thumbnail)
+
+        await video_data.seek(0)
+        preview = create_preview(
+            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+        )
+        await object_store.create_object(preview_object_id, data=preview)
+        logger.debug("Finished video transcode background task.")
+
+    background_tasks.add_task(_create_preview_and_thumbnail)
+
+    return CreateResponse(video_id=object_id)
+
+
+@router.delete("/delete")
+async def delete_videos(videos: List[ObjectRef] = Body(...)) -> None:
+    """
+    Deletes existing videos from the server.
+
+    Args:
+        videos: The videos to delete.
+
+    """

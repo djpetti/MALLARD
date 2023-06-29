@@ -24,7 +24,7 @@ from loguru import logger
 
 from ...config import config
 from .injectable import Injectable
-from .metadata import RasterMetadataStore
+from .metadata import ArtifactMetadataStore
 from .objects import ObjectStore
 
 _IMPORT_RE = re.compile(r"(?P<module>.+)\.(?P<class>\w+)")
@@ -121,7 +121,20 @@ async def object_store() -> AsyncIterator[ObjectStore]:
         yield store
 
 
-async def image_metadata_store() -> AsyncIterator[RasterMetadataStore]:
+async def artifact_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
+    """
+    Returns:
+        The `MetadataStore` subclass to use.
+
+    """
+    async with _load_dependency(
+        config["backends"]["artifact_metadata_store"],
+        check_type=ArtifactMetadataStore,
+    ) as store:
+        yield store
+
+
+async def image_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
     """
     Returns:
         The `MetadataStore` subclass to use.
@@ -129,12 +142,12 @@ async def image_metadata_store() -> AsyncIterator[RasterMetadataStore]:
     """
     async with _load_dependency(
         config["backends"]["image_metadata_store"],
-        check_type=RasterMetadataStore,
+        check_type=ArtifactMetadataStore,
     ) as store:
         yield store
 
 
-async def video_metadata_store() -> AsyncIterator[RasterMetadataStore]:
+async def video_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
     """
     Returns:
         The `MetadataStore` subclass to use.
@@ -142,6 +155,6 @@ async def video_metadata_store() -> AsyncIterator[RasterMetadataStore]:
     """
     async with _load_dependency(
         config["backends"]["video_metadata_store"],
-        check_type=RasterMetadataStore,
+        check_type=ArtifactMetadataStore,
     ) as store:
         yield store

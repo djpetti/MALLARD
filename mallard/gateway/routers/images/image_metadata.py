@@ -15,7 +15,11 @@ from loguru import logger
 
 from ...artifact_metadata import MissingLengthError
 from ...artifact_metadata import fill_metadata as artifact_fill_metadata
-from ...backends.metadata.schemas import GeoPoint, ImageFormat, ImageMetadata
+from ...backends.metadata.schemas import (
+    GeoPoint,
+    ImageFormat,
+    UavImageMetadata,
+)
 
 
 class InvalidImageError(Exception):
@@ -219,11 +223,8 @@ def _test_jpeg(header: bytes, _: Optional[BinaryIO]) -> Optional[str]:
 imghdr.tests.append(_test_jpeg)
 
 
-MetadataType = TypeVar("MetadataType", bound=ImageMetadata)
-
-
 async def _check_format(
-    metadata: MetadataType, *, image: UploadFile
+    metadata: UavImageMetadata, *, image: UploadFile
 ) -> ImageFormat:
     """
     Checks the format of an image.
@@ -261,8 +262,8 @@ async def _check_format(
 
 
 async def fill_metadata(
-    metadata: MetadataType, *, image: UploadFile, local_tz: tzinfo
-) -> MetadataType:
+    metadata: UavImageMetadata, *, image: UploadFile, local_tz: tzinfo
+) -> UavImageMetadata:
     """
     Attempts to fill in missing image metadata automatically.
 

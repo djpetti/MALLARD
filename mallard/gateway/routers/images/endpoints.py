@@ -6,19 +6,10 @@ API endpoints for managing image data.
 import asyncio
 import io
 import uuid
-from contextlib import contextmanager
 from datetime import timezone
-from typing import Annotated, Iterable, List, cast
+from typing import List, cast
 
-from fastapi import (
-    APIRouter,
-    Body,
-    Depends,
-    File,
-    HTTPException,
-    Query,
-    UploadFile,
-)
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from loguru import logger
 from PIL import Image
 from starlette.responses import StreamingResponse
@@ -27,21 +18,17 @@ from ...artifact_metadata import MissingLengthError
 from ...async_utils import get_process_pool
 from ...backends import backend_manager as backends
 from ...backends.metadata import (
+    ArtifactMetadataStore,
     MetadataOperationError,
     MetadataStore,
-    RasterMetadataStore,
 )
-from ...backends.metadata.schemas import (
-    ImageFormat,
-    ImageQuery,
-    Ordering,
-    UavImageMetadata,
-)
+from ...backends.metadata.schemas import ImageFormat, UavImageMetadata
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
 from ...dependencies import use_bucket_images, user_timezone
+from ..common import check_key_errors, get_metadata, update_metadata
 from .image_metadata import InvalidImageError, fill_metadata
-from .schemas import CreateResponse, MetadataResponse, QueryResponse
+from .schemas import CreateResponse, MetadataResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -107,36 +94,6 @@ async def _create_thumbnail(image: bytes) -> io.BytesIO:
     )
 
 
-@contextmanager
-def _check_key_errors() -> Iterable[None]:
-    """
-    Checks for key errors in an `ExceptionGroup` raised by the code in the
-    context manager, and produces the appropriate response if there are any.
-
-    """
-    try:
-        yield
-
-    except ExceptionGroup as ex_group:
-        # Check for key errors, which are raised when the images do not
-        # exist. We have a standard HTTP error for that.
-        key_errors, others = ex_group.split(KeyError)
-
-        if key_errors is not None:
-            error_messages = [f"\t-{e}" for e in key_errors.exceptions]
-            combined_error = "\n".join(error_messages)
-            logger.error("Could not find images: {}", combined_error)
-            raise HTTPException(
-                status_code=404,
-                detail=f"Some of the images could not be "
-                f"found:\n{combined_error}",
-            )
-
-        if others is not None:
-            # Otherwise, just raise it again.
-            raise others
-
-
 async def filled_uav_metadata(
     metadata: UavImageMetadata = Depends(UavImageMetadata.as_form),
     image_data: UploadFile = File(...),
@@ -185,7 +142,7 @@ async def create_uav_image(
     metadata: UavImageMetadata = Depends(filled_uav_metadata),
     image_data: UploadFile = File(...),
     object_store: ObjectStore = Depends(backends.object_store),
-    metadata_store: RasterMetadataStore = Depends(
+    metadata_store: ArtifactMetadataStore = Depends(
         backends.image_metadata_store
     ),
     bucket: str = Depends(use_bucket_images),
@@ -263,9 +220,9 @@ async def delete_images(
         metadata_store: The metadata store to use.
 
     """
-    logger.info("Deleting images {}.", images)
+    logger.info("Deleting {} images.", len(images))
 
-    with _check_key_errors():
+    with check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for image in images:
                 tasks.create_task(object_store.delete_object(image))
@@ -315,41 +272,11 @@ async def get_image(
     # Determine the proper MIME type to use.
     mime_type = _IMAGE_FORMAT_TO_MIME_TYPES[metadata.format]
 
-    return StreamingResponse(image_stream, media_type=mime_type)
-
-
-@router.get("/thumbnail/{bucket}/{name}")
-async def get_thumbnail(
-    bucket: str,
-    name: str,
-    object_store: ObjectStore = Depends(backends.object_store),
-) -> StreamingResponse:
-    """
-    Gets the thumbnail for a specific image.
-
-    Args:
-        bucket: The bucket that the image is in.
-        name: The name of the image.
-        object_store: The object store to use.
-
-    Returns:
-        The binary contents of the thumbnail.
-
-    """
-    logger.debug("Getting thumbnail for image {} in bucket {}.", name, bucket)
-    object_id = ObjectRef(bucket=bucket, name=name)
-
-    thumbnail_object_id = derived_id(object_id)
-    try:
-        image_stream = await object_store.get_object(thumbnail_object_id)
-    except KeyError:
-        # The thumbnail doesn't exist.
-        raise HTTPException(
-            status_code=404,
-            detail="Requested image thumbnail could not be found.",
-        )
-
-    return StreamingResponse(image_stream, media_type="image/jpeg")
+    return StreamingResponse(
+        image_stream,
+        media_type=mime_type,
+        headers={"Content-Length": str(metadata.length)},
+    )
 
 
 @router.post("/metadata", response_model=MetadataResponse)
@@ -368,18 +295,9 @@ async def find_image_metadata(
         The corresponding metadata for each image, in JSON form.
 
     """
-    logger.debug("Getting metadata for images {}", images)
-
-    tasks = []
-    with _check_key_errors():
-        async with asyncio.TaskGroup() as task_group:
-            for object_id in images:
-                tasks.append(
-                    task_group.create_task(metadata_store.get(object_id))
-                )
-
-    # Get the results.
-    return MetadataResponse(metadata=[t.result() for t in tasks])
+    return MetadataResponse(
+        metadata=await get_metadata(images, metadata_store=metadata_store)
+    )
 
 
 @router.patch("/metadata/batch_update")
@@ -404,25 +322,13 @@ async def batch_update_metadata(
         metadata_store: The metadata store to use.
 
     """
-    # Since we are dealing with images, the metadata store should be able to
-    # handle them.
-    metadata_store = cast(RasterMetadataStore, metadata_store)
-
-    update_tasks = []
-    for image_id in images:
-        update_tasks.append(
-            asyncio.create_task(
-                metadata_store.update(object_id=image_id, metadata=metadata)
-            )
-        )
-
-        # Increment the sequence number if appropriate.
-        if increment_sequence and metadata.sequence_number is not None:
-            metadata = metadata.copy(
-                update=dict(sequence_number=metadata.sequence_number + 1)
-            )
-
-    await asyncio.gather(*update_tasks)
+    metadata_store = cast(ArtifactMetadataStore, metadata_store)
+    await update_metadata(
+        metadata=metadata,
+        artifacts=images,
+        increment_sequence=increment_sequence,
+        metadata_store=metadata_store,
+    )
 
 
 @router.post("/metadata/infer", response_model=UavImageMetadata)
@@ -440,56 +346,3 @@ async def infer_image_metadata(
 
     """
     return metadata
-
-
-@router.post("/query", response_model=QueryResponse)
-async def query_images(
-    queries: List[ImageQuery] = Body([ImageQuery()]),
-    orderings: List[Ordering] = Body([]),
-    results_per_page: Annotated[int, Query(gt=0)] = 50,
-    page_num: Annotated[int, Query(gt=0)] = 1,
-    metadata_store: MetadataStore = Depends(backends.image_metadata_store),
-) -> QueryResponse:
-    """
-    Performs a query for images that meet certain criteria.
-
-    Args:
-        queries: Specifies the queries to perform.
-        orderings: Specifies a specific ordering for the final results. It
-            will first sort by the first ordering specified, then the
-            second, etc.
-        results_per_page: The maximum number of results to include in a
-            single response.
-        page_num: If there are multiple pages of results, this can be used to
-            specify a later page.
-        metadata_store: The metadata store to use.
-
-    Returns:
-        The query response.
-
-    """
-    logger.debug(
-        "Querying for images that match {}.",
-        " OR ".join((str(q) for q in queries)),
-    )
-    # First, we assume that this particular backend can query images.
-    metadata = cast(RasterMetadataStore, metadata_store)
-
-    skip_first = (page_num - 1) * results_per_page
-    results = metadata.query(
-        queries,
-        skip_first=skip_first,
-        max_num_results=results_per_page,
-        orderings=orderings,
-    )
-
-    # Get all the results.
-    image_ids = [r async for r in results]
-    logger.debug("Query produced {} results.", len(image_ids))
-    # This logic can result in the final page being empty, which is a
-    # deliberate design decision.
-    is_last_page = len(image_ids) < results_per_page
-
-    return QueryResponse(
-        image_ids=image_ids, page_num=page_num, is_last_page=is_last_page
-    )

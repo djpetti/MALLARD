@@ -22,19 +22,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql.expression import Select, delete, select
+from sqlalchemy.sql.expression import Select, select
 
-from ...objects.models import ObjectRef
+from ...objects.models import ObjectRef, ObjectType, TypedObjectRef
 from ...time_expiring_cache import time_expiring_cache
-from .. import MetadataTypeVar, RasterMetadataStore
+from .. import ArtifactMetadataStore, MetadataTypeVar
 from ..schemas import (
     GeoPoint,
     ImageQuery,
+    Metadata,
     Ordering,
+    RasterMetadata,
     UavImageMetadata,
     UavVideoMetadata,
 )
-from .models import Image, Raster, Video
+from .models import Artifact, Base, Image, Raster, Video
 
 _SQL_CONNECTION_TIMEOUT = timedelta(minutes=30)
 """
@@ -62,16 +64,18 @@ def _create_session_maker(db_url: str) -> sessionmaker:
     return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
-class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
+class SqlArtifactMetadataStore(
+    ArtifactMetadataStore, Generic[MetadataTypeVar]
+):
     """
-    A metadata store for rasters that interfaces with a SQL database.
+    A metadata store for artifacts that interfaces with a SQL database.
     """
 
     @classmethod
     @asynccontextmanager
     async def from_config(
-        cls: RasterMetadataStore.ClassType, config: ConfigView
-    ) -> AsyncIterator[RasterMetadataStore.ClassType]:
+        cls: ArtifactMetadataStore.ClassType, config: ConfigView
+    ) -> AsyncIterator[ArtifactMetadataStore.ClassType]:
         # Extract the configuration.
         db_url = config["endpoint_url"].as_str()
 
@@ -86,18 +90,15 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
         self,
         session: AsyncSession,
         *,
-        model_type: Type[Raster],
-        pydantic_type: Type[MetadataTypeVar],
+        pydantic_type: Type[MetadataTypeVar] = Metadata,
     ):
         """
         Args:
             session: The session to use for communicating with the database.
-            model_type: The model type used by the database.
-            pydantic_type: Corresponding `pydantic` type for this model type.
+            pydantic_type: Pydantic metadata type to use.
 
         """
         self.__unsafe_session = session
-        self.__model_type = model_type
         self.__pydantic_type = pydantic_type
 
         # Manages access to the raw session between concurrent tasks.
@@ -105,11 +106,11 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
 
         # Maps orderings to corresponding columns in the ORM.
         self.__order_to_column = {
-            Ordering.Field.NAME: self.__model_type.name,
-            Ordering.Field.SESSION: self.__model_type.session_name,
-            Ordering.Field.SEQUENCE_NUM: self.__model_type.sequence_number,
-            Ordering.Field.CAPTURE_DATE: self.__model_type.capture_date,
-            Ordering.Field.CAMERA: self.__model_type.camera,
+            Ordering.Field.NAME: Artifact.name,
+            Ordering.Field.SESSION: Artifact.session_name,
+            Ordering.Field.SEQUENCE_NUM: Artifact.sequence_number,
+            Ordering.Field.CAPTURE_DATE: Artifact.capture_date,
+            Ordering.Field.CAMERA: Raster.camera,
         }
 
     @asynccontextmanager
@@ -135,28 +136,61 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
         async with self.__session_lock, self.__unsafe_session.begin():
             yield self.__unsafe_session
 
-    def __orm_model_to_pydantic(self, image: Image) -> MetadataTypeVar:
+    def __merge_orm_to_pydantic(self, *orm_models: Base) -> MetadataTypeVar:
+        """
+        Merges multiple ORM models into a single Pydantic model. This is
+        useful because often a single Pydantic model will encompass
+        information spread across multiple tables.
+
+        Args:
+            *orm_models: The models to merge.
+
+        Returns:
+            The equivalent Pydantic model.
+
+        """
+        pydantic_fields = {}
+        for model in orm_models:
+            # Extract the relevant Pydantic fields from each ORM model.
+            pydantic_fields.update(
+                self.__pydantic_type.from_orm(model).dict(exclude_unset=True)
+            )
+
+        return self.__pydantic_type(**pydantic_fields)
+
+    def __orm_model_to_pydantic(self, orm_model: Artifact) -> MetadataTypeVar:
         """
         Converts an ORM model to a Pydantic model.
 
         Args:
-            image: The image model to convert.
+            orm_model: The ORM model to convert.
 
         Returns:
             The converted model.
 
         """
-        metadata = self.__pydantic_type.from_orm(image)
+        # Extract data from other tables if its present.
+        orm_models = [orm_model]
+        if orm_model.raster is not None:
+            orm_models.append(orm_model.raster)
+
+            if orm_model.raster.image is not None:
+                orm_models.append(orm_model.raster.image)
+            elif orm_model.raster.video is not None:
+                orm_models.append(orm_model.raster.video)
+        metadata = self.__merge_orm_to_pydantic(*orm_models)
 
         # Set the location correctly.
         location = GeoPoint(
-            latitude_deg=image.location_lat, longitude_deg=image.location_lon
+            latitude_deg=orm_model.location_lat,
+            longitude_deg=orm_model.location_lon,
         )
         return metadata.copy(update=dict(location=location))
 
-    def __pydantic_to_orm_image(
-        self, object_id: ObjectRef, metadata: MetadataTypeVar
-    ) -> Raster:
+    @classmethod
+    def _pydantic_to_orm_model(
+        cls, object_id: ObjectRef, metadata: Metadata
+    ) -> Artifact:
         """
         Converts a Pydantic metadata model to an ORM model.
 
@@ -170,12 +204,12 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
 
         """
         # Convert to the format used by the database.
-        model_attributes = metadata.dict(exclude={"location"})
+        model_attributes = metadata.dict(include=Artifact.pydantic_fields())
         # Convert location format.
         location_lat = metadata.location.latitude_deg
         location_lon = metadata.location.longitude_deg
 
-        return self.__model_type(
+        return Artifact(
             bucket=object_id.bucket,
             key=object_id.name,
             location_lat=location_lat,
@@ -183,9 +217,10 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
             **model_attributes,
         )
 
+    @staticmethod
     async def __get_by_id(
-        self, object_id: ObjectRef, *, session: AsyncSession
-    ) -> Raster:
+        object_id: ObjectRef, *, session: AsyncSession
+    ) -> Artifact:
         """
         Gets a particular image from the database by its unique ID.
 
@@ -200,9 +235,9 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
             - `KeyError` if no such image exists.
 
         """
-        query = select(self.__model_type).where(
-            self.__model_type.bucket == object_id.bucket,
-            self.__model_type.key == object_id.name,
+        query = select(Artifact).where(
+            Artifact.bucket == object_id.bucket,
+            Artifact.key == object_id.name,
         )
         query_results = await session.execute(query)
 
@@ -326,26 +361,31 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
         # Build the complete query.
         query = _apply_query_updates(
             [
-                (value.platform_type, self.__model_type.platform_type),
-                (value.name, self.__model_type.name),
-                (value.notes, self.__model_type.notes),
-                (value.camera, self.__model_type.camera),
-                (value.session, self.__model_type.session_name),
-                (value.sequence_numbers, self.__model_type.sequence_number),
-                (value.capture_dates, self.__model_type.capture_date),
+                (value.platform_type, Artifact.platform_type),
+                (value.name, Artifact.name),
+                (value.notes, Artifact.notes),
+                (value.camera, Raster.camera),
+                (value.session, Artifact.session_name),
+                (value.sequence_numbers, Artifact.sequence_number),
+                (value.capture_dates, Artifact.capture_date),
                 (
                     value.location_description,
-                    self.__model_type.location_description,
+                    Artifact.location_description,
                 ),
-                (value.altitude_meters, self.__model_type.altitude_meters),
-                (value.gsd_cm_px, self.__model_type.gsd_cm_px),
+                (value.altitude_meters, Raster.altitude_meters),
+                (value.gsd_cm_px, Raster.gsd_cm_px),
             ]
         )
         query = self.__update_location_query(
             value.bounding_box,
             query=query,
-            lat_column=self.__model_type.location_lat,
-            lon_column=self.__model_type.location_lon,
+            lat_column=Artifact.location_lat,
+            lon_column=Artifact.location_lon,
+        )
+        # We used columns from both the artifact and raster tables,
+        # so we have to join them.
+        query = query.join_from(
+            Artifact, Raster, onclause=Artifact.key == Raster.key
         )
 
         return query
@@ -371,6 +411,28 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
 
         return query.order_by(column_spec)
 
+    @staticmethod
+    def __object_type(model: Artifact) -> ObjectType:
+        """
+        Determines the type of an object from the ORM model.
+
+        Args:
+            model: The model to get the type of.
+
+        Returns:
+            The object type.
+
+        """
+        if model.raster is not None:
+            if model.raster.image is not None:
+                return ObjectType.IMAGE
+            elif model.raster.video is not None:
+                return ObjectType.VIDEO
+
+            return ObjectType.RASTER
+
+        return ObjectType.ARTIFACT
+
     async def add(
         self,
         *,
@@ -381,7 +443,7 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
         logger.debug("Adding metadata for object {}.", object_id)
 
         # Add the new image.
-        image = self.__pydantic_to_orm_image(object_id, metadata)
+        image = self._pydantic_to_orm_model(object_id, metadata)
         async with self.__session_begin() as session:
             if overwrite:
                 await session.merge(image)
@@ -397,12 +459,9 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
-        deletion = delete(Image).where(
-            self.__model_type.bucket == object_id.bucket,
-            self.__model_type.key == object_id.name,
-        )
         async with self.__session_begin() as session:
-            await session.execute(deletion)
+            artifact = await self.__get_by_id(object_id, session=session)
+            await session.delete(artifact)
 
     async def query(
         self,
@@ -410,11 +469,11 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
-    ) -> AsyncIterable[ObjectRef]:
+    ) -> AsyncIterable[TypedObjectRef]:
         # Create the SQL query.
         selections = []
         for query in queries:
-            selection = select(self.__model_type)
+            selection = select(Artifact)
             selections.append(
                 self.__update_raster_query(query, query=selection)
             )
@@ -437,7 +496,47 @@ class SqlRasterMetadataStore(RasterMetadataStore, Generic[MetadataTypeVar]):
             query_results = await session.execute(selection)
 
         for result in query_results.all():
-            yield ObjectRef(bucket=result.bucket, name=result.key)
+            object_type = self.__object_type(result)
+            yield TypedObjectRef(
+                id=ObjectRef(bucket=result.bucket, name=result.key),
+                type=object_type,
+            )
+
+
+class SqlRasterMetadataStore(
+    SqlArtifactMetadataStore, Generic[MetadataTypeVar]
+):
+    """
+    A metadata store that stores raster metadata in a SQL database.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        pydantic_type: Type[MetadataTypeVar] = RasterMetadata,
+        **kwargs: Any,
+    ):
+        """
+        Args:
+            *args: Will be forwarded to the superclass.
+            pydantic_type: Pydantic metadata type to use.
+            **kwargs: Will be forwarded to the superclass.
+
+        """
+        super().__init__(*args, pydantic_type=pydantic_type, **kwargs)
+
+    @classmethod
+    def _pydantic_to_orm_model(
+        cls, object_id: ObjectRef, metadata: RasterMetadata
+    ) -> Artifact:
+        artifact = super()._pydantic_to_orm_model(object_id, metadata)
+
+        fields = metadata.dict(include=Raster.pydantic_fields())
+        artifact.raster = Raster(
+            bucket=object_id.bucket, key=object_id.name, **fields
+        )
+
+        return artifact
 
 
 class SqlImageMetadataStore(SqlRasterMetadataStore[UavImageMetadata]):
@@ -452,14 +551,25 @@ class SqlImageMetadataStore(SqlRasterMetadataStore[UavImageMetadata]):
             **kwargs: Will be forwarded to the superclass.
 
         """
-        super().__init__(
-            *args, model_type=Image, pydantic_type=UavImageMetadata, **kwargs
+        super().__init__(*args, pydantic_type=UavImageMetadata, **kwargs)
+
+    @classmethod
+    def _pydantic_to_orm_model(
+        cls, object_id: ObjectRef, metadata: UavImageMetadata
+    ) -> Artifact:
+        artifact = super()._pydantic_to_orm_model(object_id, metadata)
+
+        fields = metadata.dict(include=Image.pydantic_fields())
+        artifact.raster.image = Image(
+            bucket=object_id.bucket, key=object_id.name, **fields
         )
+
+        return artifact
 
 
 class SqlVideoMetadataStore(SqlRasterMetadataStore[UavVideoMetadata]):
     """
-    A metadata store that stores image metadata in a SQL database.
+    A metadata store that stores video metadata in a SQL database.
     """
 
     def __init__(self, *args: Any, **kwargs: Any):
@@ -469,6 +579,17 @@ class SqlVideoMetadataStore(SqlRasterMetadataStore[UavVideoMetadata]):
             **kwargs: Will be forwarded to the superclass.
 
         """
-        super().__init__(
-            *args, model_type=Video, pydantic_type=UavVideoMetadata, **kwargs
+        super().__init__(*args, pydantic_type=UavVideoMetadata, **kwargs)
+
+    @classmethod
+    def _pydantic_to_orm_model(
+        cls, object_id: ObjectRef, metadata: UavVideoMetadata
+    ) -> Artifact:
+        artifact = super()._pydantic_to_orm_model(object_id, metadata)
+
+        fields = metadata.dict(include=Video.pydantic_fields())
+        artifact.raster.video = Video(
+            bucket=object_id.bucket, key=object_id.name, **fields
         )
+
+        return artifact

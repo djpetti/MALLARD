@@ -13,13 +13,21 @@ from faker.providers import BaseProvider
 from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
-    ImageMetadata,
     ImageQuery,
+    Metadata,
     PlatformType,
+    RasterMetadata,
     UavImageMetadata,
+    UavVideoMetadata,
+    VideoFormat,
 )
-from mallard.gateway.backends.metadata.sql.models import Image
-from mallard.gateway.backends.objects.models import ObjectRef
+from mallard.gateway.backends.metadata.sql.models import (
+    Artifact,
+    Image,
+    Raster,
+    Video,
+)
+from mallard.gateway.backends.objects.models import ObjectRef, ObjectType
 
 
 class MetadataProvider(BaseProvider):
@@ -31,6 +39,11 @@ class MetadataProvider(BaseProvider):
         super().__init__(*args, **kwargs)
 
         self.__faker = Faker()
+        # Maps object types to their corresponding provider methods.
+        self.__object_type_to_metadata = {
+            ObjectType.IMAGE: self.image_metadata,
+            ObjectType.VIDEO: self.video_metadata,
+        }
 
     def __random_enum(self, enum_type: Type[Enum]) -> Enum:
         """
@@ -45,9 +58,9 @@ class MetadataProvider(BaseProvider):
         """
         return self.random_element(list(enum_type))
 
-    def __image_metadata_common(self) -> Dict[str, Any]:
+    def __raster_metadata_common(self) -> Dict[str, Any]:
         """
-        Generates values for common parameters of all `ImageMetadata`
+        Generates values for common parameters of all `RasterMetadata`
         subclasses.
 
         Returns:
@@ -57,7 +70,6 @@ class MetadataProvider(BaseProvider):
         """
         return dict(
             name=self.__faker.file_name(category="image"),
-            format=self.__random_enum(ImageFormat),
             platform_type=self.__random_enum(PlatformType),
             notes=self.__faker.sentence(),
             session_name=self.__faker.word(),
@@ -108,35 +120,61 @@ class MetadataProvider(BaseProvider):
             longitude_deg=longitude_diff,
         )
 
-    def image_metadata(self) -> ImageMetadata:
-        """
-        Creates a fake `ImageMetadata` instance.
-
-        Returns:
-            The `ImageMetadata` that it created.
-
-        """
-        return ImageMetadata(**self.__image_metadata_common())
-
-    def uav_image_metadata(self) -> UavImageMetadata:
+    def image_metadata(self, uav: bool = True) -> UavImageMetadata:
         """
         Creates a fake `UavImageMetadata` instance.
+
+        Args:
+            uav: Whether to include UAV data.
 
         Returns:
             The `UavImageMetadata` that it created.
 
         """
+        fields = self.__raster_metadata_common()
+        if uav:
+            fields["altitude_meters"] = self.__faker.pyfloat(
+                positive=True, max_value=100
+            )
+            fields["gsd_cm_px"] = self.__faker.pyfloat(
+                positive=True, max_value=10
+            )
+
         return UavImageMetadata(
-            **self.__image_metadata_common(),
-            altitude_meters=self.__faker.pyfloat(positive=True, max_value=100),
-            gsd_cm_px=self.__faker.pyfloat(positive=True, max_value=10),
+            format=self.__random_enum(ImageFormat),
+            **fields,
+        )
+
+    def video_metadata(self, uav: bool = True) -> UavImageMetadata:
+        """
+        Creates a fake `UavVideoMetadata` instance.
+
+        Args:
+            uav: Whether to include UAV data.
+
+        Returns:
+            The `UavVideoMetadata` that it created.
+
+        """
+        fields = self.__raster_metadata_common()
+        if uav:
+            fields["altitude_meters"] = self.__faker.pyfloat(
+                positive=True, max_value=100
+            )
+            fields["gsd_cm_px"] = self.__faker.pyfloat(
+                positive=True, max_value=10
+            )
+
+        return UavVideoMetadata(
+            format=self.__random_enum(VideoFormat),
+            **fields,
         )
 
     def image_model(
         self,
         *,
         object_id: ObjectRef,
-        source_meta: Optional[ImageMetadata] = None,
+        source_meta: Optional[UavImageMetadata] = None,
     ) -> Image:
         """
         Creates a fake Image ORM model.
@@ -151,16 +189,121 @@ class MetadataProvider(BaseProvider):
 
         """
         if source_meta is None:
-            source_meta = self.uav_image_metadata()
+            source_meta = self.image_metadata()
 
-        model_attributes = source_meta.dict(exclude={"location"})
-        # Convert location format.
-        location_lat = source_meta.location.latitude_deg
-        location_lon = source_meta.location.longitude_deg
+        model_attributes = source_meta.dict(include=Image.pydantic_fields())
 
         return Image(
             bucket=object_id.bucket,
             key=object_id.name,
+            **model_attributes,
+        )
+
+    def video_model(
+        self,
+        *,
+        object_id: ObjectRef,
+        source_meta: Optional[UavVideoMetadata] = None,
+    ) -> Video:
+        """
+        Creates a fake Video ORM model.
+
+        Args:
+            object_id: The object reference to use for populating the model.
+            source_meta: The source data to use for populating the model. Will
+                be randomly generated if not provided.
+
+        Returns:
+            The `Video` that it created.
+
+        """
+        if source_meta is None:
+            source_meta = self.video_metadata()
+
+        model_attributes = source_meta.dict(include=Video.pydantic_fields())
+
+        return Video(
+            bucket=object_id.bucket,
+            key=object_id.name,
+            **model_attributes,
+        )
+
+    def raster_model(
+        self,
+        *,
+        object_id: ObjectRef,
+        source_meta: Optional[UavImageMetadata | UavVideoMetadata] = None,
+        artifact_type: ObjectType = ObjectType.IMAGE,
+    ) -> Raster:
+        """
+        Creates a fake Raster ORM model.
+
+        Args:
+            object_id: The object reference to use for populating the model.
+            source_meta: The source data to use for populating the model. Will
+                be randomly generated if not provided.
+            artifact_type: The type of artifact to create a model for.
+
+        Returns:
+            The `Raster` that it created.
+
+        """
+        if source_meta is None:
+            source_meta = self.__object_type_to_metadata[artifact_type]()
+
+        model_attributes = source_meta.dict(include=Raster.pydantic_fields())
+
+        if artifact_type == ObjectType.IMAGE:
+            model_attributes["image"] = self.image_model(
+                object_id=object_id, source_meta=source_meta
+            )
+        elif artifact_type == ObjectType.VIDEO:
+            model_attributes["video"] = self.video_model(
+                object_id=object_id, source_meta=source_meta
+            )
+
+        return Raster(
+            bucket=object_id.bucket,
+            key=object_id.name,
+            **model_attributes,
+        )
+
+    def artifact_model(
+        self,
+        *,
+        object_id: ObjectRef,
+        source_meta: Optional[UavImageMetadata | UavVideoMetadata] = None,
+        artifact_type: ObjectType = ObjectType.IMAGE,
+    ) -> Artifact:
+        """
+        Creates a fake Artifact ORM model.
+
+        Args:
+            object_id: The object reference to use for populating the model.
+            source_meta: The source data to use for populating the model. Will
+                be randomly generated if not provided.
+            artifact_type: The type of artifact to create a model for.
+
+        Returns:
+            The `Artifact` that it created.
+
+        """
+        if source_meta is None:
+            source_meta = self.__object_type_to_metadata[artifact_type]()
+
+        model_attributes = source_meta.dict(include=Artifact.pydantic_fields())
+        # Convert location format.
+        location_lat = source_meta.location.latitude_deg
+        location_lon = source_meta.location.longitude_deg
+
+        return Artifact(
+            bucket=object_id.bucket,
+            key=object_id.name,
+            raster=self.raster_model(
+                object_id=object_id,
+                source_meta=source_meta,
+                artifact_type=artifact_type,
+            ),
             location_lat=location_lat,
             location_lon=location_lon,
             **model_attributes,

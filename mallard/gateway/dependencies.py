@@ -28,9 +28,7 @@ def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:
     return timezone(timedelta(hours=tz))
 
 
-async def _use_bucket(
-    object_store: ObjectStore = Depends(backends.object_store), *, suffix: str
-) -> str:
+async def _use_bucket(object_store: ObjectStore, *, suffix: str) -> str:
     """
     Args:
         object_store: The object store to use.

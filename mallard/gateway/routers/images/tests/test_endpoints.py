@@ -15,10 +15,11 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
 import mallard.gateway.dependencies
+import mallard.gateway.routers.root.endpoints
 from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import (
+    ArtifactMetadataStore,
     MetadataOperationError,
-    RasterMetadataStore,
 )
 from mallard.gateway.backends.metadata.schemas import (
     ImageQuery,
@@ -42,7 +43,7 @@ class ConfigForTests:
     """
 
     mock_object_store: ObjectStore
-    mock_metadata_store: RasterMetadataStore
+    mock_metadata_store: ArtifactMetadataStore
     mock_streaming_response_class: mock.Mock
 
 
@@ -79,7 +80,7 @@ def config(mocker: MockFixture) -> ConfigForTests:
     """
     mock_object_store = mocker.create_autospec(ObjectStore, instance=True)
     mock_metadata_store = mocker.create_autospec(
-        RasterMetadataStore, instance=True
+        ArtifactMetadataStore, instance=True
     )
 
     mock_streaming_response_class = mocker.patch(
@@ -421,7 +422,7 @@ async def test_get_thumbnail(config: ConfigForTests, faker: Faker) -> None:
     image_name = faker.pystr()
 
     # Act.
-    response = await endpoints.get_thumbnail(
+    response = await mallard.gateway.routers.root.endpoints.get_thumbnail(
         bucket=bucket,
         name=image_name,
         object_store=config.mock_object_store,
@@ -467,7 +468,7 @@ async def test_get_thumbnail_nonexistent(
 
     # Act and assert.
     with pytest.raises(HTTPException):
-        await endpoints.get_thumbnail(
+        await mallard.gateway.routers.root.endpoints.get_thumbnail(
             bucket=bucket,
             name=image_name,
             object_store=config.mock_object_store,
@@ -694,7 +695,7 @@ async def test_query_images(
     config.mock_metadata_store.query.return_value = query_results()
 
     # Act.
-    response = await endpoints.query_images(
+    response = await mallard.gateway.routers.root.endpoints.query_images(
         queries=mock_queries,
         orderings=[],
         results_per_page=results_per_page,

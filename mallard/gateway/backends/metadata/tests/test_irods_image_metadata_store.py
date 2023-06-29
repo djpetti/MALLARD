@@ -19,14 +19,15 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
 from mallard.gateway.backends.metadata import (
-    irods_image_metadata_store,
+    irods_artifact_metadata_store,
     irods_metadata_store,
 )
 from mallard.gateway.backends.metadata.schemas import (
-    ImageMetadata,
     ImageQuery,
+    Metadata,
     Ordering,
     UavImageMetadata,
+    UavVideoMetadata,
 )
 from mallard.type_helpers import ArbitraryTypesConfig, Request
 
@@ -49,8 +50,10 @@ class TestIrodsImageMetadataStore:
 
         """
 
-        subclass: Type[irods_image_metadata_store.IrodsRasterMetadataStore]
-        metadata_type: Type[ImageMetadata]
+        subclass: Type[
+            irods_artifact_metadata_store.IrodsArtifactMetadataStore
+        ]
+        metadata_type: Type[Metadata]
 
     @dataclass(frozen=True, config=ArbitraryTypesConfig)
     class ConfigForTests:
@@ -68,23 +71,23 @@ class TestIrodsImageMetadataStore:
 
         """
 
-        store: irods_image_metadata_store.IrodsRasterMetadataStore
+        store: irods_artifact_metadata_store.IrodsArtifactMetadataStore
         mock_session: iRODSSession
         mock_to_irods_string: mock.Mock
         mock_make_async_iter: mock.Mock
 
         root_collection: Path
-        metadata: ImageMetadata
+        metadata: Metadata
 
     @classmethod
     @pytest.fixture(
         params=[
             ClassSpecificConfig(
-                subclass=irods_image_metadata_store.IrodsRasterMetadataStore,
-                metadata_type=ImageMetadata,
+                subclass=irods_artifact_metadata_store.IrodsArtifactMetadataStore,
+                metadata_type=UavVideoMetadata,
             ),
             ClassSpecificConfig(
-                subclass=irods_image_metadata_store.IrodsUavImageMetadataStore,
+                subclass=irods_artifact_metadata_store.IrodsImageMetadataStore,
                 metadata_type=UavImageMetadata,
             ),
         ],
@@ -136,7 +139,7 @@ class TestIrodsImageMetadataStore:
 
         # Mock out the `make_async_iter` function.
         mock_make_async_iter = mocker.patch(
-            irods_image_metadata_store.__name__ + ".make_async_iter"
+            irods_artifact_metadata_store.__name__ + ".make_async_iter"
         )
 
         # By default, we produce an empty iterable.
@@ -167,8 +170,8 @@ class TestIrodsImageMetadataStore:
 
         # Create fake metadata.
         types_to_faker_functions = {
-            UavImageMetadata: faker.uav_image_metadata,
-            ImageMetadata: faker.image_metadata,
+            UavImageMetadata: faker.image_metadata,
+            UavVideoMetadata: faker.video_metadata,
         }
         metadata = types_to_faker_functions[
             class_specific_config.metadata_type
@@ -269,8 +272,8 @@ class TestIrodsImageMetadataStore:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "new_metadata_type",
-        [ImageMetadata, UavImageMetadata],
-        ids=["image_metadata", "uav_image_metadata"],
+        [UavVideoMetadata, UavImageMetadata],
+        ids=["video_metadata", "image_metadata"],
     )
     @pytest.mark.parametrize(
         "merge", [True, False], ids=("merge", "overwrite")
@@ -280,7 +283,7 @@ class TestIrodsImageMetadataStore:
         config: ConfigForTests,
         class_specific_config: ClassSpecificConfig,
         faker: Faker,
-        new_metadata_type: Type[ImageMetadata],
+        new_metadata_type: Type[Metadata],
         merge: bool,
     ) -> None:
         """
@@ -302,10 +305,10 @@ class TestIrodsImageMetadataStore:
         mock_data_object.metadata.get_one.return_value = metadata_avus
 
         # Create some new metadata.
-        if new_metadata_type == ImageMetadata:
+        if new_metadata_type == UavImageMetadata:
             new_metadata = faker.image_metadata()
         else:
-            new_metadata = faker.uav_image_metadata()
+            new_metadata = faker.video_metadata()
         # Don't fill some of the attributes.
         new_metadata = new_metadata.copy(update=dict(name=None, camera=None))
 

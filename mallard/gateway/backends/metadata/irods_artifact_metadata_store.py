@@ -9,27 +9,28 @@ from typing import Any, AsyncIterable, Iterable
 
 from aioitertools import chain
 from aioitertools import enumerate as aio_enumerate
-from irods.column import Between, Criterion, In, Like
+from irods.column import Between, Criterion, Like
 from irods.models import Collection, DataObject, DataObjectMeta
 from irods.query import Query
 from loguru import logger
 
 from mallard.gateway.async_utils import make_async_iter
 
-from ..objects.models import ObjectRef
+from ..objects.models import ObjectRef, ObjectType, TypedObjectRef
+from .artifact_metadata_store import ArtifactMetadataStore
 from .irods_metadata_helpers import to_irods_string
 from .irods_metadata_store import IrodsMetadataStore
-from .raster_metadata_store import RasterMetadataStore
 from .schemas import (
     GeoPoint,
-    ImageMetadata,
     ImageQuery,
+    Metadata,
     Ordering,
     UavImageMetadata,
+    UavVideoMetadata,
 )
 
 
-class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
+class IrodsArtifactMetadataStore(IrodsMetadataStore, ArtifactMetadataStore):
     """
     An `ImageMetadataStore` that uses the iRODS metadata feature as a backend.
     """
@@ -212,12 +213,20 @@ class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
             The query that it created.
 
         """
-        sql_query = self._session.query(DataObject.name, Collection.name)
+        sql_query = self._session.query(
+            DataObject.name, Collection.name, DataObjectMeta
+        )
 
         # Initially filter on the root collection to exclude results that
         # aren't relevant to the application.
         root_pattern = f"{self._root_path.as_posix()}%"
         sql_query = sql_query.filter(Like(Collection.name, root_pattern))
+
+        # We specifically want to access the AVU for the object type so we
+        # can return that.
+        sql_query = sql_query.filter(
+            Criterion("=", DataObjectMeta.name, self._OBJECT_TYPE_KEY)
+        )
 
         # Also filter out thumbnails.
         return sql_query.filter(
@@ -250,7 +259,7 @@ class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
-    ) -> AsyncIterable[ObjectRef]:
+    ) -> AsyncIterable[TypedObjectRef]:
         """
         Performs a single query on the database.
 
@@ -283,13 +292,16 @@ class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
             bucket = Path(result[Collection.name])
             bucket = bucket.relative_to(self._root_path)
 
-            yield ObjectRef(
-                bucket=bucket.as_posix(),
-                name=result[DataObject.name],
+            yield TypedObjectRef(
+                id=ObjectRef(
+                    bucket=bucket.as_posix(),
+                    name=result[DataObject.name],
+                ),
+                type=ObjectType(result[DataObjectMeta.value]),
             )
 
-    async def get(self, object_id: ObjectRef) -> ImageMetadata:
-        return await self._get(object_id, parse_as=ImageMetadata)
+    async def get(self, object_id: ObjectRef) -> Metadata:
+        return await self._get(object_id, parse_as=Metadata)
 
     async def query(
         self,
@@ -297,7 +309,7 @@ class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
-    ) -> AsyncIterable[ObjectRef]:
+    ) -> AsyncIterable[TypedObjectRef]:
         # TODO (danielp): We cannot currently correctly handle orderings
         #   with multiple queries.
         queries = list(queries)
@@ -335,10 +347,19 @@ class IrodsRasterMetadataStore(IrodsMetadataStore, RasterMetadataStore):
             yield result
 
 
-class IrodsUavImageMetadataStore(IrodsRasterMetadataStore):
+class IrodsImageMetadataStore(IrodsArtifactMetadataStore):
     """
-    An `ImageMetadataStore` for UAV data that uses iRODS as a backend.
+    A `MetadataStore` for image data that uses iRODS as a backend.
     """
 
     async def get(self, object_id: ObjectRef) -> UavImageMetadata:
         return await self._get(object_id, parse_as=UavImageMetadata)
+
+
+class IrodsVideoMetadataStore(IrodsArtifactMetadataStore):
+    """
+    A `MetadataStore` for video data that uses iRODS as a backend.
+    """
+
+    async def get(self, object_id: ObjectRef) -> UavVideoMetadata:
+        return await self._get(object_id, parse_as=UavVideoMetadata)

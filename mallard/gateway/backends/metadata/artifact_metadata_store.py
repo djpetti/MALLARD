@@ -8,7 +8,7 @@ from typing import AsyncIterable, Generic, Iterable, TypeVar
 
 from loguru import logger
 
-from ..objects.models import ObjectRef
+from ..objects.models import ObjectRef, TypedObjectRef
 from .metadata_store import MetadataStore
 from .schemas import ImageQuery, Ordering, RasterMetadata
 
@@ -18,9 +18,9 @@ Used to specify the type of metadata stored in the database.
 """
 
 
-class RasterMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
+class ArtifactMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
     """
-    Metadata storage backend specifically for image data.
+    Metadata storage backend specifically for artifacts.
     """
 
     @abc.abstractmethod
@@ -43,6 +43,15 @@ class RasterMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
 
         Raises:
             `MetadataOperationError` on failure.
+
+        """
+
+    @abc.abstractmethod
+    async def get(self, object_id: ObjectRef) -> MetadataTypeVar:
+        """
+        This is only re-defined in order to narrow the return type.
+
+        See the superclass for documentation.
 
         """
 
@@ -99,7 +108,7 @@ class RasterMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
         orderings: Iterable[Ordering] = (),
         skip_first: int = 0,
         max_num_results: int = 500,
-    ) -> AsyncIterable[ObjectRef]:
+    ) -> AsyncIterable[TypedObjectRef]:
         """
         Queries the store for objects that match a particular set of criteria.
 

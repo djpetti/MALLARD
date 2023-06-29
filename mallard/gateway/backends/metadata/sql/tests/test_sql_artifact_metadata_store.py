@@ -4,8 +4,9 @@ Tests for the `sql_raster_metadata_store` module.
 
 
 import unittest.mock as mock
+from functools import partial
 from pathlib import Path
-from typing import List, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import pytest
 from faker import Faker
@@ -18,55 +19,142 @@ from sqlalchemy.orm import sessionmaker
 
 from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends.metadata.schemas import (
-    ImageMetadata,
     ImageQuery,
+    Metadata,
     Ordering,
-    UavImageMetadata,
 )
-from mallard.gateway.backends.metadata.sql import sql_raster_metadata_store
+from mallard.gateway.backends.metadata.sql import sql_artifact_metadata_store
 from mallard.gateway.backends.metadata.sql.models import Base
+from mallard.gateway.backends.objects.models import ObjectType
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
-class TestSqlImageMetadataStore:
+def _model_to_dict(model: Optional[Base]) -> Dict[str, Any]:
+    """
+    Converts a SQLAlchemy model to a dictionary.
+
+    Args:
+        model: The model to convert.
+
+    Returns:
+        A dictionary with the model keys and values. If the model is None,
+        it will return an empty dict.
+    """
+    if model is None:
+        return {}
+
+    return {f: getattr(model, f) for f in model.pydantic_fields()}
+
+
+@dataclass(frozen=True, config=ArbitraryTypesConfig)
+class ClassSpecificConfig:
+    """
+    Encapsulates configuration specific to a `SqlArtifactMetadataStore`
+    subclass.
+
+    Attributes:
+        store_class: The `SqlArtifactMetadataStore` subclass to test.
+
+        metadata_maker: A function that generates corresponding metadata
+            objects for this store.
+        model_maker: A function that generates corresponding ORM models for
+            this store.
+
+    """
+
+    store_class: Type[sql_artifact_metadata_store.SqlArtifactMetadataStore]
+
+    metadata_maker: Callable[[], Metadata]
+    model_maker: Callable[[], Base]
+
+
+@dataclass(frozen=True, config=ArbitraryTypesConfig)
+class ConfigForTests:
+    """
+    Encapsulates standard configuration for most tests.
+
+    Attributes:
+        store: The `SqlImageMetadataStore` under test.
+
+        mock_session: The mocked `AsyncSession` to use.
+        mock_select: The mocked `select` function to use.
+        mock_delete: The mocked `delete` function to use.
+
+        class_specific: The class-specific configuration.
+    """
+
+    store: sql_artifact_metadata_store.SqlArtifactMetadataStore
+
+    mock_session: AsyncSession
+    mock_select: mock.Mock
+    mock_delete: mock.Mock
+
+    class_specific: ClassSpecificConfig
+
+
+class TestSqlArtifactMetadataStore:
     """
     Tests for the `SqlImageMetadataStore` class.
     """
 
-    @dataclass(frozen=True, config=ArbitraryTypesConfig)
-    class ConfigForTests:
+    @classmethod
+    @pytest.fixture(
+        params=[
+            sql_artifact_metadata_store.SqlImageMetadataStore,
+            sql_artifact_metadata_store.SqlVideoMetadataStore,
+        ]
+    )
+    def class_specific_config(
+        cls, request, faker: Faker
+    ) -> ClassSpecificConfig:
         """
-        Encapsulates standard configuration for most tests.
+        Generates subclass-specific configuration for tests.
 
-        Attributes:
-            store: The `SqlImageMetadataStore` under test.
+        Args:
+            request: Encapsulates parametrization configuration.
+            faker: Fixture for generating fake data.
 
-            mock_session: The mocked `AsyncSession` to use.
-            mock_select: The mocked `select` function to use.
-            mock_delete: The mocked `delete` function to use.
+        Returns:
+            The configuration that it generated.
+
         """
+        store_class = request.param
 
-        store: sql_raster_metadata_store.SqlImageMetadataStore
+        metadata_makers = {
+            sql_artifact_metadata_store.SqlImageMetadataStore: faker.image_metadata,
+            sql_artifact_metadata_store.SqlVideoMetadataStore: faker.video_metadata,
+        }
+        object_types = {
+            sql_artifact_metadata_store.SqlImageMetadataStore: ObjectType.IMAGE,
+            sql_artifact_metadata_store.SqlVideoMetadataStore: ObjectType.VIDEO,
+        }
 
-        mock_session: AsyncSession
-        mock_select: mock.Mock
-        mock_delete: mock.Mock
+        return ClassSpecificConfig(
+            store_class=store_class,
+            metadata_maker=metadata_makers[store_class],
+            model_maker=partial(
+                faker.artifact_model, artifact_type=object_types[store_class]
+            ),
+        )
 
     @classmethod
     @pytest.fixture
-    def config(cls, mocker: MockFixture) -> ConfigForTests:
+    def config(
+        cls, mocker: MockFixture, class_specific_config: ClassSpecificConfig
+    ) -> ConfigForTests:
         """
         Generates standard configuration for most tests.
 
         Args:
             mocker: The fixture to use for mocking.
+            class_specific_config: Subclass-specific configuration.
 
         Returns:
             The configuration that it generated.
 
         """
         # Mock the dependencies.
-        module_name = sql_raster_metadata_store.__name__
+        module_name = sql_artifact_metadata_store.__name__
         mock_session = mocker.create_autospec(AsyncSession, instance=True)
         mock_select = mocker.patch(f"{module_name}.select")
         mock_delete = mocker.patch(f"{module_name}.delete")
@@ -84,14 +172,16 @@ class TestSqlImageMetadataStore:
         mock_query.limit.return_value = mock_query
         mock_query.offset.return_value = mock_query
         mock_query.union.return_value = mock_query
+        mock_query.join_from.return_value = mock_query
 
-        store = sql_raster_metadata_store.SqlImageMetadataStore(mock_session)
+        store = class_specific_config.store_class(mock_session)
 
-        return cls.ConfigForTests(
+        return ConfigForTests(
             store=store,
             mock_session=mock_session,
             mock_select=mock_select,
             mock_delete=mock_delete,
+            class_specific=class_specific_config,
         )
 
     @pytest.fixture
@@ -141,11 +231,7 @@ class TestSqlImageMetadataStore:
         """
         # Arrange.
         # Create some fake metadata.
-        if uav:
-            metadata = faker.uav_image_metadata()
-        else:
-            metadata = faker.image_metadata()
-
+        metadata = config.class_specific.metadata_maker(uav=uav)
         object_id = faker.object_ref()
 
         # Act.
@@ -171,15 +257,15 @@ class TestSqlImageMetadataStore:
         assert orm_model.location_lat == metadata.location.latitude_deg
         assert orm_model.location_lon == metadata.location.longitude_deg
         if uav:
-            assert orm_model.altitude_meters == metadata.altitude_meters
+            assert orm_model.raster.altitude_meters == metadata.altitude_meters
         else:
-            assert orm_model.altitude_meters is None
+            assert orm_model.raster.altitude_meters is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "new_metadata_type",
-        [ImageMetadata, UavImageMetadata],
-        ids=["image_metadata", "uav_image_metadata"],
+        "uav",
+        [False, True],
+        ids=["ground", "uav"],
     )
     @pytest.mark.parametrize(
         "merge", [True, False], ids=("merge", "overwrite")
@@ -188,8 +274,7 @@ class TestSqlImageMetadataStore:
         self,
         config: ConfigForTests,
         faker: Faker,
-        mocker: MockFixture,
-        new_metadata_type: Type[ImageMetadata],
+        uav: bool,
         merge: bool,
     ) -> None:
         """
@@ -198,8 +283,7 @@ class TestSqlImageMetadataStore:
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
-            mocker: The fixture to use for mocking.
-            new_metadata_type: The type of new metadata to pass in.
+            uav: Whether to simulate UAV metadata.
             merge: Whether to test merging or overwriting.
 
         """
@@ -208,14 +292,11 @@ class TestSqlImageMetadataStore:
 
         # Make it look like we have some existing metadata.
         mock_results = config.mock_session.execute.return_value
-        old_model = faker.image_model(object_id=object_id)
+        old_model = config.class_specific.model_maker(object_id=object_id)
         mock_results.scalar_one.return_value = old_model
 
         # Create some new metadata.
-        if new_metadata_type == ImageMetadata:
-            new_metadata = faker.image_metadata()
-        else:
-            new_metadata = faker.uav_image_metadata()
+        new_metadata = config.class_specific.metadata_maker(uav=uav)
         # Don't fill some of the attributes.
         new_metadata = new_metadata.copy(update=dict(name=None, camera=None))
 
@@ -234,20 +315,27 @@ class TestSqlImageMetadataStore:
         if merge:
             # It should not have overwritten the fields we wanted to keep.
             assert added_model.name == old_model.name
-            assert added_model.camera == old_model.camera
+            assert added_model.raster.camera == old_model.raster.camera
 
             # Everything else should be updated.
             ignore_fields = {"name", "camera", "location"}
         else:
             ignore_fields = {"location"}
+        if not uav:
+            # Ignore UAV-specific fields.
+            ignore_fields |= {"altitude_meters", "gsd_cm_px"}
 
-        added_metadata = UavImageMetadata.from_orm(added_model)
-        got_unmodified = added_metadata.dict(exclude=ignore_fields)
+        got_unmodified = _model_to_dict(added_model)
+        got_unmodified.update(_model_to_dict(added_model.raster))
+        got_unmodified.update(_model_to_dict(added_model.raster.image))
+        got_unmodified.update(_model_to_dict(added_model.raster.video))
+        for field in ignore_fields:
+            if field in got_unmodified:
+                del got_unmodified[field]
+
         expected_unmodified = new_metadata.dict(exclude=ignore_fields)
-        # There might be some differences in the fields between the two
-        # of them, because they could be different subclasses of
-        # ImageMetadata.
-        for key in got_unmodified.keys() & expected_unmodified.keys():
+        for key in got_unmodified.keys():
+            assert key in expected_unmodified
             assert got_unmodified[key] == expected_unmodified[key]
 
         # Location must be compared manually.
@@ -275,7 +363,7 @@ class TestSqlImageMetadataStore:
         mock_scalars = mocker.create_autospec(ScalarResult, instance=True)
         mock_results.scalars.return_value = mock_scalars
 
-        fake_model = faker.image_model(object_id=object_id)
+        fake_model = config.class_specific.model_maker(object_id=object_id)
         mock_results.scalar_one.return_value = fake_model
 
         # Act.
@@ -335,12 +423,11 @@ class TestSqlImageMetadataStore:
 
         # Assert.
         # It should have performed a deletion.
-        config.mock_delete.assert_called_once()
-        mock_deletion = config.mock_delete.return_value
-        mock_deletion.where.assert_called_once()
-        mock_deletion = mock_deletion.where.return_value
-
-        config.mock_session.execute.assert_called_once_with(mock_deletion)
+        config.mock_select.assert_called_once()
+        mock_artifact = (
+            config.mock_session.execute.return_value.scalar_one.return_value
+        )
+        config.mock_session.delete.assert_called_once_with(mock_artifact)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -405,8 +492,8 @@ class TestSqlImageMetadataStore:
         # Produce some fake results for the query.
         object_id_1 = faker.object_ref()
         object_id_2 = faker.object_ref()
-        result_1 = faker.image_model(object_id=object_id_1)
-        result_2 = faker.image_model(object_id=object_id_2)
+        result_1 = faker.artifact_model(object_id=object_id_1)
+        result_2 = faker.artifact_model(object_id=object_id_2)
         mock_results = config.mock_session.execute.return_value
         mock_results.all.return_value = [result_1, result_2]
 
@@ -475,7 +562,7 @@ class TestSqlImageMetadataStore:
 
         # Produce some fake results for the query.
         object_id = faker.object_ref()
-        result = faker.image_model(object_id=object_id)
+        result = faker.artifact_model(object_id=object_id)
         mock_results = config.mock_session.execute.return_value
         mock_results.all.return_value = [result]
 
@@ -505,14 +592,14 @@ class TestSqlImageMetadataStore:
 
         # Mock the SQLAlchemy functions.
         mock_create_async_engine = mocker.patch(
-            f"{sql_raster_metadata_store.__name__}.create_async_engine"
+            f"{sql_artifact_metadata_store.__name__}.create_async_engine"
         )
         mock_session_maker = mocker.patch(
-            f"{sql_raster_metadata_store.__name__}.sessionmaker"
+            f"{sql_artifact_metadata_store.__name__}.sessionmaker"
         )
 
         # Act.
-        async with sql_raster_metadata_store.SqlImageMetadataStore.from_config(
+        async with sql_artifact_metadata_store.SqlImageMetadataStore.from_config(
             mock_config
         ):
             # Assert.
@@ -542,9 +629,11 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_artifact_metadata_store.SqlImageMetadataStore(
+            sqlite_session
+        )
 
-        metadata = faker.uav_image_metadata()
+        metadata = faker.image_metadata()
         object_id = faker.object_ref()
 
         # Act.
@@ -571,9 +660,11 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_artifact_metadata_store.SqlImageMetadataStore(
+            sqlite_session
+        )
 
-        metadata = faker.uav_image_metadata()
+        metadata = faker.image_metadata()
         object_id = faker.object_ref()
 
         # Act.
@@ -604,10 +695,12 @@ class TestSqlImageMetadataStore:
 
         """
         # Arrange.
-        store = sql_raster_metadata_store.SqlImageMetadataStore(sqlite_session)
+        store = sql_artifact_metadata_store.SqlImageMetadataStore(
+            sqlite_session
+        )
 
         # Add various records.
-        metadata1 = faker.uav_image_metadata()
+        metadata1 = faker.image_metadata()
         metadata1 = metadata1.copy(
             update=dict(
                 name="first image", sequence_number=0, session_name="a"
@@ -615,7 +708,7 @@ class TestSqlImageMetadataStore:
         )
         object_id1 = faker.object_ref()
 
-        metadata2 = faker.uav_image_metadata()
+        metadata2 = faker.image_metadata()
         metadata2 = metadata2.copy(
             update=dict(
                 name="second image", sequence_number=1, session_name="a"
@@ -623,7 +716,7 @@ class TestSqlImageMetadataStore:
         )
         object_id2 = faker.object_ref()
 
-        metadata3 = faker.uav_image_metadata()
+        metadata3 = faker.image_metadata()
         metadata3 = metadata3.copy(
             update=dict(
                 name="first image", sequence_number=0, session_name="b"

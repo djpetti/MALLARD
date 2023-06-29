@@ -3,7 +3,7 @@ Common backend for all SQL databases.
 """
 
 
-from .sql_raster_metadata_store import (
+from .sql_artifact_metadata_store import (
     SqlImageMetadataStore,
     SqlVideoMetadataStore,
 )

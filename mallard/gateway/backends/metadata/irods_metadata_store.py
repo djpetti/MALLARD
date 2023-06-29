@@ -21,10 +21,15 @@ from tenacity import (
 
 from ...fastapi_utils import flatten_dict
 from ..irods_store import IrodsStore
-from ..objects.models import ObjectRef
+from ..objects.models import ObjectRef, ObjectType
 from .irods_metadata_helpers import to_irods_string
 from .metadata_store import MetadataStore
-from .schemas import Metadata
+from .schemas import (
+    Metadata,
+    RasterMetadata,
+    UavImageMetadata,
+    UavVideoMetadata,
+)
 
 _RETRY_ARGS = dict(
     stop=stop_after_attempt(20),
@@ -39,6 +44,21 @@ Common arguments to use for `retry` decorator.
 class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
     """
     A `MetadataStore` that uses the iRODS metadata feature as a backend.
+    """
+
+    _OBJECT_TYPE_KEY = "_object_type"
+    """
+    An extra key we add to the metadata that keeps track of the object type.
+    """
+
+    _METADATA_TO_OBJECT_TYPE = {
+        Metadata: ObjectType.ARTIFACT,
+        RasterMetadata: ObjectType.RASTER,
+        UavImageMetadata: ObjectType.IMAGE,
+        UavVideoMetadata: ObjectType.VIDEO,
+    }
+    """
+    Mapping from `Metadata` subclasses to their corresponding `ObjectType`.
     """
 
     @staticmethod
@@ -149,6 +169,10 @@ class IrodsMetadataStore(IrodsStore, MetadataStore, abc.ABC):
 
         # Convert the metadata into simple keys and values.
         metadata_dict = self.__flatten_metadata(metadata)
+        # Add the object type.
+        metadata_dict[self._OBJECT_TYPE_KEY] = self._METADATA_TO_OBJECT_TYPE[
+            type(metadata)
+        ].value
         logger.debug("Using raw metadata for {}: {}", object_id, metadata_dict)
 
         # TODO (danielp): Atomic metadata operations are only supported by

@@ -3,7 +3,21 @@ Data models for object storage.
 """
 
 
+import enum
+
 from pydantic import BaseModel
+
+
+@enum.unique
+class ObjectType(enum.Enum):
+    """
+    The type of an object.
+    """
+
+    ARTIFACT = "artifact"
+    RASTER = "raster"
+    IMAGE = "image"
+    VIDEO = "video"
 
 
 class ObjectRef(BaseModel):
@@ -20,6 +34,23 @@ class ObjectRef(BaseModel):
 
     bucket: str
     name: str
+
+
+class TypedObjectRef(BaseModel):
+    """
+    Represents a reference to an object in the store, with an associated type.
+
+    Attributes:
+        id: The object ID.
+        type: The type of the object.
+
+    """
+
+    class Config:
+        frozen = True
+
+    id: ObjectRef
+    type: ObjectType
 
 
 def derived_id(object_id: ObjectRef, suffix: str) -> ObjectRef:

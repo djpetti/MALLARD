@@ -15,8 +15,9 @@ from faker.providers import BaseProvider
 from PIL import Image
 
 from ....backends.objects.models import ObjectRef
+from ...root.schemas import QueryResponse
 from ..image_metadata import ExifReader
-from ..schemas import CreateResponse, QueryResponse
+from ..schemas import CreateResponse
 
 
 class ImageProvider(BaseProvider):

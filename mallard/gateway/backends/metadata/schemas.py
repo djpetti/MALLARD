@@ -163,13 +163,19 @@ class RasterMetadata(Metadata):
 
     camera: The camera model that was used.
 
+    altitude_meters: The altitude of the UAV, in meters AGL.
+    gsd_cm_px: The ground-sample distance in cm/px.
+
     """
 
     camera: Optional[str] = None
 
+    altitude_meters: Optional[float] = None
+    gsd_cm_px: Optional[float] = None
+
 
 @as_form
-class ImageMetadata(RasterMetadata):
+class UavImageMetadata(RasterMetadata):
     """
     Represents metadata for an image.
 
@@ -184,7 +190,7 @@ class ImageMetadata(RasterMetadata):
 
 
 @as_form
-class VideoMetadata(RasterMetadata):
+class UavVideoMetadata(RasterMetadata):
     """
     Represents metadata for a video.
 
@@ -200,37 +206,6 @@ class VideoMetadata(RasterMetadata):
 
     frame_rate: Optional[float] = None
     num_frames: Optional[int] = None
-
-
-class UavPlatformMixin(BaseModel):
-    """
-    Adds attributes specific to the UAV platform.
-
-    Attributes:
-        platform_type: The type of platform that these data were collected from.
-
-        altitude_meters: The altitude of the UAV, in meters AGL.
-        gsd_cm_px: The ground-sample distance in cm/px.
-    """
-
-    platform_type: PlatformType = PlatformType.AERIAL
-
-    altitude_meters: Optional[float] = None
-    gsd_cm_px: Optional[float] = None
-
-
-@as_form
-class UavImageMetadata(ImageMetadata, UavPlatformMixin):
-    """
-    Represents metadata for an image taken by a UAV.
-    """
-
-
-@as_form
-class UavVideoMetadata(VideoMetadata, UavPlatformMixin):
-    """
-    Represents metadata for a video taken by a UAV.
-    """
 
 
 class Ordering(ApiModel):

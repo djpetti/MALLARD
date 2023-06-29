@@ -3,7 +3,7 @@ API endpoints for managing video data.
 """
 import asyncio
 import uuid
-from typing import List
+from typing import List, cast
 
 from fastapi import (
     APIRouter,
@@ -15,25 +15,45 @@ from fastapi import (
     UploadFile,
 )
 from loguru import logger
+from starlette.responses import StreamingResponse
 
 from ...artifact_metadata import MissingLengthError
 from ...backends import backend_manager as backends
-from ...backends.metadata import MetadataOperationError, RasterMetadataStore
-from ...backends.metadata.schemas import UavVideoMetadata
+from ...backends.metadata import (
+    ArtifactMetadataStore,
+    MetadataOperationError,
+    MetadataStore,
+)
+from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
 from ...dependencies import use_bucket_videos
-from .schemas import CreateResponse
+from ..common import check_key_errors, get_metadata, update_metadata
+from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import create_preview, create_thumbnail
 from .video_metadata import InvalidVideoError, fill_metadata
 
 router = APIRouter(prefix="/video", tags=["videos"])
 
 
+_VIDEO_FORMAT_TO_MIME_TYPES = {
+    VideoFormat.AV1: "video/AV1",
+    VideoFormat.AVC: "video/H264",
+    VideoFormat.H263: "video/H263",
+    VideoFormat.HEVC: "video/H265",
+    VideoFormat.THEORA: "video/ogg",
+    VideoFormat.VP8: "video/VP8",
+    VideoFormat.VP9: "video/VP9",
+}
+"""
+Maps video formats to corresponding MIME types.
+"""
+
+
 async def filled_uav_metadata(
     metadata: UavVideoMetadata = Depends(UavVideoMetadata.as_form),
     video_data: UploadFile = File(...),
-):
+) -> UavVideoMetadata:
     """
     Intercepts requests containing UAV video metadata and fills in any missing
     fields based on `ffprobe` results.
@@ -70,7 +90,7 @@ async def create_uav_video(
     metadata: UavVideoMetadata = Depends(filled_uav_metadata),
     video_data: UploadFile = File(...),
     object_store: ObjectStore = Depends(backends.object_store),
-    metadata_store: RasterMetadataStore = Depends(
+    metadata_store: ArtifactMetadataStore = Depends(
         backends.video_metadata_store
     ),
     bucket: str = Depends(use_bucket_videos),
@@ -144,11 +164,171 @@ async def create_uav_video(
 
 
 @router.delete("/delete")
-async def delete_videos(videos: List[ObjectRef] = Body(...)) -> None:
+async def delete_videos(
+    videos: List[ObjectRef] = Body(...),
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.video_metadata_store
+    ),
+) -> None:
     """
     Deletes existing videos from the server.
 
     Args:
         videos: The videos to delete.
+        object_store: The object store to delete the videos from.
+        metadata_store: The metadata store to delete the metadata from.
 
     """
+    logger.info("Deleting {} videos.", len(videos))
+
+    with check_key_errors():
+        async with asyncio.TaskGroup() as tasks:
+            for video in videos:
+                tasks.create_task(object_store.delete_object(video))
+                tasks.create_task(metadata_store.delete(video))
+
+
+@router.get("/{bucket}/{name}")
+async def get_video(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.video_metadata_store
+    ),
+) -> StreamingResponse:
+    """
+    Retrieves a video from the server.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        object_store: The object store to retrieve the video from.
+        metadata_store: The metadata store to retrieve the metadata from.
+
+    Returns:
+        A `StreamingResponse` object containing the video.
+
+    """
+    logger.info("Getting video {} in bucket {}.", name, bucket)
+
+    object_id = ObjectRef(bucket=bucket, name=name)
+    with check_key_errors():
+        async with asyncio.TaskGroup() as tasks:
+            object_task = tasks.create_task(object_store.get_object(object_id))
+            metadata_task = tasks.create_task(metadata_store.get(object_id))
+
+    # Determine the proper MIME type for the video.
+    metadata = metadata_task.result()
+    mime_type = _VIDEO_FORMAT_TO_MIME_TYPES[metadata.format]
+
+    return StreamingResponse(
+        object_task.result(),
+        media_type=mime_type,
+        headers={"Content-Length": str(metadata.length)},
+    )
+
+
+@router.get("/preview/{bucket}/{name}")
+async def get_preview(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> StreamingResponse:
+    """
+    Retrieves a preview from the server.
+
+    Args:
+        bucket: The bucket the thumbnail is in.
+        name: The name of the thumbnail.
+        object_store: The object store to use.
+
+    Returns:
+        A `StreamingResponse` object containing the thumbnail.
+
+    """
+    logger.info("Getting preview for video {} in bucket {}.", name, bucket)
+
+    object_id = ObjectRef(bucket=bucket, name=name)
+    preview_object_id = derived_id(object_id, suffix="preview")
+    try:
+        preview_stream = await object_store.get_object(preview_object_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail="Requested video preview could not be found.",
+        )
+
+    return StreamingResponse(preview_stream, media_type="video/mp4")
+
+
+@router.post("/metadata", response_model=MetadataResponse)
+async def find_video_metadata(
+    videos: List[ObjectRef] = Body(...),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.video_metadata_store
+    ),
+) -> MetadataResponse:
+    """
+    Retrieves the metadata for a set of videos.
+
+    Args:
+        videos: The videos to retrieve the metadata for.
+        metadata_store: The metadata store to use.
+
+    Returns:
+        A `MetadataResponse` object containing the metadata for the videos.
+
+    """
+    return MetadataResponse(
+        metadata=await get_metadata(videos, metadata_store=metadata_store)
+    )
+
+
+@router.patch("/metadata/batch_update")
+async def batch_update_metadata(
+    metadata: UavVideoMetadata,
+    images: List[ObjectRef] = Body(...),
+    increment_sequence: bool = False,
+    metadata_store: MetadataStore = Depends(backends.video_metadata_store),
+) -> None:
+    """
+    Updates the metadata for a large number of videos at once. Note that any
+    parameters that are set to `None` in `metadata` will retain their
+    original values.
+
+    Args:
+        metadata: The new metadata to set.
+        images: The set of existing images to update.
+        increment_sequence: If this is true, the sequence number will be
+            automatically incremented for each image added, starting at whatever
+            value is set in `metadata`. In this case, the order of the images
+            specified in `images` will determine session numbers.
+        metadata_store: The metadata store to use.
+
+    """
+    metadata_store = cast(ArtifactMetadataStore, metadata_store)
+    await update_metadata(
+        metadata=metadata,
+        artifacts=images,
+        increment_sequence=increment_sequence,
+        metadata_store=metadata_store,
+    )
+
+
+@router.post("/metadata/infer", response_model=UavVideoMetadata)
+async def infer_image_metadata(
+    metadata: UavVideoMetadata = Depends(filled_uav_metadata),
+) -> UavVideoMetadata:
+    """
+    Infers the metadata for a video.
+
+    Args:
+        metadata: Can be used to provide partial metadata to build on.
+
+    Returns:
+        The metadata that it was able to infer.
+
+    """
+    return metadata

@@ -9,7 +9,7 @@ from loguru import logger
 
 from ..config import config
 from .authentication import check_auth_token
-from .routers import images, videos
+from .routers import images, root, videos
 
 dependencies = []
 if config["security"]["enable_auth"].get(bool):
@@ -20,6 +20,7 @@ app = FastAPI(debug=True, dependencies=dependencies)
 
 app.include_router(images.router)
 app.include_router(videos.router)
+app.include_router(root.router)
 
 allowed_origins = config["security"]["api_origins"].as_str_seq()
 logger.debug("Allowing requests from origins: {}", allowed_origins)

@@ -50,6 +50,7 @@ import {
   fakeObjectRef,
   fakeState,
   fakeSuggestions,
+  fakeTypedObjectRef,
 } from "./element-test-utils";
 import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
 import each from "jest-each";
@@ -151,7 +152,7 @@ describe("thumbnail-grid-slice action creators", () => {
       // Arrange.
       // Make it look like the query request succeeds.
       const queryResult: QueryResponse = {
-        imageIds: [fakeObjectRef(), fakeObjectRef()],
+        imageIds: [fakeTypedObjectRef(), fakeTypedObjectRef()],
         pageNum: startPage ?? 1,
         isLastPage: true,
       };
@@ -161,7 +162,7 @@ describe("thumbnail-grid-slice action creators", () => {
       // For metadata loading, we have to make it look like there are
       // already image entities.
       const frontendIds = queryResult.imageIds.map((i) =>
-        createImageEntityId(i)
+        createImageEntityId(i.id)
       );
       state.imageView.ids = frontendIds;
       state.imageView.entities[frontendIds[0]] = fakeImageEntity(false, false);
@@ -231,7 +232,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // Make it look like the query request succeeds.
     const queryResult: QueryResponse = {
-      imageIds: [fakeObjectRef(), fakeObjectRef()],
+      imageIds: [fakeTypedObjectRef(), fakeTypedObjectRef()],
       pageNum: pageNum + 1,
       isLastPage: true,
     };
@@ -239,7 +240,9 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // For metadata loading, we have to make it look like there are
     // already image entities.
-    const frontendIds = queryResult.imageIds.map((i) => createImageEntityId(i));
+    const frontendIds = queryResult.imageIds.map((i) =>
+      createImageEntityId(i.id)
+    );
     state.imageView.ids = frontendIds;
     state.imageView.entities[frontendIds[0]] = fakeImageEntity(false, false);
     state.imageView.entities[frontendIds[1]] = fakeImageEntity(false, false);

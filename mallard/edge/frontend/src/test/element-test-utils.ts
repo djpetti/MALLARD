@@ -18,8 +18,10 @@ import {
   Field,
   ImageFormat,
   ObjectRef,
+  ObjectType,
   Ordering,
   PlatformType,
+  TypedObjectRef,
   UavImageMetadata,
 } from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
@@ -231,6 +233,22 @@ export function fakeObjectRef(): ObjectRef {
   return {
     bucket: faker.lorem.words(),
     name: faker.datatype.uuid(),
+  };
+}
+
+/**
+ * Creates a fake `TypedObjectRef`.
+ * @return {TypedObjectRef} The random `TypedObjectRef` that it created.
+ */
+export function fakeTypedObjectRef(): TypedObjectRef {
+  return {
+    type: faker.helpers.arrayElement([
+      ObjectType.IMAGE,
+      ObjectType.RASTER,
+      ObjectType.VIDEO,
+      ObjectType.ARTIFACT,
+    ]),
+    id: fakeObjectRef(),
   };
 }
 

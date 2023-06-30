@@ -12,7 +12,7 @@ from fastapi import UploadFile
 from loguru import logger
 
 from ...artifact_metadata import fill_metadata as artifact_fill_metadata
-from ...backends.metadata.schemas import VideoFormat, VideoMetadata
+from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from .transcoder_client import probe_video
 
 
@@ -82,7 +82,7 @@ class FFProbeReader:
             logger.warning("Video capture time not found, using current time.")
             return datetime.now(timezone.utc)
 
-        capture_time = datetime.fromisoformat(capture_time_tag)
+        return datetime.fromisoformat(capture_time_tag)
 
     @cached_property
     def format(self) -> VideoFormat:
@@ -125,12 +125,9 @@ class FFProbeReader:
         return int(self.__video_stream["nb_frames"])
 
 
-MetadataType = TypeVar("MetadataType", bound=VideoMetadata)
-
-
 async def fill_metadata(
-    metadata: MetadataType, *, video: UploadFile
-) -> MetadataType:
+    metadata: UavVideoMetadata, *, video: UploadFile
+) -> UavVideoMetadata:
     """
     Fills the video metadata.
 

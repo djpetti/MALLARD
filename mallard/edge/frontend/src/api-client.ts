@@ -3,6 +3,7 @@ import {
   Field,
   ImageFormat,
   ImagesApi,
+  DefaultApi,
   ObjectRef,
   Ordering,
   PlatformType,
@@ -16,7 +17,8 @@ import { cloneDeep } from "lodash";
 declare const API_BASE_URL: string;
 
 /** Singleton API client used by the entire application. */
-const api = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
+const imagesApi = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
+const api = new DefaultApi(new Configuration({ basePath: API_BASE_URL }));
 
 /** Used for translating raw platform types to enum values.
  * Must be kept in-sync with `PlatformType` on the backend.
@@ -104,7 +106,7 @@ export async function queryImages(
   pageNum: number = 1
 ): Promise<QueryResponse> {
   const response = await api
-    .queryImagesImagesQueryPost(resultsPerPage, pageNum, {
+    .queryArtifactsQueryPost(resultsPerPage, pageNum, {
       queries: query,
       orderings: orderings,
     })
@@ -122,7 +124,7 @@ export async function queryImages(
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const response = await api
-    .getThumbnailImagesThumbnailBucketNameGet(imageId.bucket, imageId.name, {
+    .getThumbnailThumbnailBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
     })
     .catch(function (error) {
@@ -139,7 +141,7 @@ export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
  * @return {Blob} The raw image blob data.
  */
 export async function loadImage(imageId: ObjectRef): Promise<Blob> {
-  const response = await api
+  const response = await imagesApi
     .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
     })
@@ -159,7 +161,7 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
 export async function getMetadata(
   imageIds: ObjectRef[]
 ): Promise<UavImageMetadata[]> {
-  const response = await api
+  const response = await imagesApi
     .findImageMetadataImagesMetadataPost(imageIds)
     .catch(function (error) {
       console.error(error.toJSON());
@@ -190,7 +192,7 @@ export async function createImage(
   // Set the size based on the image to upload.
   metadata.size = imageData.size;
 
-  const response = await api
+  const response = await imagesApi
     .createUavImageImagesCreateUavPost(
       offset,
       new File([imageData], name),
@@ -213,10 +215,12 @@ export async function createImage(
  * @param {ObjectRef[]} images The images to delete.
  */
 export async function deleteImages(images: ObjectRef[]): Promise<void> {
-  await api.deleteImagesImagesDeleteDelete(images).catch(function (error) {
-    console.error(error.toJSON());
-    throw error;
-  });
+  await imagesApi
+    .deleteImagesImagesDeleteDelete(images)
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
 }
 
 /**
@@ -235,7 +239,7 @@ export async function inferMetadata(
   // Set the size based on the image to upload.
   knownMetadata.size = imageData.size;
 
-  const response = await api
+  const response = await imagesApi
     .inferImageMetadataImagesMetadataInferPost(
       offset,
       new File([imageData], name),
@@ -272,7 +276,7 @@ export async function batchUpdateMetadata(
     metadataCopy.name = undefined;
   }
 
-  await api
+  await imagesApi
     .batchUpdateMetadataImagesMetadataBatchUpdatePatch(
       {
         metadata: metadataCopy,

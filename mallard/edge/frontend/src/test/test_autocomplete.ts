@@ -7,7 +7,7 @@ import {
 } from "../autocomplete";
 import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
-import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
+import { fakeImageMetadata, fakeTypedObjectRef } from "./element-test-utils";
 import { ImageQuery } from "../types";
 import { PlatformType } from "mallard-api";
 import { faker } from "@faker-js/faker";
@@ -184,7 +184,7 @@ describe("autocomplete", () => {
     async (_, fieldValue: string, searchString: string, suggestion: string) => {
       // Arrange.
       // Make it look like the initial queries succeeded.
-      const queryResults = [fakeObjectRef()];
+      const queryResults = [fakeTypedObjectRef()];
       mockQueryImages.mockResolvedValue({
         imageIds: queryResults,
         pageNum: 1,
@@ -219,7 +219,7 @@ describe("autocomplete", () => {
     async (_, searchString: string, menu: AutocompleteMenu) => {
       // Arrange.
       // Make it look like the initial queries succeeded.
-      const queryResults = [fakeObjectRef()];
+      const queryResults = [fakeTypedObjectRef()];
       mockQueryImages.mockResolvedValue({
         imageIds: queryResults,
         pageNum: 1,

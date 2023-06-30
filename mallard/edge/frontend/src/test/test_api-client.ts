@@ -13,22 +13,27 @@ import {
   fakeObjectRef,
   fakeImageMetadata,
   fakeOrdering,
+  fakeTypedObjectRef,
 } from "./element-test-utils";
 import {
   ObjectRef,
   QueryResponse,
   UavImageMetadata,
   ImagesApi,
+  DefaultApi,
+  TypedObjectRef,
 } from "mallard-api";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
+import { AxiosResponse } from "axios";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
 // Deliberately using `any` here so we can make the API return any type of
 // object instead of having to tediously simulate AxiosResponse.
-const mockImagesApiClass = ImagesApi as jest.MockedClass<any>;
+const mockImagesApiClass = ImagesApi as jest.MockedClass<typeof ImagesApi>;
+const mockApiClass = DefaultApi as jest.MockedClass<typeof DefaultApi>;
 
 describe("api-client", () => {
   beforeEach(() => {
@@ -56,16 +61,16 @@ describe("api-client", () => {
   it("can query images", async () => {
     // Arrange.
     // Fake a valid response.
-    const mockQueryImages =
-      mockImagesApiClass.prototype.queryImagesImagesQueryPost;
+    const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
 
     const resultsPerPage = faker.datatype.number();
-    const imageIds: string[] = [];
+    const imageIds: TypedObjectRef[] = [];
     for (let i = 0; i < resultsPerPage; ++i) {
-      imageIds.push(faker.datatype.uuid());
+      imageIds.push(fakeTypedObjectRef());
     }
     const pageNum: number = faker.datatype.number();
     const isLastPage: boolean = faker.datatype.boolean();
+    // @ts-ignore
     mockQueryImages.mockResolvedValue({
       data: {
         imageIds: imageIds,
@@ -102,8 +107,7 @@ describe("api-client", () => {
   it("handles a failure when querying images", async () => {
     // Arrange.
     // Make it look like querying images fails.
-    const mockQueryImages =
-      mockImagesApiClass.prototype.queryImagesImagesQueryPost;
+    const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
     const fakeError = new FakeAxiosError();
     mockQueryImages.mockRejectedValue(fakeError);
 
@@ -121,6 +125,7 @@ describe("api-client", () => {
       mockImagesApiClass.prototype.getImageImagesBucketNameGet;
 
     const imageData = faker.image.cats(1920, 1080);
+    // @ts-ignore
     mockImageGet.mockResolvedValue({ data: imageData });
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
@@ -162,9 +167,10 @@ describe("api-client", () => {
     // Arrange.
     // Fake a valid response.
     const mockThumbnailGet =
-      mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
+      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
 
     const imageData = faker.image.cats(128, 128);
+    // @ts-ignore
     mockThumbnailGet.mockResolvedValue({ data: imageData });
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
@@ -189,7 +195,7 @@ describe("api-client", () => {
     // Arrange.
     // Make it look like loading a thumbnail fails.
     const mockThumbnailGet =
-      mockImagesApiClass.prototype.getThumbnailImagesThumbnailBucketNameGet;
+      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
     const fakeError = new FakeAxiosError();
     mockThumbnailGet.mockRejectedValue(fakeError);
 
@@ -209,6 +215,7 @@ describe("api-client", () => {
       mockImagesApiClass.prototype.findImageMetadataImagesMetadataPost;
 
     const metadata = fakeImageMetadata();
+    // @ts-ignore
     mockFindMetadata.mockResolvedValue({ data: { metadata: [metadata] } });
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
@@ -254,6 +261,7 @@ describe("api-client", () => {
       mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
 
     const artifactId = fakeObjectRef();
+    // @ts-ignore
     mockUavImageCreate.mockResolvedValue({ data: { imageId: artifactId } });
 
     const imageData = new Blob([faker.datatype.string()]);
@@ -311,6 +319,7 @@ describe("api-client", () => {
     // Fake a valid response.
     const mockImageDelete =
       mockImagesApiClass.prototype.deleteImagesImagesDeleteDelete;
+    // @ts-ignore
     mockImageDelete.mockResolvedValue(undefined);
 
     const artifactIds = [fakeObjectRef(), fakeObjectRef()];
@@ -352,6 +361,7 @@ describe("api-client", () => {
 
     const mockMetadataInfer =
       mockImagesApiClass.prototype.inferImageMetadataImagesMetadataInferPost;
+    // @ts-ignore
     mockMetadataInfer.mockResolvedValue({ data: response });
 
     const imageData = new Blob([faker.datatype.string()]);
@@ -417,6 +427,7 @@ describe("api-client", () => {
       const mockUpdateMetadata =
         mockImagesApiClass.prototype
           .batchUpdateMetadataImagesMetadataBatchUpdatePatch;
+      // @ts-ignore
       mockUpdateMetadata.mockResolvedValue({});
 
       // Act.

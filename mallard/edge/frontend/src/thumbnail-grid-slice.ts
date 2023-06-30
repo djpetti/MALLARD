@@ -195,7 +195,9 @@ export const thunkStartNewQuery = createAsyncThunk(
     dispatch(addArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
-      thunkLoadMetadata(queryResult.imageIds.map((i) => createImageEntityId(i)))
+      thunkLoadMetadata(
+        queryResult.imageIds.map((i) => createImageEntityId(i.id))
+      )
     );
 
     return {
@@ -234,7 +236,9 @@ export const thunkContinueQuery = createAsyncThunk(
     dispatch(addArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
-      thunkLoadMetadata(queryResult.imageIds.map((i) => createImageEntityId(i)))
+      thunkLoadMetadata(
+        queryResult.imageIds.map((i) => createImageEntityId(i.id))
+      )
     );
 
     return {

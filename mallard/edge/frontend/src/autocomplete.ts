@@ -678,7 +678,9 @@ export async function requestAutocomplete(
   const matchedEntities = await queryImages(queries, [], numSuggestions);
 
   // Get the metadata for all the matched entities.
-  const allMetadata = await getMetadata(matchedEntities.imageIds);
+  const allMetadata = await getMetadata(
+    matchedEntities.imageIds.map((e) => e.id)
+  );
 
   // Extract the natural-language text components for text autocomplete.
   const searchText = [];

@@ -78,7 +78,7 @@ class ConfigForTests:
 
         mock_session: The mocked `AsyncSession` to use.
         mock_select: The mocked `select` function to use.
-        mock_delete: The mocked `delete` function to use.
+        mock_union_all: The mocked `union_all` function to use.
 
         class_specific: The class-specific configuration.
     """
@@ -87,7 +87,7 @@ class ConfigForTests:
 
     mock_session: AsyncSession
     mock_select: mock.Mock
-    mock_delete: mock.Mock
+    mock_union_all: mock.Mock
 
     class_specific: ClassSpecificConfig
 
@@ -157,11 +157,11 @@ class TestSqlArtifactMetadataStore:
         module_name = sql_artifact_metadata_store.__name__
         mock_session = mocker.create_autospec(AsyncSession, instance=True)
         mock_select = mocker.patch(f"{module_name}.select")
-        mock_delete = mocker.patch(f"{module_name}.delete")
+        mock_union_all = mocker.patch(f"{module_name}.union_all")
         # create_autospec is a little overzealous about making these
         # coroutines when in fact they aren't.
         mock_results = mock_session.execute.return_value
-        mock_results.all = mocker.Mock()
+        mock_results.scalars = mocker.Mock()
         mock_results.scalar_one = mocker.Mock()
 
         # In order to make assertions easier, we force it to apply chained
@@ -173,6 +173,8 @@ class TestSqlArtifactMetadataStore:
         mock_query.offset.return_value = mock_query
         mock_query.union.return_value = mock_query
         mock_query.join_from.return_value = mock_query
+        mock_query.from_statement.return_value = mock_query
+        mock_union_all.return_value = mock_query
 
         store = class_specific_config.store_class(mock_session)
 
@@ -180,7 +182,7 @@ class TestSqlArtifactMetadataStore:
             store=store,
             mock_session=mock_session,
             mock_select=mock_select,
-            mock_delete=mock_delete,
+            mock_union_all=mock_union_all,
             class_specific=class_specific_config,
         )
 
@@ -490,12 +492,16 @@ class TestSqlArtifactMetadataStore:
             queries.append(query)
 
         # Produce some fake results for the query.
-        object_id_1 = faker.object_ref()
-        object_id_2 = faker.object_ref()
-        result_1 = faker.artifact_model(object_id=object_id_1)
-        result_2 = faker.artifact_model(object_id=object_id_2)
+        object_id_1 = faker.typed_object_ref()
+        object_id_2 = faker.typed_object_ref()
+        result_1 = faker.artifact_model(
+            object_id=object_id_1.id, artifact_type=object_id_1.type
+        )
+        result_2 = faker.artifact_model(
+            object_id=object_id_2.id, artifact_type=object_id_2.type
+        )
         mock_results = config.mock_session.execute.return_value
-        mock_results.all.return_value = [result_1, result_2]
+        mock_results.scalars.return_value = [result_1, result_2]
 
         # Act.
         got_results = [
@@ -510,7 +516,7 @@ class TestSqlArtifactMetadataStore:
 
         # Assert.
         # It should have created the queries.
-        assert config.mock_select.call_count == num_queries
+        assert config.mock_select.call_count == num_queries + 1
         # It should have run the query.
         config.mock_session.execute.assert_called_once()
         # It should have produced the results.
@@ -561,10 +567,12 @@ class TestSqlArtifactMetadataStore:
         query = ImageQuery()
 
         # Produce some fake results for the query.
-        object_id = faker.object_ref()
-        result = faker.artifact_model(object_id=object_id)
+        object_id = faker.typed_object_ref()
+        result = faker.artifact_model(
+            object_id=object_id.id, artifact_type=object_id.type
+        )
         mock_results = config.mock_session.execute.return_value
-        mock_results.all.return_value = [result]
+        mock_results.scalars.return_value = [result]
 
         # Act.
         got_results = [r async for r in config.store.query([query])]
@@ -703,30 +711,30 @@ class TestSqlArtifactMetadataStore:
         metadata1 = faker.image_metadata()
         metadata1 = metadata1.copy(
             update=dict(
-                name="first image", sequence_number=0, session_name="a"
+                name="first artifact", sequence_number=0, session_name="a"
             )
         )
-        object_id1 = faker.object_ref()
+        object_id1 = faker.typed_object_ref(object_type=ObjectType.IMAGE)
 
         metadata2 = faker.image_metadata()
         metadata2 = metadata2.copy(
             update=dict(
-                name="second image", sequence_number=1, session_name="a"
+                name="second artifact", sequence_number=1, session_name="a"
             )
         )
-        object_id2 = faker.object_ref()
+        object_id2 = faker.typed_object_ref(object_type=ObjectType.IMAGE)
 
         metadata3 = faker.image_metadata()
         metadata3 = metadata3.copy(
             update=dict(
-                name="first image", sequence_number=0, session_name="b"
+                name="first artifact", sequence_number=0, session_name="b"
             )
         )
-        object_id3 = faker.object_ref()
+        object_id3 = faker.typed_object_ref(object_type=ObjectType.IMAGE)
 
-        await store.add(object_id=object_id1, metadata=metadata1)
-        await store.add(object_id=object_id2, metadata=metadata2)
-        await store.add(object_id=object_id3, metadata=metadata3)
+        await store.add(object_id=object_id1.id, metadata=metadata1)
+        await store.add(object_id=object_id2.id, metadata=metadata2)
+        await store.add(object_id=object_id3.id, metadata=metadata3)
         # Simulate a fresh session.
         await sqlite_session.close()
 

@@ -12,7 +12,7 @@ from sqlalchemy import (
     Date,
     Enum,
     Float,
-    ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -138,6 +138,11 @@ class Raster(Base):
 
     __tablename__ = "rasters"
     __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["bucket", "key"], [Artifact.bucket, Artifact.key]
+        ),
+    )
 
     @staticmethod
     def pydantic_fields() -> Set[str]:
@@ -147,8 +152,8 @@ class Raster(Base):
             "gsd_cm_px",
         }
 
-    bucket = Column(String(50), ForeignKey(Artifact.bucket), primary_key=True)
-    key = Column(String(50), ForeignKey(Artifact.key), primary_key=True)
+    bucket = Column(String(50), primary_key=True)
+    key = Column(String(50), primary_key=True)
 
     camera = Column(String(50), index=True)
 
@@ -173,6 +178,9 @@ class Image(Base):
 
     __tablename__ = "images"
     __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        ForeignKeyConstraint(["bucket", "key"], [Raster.bucket, Raster.key]),
+    )
 
     @staticmethod
     def pydantic_fields() -> Set[str]:
@@ -180,8 +188,8 @@ class Image(Base):
             "format",
         }
 
-    bucket = Column(String(50), ForeignKey(Raster.bucket), primary_key=True)
-    key = Column(String(50), ForeignKey(Raster.key), primary_key=True)
+    bucket = Column(String(50), primary_key=True)
+    key = Column(String(50), primary_key=True)
 
     format = Column(Enum(ImageFormat))
 
@@ -206,6 +214,9 @@ class Video(Base):
 
     __tablename__ = "videos"
     __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        ForeignKeyConstraint(["bucket", "key"], [Raster.bucket, Raster.key]),
+    )
 
     @staticmethod
     def pydantic_fields() -> Set[str]:
@@ -215,8 +226,8 @@ class Video(Base):
             "num_frames",
         }
 
-    bucket = Column(String(50), ForeignKey(Raster.bucket), primary_key=True)
-    key = Column(String(50), ForeignKey(Raster.key), primary_key=True)
+    bucket = Column(String(50), primary_key=True)
+    key = Column(String(50), primary_key=True)
 
     format = Column(Enum(VideoFormat))
 
@@ -237,29 +248,29 @@ parent_relationship = partial(
 Artifact.raster = parent_relationship(
     "Raster",
     back_populates="artifact",
-    foreign_keys=Raster.key,
+    foreign_keys=[Raster.bucket, Raster.key],
 )
 
 Raster.artifact = relationship(
     "Artifact",
     back_populates="raster",
-    foreign_keys=Raster.key,
+    foreign_keys=[Raster.bucket, Raster.key],
 )
 Raster.image = parent_relationship(
     "Image",
     back_populates="raster",
-    foreign_keys=Image.key,
+    foreign_keys=[Image.bucket, Image.key],
 )
 Raster.video = parent_relationship(
     "Video",
     back_populates="raster",
-    foreign_keys=Video.key,
+    foreign_keys=[Video.bucket, Video.key],
 )
 
 Image.raster = relationship(
-    "Raster", back_populates="image", foreign_keys=Image.key
+    "Raster", back_populates="image", foreign_keys=[Image.bucket, Image.key]
 )
 
 Video.raster = relationship(
-    "Raster", back_populates="video", foreign_keys=Video.key
+    "Raster", back_populates="video", foreign_keys=[Video.bucket, Video.key]
 )

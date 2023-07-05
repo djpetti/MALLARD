@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql.expression import Select, select
+from sqlalchemy.sql.expression import Select, select, union_all
 
 from ...objects.models import ObjectRef, ObjectType, TypedObjectRef
 from ...time_expiring_cache import time_expiring_cache
@@ -481,8 +481,7 @@ class SqlArtifactMetadataStore(
             # No queries at all.
             return
         # Get the union of the results.
-        last_selection = selections.pop()
-        selection = last_selection.union(*selections)
+        selection = union_all(*selections)
 
         # Apply the specified orderings.
         for order in orderings:
@@ -490,12 +489,14 @@ class SqlArtifactMetadataStore(
 
         # Apply skipping and limiting.
         selection = selection.offset(skip_first).limit(max_num_results)
+        # Get ORM objects instead of raw rows.
+        selection = select(Artifact).from_statement(selection)
 
         # Execute the query.
         async with self.__session_begin() as session:
             query_results = await session.execute(selection)
 
-        for result in query_results.all():
+        for result in query_results.scalars():
             object_type = self.__object_type(result)
             yield TypedObjectRef(
                 id=ObjectRef(bucket=result.bucket, name=result.key),

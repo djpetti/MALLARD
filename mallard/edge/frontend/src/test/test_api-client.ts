@@ -26,7 +26,6 @@ import {
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
-import { AxiosResponse } from "axios";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");

@@ -43,6 +43,10 @@ class MetadataProvider(BaseProvider):
         self.__object_type_to_metadata = {
             ObjectType.IMAGE: self.image_metadata,
             ObjectType.VIDEO: self.video_metadata,
+            ObjectType.RASTER: self.raster_metadata,
+            # For this one, it doesn't actually matter what type of metadata
+            # we use.
+            ObjectType.ARTIFACT: self.raster_metadata,
         }
 
     def __random_enum(self, enum_type: Type[Enum]) -> Enum:
@@ -119,6 +123,16 @@ class MetadataProvider(BaseProvider):
             latitude_deg=latitude_diff,
             longitude_deg=longitude_diff,
         )
+
+    def raster_metadata(self) -> RasterMetadata:
+        """
+        Creates a fake `RasterMetadata` instance.
+
+        Returns:
+            The `RasterMetadata` that it created.
+
+        """
+        return RasterMetadata(**self.__raster_metadata_common())
 
     def image_metadata(self, uav: bool = True) -> UavImageMetadata:
         """
@@ -296,14 +310,17 @@ class MetadataProvider(BaseProvider):
         location_lat = source_meta.location.latitude_deg
         location_lon = source_meta.location.longitude_deg
 
-        return Artifact(
-            bucket=object_id.bucket,
-            key=object_id.name,
-            raster=self.raster_model(
+        if artifact_type != ObjectType.ARTIFACT:
+            # For anything other than a basic artifact, add raster data.
+            model_attributes["raster"] = self.raster_model(
                 object_id=object_id,
                 source_meta=source_meta,
                 artifact_type=artifact_type,
-            ),
+            )
+
+        return Artifact(
+            bucket=object_id.bucket,
+            key=object_id.name,
             location_lat=location_lat,
             location_lon=location_lon,
             **model_attributes,

@@ -262,18 +262,25 @@ export async function inferMetadata(
  *  for these image.
  * @param {boolean} ignoreName If true, it will not overwrite the name
  *  parameter of the individual artifacts.
+ * @param {boolean} ignoreSize If true, it will not overwrite the size
+ *  parameter of the individual artifacts.
  */
 export async function batchUpdateMetadata(
   metadata: UavImageMetadata,
   images: ObjectRef[],
   incrementSequence?: boolean,
-  ignoreName: boolean = true
+  ignoreName: boolean = true,
+  ignoreSize: boolean = true
 ): Promise<void> {
   // Copy to avoid surprising the user by modifying the argument.
   const metadataCopy = cloneDeep(metadata);
   if (ignoreName) {
     // Don't overwrite the names.
     metadataCopy.name = undefined;
+  }
+  if (ignoreSize) {
+    // Don't overwrite the sizes.
+    metadataCopy.size = undefined;
   }
 
   await imagesApi

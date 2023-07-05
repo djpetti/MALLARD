@@ -226,7 +226,9 @@ async def get_video(
     return StreamingResponse(
         object_task.result(),
         media_type=mime_type,
-        headers={"Content-Length": str(metadata.length)},
+        # TODO (danielp) Re-enable content length once we can be sure that
+        #  saved sizes are correct.
+        # headers={"Content-Length": str(metadata.size)},
     )
 
 

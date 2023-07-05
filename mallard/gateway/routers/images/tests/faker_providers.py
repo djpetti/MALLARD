@@ -6,7 +6,7 @@ Contains custom `Faker` providers.
 import io
 import unittest.mock as mock
 from datetime import datetime
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Iterable, Optional, Set
 
 from exifread.classes import IfdTag
 from exifread.utils import Ratio
@@ -14,7 +14,7 @@ from faker import Faker
 from faker.providers import BaseProvider
 from PIL import Image
 
-from ....backends.objects.models import ObjectRef
+from ....backends.objects.models import ObjectRef, ObjectType, TypedObjectRef
 from ...root.schemas import QueryResponse
 from ..image_metadata import ExifReader
 from ..schemas import CreateResponse
@@ -41,6 +41,24 @@ class ImageProvider(BaseProvider):
         return ObjectRef(
             bucket=self.__faker.pystr(), name=self.__faker.pystr()
         )
+
+    def typed_object_ref(
+        self, object_type: Optional[ObjectType] = None
+    ) -> TypedObjectRef:
+        """
+        Creates a typed reference to a fake object.
+
+        Args:
+            object_type: The object type to use.
+
+        Returns:
+            The reference that it created.
+
+        """
+        if object_type is None:
+            object_type = self.__faker.random_element(ObjectType)
+
+        return TypedObjectRef(type=object_type, id=self.object_ref())
 
     def create_response(self) -> CreateResponse:
         """

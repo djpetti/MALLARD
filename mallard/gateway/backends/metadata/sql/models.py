@@ -103,7 +103,6 @@ class Artifact(Base):
     size = Column(Integer)
 
     name = Column(String(100), index=True)
-    format = Column(Enum(ImageFormat))
     platform_type = Column(Enum(PlatformType), nullable=False, index=True)
     notes = Column(Text, default="")
 

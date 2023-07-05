@@ -5,6 +5,8 @@ Revises: ba3d7ed00624
 Create Date: 2023-06-22 13:13:32.523652
 
 """
+from functools import partial
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -16,7 +18,7 @@ from mallard.gateway.backends.metadata.schemas import (
 
 # revision identifiers, used by Alembic.
 revision = "b259452eb21d"
-down_revision = "ba3d7ed00624"
+down_revision = "20aabc8a7849"
 branch_labels = None
 depends_on = None
 
@@ -76,7 +78,7 @@ def migrate_data(*, rasters: sa.Table, images: sa.Table) -> None:
                     camera=camera,
                     altitude_meters=altitude,
                     gsd_cm_px=gsd,
-                    **common_cols
+                    **common_cols,
                 )
             ],
         )
@@ -130,7 +132,76 @@ def migrate_data_reverse(*, rasters: sa.Table, images: sa.Table) -> None:
         )
 
 
+def _index_name(table_name: str, col_name: str) -> str:
+    """
+    Small helper function to create an index name from a column.
+
+    Args:
+        table_name: The name of the table.
+        col_name: The column name.
+
+    Returns:
+        The index name.
+
+    """
+    return f"ix_{table_name}_{col_name}"
+
+
+def _drop_old_indices() -> None:
+    index_name = partial(_index_name, "images")
+    op.drop_index(index_name("name"), "images")
+    op.drop_index(index_name("platform_type"), "images")
+    op.drop_index(index_name("session_name"), "images")
+    op.drop_index(index_name("capture_date"), "images")
+    op.drop_index(index_name("camera"), "images")
+
+
+def _add_old_indices() -> None:
+    index_name = partial(_index_name, "images")
+    op.create_index(index_name("name"), "images", columns=["name"])
+    op.create_index(
+        index_name("platform_type"), "images", columns=["platform_type"]
+    )
+    op.create_index(
+        index_name("session_name"), "images", columns=["session_name"]
+    )
+    op.create_index(
+        index_name("capture_date"), "images", columns=["capture_date"]
+    )
+    op.create_index(index_name("camera"), "images", columns=["camera"])
+
+
+def _add_new_indices() -> None:
+    index_name = partial(_index_name, "artifacts")
+    op.create_index(index_name("name"), "artifacts", columns=["name"])
+    op.create_index(
+        index_name("platform_type"), "artifacts", columns=["platform_type"]
+    )
+    op.create_index(
+        index_name("session_name"), "artifacts", columns=["session_name"]
+    )
+    op.create_index(
+        index_name("capture_date"), "artifacts", columns=["capture_date"]
+    )
+
+    index_name = partial(_index_name, "rasters")
+    op.create_index(index_name("camera"), "rasters", columns=["camera"])
+
+
+def _drop_new_indices() -> None:
+    index_name = partial(_index_name, "artifacts")
+    op.drop_index(index_name("name"), "artifacts")
+    op.drop_index(index_name("platform_type"), "artifacts")
+    op.drop_index(index_name("session_name"), "artifacts")
+    op.drop_index(index_name("capture_date"), "artifacts")
+
+    index_name = partial(_index_name, "rasters")
+    op.drop_index(index_name("camera"), "rasters")
+
+
 def upgrade():
+    _drop_old_indices()
+
     # Rename the images table to "artifacts".
     op.rename_table("images", "artifacts")
 
@@ -204,8 +275,13 @@ def upgrade():
     op.drop_column("artifacts", "gsd_cm_px")
     op.drop_column("artifacts", "format")
 
+    # Add the indices.
+    _add_new_indices()
+
 
 def downgrade():
+    _drop_new_indices()
+
     # Add columns back to the artifacts table.
     op.add_column("artifacts", sa.Column("camera", sa.String(50)))
     op.add_column("artifacts", sa.Column("altitude_meters", sa.Float))
@@ -261,3 +337,6 @@ def downgrade():
 
     # Rename the artifacts table back to images.
     op.rename_table("artifacts", "images")
+
+    # Add the indices.
+    _add_old_indices()

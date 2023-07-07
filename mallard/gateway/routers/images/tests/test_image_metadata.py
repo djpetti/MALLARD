@@ -20,7 +20,7 @@ import mallard.gateway.artifact_metadata
 from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
-    ImageMetadata,
+    UavImageMetadata,
 )
 from mallard.gateway.routers.images import image_metadata
 from mallard.type_helpers import ArbitraryTypesConfig
@@ -442,20 +442,20 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
 @pytest.mark.parametrize(
     "metadata",
     (
-        ImageMetadata(),
-        ImageMetadata(
+        UavImageMetadata(),
+        UavImageMetadata(
             name="name",
             capture_date=date(2021, 1, 19),
             camera="camera",
             location=GeoPoint(latitude_deg=32, longitude_deg=-114),
         ),
-        ImageMetadata(size=1337),
+        UavImageMetadata(size=1337),
     ),
     ids=("empty_metadata", "populated_metadata", "size_from_meta"),
 )
 async def test_fill_metadata(
     fill_meta_config: FillMetadataConfig,
-    metadata: ImageMetadata,
+    metadata: UavImageMetadata,
     local_tz: timezone,
 ) -> None:
     """
@@ -521,7 +521,7 @@ async def test_fill_metadata_naughty_jpeg(
 
     # Act.
     got_metadata = await image_metadata.fill_metadata(
-        ImageMetadata(), image=fake_jpeg, local_tz=local_tz
+        UavImageMetadata(), image=fake_jpeg, local_tz=local_tz
     )
 
     # Assert.
@@ -547,7 +547,7 @@ async def test_fill_metadata_missing_length(
     # Act and assert.
     with pytest.raises(mallard.gateway.artifact_metadata.MissingLengthError):
         await image_metadata.fill_metadata(
-            ImageMetadata(),
+            UavImageMetadata(),
             image=fill_meta_config.mock_upload_file,
             local_tz=local_tz,
         )
@@ -612,7 +612,7 @@ async def test_fill_metadata_invalid_format(
     # Act and assert.
     with pytest.raises(image_metadata.InvalidImageError, match=expected_error):
         await image_metadata.fill_metadata(
-            ImageMetadata(format=expected_format),
+            UavImageMetadata(format=expected_format),
             image=fill_meta_config.mock_upload_file,
             local_tz=local_tz,
         )

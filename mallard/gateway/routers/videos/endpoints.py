@@ -17,6 +17,8 @@ from fastapi import (
 from loguru import logger
 from starlette.responses import StreamingResponse
 
+from mallard.gateway.routers.dependencies import use_bucket_videos
+
 from ...artifact_metadata import MissingLengthError
 from ...backends import backend_manager as backends
 from ...backends.metadata import (
@@ -27,7 +29,6 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
-from ...dependencies import use_bucket_videos
 from ..common import check_key_errors, get_metadata, update_metadata
 from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import create_preview, create_thumbnail
@@ -186,6 +187,13 @@ async def delete_videos(
         async with asyncio.TaskGroup() as tasks:
             for video in videos:
                 tasks.create_task(object_store.delete_object(video))
+                tasks.create_task(
+                    object_store.delete_object(derived_id(video, "thumbnail"))
+                )
+                tasks.create_task(
+                    object_store.delete_object(derived_id(video, "preview"))
+                )
+
                 tasks.create_task(metadata_store.delete(video))
 
 
@@ -291,7 +299,7 @@ async def find_video_metadata(
 @router.patch("/metadata/batch_update")
 async def batch_update_metadata(
     metadata: UavVideoMetadata,
-    images: List[ObjectRef] = Body(...),
+    videos: List[ObjectRef] = Body(...),
     increment_sequence: bool = False,
     metadata_store: MetadataStore = Depends(backends.video_metadata_store),
 ) -> None:
@@ -302,7 +310,7 @@ async def batch_update_metadata(
 
     Args:
         metadata: The new metadata to set.
-        images: The set of existing images to update.
+        videos: The set of existing images to update.
         increment_sequence: If this is true, the sequence number will be
             automatically incremented for each image added, starting at whatever
             value is set in `metadata`. In this case, the order of the images
@@ -313,7 +321,7 @@ async def batch_update_metadata(
     metadata_store = cast(ArtifactMetadataStore, metadata_store)
     await update_metadata(
         metadata=metadata,
-        artifacts=images,
+        artifacts=videos,
         increment_sequence=increment_sequence,
         metadata_store=metadata_store,
     )

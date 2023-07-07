@@ -14,7 +14,6 @@ from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
     ImageQuery,
-    Metadata,
     PlatformType,
     RasterMetadata,
     UavImageMetadata,

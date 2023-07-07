@@ -9,8 +9,8 @@ from typing import Annotated
 from fastapi import Depends, Query
 from loguru import logger
 
-from mallard.gateway.backends import backend_manager as backends
-from mallard.gateway.backends.objects import ObjectStore
+from ..backends import backend_manager as backends
+from ..backends.objects import ObjectStore
 
 
 def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:

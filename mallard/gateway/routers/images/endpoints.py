@@ -14,6 +14,11 @@ from loguru import logger
 from PIL import Image
 from starlette.responses import StreamingResponse
 
+from mallard.gateway.routers.dependencies import (
+    use_bucket_images,
+    user_timezone,
+)
+
 from ...artifact_metadata import MissingLengthError
 from ...async_utils import get_process_pool
 from ...backends import backend_manager as backends
@@ -25,7 +30,6 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import ImageFormat, UavImageMetadata
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
-from ...dependencies import use_bucket_images, user_timezone
 from ..common import check_key_errors, get_metadata, update_metadata
 from .image_metadata import InvalidImageError, fill_metadata
 from .schemas import CreateResponse, MetadataResponse
@@ -226,6 +230,9 @@ async def delete_images(
         async with asyncio.TaskGroup() as tasks:
             for image in images:
                 tasks.create_task(object_store.delete_object(image))
+                tasks.create_task(
+                    object_store.delete_object(derived_id(image, "thumbnail"))
+                )
                 tasks.create_task(metadata_store.delete(image))
 
 

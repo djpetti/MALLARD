@@ -9,6 +9,7 @@ from faker import Faker
 from .backends.metadata.tests.faker_providers import MetadataProvider
 from .backends.objects.tests.faker_providers import S3Provider
 from .routers.images.tests.faker_providers import ExifProvider, ImageProvider
+from .routers.videos.tests.faker_providers import VideoProvider
 from .tests.faker_providers import FastApiProvider
 
 
@@ -40,3 +41,4 @@ def add_custom_faker_providers(faker: Faker) -> None:
     faker.add_provider(FastApiProvider)
     faker.add_provider(MetadataProvider)
     faker.add_provider(S3Provider)
+    faker.add_provider(VideoProvider)

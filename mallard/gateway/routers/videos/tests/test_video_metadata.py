@@ -3,8 +3,8 @@ Tests for the `video_metadata` module.
 """
 
 
+from datetime import datetime
 from typing import Any, Dict
-from unittest import mock
 
 import pytest
 from faker import Faker
@@ -66,3 +66,65 @@ class TestFFProbeReader:
             mock_file=mock_file,
             ffprobe_results=ffprobe_results,
         )
+
+    def test_capture_datetime(self, config: ConfigForTests) -> None:
+        """
+        Tests that the capture date/time is correct.
+
+        Args:
+            config: The configuration to use for the test.
+
+        """
+        # Arrange.
+        # Check the capture time from FFProbe.
+        capture_datetime = datetime.fromisoformat(
+            config.ffprobe_results["format"]["tags"]["creation_time"]
+        )
+
+        # Act and assert.
+        assert config.reader.capture_datetime == capture_datetime
+
+    def test_capture_datetime_missing(
+        self, config: ConfigForTests, mocker: MockFixture, faker: Faker
+    ) -> None:
+        """
+        Tests that it returns the current time when there is no capture time
+        metadata.
+
+        Args:
+            config: The configuration to use for the test.
+            mocker: The fixture to use for mocking.
+            faker: The fixture to use for generating fake data.
+
+        """
+        # Arrange.
+        # Mock out the datetime call so we can control what it returns.
+        mock_datetime_class = mocker.patch(
+            f"{video_metadata.__name__}.datetime"
+        )
+        fake_current_time = faker.date_time_this_century()
+        mock_datetime_class.now.return_value = fake_current_time
+
+        # Remove the capture time from FFProbe.
+        config.ffprobe_results["format"]["tags"].pop("creation_time")
+
+        # Act and assert.
+        assert config.reader.capture_datetime == fake_current_time
+
+    def test_format(self, config: ConfigForTests) -> None:
+        """
+        Tests that extracting the video format works.
+
+        Args:
+            config: The configuration to use for testing.
+
+        """
+        # Arrange.
+        # Check the format from FFProbe.
+        format_code = config.ffprobe_results["streams"][1]["codec_name"]
+        format_ = video_metadata.FFProbeReader.FFPROBE_FORMAT_CODES[
+            format_code
+        ]
+
+        # Act and assert.
+        assert config.reader.format == format_

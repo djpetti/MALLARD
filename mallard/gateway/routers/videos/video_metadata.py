@@ -3,10 +3,10 @@ Handles parsing video metadata
 """
 
 
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timezone
 from fractions import Fraction
 from functools import cached_property
-from typing import Any, Dict, TypeVar
+from typing import Any, Dict
 
 from fastapi import UploadFile
 from loguru import logger
@@ -27,7 +27,7 @@ class FFProbeReader:
     Parses the output from `ffprobe` to extract video metadata.
     """
 
-    _FFPROBE_FORMAT_CODES = {
+    FFPROBE_FORMAT_CODES = {
         "h264": VideoFormat.AVC,
         "av1": VideoFormat.AV1,
         "h263": VideoFormat.H263,
@@ -94,7 +94,7 @@ class FFProbeReader:
 
         """
         codec_name = self.__video_stream["codec_name"]
-        video_format = FFProbeReader._FFPROBE_FORMAT_CODES.get(codec_name)
+        video_format = FFProbeReader.FFPROBE_FORMAT_CODES.get(codec_name)
         if video_format is None:
             raise InvalidVideoError(
                 f"Got unknown video format '{codec_name}'."

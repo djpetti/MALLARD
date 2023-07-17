@@ -31,10 +31,15 @@ class VideoProvider(BaseProvider):
         return {
             "streams": [
                 {
+                    "codec_type": "audio",
+                    "codec_name": "aac",
+                },
+                {
                     "width": self.random_int(min=1, max=1000),
                     "height": self.random_int(min=1, max=1000),
+                    "codec_type": "video",
                     "codec_name": self.random_element(self._FFMPEG_FORMATS),
-                }
+                },
             ],
             "format": {
                 "tags": {

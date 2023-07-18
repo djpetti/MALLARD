@@ -478,7 +478,8 @@ async def test_fill_metadata(
     )
 
     # Assert.
-    # None of the values populated from EXIF tags should be left unfilled.
+    # None of the values populated from EXIF tags or file metadata should be
+    # left unfilled.
     assert got_metadata.name is not None
     assert got_metadata.capture_date is not None
     assert got_metadata.camera is not None
@@ -538,6 +539,7 @@ async def test_fill_metadata_missing_length(
 
     Args:
         fill_meta_config: The configuration to use for testing.
+        local_tz: The local timezone to use.
 
     """
     # Arrange.

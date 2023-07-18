@@ -154,7 +154,7 @@ async def fill_metadata(
     return artifact_fill_metadata(
         metadata,
         artifact=video,
-        capture_datetime=reader.capture_datetime,
+        capture_date=reader.capture_datetime.date(),
         format=reader.format,
         frame_rate=reader.frame_rate,
         num_frames=reader.num_frames,

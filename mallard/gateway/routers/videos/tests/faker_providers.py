@@ -27,6 +27,9 @@ class VideoProvider(BaseProvider):
         """
         Generates a fake ffprobe results dictionary.
         """
+        # Frame rate is typically expressed as a fraction.
+        frame_rate_n = self.random_int(min=1, max=1000)
+        frame_rate_d = self.random_int(min=1, max=1000)
 
         return {
             "streams": [
@@ -35,10 +38,12 @@ class VideoProvider(BaseProvider):
                     "codec_name": "aac",
                 },
                 {
-                    "width": self.random_int(min=1, max=1000),
-                    "height": self.random_int(min=1, max=1000),
+                    "width": str(self.random_int(min=1, max=1000)),
+                    "height": str(self.random_int(min=1, max=1000)),
                     "codec_type": "video",
                     "codec_name": self.random_element(self._FFMPEG_FORMATS),
+                    "avg_frame_rate": f"{frame_rate_n}/{frame_rate_d}",
+                    "nb_frames": str(self.random_int(min=1, max=10000)),
                 },
             ],
             "format": {

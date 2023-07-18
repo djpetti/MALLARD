@@ -45,9 +45,13 @@ class FastApiProvider(BaseProvider):
             contents = self.__faker.binary(length=64)
 
         file_name = self.__faker.file_name(category=category)
+        mime_type = self.__faker.mime_type(category=category)
 
         upload_file = mock.create_autospec(
-            UploadFile, instance=True, filename=file_name
+            UploadFile,
+            instance=True,
+            filename=file_name,
+            content_type=mime_type,
         )
 
         # Mock the underlying file handle.

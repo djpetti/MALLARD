@@ -40,9 +40,10 @@ def fill_metadata(
     inferred_fields["name"] = artifact.filename
 
     original_fields = metadata.dict()
+    field_meta = metadata.__fields__
     update_fields = {}
     for name, value in original_fields.items():
-        if value is None:
+        if value == field_meta[name].default:
             # If it's not specified originally, update it from an inferred
             # value.
             update_fields[name] = inferred_fields.get(name)

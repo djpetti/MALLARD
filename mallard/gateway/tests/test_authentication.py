@@ -44,7 +44,9 @@ def config(mocker: MockFixture, faker: Faker) -> ConfigForTests:
         The configuration that it created.
 
     """
-    mock_session = mocker.patch(authentication.__name__ + ".session")
+    mock_session = mocker.patch(
+        authentication.__name__ + ".get_session"
+    ).return_value
 
     # Mock the configuration.
     mock_config = mocker.patch(

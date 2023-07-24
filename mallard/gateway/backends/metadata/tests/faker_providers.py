@@ -14,6 +14,7 @@ from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
     ImageQuery,
+    Metadata,
     PlatformType,
     RasterMetadata,
     UavImageMetadata,
@@ -61,28 +62,6 @@ class MetadataProvider(BaseProvider):
         """
         return self.random_element(list(enum_type))
 
-    def __raster_metadata_common(self) -> Dict[str, Any]:
-        """
-        Generates values for common parameters of all `RasterMetadata`
-        subclasses.
-
-        Returns:
-            Dictionary of common parameters that can be passed to the model
-            constructor as kwargs.
-
-        """
-        return dict(
-            name=self.__faker.file_name(category="image"),
-            platform_type=self.__random_enum(PlatformType),
-            notes=self.__faker.sentence(),
-            session_name=self.__faker.word(),
-            sequence_number=self.random_int(),
-            capture_date=self.__faker.date_object(),
-            camera=self.__faker.word(),
-            location=self.geo_point(),
-            location_description=self.__faker.sentence(),
-        )
-
     def geo_point(
         self,
         allow_none: bool = True,
@@ -123,64 +102,80 @@ class MetadataProvider(BaseProvider):
             longitude_deg=longitude_diff,
         )
 
-    def raster_metadata(self) -> RasterMetadata:
+    def metadata(self, **_: Any) -> Metadata:
+        """
+        Creates a fake `Metadata` instance.
+
+        Returns:
+            The `Metadata` that it created.
+
+        """
+        return Metadata(
+            size=self.random_int(min=1024, max=2**30),
+            name=self.__faker.file_name(category="image"),
+            platform_type=self.__random_enum(PlatformType),
+            notes=self.__faker.sentence(),
+            session_name=self.__faker.word(),
+            sequence_number=self.random_int(),
+            capture_date=self.__faker.date_object(),
+            location=self.geo_point(),
+            location_description=self.__faker.sentence(),
+        )
+
+    def raster_metadata(self, uav: bool = True) -> RasterMetadata:
         """
         Creates a fake `RasterMetadata` instance.
+
+        Args:
+            uav: Whether to include UAV data.
 
         Returns:
             The `RasterMetadata` that it created.
 
         """
-        return RasterMetadata(**self.__raster_metadata_common())
+        base_fields = self.metadata().dict()
+        if uav:
+            base_fields["altitude_meters"] = self.__faker.pyfloat(
+                positive=True, max_value=100
+            )
+            base_fields["gsd_cm_px"] = self.__faker.pyfloat(
+                positive=True, max_value=10
+            )
 
-    def image_metadata(self, uav: bool = True) -> UavImageMetadata:
+        return RasterMetadata(camera=self.__faker.word(), **base_fields)
+
+    def image_metadata(self, **kwargs: Any) -> UavImageMetadata:
         """
         Creates a fake `UavImageMetadata` instance.
 
         Args:
-            uav: Whether to include UAV data.
+            **kwargs: Forwarded to `metadata()`.
 
         Returns:
             The `UavImageMetadata` that it created.
 
         """
-        fields = self.__raster_metadata_common()
-        if uav:
-            fields["altitude_meters"] = self.__faker.pyfloat(
-                positive=True, max_value=100
-            )
-            fields["gsd_cm_px"] = self.__faker.pyfloat(
-                positive=True, max_value=10
-            )
-
+        base_fields = self.raster_metadata(**kwargs).dict()
         return UavImageMetadata(
             format=self.__random_enum(ImageFormat),
-            **fields,
+            **base_fields,
         )
 
-    def video_metadata(self, uav: bool = True) -> UavImageMetadata:
+    def video_metadata(self, **kwargs: Any) -> UavImageMetadata:
         """
         Creates a fake `UavVideoMetadata` instance.
 
         Args:
-            uav: Whether to include UAV data.
+            **kwargs: Forwarded to `metadata()`.
 
         Returns:
             The `UavVideoMetadata` that it created.
 
         """
-        fields = self.__raster_metadata_common()
-        if uav:
-            fields["altitude_meters"] = self.__faker.pyfloat(
-                positive=True, max_value=100
-            )
-            fields["gsd_cm_px"] = self.__faker.pyfloat(
-                positive=True, max_value=10
-            )
-
+        base_fields = self.raster_metadata(**kwargs).dict()
         return UavVideoMetadata(
             format=self.__random_enum(VideoFormat),
-            **fields,
+            **base_fields,
         )
 
     def image_model(

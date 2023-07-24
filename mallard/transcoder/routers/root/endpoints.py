@@ -15,7 +15,10 @@ router = APIRouter(tags=["transcoder"])
 
 
 def _streaming_response_with_errors(
-    data_stream: AsyncIterable[bytes], *, error_stream: AsyncIterable[bytes]
+    data_stream: AsyncIterable[bytes],
+    *,
+    error_stream: AsyncIterable[bytes],
+    content_type: str = None
 ) -> StreamingResponse:
     """
     Creates a `StreamingResponse` and handles any errors that might occur
@@ -47,7 +50,9 @@ def _streaming_response_with_errors(
                 detail="Could not process the provided video. Is it valid?",
             )
 
-    return StreamingResponse(_read_and_handle_errors(data_stream))
+    return StreamingResponse(
+        _read_and_handle_errors(data_stream), media_type=content_type
+    )
 
 
 @router.post("/metadata/infer")
@@ -90,7 +95,7 @@ async def create_video_preview(
         video, preview_width=preview_width
     )
     return _streaming_response_with_errors(
-        preview_stream, error_stream=error_stream
+        preview_stream, error_stream=error_stream, content_type="video/mp4"
     )
 
 
@@ -113,5 +118,5 @@ async def create_video_thumbnail(
         video, thumbnail_width=thumbnail_width
     )
     return _streaming_response_with_errors(
-        thumbnail_stream, error_stream=error_stream
+        thumbnail_stream, error_stream=error_stream, content_type="image/jpeg"
     )

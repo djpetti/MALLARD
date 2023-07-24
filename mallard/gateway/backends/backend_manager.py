@@ -57,7 +57,7 @@ def _import_class(class_path: str) -> Type:
     match = _IMPORT_RE.fullmatch(class_path)
     if match is None:
         raise ConfigTypeError(
-            f"Class specification '{class_path}' in " f"config is not valid."
+            f"Class specification '{class_path}' in config is not valid."
         )
     class_name = match.group("class")
     module_path = match.group("module")

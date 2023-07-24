@@ -102,7 +102,9 @@ class TestSqlArtifactMetadataStore:
         params=[
             sql_artifact_metadata_store.SqlImageMetadataStore,
             sql_artifact_metadata_store.SqlVideoMetadataStore,
-        ]
+            sql_artifact_metadata_store.SqlArtifactMetadataStore,
+        ],
+        ids=["image", "video", "base"],
     )
     def class_specific_config(
         cls, request, faker: Faker
@@ -123,10 +125,12 @@ class TestSqlArtifactMetadataStore:
         metadata_makers = {
             sql_artifact_metadata_store.SqlImageMetadataStore: faker.image_metadata,
             sql_artifact_metadata_store.SqlVideoMetadataStore: faker.video_metadata,
+            sql_artifact_metadata_store.SqlArtifactMetadataStore: faker.metadata,
         }
         object_types = {
             sql_artifact_metadata_store.SqlImageMetadataStore: ObjectType.IMAGE,
             sql_artifact_metadata_store.SqlVideoMetadataStore: ObjectType.VIDEO,
+            sql_artifact_metadata_store.SqlArtifactMetadataStore: ObjectType.ARTIFACT,
         }
 
         return ClassSpecificConfig(
@@ -258,10 +262,17 @@ class TestSqlArtifactMetadataStore:
         assert orm_model.name == metadata.name
         assert orm_model.location_lat == metadata.location.latitude_deg
         assert orm_model.location_lon == metadata.location.longitude_deg
-        if uav:
-            assert orm_model.raster.altitude_meters == metadata.altitude_meters
-        else:
-            assert orm_model.raster.altitude_meters is None
+        if (
+            config.store.__class__
+            != sql_artifact_metadata_store.SqlArtifactMetadataStore
+        ):
+            if uav:
+                assert (
+                    orm_model.raster.altitude_meters
+                    == metadata.altitude_meters
+                )
+            else:
+                assert orm_model.raster.altitude_meters is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -314,10 +325,15 @@ class TestSqlArtifactMetadataStore:
         added_model = config.mock_session.merge.call_args[0][0]
 
         # Check that the proper new metadata was set.
+        is_raster = (
+            config.store.__class__
+            != sql_artifact_metadata_store.SqlArtifactMetadataStore
+        )
         if merge:
             # It should not have overwritten the fields we wanted to keep.
             assert added_model.name == old_model.name
-            assert added_model.raster.camera == old_model.raster.camera
+            if is_raster:
+                assert added_model.raster.camera == old_model.raster.camera
 
             # Everything else should be updated.
             ignore_fields = {"name", "camera", "location"}
@@ -328,9 +344,10 @@ class TestSqlArtifactMetadataStore:
             ignore_fields |= {"altitude_meters", "gsd_cm_px"}
 
         got_unmodified = _model_to_dict(added_model)
-        got_unmodified.update(_model_to_dict(added_model.raster))
-        got_unmodified.update(_model_to_dict(added_model.raster.image))
-        got_unmodified.update(_model_to_dict(added_model.raster.video))
+        if is_raster:
+            got_unmodified.update(_model_to_dict(added_model.raster))
+            got_unmodified.update(_model_to_dict(added_model.raster.image))
+            got_unmodified.update(_model_to_dict(added_model.raster.video))
         for field in ignore_fields:
             if field in got_unmodified:
                 del got_unmodified[field]

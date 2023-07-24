@@ -4,7 +4,7 @@ Tests for the `irods_image_metadata_store` module.
 
 import unittest.mock as mock
 from pathlib import Path
-from typing import AsyncIterable, List, Type
+from typing import Any, AsyncIterable, List, Type
 
 import pytest
 from faker import Faker
@@ -29,6 +29,7 @@ from mallard.gateway.backends.metadata.schemas import (
     UavImageMetadata,
     UavVideoMetadata,
 )
+from mallard.gateway.backends.objects.models import ObjectType
 from mallard.type_helpers import ArbitraryTypesConfig, Request
 
 
@@ -77,21 +78,28 @@ class TestIrodsImageMetadataStore:
         mock_make_async_iter: mock.Mock
 
         root_collection: Path
-        metadata: Metadata
+        # Not annotated because Pydantic gets a little too frisky with its
+        # validation here, incorrectly coercing `Metadata` subclasses into other
+        # subclasses.
+        metadata: Any
 
     @classmethod
     @pytest.fixture(
         params=[
             ClassSpecificConfig(
-                subclass=irods_artifact_metadata_store.IrodsArtifactMetadataStore,
+                subclass=irods_artifact_metadata_store.IrodsVideoMetadataStore,
                 metadata_type=UavVideoMetadata,
             ),
             ClassSpecificConfig(
                 subclass=irods_artifact_metadata_store.IrodsImageMetadataStore,
                 metadata_type=UavImageMetadata,
             ),
+            ClassSpecificConfig(
+                subclass=irods_artifact_metadata_store.IrodsArtifactMetadataStore,
+                metadata_type=Metadata,
+            ),
         ],
-        ids=["image_metadata", "uav_image_metadata"],
+        ids=["image_metadata", "uav_image_metadata", "base_metadata"],
     )
     def class_specific_config(cls, request: Request) -> ClassSpecificConfig:
         """
@@ -172,6 +180,7 @@ class TestIrodsImageMetadataStore:
         types_to_faker_functions = {
             UavImageMetadata: faker.image_metadata,
             UavVideoMetadata: faker.video_metadata,
+            Metadata: faker.metadata,
         }
         metadata = types_to_faker_functions[
             class_specific_config.metadata_type
@@ -271,11 +280,6 @@ class TestIrodsImageMetadataStore:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "new_metadata_type",
-        [UavVideoMetadata, UavImageMetadata],
-        ids=["video_metadata", "image_metadata"],
-    )
-    @pytest.mark.parametrize(
         "merge", [True, False], ids=("merge", "overwrite")
     )
     async def test_update(
@@ -283,7 +287,6 @@ class TestIrodsImageMetadataStore:
         config: ConfigForTests,
         class_specific_config: ClassSpecificConfig,
         faker: Faker,
-        new_metadata_type: Type[Metadata],
         merge: bool,
     ) -> None:
         """
@@ -293,7 +296,6 @@ class TestIrodsImageMetadataStore:
             config: The configuration to use for testing.
             class_specific_config: The subclass-specific configuration.
             faker: The fixture to use for generating fake data.
-            new_metadata_type: The type of new metadata to pass in.
             merge: Whether to test merging or overwriting.
 
         """
@@ -305,7 +307,7 @@ class TestIrodsImageMetadataStore:
         mock_data_object.metadata.get_one.return_value = metadata_avus
 
         # Create some new metadata.
-        if new_metadata_type == UavImageMetadata:
+        if class_specific_config.metadata_type == UavImageMetadata:
             new_metadata = faker.image_metadata()
         else:
             new_metadata = faker.video_metadata()
@@ -346,7 +348,9 @@ class TestIrodsImageMetadataStore:
         if merge:
             # It should not have overwritten the fields we wanted to keep.
             assert got_new_metadata.name == old_metadata.name
-            assert got_new_metadata.camera == old_metadata.camera
+            if hasattr(old_metadata, "camera"):
+                # Base metadata doesn't have this attribute.
+                assert got_new_metadata.camera == old_metadata.camera
 
             # Everything else should be updated.
             modified_fields = {"name", "camera"}
@@ -525,7 +529,11 @@ class TestIrodsImageMetadataStore:
         fake_bucket = faker.word()
         fake_bucket_path = config.root_collection / fake_bucket
         result1, result2, result3 = [
-            {Collection.name: fake_bucket_path, DataObject.name: faker.word()}
+            {
+                Collection.name: fake_bucket_path,
+                DataObject.name: faker.word(),
+                DataObjectMeta.value: faker.random_element(ObjectType).value,
+            }
             for _ in range(3)
         ]
 
@@ -564,8 +572,9 @@ class TestIrodsImageMetadataStore:
             expected_results.append(result3)
         expected_results = expected_results[:max_num_results]
         for got_result, result in zip(got_results, expected_results):
-            assert fake_bucket == got_result.bucket
-            assert result[DataObject.name] == got_result.name
+            assert fake_bucket == got_result.id.bucket
+            assert result[DataObject.name] == got_result.id.name
+            assert result[DataObjectMeta.value] == got_result.type.value
 
         # It should have built the query.
         assert config.mock_session.query.call_count == num_queries
@@ -596,8 +605,12 @@ class TestIrodsImageMetadataStore:
             assert len(args) in {1, 2}
             if len(args) == 1:
                 # These are filters for limiting data to this application and
-                # excluding thumbnails.
-                assert args[0].query_key in {Collection.name, DataObject.name}
+                # the correct object type, and excluding thumbnails.
+                assert args[0].query_key in {
+                    Collection.name,
+                    DataObject.name,
+                    DataObjectMeta.name,
+                }
 
             elif len(args) == 2:
                 # These are the filters specified by the user.
@@ -648,6 +661,6 @@ class TestIrodsImageMetadataStore:
 
         # It should have built the query.
         config.mock_session.query.assert_called_once()
-        # It should have added only the filters for MALLARD data and
-        # thumbnails..
-        assert config.mock_session.query.return_value.filter.call_count == 2
+        # It should have added only the filters for MALLARD data, object
+        # type, and thumbnails..
+        assert config.mock_session.query.return_value.filter.call_count == 3

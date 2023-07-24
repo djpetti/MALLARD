@@ -4,6 +4,7 @@ Tests for the `backend_manager` module.
 
 
 import unittest.mock as mock
+from typing import AsyncIterator, Callable
 
 import pytest
 from confuse import ConfigTypeError
@@ -12,7 +13,10 @@ from pytest_mock import MockFixture
 
 from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends import backend_manager
-from mallard.gateway.backends.metadata import MetadataStore
+from mallard.gateway.backends.metadata import (
+    ArtifactMetadataStore,
+    MetadataStore,
+)
 from mallard.gateway.backends.objects import ObjectStore
 from mallard.type_helpers import ArbitraryTypesConfig
 
@@ -62,20 +66,38 @@ def config(mocker: MockFixture) -> ConfigForTests:
 
     # Set the correct configuration.
     mock_object_view = mock_config["backends"]["object_store"]
-    mock_metadata_view = mock_config["backends"]["metadata_store"]
     mock_object_view["type"].as_str.return_value = "test_store.TestObjectStore"
-    mock_metadata_view[
-        "type"
-    ].as_str.return_value = "test_store.TestMetadataStore"
+
+    def _init_metadata_store_config(store_name: str) -> None:
+        # Initialize the configuration for this particular metadata store.
+        mock_metadata_view = mock_config["backends"][
+            f"{store_name}_metadata_store"
+        ]
+        mock_metadata_view[
+            "type"
+        ].as_str.return_value = (
+            f"test_store.Test{store_name.title()}MetadataStore"
+        )
+
+    _init_metadata_store_config("artifact")
+    _init_metadata_store_config("image")
+    _init_metadata_store_config("video")
 
     # Create the fake store classes and enclosing module.
     mock_object_store_class = mocker.create_autospec(ObjectStore)
     mock_metadata_store_class = mocker.create_autospec(MetadataStore)
     mock_module = mocker.Mock(
-        spec_set=["TestObjectStore", "TestMetadataStore"]
+        spec_set=[
+            "TestObjectStore",
+            "TestArtifactMetadataStore",
+            "TestImageMetadataStore",
+            "TestVideoMetadataStore",
+        ]
     )
     mock_module.TestObjectStore = mock_object_store_class
-    mock_module.TestMetadataStore = mock_metadata_store_class
+    mock_module.TestArtifactMetadataStore = (
+        mock_module.TestImageMetadataStore
+    ) = mock_module.TestVideoMetadataStore = mock_metadata_store_class
     # Make it look like we can import this.
     mock_import_module.return_value = mock_module
 
@@ -119,25 +141,38 @@ async def test_object_store(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("loader", "store_name"),
+    [
+        (backend_manager.image_metadata_store, "image"),
+        (backend_manager.artifact_metadata_store, "artifact"),
+        (backend_manager.video_metadata_store, "video"),
+    ],
+)
 async def test_metadata_store(
-    config: ConfigForTests, mocker: MockFixture
+    config: ConfigForTests,
+    loader: Callable[[], AsyncIterator[ArtifactMetadataStore]],
+    store_name: str,
 ) -> None:
     """
     Tests that we can properly load the metadata store.
 
     Args:
         config: The configuration to use for testing.
-        mocker: The fixture to use for mocking.
+        loader: The loader function we are testing.
+        store_name: The expected name of the metadata store that it will load.
 
     """
     # Arrange.
     # Act.
-    metadata_store = await anext(backend_manager.image_metadata_store())
+    metadata_store = await anext(loader())
 
     # Assert.
-    # It should have used the fake ObjectStore class.
+    # It should have used the fake MetadataStore class.
     config.mock_metadata_store_class.from_config.assert_called_once_with(
-        config.mock_config["backends"]["metadata_store"]["config"]
+        config.mock_config["backends"][f"{store_name}_metadata_store"][
+            "config"
+        ]
     )
     assert (
         metadata_store

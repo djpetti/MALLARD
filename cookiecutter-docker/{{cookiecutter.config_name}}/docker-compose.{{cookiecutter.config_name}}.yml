@@ -65,7 +65,7 @@ services:
 
   # Metadata storage service.
   metadata_store:
-    image: mariadb:10.5-focal
+    image: mariadb:10.11
     hostname: metadata-store
     volumes:
       - {{cookiecutter.metadata_location}}:/var/lib/mysql

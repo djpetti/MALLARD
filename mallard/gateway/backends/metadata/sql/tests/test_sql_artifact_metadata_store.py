@@ -721,7 +721,9 @@ class TestSqlArtifactMetadataStore:
         """
         # Arrange.
         store = sql_artifact_metadata_store.SqlImageMetadataStore(
-            sqlite_session
+            # SQLite only supports MATCH in limited contexts.
+            sqlite_session,
+            enable_match=False,
         )
 
         # Add various records.

@@ -91,15 +91,19 @@ class SqlArtifactMetadataStore(
         session: AsyncSession,
         *,
         pydantic_type: Type[MetadataTypeVar] = Metadata,
+        enable_match: bool = True,
     ):
         """
         Args:
             session: The session to use for communicating with the database.
             pydantic_type: Pydantic metadata type to use.
+            enable_match: Enables the MATCH keyword for full-text search.
+                Some databases might not support this.
 
         """
         self.__unsafe_session = session
         self.__pydantic_type = pydantic_type
+        self.__enable_match = enable_match
 
         # Manages access to the raw session between concurrent tasks.
         self.__session_lock = asyncio.Lock()
@@ -255,6 +259,7 @@ class SqlArtifactMetadataStore(
         *,
         query: Select,
         column: InstrumentedAttribute,
+        **kwargs: Any,
     ) -> Select:
         """
         Updates a query to filter for user-specified conditions. For instance,
@@ -265,6 +270,8 @@ class SqlArtifactMetadataStore(
             value: The value that we want to filter the query with.
             query: The existing query to add to.
             column: The specific column that we are filtering on.
+            **kwargs: Some overloads of this function might take specific
+                keyword arguments.
 
         Returns:
             The modified query.
@@ -281,6 +288,7 @@ class SqlArtifactMetadataStore(
         *,
         query: Select,
         column: InstrumentedAttribute,
+        **kwargs: Any,
     ) -> Select:
         # Not specified in the query. Don't add a filter for this.
         return query
@@ -292,8 +300,16 @@ class SqlArtifactMetadataStore(
         *,
         query: Select,
         column: InstrumentedAttribute,
+        full_text: bool = False,
     ) -> Select:
-        return query.where(column.contains(value))
+        if not full_text:
+            matcher = column.startswith(value)
+        else:
+            if self.__enable_match:
+                matcher = column.match(value)
+            else:
+                matcher = column.like(value)
+        return query.where(matcher)
 
     @__update_query.register
     def _(
@@ -363,9 +379,7 @@ class SqlArtifactMetadataStore(
             [
                 (value.platform_type, Artifact.platform_type),
                 (value.name, Artifact.name),
-                (value.notes, Artifact.notes),
                 (value.camera, Raster.camera),
-                (value.session, Artifact.session_name),
                 (value.sequence_numbers, Artifact.sequence_number),
                 (value.capture_dates, Artifact.capture_date),
                 (
@@ -376,6 +390,20 @@ class SqlArtifactMetadataStore(
                 (value.gsd_cm_px, Raster.gsd_cm_px),
             ]
         )
+        # Add full text queries.
+        query = self.__update_query(
+            value.session,
+            column=Artifact.session_name,
+            query=query,
+            full_text=True,
+        )
+        query = self.__update_query(
+            value.notes,
+            column=Artifact.notes,
+            query=query,
+            full_text=True,
+        )
+        # Add location queries.
         query = self.__update_location_query(
             value.bounding_box,
             query=query,

@@ -91,6 +91,18 @@ class Artifact(Base):
             "session_name",
             "capture_date",
         ),
+        Index(
+            "ix_notes_fulltext",
+            "notes",
+            mysql_prefix="FULLTEXT",
+            mariadb_prefix="FULLTEXT",
+        ),
+        Index(
+            "ix_session_fulltext",
+            "session_name",
+            mysql_prefix="FULLTEXT",
+            mariadb_prefix="FULLTEXT",
+        ),
     )
 
     @staticmethod

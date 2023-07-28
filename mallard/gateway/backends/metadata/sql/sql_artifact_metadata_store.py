@@ -385,7 +385,10 @@ class SqlArtifactMetadataStore(
         # We used columns from both the artifact and raster tables,
         # so we have to join them.
         query = query.join_from(
-            Artifact, Raster, onclause=Artifact.key == Raster.key
+            Artifact,
+            Raster,
+            onclause=(Artifact.bucket == Raster.bucket)
+            & (Artifact.key == Raster.key),
         )
 
         return query

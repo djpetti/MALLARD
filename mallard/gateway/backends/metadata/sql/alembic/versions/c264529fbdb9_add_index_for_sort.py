@@ -19,7 +19,7 @@ def upgrade():
     op.create_index(
         "ix_name_session_capture_date",
         "artifacts",
-        columns=["name", "session_name", "capture_date"],
+        columns=[sa.text("capture_date DESC"), "session_name", "name"],
     )
 
 

@@ -381,7 +381,7 @@ export class TopNavBar extends LitElement {
           heading="Confirm Deletion"
           id="confirm_delete_dialog"
           scrimClickAction="${this.showDeletionProgress ? "" : "close"}"
-          escKeyAction="${this.showDeletionProgress ? "" : "close"}"
+          escapeKeyAction="${this.showDeletionProgress ? "" : "close"}"
           ?open="${this.showDeletionProgress}"
         >
           <div>
@@ -416,6 +416,8 @@ export class TopNavBar extends LitElement {
           ? html`<mwc-dialog
               heading="Edit Metadata"
               id="edit_metadata_dialog"
+              scrimClickAction="${this.showEditingProgress ? "" : "close"}"
+              escapeKeyAction="${this.showEditingProgress ? "" : "close"}"
               open
             >
               Edit the saved metadata for the selected images:

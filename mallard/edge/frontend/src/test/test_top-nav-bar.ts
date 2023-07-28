@@ -148,7 +148,9 @@ describe("top-nav-bar", () => {
     expect(topBar).not.toBe(null);
 
     // It should have rendered the dialog.
-    const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
+    const deleteConfirmDialog = root.querySelector(
+      "#confirm_delete_dialog"
+    ) as Dialog;
     expect(deleteConfirmDialog).not.toBeNull();
 
     // Only the cancel button should be visible and disabled.
@@ -157,6 +159,10 @@ describe("top-nav-bar", () => {
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);
+
+    // It should not let you exit by clicking outside the dialog.
+    expect(deleteConfirmDialog.scrimClickAction).toEqual("");
+    expect(deleteConfirmDialog.escapeKeyAction).toEqual("");
 
     // The delete button should have been replaced by a loading indicator.
     const loader = root.querySelector("mwc-circular-progress");
@@ -203,7 +209,9 @@ describe("top-nav-bar", () => {
     expect(topBar).not.toBe(null);
 
     // It should have rendered the dialog.
-    const editMetadataDialog = root.querySelector("#edit_metadata_dialog");
+    const editMetadataDialog = root.querySelector(
+      "#edit_metadata_dialog"
+    ) as Dialog;
     expect(editMetadataDialog).not.toBeNull();
 
     // Only the cancel button should be visible and disabled.
@@ -212,6 +220,10 @@ describe("top-nav-bar", () => {
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);
+
+    // It should not let you exit by clicking outside the dialog.
+    expect(editMetadataDialog.scrimClickAction).toEqual("");
+    expect(editMetadataDialog.escapeKeyAction).toEqual("");
 
     // The confirm button should have been replaced by a loading indicator.
     const loader = root.querySelector("mwc-circular-progress");

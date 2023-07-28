@@ -194,7 +194,9 @@ describe("thumbnail-grid-slice action creators", () => {
       // Then, it should add the artifacts.
       const addArtifactsAction = actions[1];
       expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-      expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+      expect(addArtifactsAction.payload).toEqual(
+        queryResult.imageIds.map((e) => e.id)
+      );
 
       // Then, it should load metadata, which will dispatch two lifecycle
       // actions.
@@ -272,7 +274,9 @@ describe("thumbnail-grid-slice action creators", () => {
     // Then, it should add the artifacts.
     const addArtifactsAction = actions[1];
     expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-    expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+    expect(addArtifactsAction.payload).toEqual(
+      queryResult.imageIds.map((e) => e.id)
+    );
 
     // Then, it should load metadata, which will dispatch two lifecycle
     // actions.

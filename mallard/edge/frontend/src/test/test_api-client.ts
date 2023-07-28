@@ -409,11 +409,11 @@ describe("api-client", () => {
   });
 
   each([
-    ["ignoring the names", true],
-    ["setting the names", false],
+    ["ignoring the names and sizes", true, true],
+    ["setting the names and sizes", false, false],
   ]).it(
     "can update existing image metadata, %s",
-    async (_, ignoreName: boolean) => {
+    async (_, ignoreName: boolean, ignoreSize: boolean) => {
       // Arrange.
       const metadata = fakeImageMetadata();
       const images: ObjectRef[] = [];
@@ -434,7 +434,8 @@ describe("api-client", () => {
         metadata,
         images,
         incrementSequence,
-        ignoreName
+        ignoreName,
+        ignoreSize
       );
 
       // Assert.
@@ -442,6 +443,10 @@ describe("api-client", () => {
       if (ignoreName) {
         // We shouldn't have set the name.
         expectedMetadata.name = undefined;
+      }
+      if (ignoreSize) {
+        // We shouldn't have set the size.
+        expectedMetadata.size = undefined;
       }
 
       // It should have updated the metadata.

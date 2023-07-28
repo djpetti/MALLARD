@@ -13,6 +13,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -83,6 +84,14 @@ class Artifact(Base):
     # expression defaults, subsequent to a flush, without triggering an
     # expired load.
     __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        Index(
+            "ix_name_session_capture_date",
+            "name",
+            "session_name",
+            "capture_date",
+        ),
+    )
 
     @staticmethod
     def pydantic_fields() -> Set[str]:

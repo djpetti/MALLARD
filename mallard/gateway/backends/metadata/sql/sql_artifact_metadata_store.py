@@ -18,6 +18,7 @@ from typing import (
 
 from confuse import ConfigView
 from loguru import logger
+from sqlalchemy import ColumnElement, or_, true
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -253,22 +254,23 @@ class SqlArtifactMetadataStore(
     # TODO (danielp): These should be classmethods, but Python issue 39679
     #  prevents this.
     @singledispatchmethod
-    def __update_query(
+    def __update_query_expression(
         self,
         value: Any,
         *,
-        query: Select,
+        conjunction: ColumnElement = true(),
         column: InstrumentedAttribute,
         **kwargs: Any,
-    ) -> Select:
+    ) -> ColumnElement:
         """
-        Updates a query to filter for user-specified conditions. For instance,
-        a raw int will cause it to generate a query that looks for exact
-        equality to that value.
+        Updates a SQL expression to filter for user-specified conditions. For
+        instance, a raw int will cause it to generate an expression that looks
+        for exact quality to that value.
 
         Args:
-            value: The value that we want to filter the query with.
-            query: The existing query to add to.
+            value: The value that we want to filter with.
+            conjunction: The clause that the expression will be ANDed with.
+                Can make it easier to build up large expressions.
             column: The specific column that we are filtering on.
             **kwargs: Some overloads of this function might take specific
                 keyword arguments.
@@ -281,64 +283,68 @@ class SqlArtifactMetadataStore(
             f"__update_query is not implemented for type {type(value)}."
         )
 
-    @__update_query.register
+    @__update_query_expression.register
     def _(
         self,
         value: type(None),
         *,
-        query: Select,
+        conjunction: ColumnElement = true(),
         column: InstrumentedAttribute,
         **kwargs: Any,
-    ) -> Select:
+    ) -> ColumnElement:
         # Not specified in the query. Don't add a filter for this.
-        return query
+        return conjunction
 
-    @__update_query.register
+    @__update_query_expression.register
     def _(
         self,
         value: str,
         *,
-        query: Select,
+        conjunction: ColumnElement = true(),
         column: InstrumentedAttribute,
         full_text: bool = False,
-    ) -> Select:
+    ) -> ColumnElement:
         if not full_text:
-            matcher = column.startswith(value)
+            expression = column.startswith(value)
         else:
+            # Perform full-text matching.
             if self.__enable_match:
-                matcher = column.match(value)
+                expression = column.match(value)
             else:
-                matcher = column.like(value)
-        return query.where(matcher)
+                # MATCH is not supported.
+                expression = column.contains(value)
+        return conjunction & expression
 
-    @__update_query.register
+    @__update_query_expression.register
     def _(
         self,
         value: ImageQuery.Range,
         *,
-        query: Select,
+        conjunction: ColumnElement = true(),
         column: InstrumentedAttribute,
-    ) -> Select:
+    ) -> ColumnElement:
+        expression = conjunction
         if value.min_value is not None:
-            query = query.where(column >= value.min_value)
+            expression = expression & (column >= value.min_value)
         if value.max_value is not None:
-            query = query.where(column <= value.max_value)
-        return query
+            expression = expression & (column <= value.max_value)
+        return expression
 
     @staticmethod
-    def __update_location_query(
-        value: Optional[ImageQuery.BoundingBox],
+    def __update_location_query_expression(
+        value: ImageQuery.BoundingBox | None,
         *,
-        query: Select,
+        conjunction: ColumnElement = true(),
         lat_column: InstrumentedAttribute,
         lon_column: InstrumentedAttribute,
-    ) -> Select:
+    ) -> ColumnElement:
         """
         Updates a query to filter for a specified location.
 
         Args:
             value: The bounding box around the location.
-            query: The query to update.
+            conjunction: The clause that the expression will be ANDed with.
+                Can make it easier to build up large expressions.
             lat_column: The column containing the location latitude.
             lon_column: The column containing the location longitude.
 
@@ -348,34 +354,35 @@ class SqlArtifactMetadataStore(
         """
         if value is None:
             # No bounding box was specified, so this doesn't need updating.
-            return query
+            return conjunction
 
-        return query.where(
-            lat_column <= value.north_east.latitude_deg,
-            lat_column >= value.south_west.latitude_deg,
-            lon_column <= value.north_east.longitude_deg,
-            lon_column >= value.south_west.longitude_deg,
+        return (
+            conjunction
+            & (lat_column <= value.north_east.latitude_deg)
+            & (lat_column >= value.south_west.latitude_deg)
+            & (lon_column <= value.north_east.longitude_deg)
+            & (lon_column >= value.south_west.longitude_deg)
         )
 
-    def __update_raster_query(
+    def __update_raster_query_expression(
         self,
         value: ImageQuery,
         *,
-        query: Select,
-    ) -> Select:
+        conjunction: ColumnElement = true(),
+    ) -> ColumnElement:
         # Shortcut for applying a selection of filters to a query.
-        def _apply_query_updates(
+        def _apply_expression_updates(
             updates: Iterable[Tuple[Any, InstrumentedAttribute]]
         ) -> Select:
-            _query = query
+            _expression = conjunction
             for _value, column in updates:
-                _query = self.__update_query(
-                    _value, column=column, query=_query
+                _expression = self.__update_query_expression(
+                    _value, column=column, conjunction=_expression
                 )
-            return _query
+            return _expression
 
         # Build the complete query.
-        query = _apply_query_updates(
+        expression = _apply_expression_updates(
             [
                 (value.platform_type, Artifact.platform_type),
                 (value.name, Artifact.name),
@@ -391,35 +398,27 @@ class SqlArtifactMetadataStore(
             ]
         )
         # Add full text queries.
-        query = self.__update_query(
+        expression = self.__update_query_expression(
             value.session,
             column=Artifact.session_name,
-            query=query,
+            conjunction=expression,
             full_text=True,
         )
-        query = self.__update_query(
+        expression = self.__update_query_expression(
             value.notes,
             column=Artifact.notes,
-            query=query,
+            conjunction=expression,
             full_text=True,
         )
         # Add location queries.
-        query = self.__update_location_query(
+        expression = self.__update_location_query_expression(
             value.bounding_box,
-            query=query,
+            conjunction=expression,
             lat_column=Artifact.location_lat,
             lon_column=Artifact.location_lon,
         )
-        # We used columns from both the artifact and raster tables,
-        # so we have to join them.
-        query = query.join_from(
-            Artifact,
-            Raster,
-            onclause=(Artifact.bucket == Raster.bucket)
-            & (Artifact.key == Raster.key),
-        )
 
-        return query
+        return expression
 
     def __update_query_order(
         self, order: Ordering, *, query: Select
@@ -502,17 +501,27 @@ class SqlArtifactMetadataStore(
         max_num_results: int = 500,
     ) -> AsyncIterable[TypedObjectRef]:
         # Create the SQL query.
-        selections = []
+        expressions = []
         for query in queries:
-            selection = select(Artifact)
-            selections.append(
-                self.__update_raster_query(query, query=selection)
+            expression = true()
+            expressions.append(
+                self.__update_raster_query_expression(
+                    query, conjunction=expression
+                )
             )
-        if len(selections) == 0:
-            # No queries at all.
-            return
-        # Get the union of the results.
-        selection = union_all(*selections)
+        # Get the disjunction of the results.
+        disjunction = or_(*expressions)
+
+        # Build a query for anything that matches.
+        selection = select(Artifact).where(disjunction)
+        # We used columns from both the artifact and raster tables,
+        # so we have to join them.
+        selection = selection.join_from(
+            Artifact,
+            Raster,
+            onclause=(Artifact.bucket == Raster.bucket)
+            & (Artifact.key == Raster.key),
+        )
 
         # Apply the specified orderings.
         for order in orderings:

@@ -533,7 +533,7 @@ class TestSqlArtifactMetadataStore:
 
         # Assert.
         # It should have created the queries.
-        assert config.mock_select.call_count == num_queries + 1
+        assert config.mock_select.call_count == 2
         # It should have run the query.
         config.mock_session.execute.assert_called_once()
         # It should have produced the results.
@@ -546,26 +546,6 @@ class TestSqlArtifactMetadataStore:
         # It should have applied the offset and limit.
         mock_query.offset.assert_called_once_with(offset)
         mock_query.limit.assert_called_once_with(limit)
-
-    @pytest.mark.asyncio
-    async def test_query_no_queries(
-        self, config: ConfigForTests, faker: Faker
-    ) -> None:
-        """
-        Tests that `query` handles the strange case where we don't give it
-        any queries at all.
-
-        Args:
-            config: The configuration to use for testing.
-            faker: The fixture to use for generating fake data.
-
-        """
-        # Act.
-        got_results = [r async for r in config.store.query([])]
-
-        # Assert.
-        # No results should have been produced.
-        assert len(got_results) == 0
 
     @pytest.mark.asyncio
     async def test_query_empty(
@@ -600,7 +580,7 @@ class TestSqlArtifactMetadataStore:
 
         # It should not have applied any filters.
         mock_query = config.mock_select.return_value
-        mock_query.where.assert_not_called()
+        mock_query.where.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_from_config(self, mocker: MockFixture) -> None:

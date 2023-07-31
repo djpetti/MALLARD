@@ -43,7 +43,7 @@ def fill_metadata(
     field_meta = metadata.__fields__
     update_fields = {}
     for name, value in original_fields.items():
-        if value == field_meta[name].default:
+        if name in inferred_fields and value == field_meta[name].default:
             # If it's not specified originally, update it from an inferred
             # value.
             update_fields[name] = inferred_fields.get(name)

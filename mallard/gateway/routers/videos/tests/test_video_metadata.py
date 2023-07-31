@@ -16,6 +16,7 @@ from pytest_mock import MockFixture
 from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
+    PlatformType,
     UavVideoMetadata,
     VideoFormat,
 )
@@ -296,6 +297,8 @@ async def test_fill_metadata(
     assert got_metadata.frame_rate is not None
     assert got_metadata.num_frames is not None
     assert got_metadata.format is not None
+    # Other fields should have been set to defaults.
+    assert got_metadata.platform_type == PlatformType.GROUND
 
     # The size should have been set correctly.
     if metadata.size is not None:

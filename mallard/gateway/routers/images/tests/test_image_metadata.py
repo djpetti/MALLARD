@@ -20,6 +20,7 @@ import mallard.gateway.artifact_metadata
 from mallard.gateway.backends.metadata.schemas import (
     GeoPoint,
     ImageFormat,
+    PlatformType,
     UavImageMetadata,
 )
 from mallard.gateway.routers.images import image_metadata
@@ -487,6 +488,8 @@ async def test_fill_metadata(
     assert got_metadata.location.longitude_deg is not None
     # The format should have been correctly deduced.
     assert got_metadata.format == fill_meta_config.image_format
+    # Other fields should have been set to defaults.
+    assert got_metadata.platform_type == PlatformType.GROUND
 
     # The size should have been set correctly.
     if metadata.size is not None:

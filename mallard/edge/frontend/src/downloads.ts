@@ -43,11 +43,24 @@ async function fetchImage(imageId: ObjectRef): Promise<Response> {
 async function* fetchImages(
   images: ImageWithMeta[]
 ): AsyncGenerator<InputWithMeta, void, void> {
+  // Keeps track of how many times a particular name has been seen.
+  const duplicateNames = new Map<string, number>();
+
   for (const image of images) {
     const imageResponse = await fetchImage(image.id);
 
+    let name = image.metadata.name;
+    if (name && duplicateNames.has(name)) {
+      // This name is a duplicate. Make it unique so it doesn't mess up our
+      // zip file.
+      name = `${duplicateNames.get(name)}_${name}`;
+      duplicateNames.set(name, duplicateNames.get(name)! + 1);
+    } else if (name) {
+      duplicateNames.set(name, 1);
+    }
+
     yield {
-      name: image.metadata.name,
+      name: name,
       lastModified: image.metadata.captureDate,
       input: imageResponse,
     };

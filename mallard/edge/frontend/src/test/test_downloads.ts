@@ -1,4 +1,4 @@
-import { downloadZip, predictLength } from "client-zip";
+import { downloadZip, InputWithMeta, predictLength } from "client-zip";
 import MockedFn = jest.MockedFn;
 import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
 import { downloadImageZip, makeImageUrlList } from "../downloads";
@@ -149,6 +149,56 @@ describe("downloads", () => {
       expect(mockPipeTo).toBeCalledWith(fakeFileStream);
     }
   );
+
+  it("handles duplicate names correctly", async () => {
+    // Arrange.
+    // Create some fake images with the same name.
+    const image1 = fakeObjectRef();
+    const image2 = fakeObjectRef();
+    const metadata1 = fakeImageMetadata();
+    const imagesWithMeta = [
+      { id: image1, metadata: metadata1 },
+      { id: image2, metadata: metadata1 },
+    ];
+
+    // Make it look like we can predict the length.
+    const zipLength = BigInt(faker.datatype.number({ min: 0 }));
+    mockPredictLength.mockReturnValue(zipLength);
+
+    // Create some sort of fake file stream for it to write to.
+    const fakeFileStream = {};
+    mockCreateWriteStream.mockReturnValue(fakeFileStream as WritableStream);
+
+    // Don't use the fancy mock implementation here. For our purposes, we
+    // actually *don't* want it to step through the iterable, so that we can
+    // extract the iterable and check it later.
+    mockDownloadZip.mockImplementation((_) => {
+      return { body: { pipeTo: mockPipeTo } } as unknown as Response;
+    });
+
+    // Act.
+    await downloadImageZip(imagesWithMeta);
+
+    // Assert.
+    // It should have predicted the length.
+    expect(mockPredictLength).toBeCalledTimes(1);
+
+    expect(mockDownloadZip).toBeCalledTimes(1);
+    // It should have specified the correct length.
+    expect(mockDownloadZip).toBeCalledWith(expect.anything(), {
+      length: zipLength,
+    });
+
+    // It should have made the names unique.
+    const imageIter = mockDownloadZip.mock.calls[0][0];
+    const imageNames = new Set<string>();
+    for await (const image of imageIter) {
+      const name = (image as { name: any }).name as string;
+      expect(imageNames.has(name)).toBe(false);
+      imageNames.add(name);
+    }
+    expect(imageNames.size).toBe(2);
+  });
 
   it("should create a file containing the list of URLs and return the link", () => {
     // Arrange

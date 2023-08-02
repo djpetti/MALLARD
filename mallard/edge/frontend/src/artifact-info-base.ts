@@ -1,6 +1,6 @@
 import { LitElement, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
-import { ImageStatus, RootState } from "./types";
+import { ArtifactStatus, RootState } from "./types";
 import {
   thumbnailGridSelectors,
   thunkLoadMetadata,
@@ -64,7 +64,7 @@ export class ArtifactInfoBase extends LitElement {
       state,
       this.frontendId
     );
-    if (!imageEntity || imageEntity.metadataStatus != ImageStatus.LOADED) {
+    if (!imageEntity || imageEntity.metadataStatus != ArtifactStatus.LOADED) {
       // Image loading has not been started yet.
       return {};
     }

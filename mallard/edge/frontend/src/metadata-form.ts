@@ -8,7 +8,7 @@ import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { PlatformType, UavImageMetadata } from "mallard-api";
+import { PlatformType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
 import { thumbnailGridSelectors } from "./thumbnail-grid-slice";
@@ -55,7 +55,7 @@ export class MetadataForm extends LitElement {
    * no metadata has been provided yet.
    */
   @property({ attribute: false })
-  metadata: UavImageMetadata | null = null;
+  metadata: UavImageMetadata | UavVideoMetadata | null = null;
 
   /** Current state of this element. */
   @property({ attribute: false })

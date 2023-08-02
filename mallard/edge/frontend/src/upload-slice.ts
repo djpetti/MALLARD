@@ -17,7 +17,12 @@ import {
 import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
 import { Action } from "redux";
 import { ThunkAction } from "redux-thunk";
-import { ObjectRef, UavImageMetadata } from "mallard-api";
+import {
+  ObjectType,
+  TypedObjectRef,
+  UavImageMetadata,
+  UavVideoMetadata,
+} from "mallard-api";
 import { thunkClearImageView } from "./thumbnail-grid-slice";
 import pica from "pica";
 import imageBlobReduce from "image-blob-reduce";
@@ -220,16 +225,19 @@ export const thunkUploadFile = createAsyncThunk(
   }: {
     fileId: string;
     idsToFiles: Map<string, File>;
-  }): Promise<ObjectRef> => {
+  }): Promise<TypedObjectRef> => {
     // Obtain the file with this ID.
     const uploadFile = idsToFiles.get(fileId) as File;
 
     // Upload all the files.
     // File should always be loaded at the time we perform this action.
-    return await createImage(uploadFile, {
-      name: uploadFile.name,
-      metadata: {},
-    });
+    return {
+      id: await createImage(uploadFile, {
+        name: uploadFile.name,
+        metadata: {},
+      }),
+      type: ObjectType.IMAGE,
+    };
   }
 );
 
@@ -285,12 +293,12 @@ async function updateMetadataFromState(
       fileId
     ) as FrontendFileEntity;
 
-    return file.backendRef as ObjectRef;
+    return file.backendRef as TypedObjectRef;
   });
 
   // Perform the updates.
   await batchUpdateMetadata(
-    state.uploads.metadata as UavImageMetadata,
+    state.uploads.metadata as UavImageMetadata | UavVideoMetadata,
     objectRefs
   );
 }

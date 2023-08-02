@@ -1,14 +1,16 @@
 import {
   Configuration,
   Field,
-  ImageFormat,
   ImagesApi,
   DefaultApi,
   ObjectRef,
   Ordering,
-  PlatformType,
   QueryResponse,
   UavImageMetadata,
+  VideosApi,
+  TypedObjectRef,
+  ObjectType,
+  UavVideoMetadata,
 } from "mallard-api";
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
@@ -18,26 +20,8 @@ declare const API_BASE_URL: string;
 
 /** Singleton API client used by the entire application. */
 const imagesApi = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
+const videosApi = new VideosApi(new Configuration({ basePath: API_BASE_URL }));
 const api = new DefaultApi(new Configuration({ basePath: API_BASE_URL }));
-
-/** Used for translating raw platform types to enum values.
- * Must be kept in-sync with `PlatformType` on the backend.
- */
-const PLATFORM_TYPE_TO_ENUM = new Map<string, PlatformType>([
-  ["ground", PlatformType.GROUND],
-  ["aerial", PlatformType.AERIAL],
-]);
-
-/** Used for translating raw image formats to enum values.
- * Must be kept in-sync with `ImageFormat` on the backend.
- */
-const IMAGE_FORMAT_TO_ENUM = new Map<string, ImageFormat>([
-  ["gif", ImageFormat.GIF],
-  ["tiff", ImageFormat.TIFF],
-  ["jpeg", ImageFormat.JPEG],
-  ["bmp", ImageFormat.BMP],
-  ["png", ImageFormat.PNG],
-]);
 
 /** Default orderings to use for queries. This will put the newest stuff at
  * the top, but sort by name for images collected on the same day.
@@ -47,23 +31,6 @@ export const DEFAULT_ORDERINGS: Ordering[] = [
   { field: Field.SESSION, ascending: true },
   { field: Field.NAME, ascending: true },
 ];
-
-/**
- * Converts a raw response from Axios to a metadata structure.
- * @param {UavImageMetadata} response The response to convert.
- * @return {UavImageMetadata} The equivalent metadata.
- */
-function responseToMetadata(response: UavImageMetadata): UavImageMetadata {
-  const rawResult = { ...response };
-
-  // Fix the enums.
-  rawResult.format = IMAGE_FORMAT_TO_ENUM.get(rawResult.format as string);
-  rawResult.platformType = PLATFORM_TYPE_TO_ENUM.get(
-    rawResult.platformType as string
-  );
-
-  return rawResult;
-}
 
 /**
  * Some functions require separate form parameters for input.
@@ -89,6 +56,21 @@ function metadataToForm(metadata: UavImageMetadata): any[] {
     metadata.location?.latitudeDeg,
     metadata.location?.longitudeDeg,
   ];
+}
+
+/**
+ * Separates a set of artifact IDs by the type of artifact.
+ * @param {TypedObjectRef[]} artifactIds The artifact Ids.
+ * @return {unknown} The image and video artifact IDs.
+ */
+function separateByType(artifactIds: TypedObjectRef[]): {
+  imageIds: TypedObjectRef[];
+  videoIds: TypedObjectRef[];
+} {
+  return {
+    imageIds: artifactIds.filter((e) => e.type === ObjectType.IMAGE),
+    videoIds: artifactIds.filter((e) => e.type === ObjectType.VIDEO),
+  };
 }
 
 /**
@@ -155,24 +137,34 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
 
 /**
  * Loads metadata for an image.
- * @param {ObjectRef} imageIds The IDs of the images to load metadata for.
+ * @param {ObjectRef} artifactIds The IDs of the artifacts to load metadata for.
  * @return {UavImageMetadata[]} The corresponding metadata for each image.
  */
 export async function getMetadata(
-  imageIds: ObjectRef[]
-): Promise<UavImageMetadata[]> {
-  const response = await imagesApi
-    .findImageMetadataImagesMetadataPost(imageIds)
-    .catch(function (error) {
-      console.error(error.toJSON());
-      throw error;
-    });
+  artifactIds: TypedObjectRef[]
+): Promise<(UavImageMetadata | UavVideoMetadata)[]> {
+  const { imageIds, videoIds } = separateByType(artifactIds);
 
-  // Convert from JSON.
-  const metadata: UavImageMetadata[] = [];
-  for (const rawMetadata of response.data.metadata) {
-    metadata.push(responseToMetadata(rawMetadata));
+  let metadata: (UavImageMetadata | UavVideoMetadata)[] = [];
+  if (imageIds.length > 0) {
+    const response = await imagesApi
+      .findImageMetadataImagesMetadataPost(imageIds.map((e) => e.id))
+      .catch(function (error) {
+        console.error(error.toJSON());
+        throw error;
+      });
+    metadata = response.data.metadata;
   }
+  if (videoIds.length > 0) {
+    const response = await videosApi
+      .findVideoMetadataVideosMetadataPost(videoIds.map((e) => e.id))
+      .catch(function (error) {
+        console.error(error.toJSON());
+        throw error;
+      });
+    metadata = response.data.metadata;
+  }
+
   return metadata;
 }
 
@@ -250,14 +242,13 @@ export async function inferMetadata(
       throw error;
     });
 
-  // Convert from JSON.
-  return responseToMetadata(response.data);
+  return response.data;
 }
 
 /**
  * Updates the metadata for an entire set of images at once.
  * @param {UavImageMetadata} metadata The new metadata to set.
- * @param {ObjectRef[]} images The images to update.
+ * @param {ObjectRef[]} artifacts The images to update.
  * @param {boolean} incrementSequence Whether to auto-increment sequence numbers
  *  for these image.
  * @param {boolean} ignoreName If true, it will not overwrite the name
@@ -266,8 +257,8 @@ export async function inferMetadata(
  *  parameter of the individual artifacts.
  */
 export async function batchUpdateMetadata(
-  metadata: UavImageMetadata,
-  images: ObjectRef[],
+  metadata: UavImageMetadata | UavVideoMetadata,
+  artifacts: TypedObjectRef[],
   incrementSequence?: boolean,
   ignoreName: boolean = true,
   ignoreSize: boolean = true
@@ -283,16 +274,34 @@ export async function batchUpdateMetadata(
     metadataCopy.size = undefined;
   }
 
-  await imagesApi
-    .batchUpdateMetadataImagesMetadataBatchUpdatePatch(
-      {
-        metadata: metadataCopy,
-        images: images,
-      },
-      incrementSequence
-    )
-    .catch(function (error) {
-      console.error(error.toJSON());
-      throw error;
-    });
+  const { imageIds, videoIds } = separateByType(artifacts);
+
+  if (imageIds.length > 0) {
+    await imagesApi
+      .batchUpdateMetadataImagesMetadataBatchUpdatePatch(
+        {
+          metadata: metadataCopy as UavImageMetadata,
+          images: imageIds.map((e) => e.id),
+        },
+        incrementSequence
+      )
+      .catch(function (error) {
+        console.error(error.toJSON());
+        throw error;
+      });
+  }
+  if (videoIds.length > 0) {
+    await videosApi
+      .batchUpdateMetadataVideosMetadataBatchUpdatePatch(
+        {
+          metadata: metadataCopy as UavVideoMetadata,
+          videos: videoIds.map((e) => e.id),
+        },
+        incrementSequence
+      )
+      .catch(function (error) {
+        console.error(error.toJSON());
+        throw error;
+      });
+  }
 }

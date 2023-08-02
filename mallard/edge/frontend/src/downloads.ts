@@ -1,4 +1,9 @@
-import { ObjectRef, UavImageMetadata } from "mallard-api";
+import {
+  ObjectType,
+  TypedObjectRef,
+  UavImageMetadata,
+  UavVideoMetadata,
+} from "mallard-api";
 import { downloadZip, InputWithMeta, predictLength } from "client-zip";
 import urlJoin from "url-join";
 import streamSaver from "streamsaver";
@@ -10,28 +15,34 @@ declare const API_BASE_URL: string;
  * Combines an image with associated metadata.
  */
 export interface ImageWithMeta {
-  id: ObjectRef;
-  metadata: UavImageMetadata;
+  id: TypedObjectRef;
+  metadata: UavImageMetadata | UavVideoMetadata;
 }
 
 /**
- * Gets the URL for an image.
- * @param {ObjectRef} imageId The ID of the image.
- * @return {string} The image URL.
+ * Gets the URL for an artifact.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {string} The artifact URL.
  */
-function getImageUrl(imageId: ObjectRef): string {
-  return urlJoin(API_BASE_URL, "images", imageId.bucket, imageId.name);
+function getArtifactUrl(artifactId: TypedObjectRef): string {
+  const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
+  return urlJoin(
+    API_BASE_URL,
+    router,
+    artifactId.id.bucket,
+    artifactId.id.name
+  );
 }
 
 /**
- * Fetches a single image.
- * @param {ObjectRef} imageId The ID of the image.
- * @return {Response} The `Response` from fetching the image.
+ * Fetches a single artifact.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {Response} The `Response` from fetching the artifact.
  */
-async function fetchImage(imageId: ObjectRef): Promise<Response> {
+async function fetchArtifact(artifactId: TypedObjectRef): Promise<Response> {
   // We can't use the API client, unfortunately, because we need raw
   // `Response` objects.
-  return await fetch(getImageUrl(imageId));
+  return await fetch(getArtifactUrl(artifactId));
 }
 
 /**
@@ -47,7 +58,7 @@ async function* fetchImages(
   const duplicateNames = new Map<string, number>();
 
   for (const image of images) {
-    const imageResponse = await fetchImage(image.id);
+    const imageResponse = await fetchArtifact(image.id);
 
     let name = image.metadata.name;
     if (name && duplicateNames.has(name)) {
@@ -94,11 +105,13 @@ function streamImages(imageInfo: ImageWithMeta[], length: bigint): Response {
 
 /**
  * Downloads a zip file containing the selected images.
- * @param {ObjectRef[]} images The info for the images to download.
+ * @param {ObjectRef[]} artifacts The info for the artifacts to download.
  */
-export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
-  const zipLength = computeLength(images);
-  const zipResponse = streamImages(images, zipLength);
+export async function downloadArtifactZip(
+  artifacts: ImageWithMeta[]
+): Promise<void> {
+  const zipLength = computeLength(artifacts);
+  const zipResponse = streamImages(artifacts, zipLength);
 
   // Save the file.
   const zipName = "artifacts.zip";
@@ -133,13 +146,13 @@ export async function downloadImageZip(images: ImageWithMeta[]): Promise<void> {
 /**
  * Creates a file containing a list of the URLs for the specified images,
  * and provides the user a link to it.
- * @param {ObjectRef[]} imageIds The list of image IDs.
+ * @param {ObjectRef[]} artifactIds The list of image IDs.
  * @return {string} The link to the list of images. The user is responsible
  *  for calling `revokeObjectURL` when done with it.
  */
-export function makeImageUrlList(imageIds: ObjectRef[]): string {
+export function makeArtifactUrlList(artifactIds: TypedObjectRef[]): string {
   // Get the image URLs.
-  const imageUrls = imageIds.map((id) => `${getImageUrl(id)} `);
+  const imageUrls = artifactIds.map((id) => `${getArtifactUrl(id)} `);
 
   // Create the list.
   const urlFile = new File(imageUrls, "image_urls.txt", { type: "text/plain" });

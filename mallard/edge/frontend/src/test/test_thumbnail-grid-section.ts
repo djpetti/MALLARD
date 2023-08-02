@@ -513,8 +513,8 @@ describe("thumbnail-grid-section", () => {
       // Add some artifacts.
       const image1 = fakeImageEntity();
       const image2 = fakeImageEntity();
-      const image1Id = createImageEntityId(image1.backendId);
-      const image2Id = createImageEntityId(image2.backendId);
+      const image1Id = createImageEntityId(image1.backendId.id);
+      const image2Id = createImageEntityId(image2.backendId.id);
       gridSectionElement.displayedArtifacts = [image1Id, image2Id];
 
       if (selectAll) {

@@ -34,7 +34,7 @@ from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import create_preview, create_thumbnail
 from .video_metadata import InvalidVideoError, fill_metadata
 
-router = APIRouter(prefix="/video", tags=["videos"])
+router = APIRouter(prefix="/videos", tags=["videos"])
 
 
 _VIDEO_FORMAT_TO_MIME_TYPES = {

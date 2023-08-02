@@ -33,9 +33,9 @@ import thumbnailGridReducer, {
   thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
 import {
-  ImageEntity,
+  ArtifactEntity,
   ImageQuery,
-  ImageStatus,
+  ArtifactStatus,
   ImageViewState,
   RequestState,
   RootState,
@@ -47,12 +47,16 @@ import {
   fakeImageEntity,
   fakeImageMetadata,
   fakeImageQuery,
-  fakeObjectRef,
   fakeState,
   fakeSuggestions,
   fakeTypedObjectRef,
 } from "./element-test-utils";
-import { ObjectRef, QueryResponse, UavImageMetadata } from "mallard-api";
+import {
+  ObjectRef,
+  ObjectType,
+  QueryResponse,
+  UavImageMetadata,
+} from "mallard-api";
 import each from "jest-each";
 import {
   batchUpdateMetadata,
@@ -67,7 +71,7 @@ import {
   queriesFromSearchString,
   requestAutocomplete,
 } from "../autocomplete";
-import { downloadImageZip, makeImageUrlList } from "../downloads";
+import { downloadArtifactZip, makeArtifactUrlList } from "../downloads";
 import { faker } from "@faker-js/faker";
 
 // Mock out the gateway API.
@@ -109,15 +113,15 @@ const mockQueriesFromSearchString = queriesFromSearchString as jest.MockedFn<
 
 // Mock out the download functions.
 jest.mock("../downloads", () => ({
-  downloadImageZip: jest.fn(),
-  makeImageUrlList: jest.fn(),
+  downloadArtifactZip: jest.fn(),
+  makeArtifactUrlList: jest.fn(),
 }));
 
-const mockDownloadImageZip = downloadImageZip as jest.MockedFn<
-  typeof downloadImageZip
+const mockDownloadArtifactZip = downloadArtifactZip as jest.MockedFn<
+  typeof downloadArtifactZip
 >;
-const mockMakeImageUrlList = makeImageUrlList as jest.MockedFn<
-  typeof makeImageUrlList
+const mockMakeArtifactUrlList = makeArtifactUrlList as jest.MockedFn<
+  typeof makeArtifactUrlList
 >;
 
 // Mock out `createObjectURL` and `revokeObjectURL`.
@@ -194,9 +198,7 @@ describe("thumbnail-grid-slice action creators", () => {
       // Then, it should add the artifacts.
       const addArtifactsAction = actions[1];
       expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-      expect(addArtifactsAction.payload).toEqual(
-        queryResult.imageIds.map((e) => e.id)
-      );
+      expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
 
       // Then, it should load metadata, which will dispatch two lifecycle
       // actions.
@@ -274,9 +276,7 @@ describe("thumbnail-grid-slice action creators", () => {
     // Then, it should add the artifacts.
     const addArtifactsAction = actions[1];
     expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-    expect(addArtifactsAction.payload).toEqual(
-      queryResult.imageIds.map((e) => e.id)
-    );
+    expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
 
     // Then, it should load metadata, which will dispatch two lifecycle
     // actions.
@@ -340,11 +340,11 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // Initialize the fake store with valid state.
     const unloadedImage1 = fakeImageEntity(false);
-    const unloadedImage1Id = createImageEntityId(unloadedImage1.backendId);
+    const unloadedImage1Id = createImageEntityId(unloadedImage1.backendId.id);
     const unloadedImage2 = fakeImageEntity(false);
-    const unloadedImage2Id = createImageEntityId(unloadedImage2.backendId);
+    const unloadedImage2Id = createImageEntityId(unloadedImage2.backendId.id);
     const loadedImage = fakeImageEntity(true);
-    const loadedImageId = createImageEntityId(loadedImage.backendId);
+    const loadedImageId = createImageEntityId(loadedImage.backendId.id);
     const state = fakeState();
     state.imageView.ids = [unloadedImage1Id, unloadedImage2Id, loadedImageId];
     state.imageView.entities[unloadedImage1Id] = unloadedImage1;
@@ -495,8 +495,8 @@ describe("thumbnail-grid-slice action creators", () => {
     // Initialize the fake store with valid state.
     const unloadedImage = fakeImageEntity(false, false);
     const loadedImage = fakeImageEntity(undefined, true);
-    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
-    const loadedImageId = createImageEntityId(loadedImage.backendId);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId.id);
+    const loadedImageId = createImageEntityId(loadedImage.backendId.id);
     const state = fakeState();
     state.imageView.ids = [unloadedImageId, loadedImageId];
     state.imageView.entities[unloadedImageId] = unloadedImage;
@@ -560,7 +560,7 @@ describe("thumbnail-grid-slice action creators", () => {
     /**
      * Fake image entities to use for testing.
      */
-    let imageEntities: ImageEntity[];
+    let imageEntities: ArtifactEntity[];
     /**
      * Fake frontend IDs to use for testing.
      */
@@ -580,7 +580,9 @@ describe("thumbnail-grid-slice action creators", () => {
         fakeImageEntity(true, true),
         fakeImageEntity(true, true),
       ];
-      frontendIds = imageEntities.map((e) => createImageEntityId(e.backendId));
+      frontendIds = imageEntities.map((e) =>
+        createImageEntityId(e.backendId.id)
+      );
       selectedIds = frontendIds.slice(0, 2);
 
       // Set up the state correctly.
@@ -592,7 +594,7 @@ describe("thumbnail-grid-slice action creators", () => {
       }
       // Mark selected images as selected.
       for (const id of selectedIds) {
-        (state.imageView.entities[id] as ImageEntity).isSelected = true;
+        (state.imageView.entities[id] as ArtifactEntity).isSelected = true;
       }
     });
 
@@ -600,8 +602,12 @@ describe("thumbnail-grid-slice action creators", () => {
       // Arrange.
       // Make it look like some items are selected.
       const imageView = state.imageView;
-      const selectedImage1 = imageView.entities[selectedIds[0]] as ImageEntity;
-      const selectedImage2 = imageView.entities[selectedIds[1]] as ImageEntity;
+      const selectedImage1 = imageView.entities[
+        selectedIds[0]
+      ] as ArtifactEntity;
+      const selectedImage2 = imageView.entities[
+        selectedIds[1]
+      ] as ArtifactEntity;
 
       const store = mockStoreCreator(state);
 
@@ -610,8 +616,8 @@ describe("thumbnail-grid-slice action creators", () => {
 
       // Assert.
       // It should have downloaded the selected items.
-      expect(mockDownloadImageZip).toBeCalledTimes(1);
-      const downloadList = mockDownloadImageZip.mock.calls[0][0];
+      expect(mockDownloadArtifactZip).toBeCalledTimes(1);
+      const downloadList = mockDownloadArtifactZip.mock.calls[0][0];
       expect(downloadList).toHaveLength(2);
       expect(downloadList).toContainEqual({
         id: selectedImage1.backendId,
@@ -662,7 +668,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
       // Assert.
       // It should not have run any downloads.
-      expect(mockDownloadImageZip).not.toBeCalled();
+      expect(mockDownloadArtifactZip).not.toBeCalled();
     });
 
     it("updates the metadata of selected images", async () => {
@@ -755,7 +761,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
         // It should have deleted the selected images.
         const selectedBackendIds = selectedIds.map(
-          (id) => state.imageView.entities[id]?.backendId
+          (id) => state.imageView.entities[id]?.backendId.id
         );
         expect(mockDeleteImages).toHaveBeenCalledWith(selectedBackendIds);
         // It should have returned the IDs of the images that it deleted.
@@ -768,7 +774,7 @@ describe("thumbnail-grid-slice action creators", () => {
         const state = fakeState();
         const imageEntity = fakeImageEntity();
         imageEntity.isSelected = false;
-        const frontendId = createImageEntityId(imageEntity.backendId);
+        const frontendId = createImageEntityId(imageEntity.backendId.id);
         state.imageView.ids = [frontendId];
         state.imageView.entities[frontendId] = imageEntity;
 
@@ -791,7 +797,7 @@ describe("thumbnail-grid-slice action creators", () => {
       // Arrange.
       const store = mockStoreCreator(state);
       const exportedUrl = faker.internet.url();
-      mockMakeImageUrlList.mockReturnValue(exportedUrl);
+      mockMakeArtifactUrlList.mockReturnValue(exportedUrl);
 
       // Act.
       thunkExportSelected()(
@@ -802,8 +808,8 @@ describe("thumbnail-grid-slice action creators", () => {
 
       // Assert.
       // It should have made the list of URLs.
-      expect(makeImageUrlList).toHaveBeenCalledTimes(1);
-      expect(makeImageUrlList).toHaveBeenCalledWith(
+      expect(makeArtifactUrlList).toHaveBeenCalledTimes(1);
+      expect(makeArtifactUrlList).toHaveBeenCalledWith(
         selectedIds.map((id) => state.imageView.entities[id]?.backendId)
       );
 
@@ -1234,11 +1240,12 @@ describe("thumbnail-grid-slice action creators", () => {
     ["is registered", fakeImageEntity()],
   ]).it(
     "can set a new image to show details for when the image %s",
-    (_, imageEntity?: ImageEntity) => {
+    (_, imageEntity?: ArtifactEntity) => {
       // Arrange.
       // Create a fake image.
-      const backendId = imageEntity?.backendId ?? fakeObjectRef();
-      const frontendId = createImageEntityId(backendId);
+      const backendId =
+        imageEntity?.backendId ?? fakeTypedObjectRef(ObjectType.IMAGE);
+      const frontendId = createImageEntityId(backendId.id);
 
       const state = fakeState();
       if (imageEntity) {
@@ -1249,7 +1256,7 @@ describe("thumbnail-grid-slice action creators", () => {
       const store = mockStoreCreator(state);
 
       // Act.
-      thunkShowDetails(backendId)(
+      thunkShowDetails(backendId.id)(
         store.dispatch,
         store.getState as () => RootState,
         {}
@@ -1285,7 +1292,7 @@ describe("thumbnail-grid-slice reducers", () => {
   it("handles an addArtifacts action", () => {
     // Arrange.
     const state: ImageViewState = fakeState().imageView;
-    const backendId = fakeObjectRef();
+    const backendId = fakeTypedObjectRef();
 
     // Act.
     const newState = thumbnailGridSlice.reducer(
@@ -1304,8 +1311,8 @@ describe("thumbnail-grid-slice reducers", () => {
     // Make it look like one image is loaded and one is not.
     const loadedImage = fakeImageEntity(undefined, true);
     const unloadedImage = fakeImageEntity(undefined, false);
-    const loadedImageId = createImageEntityId(loadedImage.backendId);
-    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+    const loadedImageId = createImageEntityId(loadedImage.backendId.id);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId.id);
 
     const state: RootState = fakeState();
     state.imageView.ids = [loadedImageId, unloadedImageId];
@@ -1327,7 +1334,7 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(imageEntities).toHaveLength(2);
     for (const image of imageEntities) {
       expect(image.imageUrl).toBeNull();
-      expect(image.imageStatus).toEqual(ImageStatus.NOT_LOADED);
+      expect(image.imageStatus).toEqual(ArtifactStatus.NOT_LOADED);
     }
   });
 
@@ -1336,8 +1343,8 @@ describe("thumbnail-grid-slice reducers", () => {
     // Make it look like one image is loaded and one is not.
     const loadedImage = fakeImageEntity(true);
     const unloadedImage = fakeImageEntity(false);
-    const loadedImageId = createImageEntityId(loadedImage.backendId);
-    const unloadedImageId = createImageEntityId(unloadedImage.backendId);
+    const loadedImageId = createImageEntityId(loadedImage.backendId.id);
+    const unloadedImageId = createImageEntityId(unloadedImage.backendId.id);
 
     const state: RootState = fakeState();
     state.imageView.ids = [loadedImageId, unloadedImageId];
@@ -1360,7 +1367,7 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(imageEntities).toHaveLength(2);
     for (const image of imageEntities) {
       expect(image.thumbnailUrl).toBeNull();
-      expect(image.thumbnailStatus).toEqual(ImageStatus.NOT_LOADED);
+      expect(image.thumbnailStatus).toEqual(ArtifactStatus.NOT_LOADED);
     }
 
     // It should have updated the counter for the number of loaded images.
@@ -1485,10 +1492,14 @@ describe("thumbnail-grid-slice reducers", () => {
     const unselectedImage2 = fakeImageEntity();
     unselectedImage2.isSelected = false;
 
-    const selectedImage1Id = createImageEntityId(selectedImage1.backendId);
-    const selectedImage2Id = createImageEntityId(selectedImage2.backendId);
-    const unselectedImage1Id = createImageEntityId(unselectedImage1.backendId);
-    const unselectedImage2Id = createImageEntityId(unselectedImage2.backendId);
+    const selectedImage1Id = createImageEntityId(selectedImage1.backendId.id);
+    const selectedImage2Id = createImageEntityId(selectedImage2.backendId.id);
+    const unselectedImage1Id = createImageEntityId(
+      unselectedImage1.backendId.id
+    );
+    const unselectedImage2Id = createImageEntityId(
+      unselectedImage2.backendId.id
+    );
     state.ids = [
       selectedImage1Id,
       selectedImage2Id,
@@ -1845,7 +1856,7 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Create the fake state.
     const imageIds = [image1, image2].map((e) =>
-      createImageEntityId(e.backendId)
+      createImageEntityId(e.backendId.id)
     );
     const state = fakeState().imageView;
     state.ids = imageIds;
@@ -1938,7 +1949,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have updated the loading status.
     for (const id of images.ids) {
       expect(newState.entities[id]?.thumbnailStatus).toEqual(
-        ImageStatus.LOADING
+        ArtifactStatus.LOADING
       );
     }
   });
@@ -1974,7 +1985,7 @@ describe("thumbnail-grid-slice reducers", () => {
     for (let i = 0; i < images.ids.length; ++i) {
       const imageId = images.ids[i];
       const imageEntity = newState.entities[imageId];
-      expect(imageEntity?.thumbnailStatus).toEqual(ImageStatus.LOADED);
+      expect(imageEntity?.thumbnailStatus).toEqual(ArtifactStatus.LOADED);
       expect(imageEntity?.thumbnailUrl).toEqual(imageInfo[i].imageUrl);
     }
 
@@ -1988,7 +1999,7 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Image IDs that we are loading metadata for.
     const imageEntity = fakeImageEntity();
-    const imageId = createImageEntityId(imageEntity.backendId);
+    const imageId = createImageEntityId(imageEntity.backendId.id);
     state.ids = [imageId];
     state.entities[imageId] = imageEntity;
 
@@ -2003,7 +2014,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have updated the loading status.
     expect(newState.entities[imageId]?.imageStatus).toEqual(
-      ImageStatus.LOADING
+      ArtifactStatus.LOADING
     );
   });
 
@@ -2015,7 +2026,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const fakeEntity = fakeImageEntity(undefined, false);
     // In this case, the image ID has to be consistent with the backend ID
     // from the generated entity.
-    const imageId: string = createImageEntityId(fakeEntity.backendId);
+    const imageId: string = createImageEntityId(fakeEntity.backendId.id);
     state.ids = [imageId];
     state.entities[imageId] = fakeEntity;
 
@@ -2033,7 +2044,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have updated the entity for the image.
     const imageEntity = newState.entities[imageId];
-    expect(imageEntity?.imageStatus).toEqual(ImageStatus.LOADED);
+    expect(imageEntity?.imageStatus).toEqual(ArtifactStatus.LOADED);
     expect(imageEntity?.imageUrl).toEqual(imageInfo.imageUrl);
   });
 
@@ -2044,7 +2055,7 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Image IDs that we are loading metadata for.
     const imageEntities = [fakeImageEntity(), fakeImageEntity()];
-    state.ids = imageEntities.map((e) => createImageEntityId(e.backendId));
+    state.ids = imageEntities.map((e) => createImageEntityId(e.backendId.id));
     state.entities[state.ids[0]] = imageEntities[0];
     state.entities[state.ids[1]] = imageEntities[1];
 
@@ -2063,7 +2074,7 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have updated the loading status.
     for (const imageId of state.ids) {
       expect(newState.entities[imageId]?.metadataStatus).toEqual(
-        ImageStatus.LOADING
+        ArtifactStatus.LOADING
       );
     }
   });
@@ -2076,7 +2087,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const fakeEntity = fakeImageEntity(true);
     // In this case, the image ID has to be consistent with the backend ID
     // from the generated entity.
-    const imageId: string = createImageEntityId(fakeEntity.backendId);
+    const imageId: string = createImageEntityId(fakeEntity.backendId.id);
     state.ids = [imageId];
     state.entities[imageId] = fakeEntity;
 

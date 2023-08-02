@@ -2,7 +2,7 @@ import { css, html, nothing, PropertyValues } from "lit";
 import { state, property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { ImageEntity, RootState, ImageStatus } from "./types";
+import { ArtifactEntity, RootState, ArtifactStatus } from "./types";
 import {
   thumbnailGridSelectors,
   thunkSelectImages,
@@ -157,12 +157,12 @@ export class ConnectedArtifactThumbnail extends connect(
 ) {
   /**
    * Creates a URL that takes us to a page with details about a particular image.
-   * @param {ImageEntity} entity The image entity to make the URL for.
+   * @param {ArtifactEntity} entity The image entity to make the URL for.
    * @return {string} The resulting URL.
    * @private
    */
-  private static makeDetailsUrl(entity: ImageEntity): string {
-    const backendId = entity.backendId;
+  private static makeDetailsUrl(entity: ArtifactEntity): string {
+    const backendId = entity.backendId.id;
     return `/details/${backendId.bucket}/${backendId.name}`;
   }
 
@@ -202,7 +202,7 @@ export class ConnectedArtifactThumbnail extends connect(
       // The frontendId that was set is apparently invalid.
       return defaultState;
     }
-    if (imageEntity.thumbnailStatus != ImageStatus.LOADED) {
+    if (imageEntity.thumbnailStatus != ArtifactStatus.LOADED) {
       // The thumbnail image is has not been loaded yet.
       return defaultState;
     }

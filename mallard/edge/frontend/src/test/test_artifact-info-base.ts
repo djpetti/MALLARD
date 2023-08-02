@@ -9,7 +9,7 @@ import {
   thunkLoadMetadata,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
-import { ImageEntity, ImageStatus } from "../types";
+import { ArtifactEntity, ArtifactStatus } from "../types";
 import { ConnectedMetadataCard } from "../metadata-card";
 import { ComponentType } from "../elements";
 import { ArtifactInfoBase } from "../artifact-info-base";
@@ -119,11 +119,15 @@ each([
       });
 
       each([
-        ["the artifact is not registered", ImageStatus.LOADED, undefined],
-        ["the metadata is not loaded", ImageStatus.LOADING, fakeImageEntity()],
+        ["the artifact is not registered", ArtifactStatus.LOADED, undefined],
+        [
+          "the metadata is not loaded",
+          ArtifactStatus.LOADING,
+          fakeImageEntity(),
+        ],
       ]).it(
         "does not update when %s",
-        (_, metadataStatus: ImageStatus, imageEntity?: ImageEntity) => {
+        (_, metadataStatus: ArtifactStatus, imageEntity?: ArtifactEntity) => {
           // Arrange.
           // Set a fake frontend ID.
           element.frontendId = faker.datatype.uuid();
@@ -131,7 +135,7 @@ each([
           const state = fakeState();
           // Add the entity if necessary.
           if (imageEntity) {
-            const imageId = createImageEntityId(imageEntity.backendId);
+            const imageId = createImageEntityId(imageEntity.backendId.id);
             state.imageView.ids = [imageId];
             state.imageView.entities[imageId] = imageEntity;
 
@@ -153,8 +157,8 @@ each([
         const state = fakeState();
         const imageEntity = fakeImageEntity();
         imageEntity.metadata = fakeImageMetadata();
-        imageEntity.metadataStatus = ImageStatus.LOADED;
-        const imageId = createImageEntityId(imageEntity.backendId);
+        imageEntity.metadataStatus = ArtifactStatus.LOADED;
+        const imageId = createImageEntityId(imageEntity.backendId.id);
         state.imageView.ids = [imageId];
         state.imageView.entities[imageId] = imageEntity;
 

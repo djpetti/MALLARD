@@ -1,10 +1,11 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
 import {
-  ObjectRef,
   Ordering,
   PlatformType,
   RangeDate,
+  TypedObjectRef,
   UavImageMetadata,
+  UavVideoMetadata,
 } from "mallard-api";
 import { Suggestions } from "./autocomplete";
 
@@ -67,38 +68,38 @@ interface NormalizedState<EntityType> {
 /**
  * The loading status of images.
  */
-export enum ImageStatus {
-  /** Image has not been loaded yet. */
+export enum ArtifactStatus {
+  /** Artifact has not been loaded yet. */
   NOT_LOADED,
-  /** Image is loading. */
+  /** Artifact is loading. */
   LOADING,
-  /** Image is loaded and displayed. */
+  /** Artifact is loaded and displayed. */
   LOADED,
 }
 
 /**
- * The entry in the normalized table for image data.
+ * The entry in the normalized table for artifact data.
  */
-export interface ImageEntity {
-  /** Unique ID for the image provided by the backend. */
-  backendId: ObjectRef;
+export interface ArtifactEntity {
+  /** Unique ID for the artifact provided by the backend. */
+  backendId: TypedObjectRef;
 
-  /** Status of loading the image thumbnail. */
-  thumbnailStatus: ImageStatus;
-  /** Status of loading the full image. */
-  imageStatus: ImageStatus;
+  /** Status of loading the artifact thumbnail. */
+  thumbnailStatus: ArtifactStatus;
+  /** Status of loading the full artifact. */
+  imageStatus: ArtifactStatus;
   /** Status of loading the metadata. */
-  metadataStatus: ImageStatus;
+  metadataStatus: ArtifactStatus;
 
-  /** The object URL of the image thumbnail. */
+  /** The object URL of the artifact thumbnail. */
   thumbnailUrl: string | null;
-  /** The object URL of the full-sized image. */
+  /** The object URL of the full-sized image, if this is an image */
   imageUrl: string | null;
 
-  /** The metadata associated with the image. */
-  metadata: UavImageMetadata | null;
+  /** The metadata associated with the artifact. */
+  metadata: UavImageMetadata | UavVideoMetadata | null;
 
-  /** Whether this image is currently selected. */
+  /** Whether this artifact is currently selected. */
   isSelected: boolean;
 }
 
@@ -126,7 +127,7 @@ interface DetailsState {
 /**
  * Represents the state of the home and details pages.
  */
-export interface ImageViewState extends NormalizedState<ImageEntity> {
+export interface ImageViewState extends NormalizedState<ArtifactEntity> {
   /** Most recent query, possibly still in progress. */
   currentQuery: ImageQuery[];
   /** Options provided for the current query. */
@@ -232,7 +233,7 @@ export interface FrontendFileEntity {
   /**
    * The corresponding reference to this file on the backend, if it exists there.
    */
-  backendRef?: ObjectRef;
+  backendRef?: TypedObjectRef;
 }
 
 /**
@@ -252,7 +253,7 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   metadataStatus: MetadataInferenceStatus;
   /** The current metadata. Can be null if no metadata has been set or
    * inferred yet. */
-  metadata: UavImageMetadata | null;
+  metadata: UavImageMetadata | UavVideoMetadata | null;
   /** Whether the loaded metadata has been modified by the user. */
   metadataChanged: boolean;
 

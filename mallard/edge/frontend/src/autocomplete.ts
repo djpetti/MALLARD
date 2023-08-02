@@ -1,6 +1,11 @@
 import { ImageQuery } from "./types";
 import { getMetadata, queryImages } from "./api-client";
-import { PlatformType, RangeDate, UavImageMetadata } from "mallard-api";
+import {
+  PlatformType,
+  RangeDate,
+  UavImageMetadata,
+  UavVideoMetadata,
+} from "mallard-api";
 import { merge } from "lodash";
 
 /** Maximum length we allow for autocomplete suggestions. */
@@ -462,7 +467,7 @@ function findTextInField(
  */
 function findSurroundingText(
   searchString: string,
-  metadata: UavImageMetadata,
+  metadata: UavImageMetadata | UavVideoMetadata,
   desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
 ): string {
   // Check the text fields for matches.
@@ -678,9 +683,7 @@ export async function requestAutocomplete(
   const matchedEntities = await queryImages(queries, [], numSuggestions);
 
   // Get the metadata for all the matched entities.
-  const allMetadata = await getMetadata(
-    matchedEntities.imageIds.map((e) => e.id)
-  );
+  const allMetadata = await getMetadata(matchedEntities.imageIds);
 
   // Extract the natural-language text components for text autocomplete.
   const searchText = [];

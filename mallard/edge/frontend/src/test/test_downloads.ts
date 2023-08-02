@@ -1,10 +1,15 @@
-import { downloadZip, InputWithMeta, predictLength } from "client-zip";
+import { downloadZip, predictLength } from "client-zip";
 import MockedFn = jest.MockedFn;
-import { fakeImageMetadata, fakeObjectRef } from "./element-test-utils";
-import { downloadImageZip, makeImageUrlList } from "../downloads";
+import {
+  fakeImageMetadata,
+  fakeTypedObjectRef,
+  fakeVideoMetadata,
+} from "./element-test-utils";
+import { downloadArtifactZip, makeArtifactUrlList } from "../downloads";
 import streamSaver from "streamsaver";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
+import { ObjectType } from "mallard-api";
 
 jest.mock("client-zip", () => ({
   downloadZip: jest.fn(),
@@ -75,13 +80,13 @@ describe("downloads", () => {
     async (_, simulateFsAccessApi: boolean) => {
       // Arrange.
       // Create some fake images.
-      const image1 = fakeObjectRef();
-      const image2 = fakeObjectRef();
-      const metadata1 = fakeImageMetadata();
-      const metadata2 = fakeImageMetadata();
-      const imagesWithMeta = [
-        { id: image1, metadata: metadata1 },
-        { id: image2, metadata: metadata2 },
+      const image = fakeTypedObjectRef(ObjectType.IMAGE);
+      const video = fakeTypedObjectRef(ObjectType.VIDEO);
+      const imageMetadata = fakeImageMetadata();
+      const videoMetadata = fakeVideoMetadata();
+      const artifactsWithMeta = [
+        { id: image, metadata: imageMetadata },
+        { id: video, metadata: videoMetadata },
       ];
 
       // Make it look like we can predict the length.
@@ -110,7 +115,7 @@ describe("downloads", () => {
       }
 
       // Act.
-      await downloadImageZip(imagesWithMeta);
+      await downloadArtifactZip(artifactsWithMeta);
       // Wait for it to fully finish running.
       while (!downloadZipFinished) {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -132,10 +137,10 @@ describe("downloads", () => {
       // going to concatenate all the fetched URLs into a big string and look
       // for our image IDs.
       const allUrls = mockFetch.mock.calls.map((c) => c[0]).join("");
-      expect(allUrls).toContain(image1.bucket);
-      expect(allUrls).toContain(image1.name);
-      expect(allUrls).toContain(image2.bucket);
-      expect(allUrls).toContain(image2.name);
+      expect(allUrls).toContain(image.id.bucket);
+      expect(allUrls).toContain(image.id.name);
+      expect(allUrls).toContain(video.id.bucket);
+      expect(allUrls).toContain(video.id.name);
 
       // It should have written out the data to the file.
       if (simulateFsAccessApi) {
@@ -153,8 +158,8 @@ describe("downloads", () => {
   it("handles duplicate names correctly", async () => {
     // Arrange.
     // Create some fake images with the same name.
-    const image1 = fakeObjectRef();
-    const image2 = fakeObjectRef();
+    const image1 = fakeTypedObjectRef(ObjectType.IMAGE);
+    const image2 = fakeTypedObjectRef(ObjectType.IMAGE);
     const metadata1 = fakeImageMetadata();
     const imagesWithMeta = [
       { id: image1, metadata: metadata1 },
@@ -177,7 +182,7 @@ describe("downloads", () => {
     });
 
     // Act.
-    await downloadImageZip(imagesWithMeta);
+    await downloadArtifactZip(imagesWithMeta);
 
     // Assert.
     // It should have predicted the length.
@@ -202,14 +207,18 @@ describe("downloads", () => {
 
   it("should create a file containing the list of URLs and return the link", () => {
     // Arrange
-    const imageIds = [fakeObjectRef(), fakeObjectRef(), fakeObjectRef()];
+    const imageIds = [
+      fakeTypedObjectRef(),
+      fakeTypedObjectRef(),
+      fakeTypedObjectRef(),
+    ];
 
     // Make sure createObjectUrl produces a valid result.
     const fakeFileUrl = faker.internet.url();
     mockCreateObjectUrl.mockReturnValue(fakeFileUrl);
 
     // Act
-    const gotFileUrl = makeImageUrlList(imageIds);
+    const gotFileUrl = makeArtifactUrlList(imageIds);
 
     // Assert
     // Verify the returned value is a valid URL.
@@ -228,8 +237,8 @@ describe("downloads", () => {
     const actualUrlList = mockFileConstructor.mock.calls[0][0];
     // The file should contain a list of URLs.
     for (let i = 0; i < actualUrlList.length; ++i) {
-      expect(actualUrlList[i]).toContain(imageIds[i].bucket);
-      expect(actualUrlList[i]).toContain(imageIds[i].name);
+      expect(actualUrlList[i]).toContain(imageIds[i].id.bucket);
+      expect(actualUrlList[i]).toContain(imageIds[i].id.name);
     }
   });
 });

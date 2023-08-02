@@ -2,7 +2,7 @@ import { ImageDisplay } from "./image-display";
 import { css, PropertyValues } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { ImageStatus } from "./types";
+import { ArtifactStatus } from "./types";
 import {
   thumbnailGridSelectors,
   thunkClearFullSizedImages,
@@ -145,7 +145,7 @@ export class ConnectedLargeImageDisplay extends connect(
       state,
       frontendId as string
     );
-    if (!imageEntity || imageEntity.imageStatus != ImageStatus.LOADED) {
+    if (!imageEntity || imageEntity.imageStatus != ArtifactStatus.LOADED) {
       // Image loading has not completed yet.
       return {};
     }

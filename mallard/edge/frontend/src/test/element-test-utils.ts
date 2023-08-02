@@ -5,9 +5,9 @@
 import {
   FileStatus,
   FrontendFileEntity,
-  ImageEntity,
+  ArtifactEntity,
   ImageQuery,
-  ImageStatus,
+  ArtifactStatus,
   MetadataInferenceStatus,
   RequestState,
   RootState,
@@ -23,6 +23,8 @@ import {
   PlatformType,
   TypedObjectRef,
   UavImageMetadata,
+  UavVideoMetadata,
+  VideoFormat,
 } from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
 import { EntityId } from "@reduxjs/toolkit";
@@ -100,14 +102,14 @@ export function fakeState(): RootState {
  *  image has finished loading. If not specified, it will be set randomly.
  * @param {Date} captureDate Specify a specific capture date for this entity.
  * @param {string} sessionName Specify a specific session name for this entity.
- * @return {ImageEntity} The entity that it created.
+ * @return {ArtifactEntity} The entity that it created.
  */
 export function fakeImageEntity(
   thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
   captureDate?: Date,
   sessionName?: string
-): ImageEntity {
+): ArtifactEntity {
   // Determine whether we should simulate a loaded image or not.
   if (thumbnailLoaded == undefined) {
     thumbnailLoaded = faker.datatype.boolean();
@@ -123,15 +125,15 @@ export function fakeImageEntity(
     sessionName = faker.lorem.words();
   }
 
-  let thumbnailStatus: ImageStatus = ImageStatus.NOT_LOADED;
-  let imageStatus: ImageStatus = ImageStatus.NOT_LOADED;
-  let metadataStatus: ImageStatus = ImageStatus.NOT_LOADED;
+  let thumbnailStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
+  let imageStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
+  let metadataStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let metadata: UavImageMetadata | null = null;
   if (thumbnailLoaded) {
     // Simulate a loaded thumbnail.
-    thumbnailStatus = ImageStatus.LOADED;
+    thumbnailStatus = ArtifactStatus.LOADED;
     thumbnailUrl = faker.image.dataUri();
     metadata = {
       captureDate: captureDate.toISOString(),
@@ -140,8 +142,8 @@ export function fakeImageEntity(
   }
   if (imageLoaded) {
     // Simulate a loaded image.
-    imageStatus = ImageStatus.LOADED;
-    metadataStatus = ImageStatus.LOADED;
+    imageStatus = ArtifactStatus.LOADED;
+    metadataStatus = ArtifactStatus.LOADED;
     imageUrl = faker.image.dataUri();
     metadata = {
       captureDate: captureDate.toISOString(),
@@ -150,7 +152,7 @@ export function fakeImageEntity(
   }
 
   return {
-    backendId: fakeObjectRef(),
+    backendId: fakeTypedObjectRef(),
     thumbnailStatus: thumbnailStatus,
     imageStatus: imageStatus,
     metadataStatus: metadataStatus,
@@ -166,7 +168,7 @@ export function fakeImageEntity(
  */
 export interface EntitiesAndIds {
   ids: EntityId[];
-  entities: { [id: EntityId]: ImageEntity };
+  entities: { [id: EntityId]: ArtifactEntity };
 }
 
 /**
@@ -189,7 +191,7 @@ export function fakeImageEntities(
   const state: EntitiesAndIds = { ids: [], entities: {} };
   for (let i = 0; i < numEntities; ++i) {
     const entity = fakeImageEntity(...entityArgs);
-    const frontendId = createImageEntityId(entity.backendId);
+    const frontendId = createImageEntityId(entity.backendId.id);
 
     state.ids.push(frontendId);
     state.entities[frontendId] = entity;
@@ -239,35 +241,34 @@ export function fakeObjectRef(): ObjectRef {
 /**
  * Creates a fake `TypedObjectRef`.
  * @return {TypedObjectRef} The random `TypedObjectRef` that it created.
+ * @param {ObjectType} type If specified, use this specific type for the object.
  */
-export function fakeTypedObjectRef(): TypedObjectRef {
-  return {
-    type: faker.helpers.arrayElement([
+export function fakeTypedObjectRef(type?: ObjectType): TypedObjectRef {
+  if (type === undefined) {
+    type = faker.helpers.arrayElement([
       ObjectType.IMAGE,
       ObjectType.RASTER,
       ObjectType.VIDEO,
       ObjectType.ARTIFACT,
-    ]),
+    ]);
+  }
+  return {
+    type: type,
     id: fakeObjectRef(),
   };
 }
 
 /**
- * Creates a fake `ImageMetadata`.
+ * Creates common parameters for `UavImageMetadata` and `UavVideoMetadata`.
  * @param {string} notes The notes to use for the metadata.
- * @return {UavImageMetadata} The random `ImageMetadata` that it created.
+ * @return {UavImageMetadata | UavVideoMetadata} The metadata it created.
  */
-export function fakeImageMetadata(notes?: string): UavImageMetadata {
+function fakeRasterMetadata(
+  notes?: string
+): UavImageMetadata | UavVideoMetadata {
   return {
     size: faker.datatype.number({ min: 0 }),
     name: faker.system.fileName(),
-    format: faker.helpers.arrayElement([
-      ImageFormat.GIF,
-      ImageFormat.TIFF,
-      ImageFormat.JPEG,
-      ImageFormat.BMP,
-      ImageFormat.PNG,
-    ]),
     platformType: faker.helpers.arrayElement([
       PlatformType.GROUND,
       PlatformType.AERIAL,
@@ -285,6 +286,44 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
     altitudeMeters: faker.datatype.number(400),
     gsdCmPx: faker.datatype.number(2.0),
   };
+}
+
+/**
+ * Creates a fake `UavImageMetadata`.
+ * @param {string} notes The notes to use for the metadata.
+ * @return {UavImageMetadata} The random `ImageMetadata` that it created.
+ */
+export function fakeImageMetadata(notes?: string): UavImageMetadata {
+  const metadata = fakeRasterMetadata(notes) as UavImageMetadata;
+
+  metadata.format = faker.helpers.arrayElement([
+    ImageFormat.GIF,
+    ImageFormat.TIFF,
+    ImageFormat.JPEG,
+    ImageFormat.BMP,
+    ImageFormat.PNG,
+  ]);
+  return metadata;
+}
+
+/**
+ * Creates a fake `UavVideoMetadata`.
+ * @param {string} notes The notes to use for the metadata.
+ * @return {UavVideoMetadata} The random `ImageMetadata` that it created.
+ */
+export function fakeVideoMetadata(notes?: string): UavVideoMetadata {
+  const metadata = fakeRasterMetadata(notes) as UavVideoMetadata;
+
+  metadata.format = faker.helpers.arrayElement([
+    VideoFormat.AV1,
+    VideoFormat.VP8,
+    VideoFormat.VP9,
+    VideoFormat.AVC,
+    VideoFormat.H263,
+    VideoFormat.HEVC,
+    VideoFormat.THEORA,
+  ]);
+  return metadata;
 }
 
 /**

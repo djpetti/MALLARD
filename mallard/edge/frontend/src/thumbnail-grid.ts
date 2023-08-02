@@ -2,7 +2,7 @@ import { css, html, PropertyValues } from "lit";
 import { property, query, queryAll, state } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { ImageEntity, ImageQuery, RequestState, RootState } from "./types";
+import { ArtifactEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
   thumbnailGridSelectors,
@@ -48,7 +48,7 @@ function groupByDateAndSession(
     const entity = thumbnailGridSelectors.selectById(
       state,
       imageId
-    ) as ImageEntity;
+    ) as ArtifactEntity;
     if (entity.metadata == null) {
       // If we're missing metadata, exclude this image.
       continue;

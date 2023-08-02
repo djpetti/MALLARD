@@ -7,9 +7,9 @@ import {
   EntityId,
 } from "@reduxjs/toolkit";
 import {
-  ImageEntity,
+  ArtifactEntity,
   ImageQuery,
-  ImageStatus,
+  ArtifactStatus,
   ImageViewState,
   QueryOptions,
   RequestState,
@@ -26,9 +26,12 @@ import {
 } from "./api-client";
 import {
   ObjectRef,
+  ObjectType,
   Ordering,
   QueryResponse,
+  TypedObjectRef,
   UavImageMetadata,
+  UavVideoMetadata,
 } from "mallard-api";
 import { ThunkAction } from "redux-thunk";
 import {
@@ -37,7 +40,7 @@ import {
   requestAutocomplete,
   Suggestions,
 } from "./autocomplete";
-import { downloadImageZip, makeImageUrlList } from "./downloads";
+import { downloadArtifactZip, makeArtifactUrlList } from "./downloads";
 import { chunk } from "lodash";
 
 // WORKAROUND for immer.js esm
@@ -86,7 +89,7 @@ interface LoadImageReturn {
  */
 interface LoadMetadataReturn {
   imageIds: string[];
-  metadata: UavImageMetadata[];
+  metadata: (UavImageMetadata | UavVideoMetadata)[];
 }
 
 /**
@@ -110,15 +113,15 @@ export function createImageEntityId(backendId: ObjectRef): string {
 
 /**
  * Creates an image entity with default values for all the attributes.
- * @param {ObjectRef} backendId ID of the entity on the backend.
- * @return {ImageEntity} The entity that it created.
+ * @param {TypedObjectRef} backendId ID of the entity on the backend.
+ * @return {ArtifactEntity} The entity that it created.
  */
-function createDefaultEntity(backendId: ObjectRef): ImageEntity {
+function createDefaultEntity(backendId: TypedObjectRef): ArtifactEntity {
   return {
     backendId: backendId,
-    thumbnailStatus: ImageStatus.NOT_LOADED,
-    imageStatus: ImageStatus.NOT_LOADED,
-    metadataStatus: ImageStatus.NOT_LOADED,
+    thumbnailStatus: ArtifactStatus.NOT_LOADED,
+    imageStatus: ArtifactStatus.NOT_LOADED,
+    metadataStatus: ArtifactStatus.NOT_LOADED,
     thumbnailUrl: null,
     imageUrl: null,
     metadata: null,
@@ -126,8 +129,8 @@ function createDefaultEntity(backendId: ObjectRef): ImageEntity {
   };
 }
 
-const thumbnailGridAdapter = createEntityAdapter<ImageEntity>({
-  selectId: (entity) => createImageEntityId(entity.backendId),
+const thumbnailGridAdapter = createEntityAdapter<ArtifactEntity>({
+  selectId: (entity) => createImageEntityId(entity.backendId.id),
 });
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQuery: [],
@@ -192,7 +195,7 @@ export const thunkStartNewQuery = createAsyncThunk(
     );
 
     // Add the results to the state.
-    dispatch(addArtifacts(queryResult.imageIds.map((i) => i.id)));
+    dispatch(addArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
@@ -233,7 +236,7 @@ export const thunkContinueQuery = createAsyncThunk(
     );
 
     // Add the results to the state.
-    dispatch(addArtifacts(queryResult.imageIds.map((i) => i.id)));
+    dispatch(addArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
@@ -272,16 +275,16 @@ const thunkLoadThumbnailsChunk = createAsyncThunk(
     const filteredIds: string[] = [];
     for (const imageId of imageIds) {
       // This should never be undefined, because that means our image ID is invalid.
-      const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+      const imageEntity: ArtifactEntity = thumbnailGridSelectors.selectById(
         getState() as RootState,
         imageId
-      ) as ImageEntity;
-      if (imageEntity.thumbnailStatus === ImageStatus.LOADED) {
+      ) as ArtifactEntity;
+      if (imageEntity.thumbnailStatus === ArtifactStatus.LOADED) {
         // If the image is already loaded, don't reload it.
         continue;
       }
 
-      promises.push(loadThumbnail(imageEntity.backendId));
+      promises.push(loadThumbnail(imageEntity.backendId.id));
       filteredIds.push(imageId);
     }
 
@@ -300,8 +303,8 @@ const thunkLoadThumbnailsChunk = createAsyncThunk(
         const imageEntity = thumbnailGridSelectors.selectById(
           state,
           id
-        ) as ImageEntity;
-        return imageEntity.thumbnailStatus != ImageStatus.NOT_LOADED;
+        ) as ArtifactEntity;
+        return imageEntity.thumbnailStatus != ArtifactStatus.NOT_LOADED;
       });
     },
   }
@@ -342,11 +345,11 @@ export const thunkLoadImage = createAsyncThunk(
   "thumbnailGrid/loadImage",
   async (imageId: string, { getState }): Promise<LoadImageReturn> => {
     // This should never be undefined, because that means our image ID is invalid.
-    const imageEntity: ImageEntity = thumbnailGridSelectors.selectById(
+    const imageEntity: ArtifactEntity = thumbnailGridSelectors.selectById(
       getState() as RootState,
       imageId
-    ) as ImageEntity;
-    const rawImage = await loadImage(imageEntity.backendId);
+    ) as ArtifactEntity;
+    const rawImage = await loadImage(imageEntity.backendId.id);
 
     // Get the object URL for it.
     return { imageId: imageId, imageUrl: URL.createObjectURL(rawImage) };
@@ -356,9 +359,9 @@ export const thunkLoadImage = createAsyncThunk(
       const imageEntity = thumbnailGridSelectors.selectById(
         getState() as RootState,
         imageId
-      ) as ImageEntity;
+      ) as ArtifactEntity;
       // If the image is already loaded, we don't need to re-load it.
-      return imageEntity.imageStatus == ImageStatus.NOT_LOADED;
+      return imageEntity.imageStatus == ArtifactStatus.NOT_LOADED;
     },
   }
 );
@@ -369,13 +372,13 @@ export const thunkLoadImage = createAsyncThunk(
 export const thunkLoadMetadata = createAsyncThunk(
   "thumbnailGrid/loadMetadata",
   async (imageIds: string[], { getState }): Promise<LoadMetadataReturn> => {
-    const imageEntities: ImageEntity[] = imageIds.map(
+    const imageEntities: ArtifactEntity[] = imageIds.map(
       (imageId: string) =>
         // This should never be undefined, because that means our image ID is invalid.
         thumbnailGridSelectors.selectById(
           getState() as RootState,
           imageId
-        ) as ImageEntity
+        ) as ArtifactEntity
     );
     // Check for image entities that don't have loaded metadata.
     const entitiesToLoad = imageEntities.filter(
@@ -384,20 +387,22 @@ export const thunkLoadMetadata = createAsyncThunk(
     const loadedEntities = imageEntities.filter(
       (entity) => entity.metadata !== null
     );
-    const backendIds: ObjectRef[] = entitiesToLoad.map(
+    const backendIds: TypedObjectRef[] = entitiesToLoad.map(
       (entity) => entity.backendId
     );
 
-    const metadata: UavImageMetadata[] = await getMetadata(backendIds);
+    const metadata = await getMetadata(backendIds);
 
     // We have to reconstruct the image IDs because we changed the order
     // during filtering.
     const previouslyLoadedImageIds = loadedEntities.map((entity) =>
-      createImageEntityId(entity.backendId)
+      createImageEntityId(entity.backendId.id)
     );
-    const newlyLoadedImageIds = backendIds.map(createImageEntityId);
+    const newlyLoadedImageIds = backendIds.map((id) =>
+      createImageEntityId(id.id)
+    );
     const previousMetadata = loadedEntities.map(
-      (entity) => entity.metadata as UavImageMetadata
+      (entity) => entity.metadata as UavImageMetadata | UavVideoMetadata
     );
     return {
       imageIds: previouslyLoadedImageIds.concat(newlyLoadedImageIds),
@@ -411,8 +416,8 @@ export const thunkLoadMetadata = createAsyncThunk(
         const imageEntity = thumbnailGridSelectors.selectById(
           state,
           id
-        ) as ImageEntity;
-        return imageEntity.metadataStatus != ImageStatus.NOT_LOADED;
+        ) as ArtifactEntity;
+        return imageEntity.metadataStatus != ArtifactStatus.NOT_LOADED;
       });
     },
   }
@@ -441,13 +446,13 @@ export const thunkBulkDownloadSelected = createAsyncThunk(
     const selectedImageInfo = selectedIds.map((id) => {
       const entity = thumbnailGridSelectors.selectById(state, id);
       return {
-        id: entity?.backendId as ObjectRef,
-        metadata: entity?.metadata as UavImageMetadata,
+        id: entity?.backendId as TypedObjectRef,
+        metadata: entity?.metadata as UavImageMetadata | UavVideoMetadata,
       };
     });
 
     // Start the download.
-    await downloadImageZip(selectedImageInfo);
+    await downloadArtifactZip(selectedImageInfo);
 
     // When the download is finished, clear the selected images.
     dispatch(
@@ -481,7 +486,8 @@ export const thunkUpdateSelectedMetadata = createAsyncThunk(
     const selectedIds = getSelectedImageIds(state);
     const selectedBackendIds = selectedIds.map(
       (id) =>
-        (thumbnailGridSelectors.selectById(state, id) as ImageEntity).backendId
+        (thumbnailGridSelectors.selectById(state, id) as ArtifactEntity)
+          .backendId
     );
 
     // Update the metadata.
@@ -504,7 +510,7 @@ export const thunkDeleteSelected = createAsyncThunk(
     const selectedIds = getSelectedImageIds(state);
     const backendIds = selectedIds.map(
       (id) =>
-        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
+        thumbnailGridSelectors.selectById(state, id)?.backendId.id as ObjectRef
     );
 
     // Delete all the images.
@@ -532,11 +538,12 @@ export function thunkExportSelected(): ThunkResult<void> {
     const selectedIds = getSelectedImageIds(state);
     const backendIds = selectedIds.map(
       (id) =>
-        thumbnailGridSelectors.selectById(state, id)?.backendId as ObjectRef
+        thumbnailGridSelectors.selectById(state, id)
+          ?.backendId as TypedObjectRef
     );
 
     // Create the list of URLs.
-    const listUrl = makeImageUrlList(backendIds);
+    const listUrl = makeArtifactUrlList(backendIds);
 
     // Set it in the state.
     dispatch(setExportedImagesUrl(listUrl));
@@ -628,7 +635,7 @@ export function thunkClearFullSizedImages(
       const entity = thumbnailGridSelectors.selectById(
         state,
         imageId
-      ) as ImageEntity;
+      ) as ArtifactEntity;
       if (entity.imageUrl) {
         URL.revokeObjectURL(entity.imageUrl);
         clearedImageIds.push(imageId);
@@ -665,7 +672,7 @@ export function thunkClearThumbnails(
       const entity = thumbnailGridSelectors.selectById(
         state,
         imageId
-      ) as ImageEntity;
+      ) as ArtifactEntity;
       if (entity.thumbnailUrl) {
         URL.revokeObjectURL(entity.thumbnailUrl);
         clearedImageIds.push(imageId);
@@ -773,7 +780,9 @@ export function thunkShowDetails(backendId: ObjectRef): ThunkResult<void> {
     const frontendId = createImageEntityId(backendId);
     if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
       // We need to register it.
-      dispatch(addArtifacts([backendId]));
+      // TODO (danielp): Eventually, we'll need to not assume that this is
+      //  an image.
+      dispatch(addArtifacts([{ id: backendId, type: ObjectType.IMAGE }]));
     }
 
     // Mark this as the image displayed on the details page.
@@ -803,7 +812,7 @@ export const thumbnailGridSlice = createSlice({
     addArtifacts(state, action) {
       thumbnailGridAdapter.upsertMany(
         state,
-        action.payload.map((backendId: ObjectRef) =>
+        action.payload.map((backendId: TypedObjectRef) =>
           createDefaultEntity(backendId)
         )
       );
@@ -814,7 +823,7 @@ export const thumbnailGridSlice = createSlice({
         state,
         action.payload.map((id: string) => ({
           id: id,
-          changes: { imageUrl: null, imageStatus: ImageStatus.NOT_LOADED },
+          changes: { imageUrl: null, imageStatus: ArtifactStatus.NOT_LOADED },
         }))
       );
     },
@@ -826,7 +835,7 @@ export const thumbnailGridSlice = createSlice({
           id: id,
           changes: {
             thumbnailUrl: null,
-            thumbnailStatus: ImageStatus.NOT_LOADED,
+            thumbnailStatus: ArtifactStatus.NOT_LOADED,
           },
         }))
       );
@@ -991,7 +1000,7 @@ export const thumbnailGridSlice = createSlice({
       const updates = action.meta.arg.map((id) => ({
         id: id,
         changes: {
-          thumbnailStatus: ImageStatus.LOADING,
+          thumbnailStatus: ArtifactStatus.LOADING,
         },
       }));
       thumbnailGridAdapter.updateMany(state, updates);
@@ -1005,7 +1014,7 @@ export const thumbnailGridSlice = createSlice({
         state,
         action.meta.arg.map((id) => ({
           id: id,
-          changes: { thumbnailStatus: ImageStatus.LOADED },
+          changes: { thumbnailStatus: ArtifactStatus.LOADED },
         }))
       );
 
@@ -1026,7 +1035,7 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.updateOne(state, {
         id: action.meta.arg,
         changes: {
-          imageStatus: ImageStatus.LOADING,
+          imageStatus: ArtifactStatus.LOADING,
         },
       });
     });
@@ -1037,7 +1046,7 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.updateOne(state, {
         id: action.payload.imageId,
         changes: {
-          imageStatus: ImageStatus.LOADED,
+          imageStatus: ArtifactStatus.LOADED,
           imageUrl: action.payload.imageUrl,
         },
       });
@@ -1064,7 +1073,7 @@ export const thumbnailGridSlice = createSlice({
 
       const updates = action.meta.arg.map((imageId: string) => ({
         id: imageId,
-        changes: { metadataStatus: ImageStatus.LOADING },
+        changes: { metadataStatus: ArtifactStatus.LOADING },
       }));
       thumbnailGridAdapter.updateMany(state, updates);
     });
@@ -1080,7 +1089,10 @@ export const thumbnailGridSlice = createSlice({
           const metadata = action.payload.metadata[index];
           return {
             id: imageId,
-            changes: { metadata: metadata, metadataStatus: ImageStatus.LOADED },
+            changes: {
+              metadata: metadata,
+              metadataStatus: ArtifactStatus.LOADED,
+            },
           };
         }
       );

@@ -231,7 +231,7 @@ describe("artifact-thumbnail", () => {
     // Make it look like we have a somewhat interesting state.
     const state = fakeState();
     const image = fakeImageEntity(true);
-    const frontendId = createImageEntityId(image.backendId);
+    const frontendId = createImageEntityId(image.backendId.id);
     state.imageView.ids = [frontendId];
     state.imageView.entities[frontendId] = image;
 
@@ -287,8 +287,8 @@ describe("artifact-thumbnail", () => {
 
       // It should have set a link to the image details.
       expect(updates).toHaveProperty("imageLink");
-      expect(updates["imageLink"]).toContain(imageEntity.backendId.bucket);
-      expect(updates["imageLink"]).toContain(imageEntity.backendId.name);
+      expect(updates["imageLink"]).toContain(imageEntity.backendId.id.bucket);
+      expect(updates["imageLink"]).toContain(imageEntity.backendId.id.name);
     });
 
     it("ignores Redux updates when no image ID is set", () => {

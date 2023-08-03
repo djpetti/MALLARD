@@ -61,7 +61,7 @@ def _create_session_maker(db_url: str) -> sessionmaker:
         The appropriate session-maker.
 
     """
-    engine = create_async_engine(db_url, echo_pool=True)
+    engine = create_async_engine(db_url, echo=True)
     return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 

@@ -212,10 +212,7 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  each([
-    ["image", fakeImageMetadata(), ObjectType.IMAGE],
-    ["video", fakeVideoMetadata(), ObjectType.VIDEO],
-  ]).it("can load %s metadata", async (_, metadata, objectType) => {
+  it("can load metadata", async () => {
     // Arrange.
     // Fake a valid response.
     const mockFindImageMetadata =
@@ -223,34 +220,41 @@ describe("api-client", () => {
     const mockFindVideoMetadata =
       mockVideosApiClass.prototype.findVideoMetadataVideosMetadataPost;
 
-    // @ts-ignore
-    mockFindImageMetadata.mockResolvedValue({ data: { metadata: [metadata] } });
-    // @ts-ignore
-    mockFindVideoMetadata.mockResolvedValue({ data: { metadata: [metadata] } });
+    const videoMetadata = fakeVideoMetadata();
+    const imageMetadata = fakeImageMetadata();
 
-    const artifactId = fakeTypedObjectRef(objectType);
+    // @ts-ignore
+    mockFindImageMetadata.mockResolvedValue({
+      data: { metadata: [imageMetadata] },
+    });
+    // @ts-ignore
+    mockFindVideoMetadata.mockResolvedValue({
+      data: { metadata: [videoMetadata] },
+    });
+
+    const imageArtifactId = fakeTypedObjectRef(ObjectType.IMAGE);
+    const videoArtifactId = fakeTypedObjectRef(ObjectType.VIDEO);
 
     // Act.
     const result: (UavImageMetadata | UavVideoMetadata)[] = await getMetadata([
-      artifactId,
+      videoArtifactId,
+      imageArtifactId,
     ]);
 
     // Assert.
     // It should have loaded the metadata.
-    if (objectType === ObjectType.IMAGE) {
-      expect(mockFindImageMetadata).toBeCalledTimes(1);
-      expect(mockFindImageMetadata).toBeCalledWith([
-        { bucket: artifactId.id.bucket, name: artifactId.id.name },
-      ]);
-    } else if (objectType === ObjectType.VIDEO) {
-      expect(mockFindVideoMetadata).toBeCalledTimes(1);
-      expect(mockFindVideoMetadata).toBeCalledWith([
-        { bucket: artifactId.id.bucket, name: artifactId.id.name },
-      ]);
-    }
+    expect(mockFindImageMetadata).toBeCalledTimes(1);
+    expect(mockFindImageMetadata).toBeCalledWith([
+      { bucket: imageArtifactId.id.bucket, name: imageArtifactId.id.name },
+    ]);
 
-    // It should have gotten the proper result.
-    expect(result[0]).toEqual(metadata);
+    expect(mockFindVideoMetadata).toBeCalledTimes(1);
+    expect(mockFindVideoMetadata).toBeCalledWith([
+      { bucket: videoArtifactId.id.bucket, name: videoArtifactId.id.name },
+    ]);
+
+    // It should have gotten the proper result in the right order.
+    expect(result).toEqual([videoMetadata, imageMetadata]);
   });
 
   each([

@@ -145,7 +145,7 @@ export async function getMetadata(
 ): Promise<(UavImageMetadata | UavVideoMetadata)[]> {
   const { imageIds, videoIds } = separateByType(artifactIds);
 
-  let metadata: (UavImageMetadata | UavVideoMetadata)[] = [];
+  const idsToMeta = new Map<ObjectRef, UavImageMetadata | UavVideoMetadata>();
   if (imageIds.length > 0) {
     const response = await imagesApi
       .findImageMetadataImagesMetadataPost(imageIds.map((e) => e.id))
@@ -153,7 +153,7 @@ export async function getMetadata(
         console.error(error.toJSON());
         throw error;
       });
-    metadata = response.data.metadata;
+    response.data.metadata.forEach((m, i) => idsToMeta.set(imageIds[i].id, m));
   }
   if (videoIds.length > 0) {
     const response = await videosApi
@@ -162,10 +162,13 @@ export async function getMetadata(
         console.error(error.toJSON());
         throw error;
       });
-    metadata = response.data.metadata;
+    response.data.metadata.forEach((m, i) => idsToMeta.set(videoIds[i].id, m));
   }
 
-  return metadata;
+  // Return metadata in the same order as the input.
+  return artifactIds.map(
+    (o) => idsToMeta.get(o.id) as UavImageMetadata | UavVideoMetadata
+  );
 }
 
 /**

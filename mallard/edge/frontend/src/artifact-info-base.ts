@@ -6,6 +6,7 @@ import {
   thunkLoadMetadata,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
+import { ObjectType } from "mallard-api";
 
 /**
  * Base class for elements that derive information from a single artifact.
@@ -21,6 +22,12 @@ export class ArtifactInfoBase extends LitElement {
    */
   @property({ type: String })
   frontendId?: string;
+
+  /**
+   * The type of object that we are displaying info for.
+   */
+  @property()
+  type?: ObjectType;
 
   /**
    * Whether we want to load this image right now.
@@ -69,7 +76,7 @@ export class ArtifactInfoBase extends LitElement {
       return {};
     }
 
-    return { metadata: imageEntity.metadata };
+    return { metadata: imageEntity.metadata, type: imageEntity.backendId.type };
   }
 
   /**

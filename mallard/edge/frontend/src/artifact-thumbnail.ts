@@ -10,9 +10,37 @@ import {
 import { Action } from "redux";
 import { ImageDisplay } from "./image-display";
 import "@material/mwc-icon-button";
+import "@material/mwc-icon";
+import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 
 /** Custom event indicating that the selection status has changed. */
 type SelectedEvent = CustomEvent<boolean>;
+
+/**
+ * Format the duration of a video as a human-readable string.
+ * @param {UavVideoMetadata} metadata The video metadata to extract the
+ *   duration from.
+ * @return {string} The formatted duration, as HH:MM:SS if it is at least an
+ *   hour, or MM:SS if it is not.
+ */
+function formatVideoDuration(metadata: UavVideoMetadata): string {
+  // Calculate the total duration in seconds.
+  if (metadata.numFrames === undefined || metadata.frameRate === undefined) {
+    // If we don't know, don't display anything.
+    return "";
+  }
+  const duration = metadata.numFrames / metadata.frameRate;
+
+  const hours = Math.floor(duration / 3600);
+  const minutes = Math.floor((duration % 3600) / 60);
+  const seconds = Math.floor(duration % 60);
+
+  const minutesSeconds = `${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+  // Only include hours if the duration is at least an hour.
+  return hours > 0 ? `${hours}:${minutesSeconds}` : minutesSeconds;
+}
 
 /**
  * Thumbnail representation of an uploaded artifact.
@@ -67,6 +95,31 @@ export class ArtifactThumbnail extends ImageDisplay {
       animation-duration: 0.25s;
     }
 
+    #video_icon {
+      /* Leave some space between icon and text. */
+      margin-right: 5px;
+    }
+
+    .video_marker {
+      display: flex;
+      align-items: center;
+      color: white;
+      position: absolute;
+      z-index: 6;
+      top: 5px;
+      left: 5px;
+
+      font-family: Roboto;
+      font-weight: bold;
+
+      opacity: 1;
+      transition: opacity 0.25s;
+    }
+
+    .marker_hidden {
+      opacity: 0;
+    }
+
     .button-unselected {
       color: var(--theme-whitish);
     }
@@ -86,6 +139,12 @@ export class ArtifactThumbnail extends ImageDisplay {
   /** Whether this thumbnail is selected. */
   @property({ type: Boolean })
   selected: boolean = false;
+
+  /**
+   * Metadata structure to display information from.
+   */
+  @property({ type: Object, attribute: false })
+  metadata?: UavImageMetadata | UavVideoMetadata;
 
   /** Whether we are currently hovering over the thumbnail. */
   @state()
@@ -131,6 +190,14 @@ export class ArtifactThumbnail extends ImageDisplay {
             class="${selectClass}"
             @click="${this.onSelect}"
           ></mwc-icon-button>`
+        : nothing}
+      <!-- Video indicator -->
+      ${this.type === ObjectType.VIDEO
+        ? html`<span
+            class="video_marker ${this.selected ? "marker_hidden" : ""}"
+            ><mwc-icon id="video_icon">play_circle_outline</mwc-icon
+            >${formatVideoDuration(this.metadata as UavVideoMetadata)}</span
+          >`
         : nothing}
     </div>`;
   }
@@ -211,6 +278,7 @@ export class ConnectedArtifactThumbnail extends connect(
       imageUrl: imageEntity.thumbnailUrl,
       selected: imageEntity.isSelected,
       imageLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
+      ...this.metadataUpdatesFromState(state),
     };
   }
 

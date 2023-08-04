@@ -1,7 +1,9 @@
 import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
 import {
   fakeImageEntity,
+  fakeImageMetadata,
   fakeState,
+  fakeVideoMetadata,
   getShadowRoot,
 } from "./element-test-utils";
 import { RootState } from "../types";
@@ -13,6 +15,7 @@ import {
 import each from "jest-each";
 import store from "../store";
 import { faker } from "@faker-js/faker";
+import { ObjectType } from "mallard-api";
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
@@ -87,6 +90,37 @@ describe("artifact-thumbnail", () => {
     expect(root.querySelector("#select_button")).toBeNull();
   });
 
+  each([
+    ["00:10", 300, 30],
+    ["01:05", 30 * 65, 30],
+    ["1:20:15", 30 * 3600 + 20 * 30 * 60 + 15 * 30, 30],
+  ]).it(
+    "renders video-specific indicators (%s)",
+    async (durationFormat: string, numFrames: number, frameRate: number) => {
+      // Arrange.
+      // Make it look like it's a video.
+      thumbnailElement.type = ObjectType.VIDEO;
+      // Set the duration.
+      thumbnailElement.metadata = fakeVideoMetadata();
+      thumbnailElement.metadata.numFrames = numFrames;
+      thumbnailElement.metadata.frameRate = frameRate;
+
+      // Act.
+      await thumbnailElement.updateComplete;
+
+      // Assert.
+      // It should show the video overlay.
+      const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+      const videoMarker = root.querySelector(
+        ".video_marker"
+      ) as HTMLSpanElement;
+      expect(videoMarker).not.toBeNull();
+
+      // It should have a valid duration.
+      expect(videoMarker.textContent).toContain(durationFormat);
+    }
+  );
+
   it("handles mouseenter events", async () => {
     // Arrange.
     // The event handlers will be added on the first update.
@@ -125,47 +159,78 @@ describe("artifact-thumbnail", () => {
   });
 
   each([
-    ["select", true],
-    ["de-select", false],
-  ]).it("allows the user to %s the thumbnail", async (_, select: boolean) => {
-    // Arrange.
-    // Initially set the state to the opposite of what we're changing it to.
-    thumbnailElement.selected = !select;
-    // The event handlers will be added on the first update.
-    await thumbnailElement.updateComplete;
+    ["select the image", true, ObjectType.IMAGE],
+    ["de-select the image", false, ObjectType.IMAGE],
+    ["select the video", true, ObjectType.VIDEO],
+    ["de-select the video", false, ObjectType.VIDEO],
+  ]).it(
+    "allows the user to %s",
+    async (_, select: boolean, objectType: ObjectType) => {
+      // Arrange.
+      thumbnailElement.type = objectType;
+      if (objectType === ObjectType.IMAGE) {
+        // Make it look like it's an image.
+        thumbnailElement.metadata = fakeImageMetadata();
+      } else if (objectType === ObjectType.VIDEO) {
+        // Make it look like it's a video.
+        thumbnailElement.metadata = fakeVideoMetadata();
+      }
 
-    // Add a handler for the selected event.
-    const selectEventHandler = jest.fn();
-    thumbnailElement.addEventListener(
-      ConnectedArtifactThumbnail.SELECTED_EVENT_NAME,
-      selectEventHandler
-    );
+      // Initially set the state to the opposite of what we're changing it to.
+      thumbnailElement.selected = !select;
+      // The event handlers will be added on the first update.
+      await thumbnailElement.updateComplete;
 
-    // Simulate a mouseover to show the select button.
-    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
-    await thumbnailElement.updateComplete;
+      // Add a handler for the selected event.
+      const selectEventHandler = jest.fn();
+      thumbnailElement.addEventListener(
+        ConnectedArtifactThumbnail.SELECTED_EVENT_NAME,
+        selectEventHandler
+      );
 
-    // Act.
-    // Find the select button.
-    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
-    const selectButton = root.querySelector("#select_button") as IconButton;
+      // Simulate a mouseover to show the select button.
+      thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+      await thumbnailElement.updateComplete;
 
-    // Simulate a click.
-    selectButton.dispatchEvent(new MouseEvent("click"));
+      // Act.
+      // Find the select button.
+      const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+      const selectButton = root.querySelector("#select_button") as IconButton;
 
-    await thumbnailElement.updateComplete;
+      // Simulate a click.
+      selectButton.dispatchEvent(new MouseEvent("click"));
 
-    // Assert.
-    // The state should be updated.
-    expect(thumbnailElement.selected).toEqual(select);
-    // It should be displaying correctly.
-    expect(selectButton.icon).toEqual(
-      select ? "check_circle" : "radio_button_unchecked"
-    );
+      await thumbnailElement.updateComplete;
 
-    // It should have dispatched the selected event.
-    expect(selectEventHandler).toBeCalledTimes(1);
-  });
+      // Assert.
+      // The state should be updated.
+      expect(thumbnailElement.selected).toEqual(select);
+      // It should be displaying correctly.
+      expect(selectButton.icon).toEqual(
+        select ? "check_circle" : "radio_button_unchecked"
+      );
+
+      const videoMarker = root.querySelector(
+        ".video_marker"
+      ) as HTMLSpanElement;
+      if (objectType === ObjectType.VIDEO) {
+        expect(videoMarker).not.toBeNull();
+        if (!select) {
+          // When not selected, it should display the video marker.
+          expect(videoMarker.classList).not.toContainEqual("marker_hidden");
+        } else {
+          // It should hide the marker when selected.
+          expect(videoMarker.classList).toContainEqual("marker_hidden");
+        }
+      } else {
+        // Otherwise, it shouldn't display it.
+        expect(videoMarker).toBeNull();
+      }
+
+      // It should have dispatched the selected event.
+      expect(selectEventHandler).toBeCalledTimes(1);
+    }
+  );
 
   it("permanently shows the select button when the thumbnail is selected", async () => {
     // Arrange.
@@ -289,6 +354,12 @@ describe("artifact-thumbnail", () => {
       expect(updates).toHaveProperty("imageLink");
       expect(updates["imageLink"]).toContain(imageEntity.backendId.id.bucket);
       expect(updates["imageLink"]).toContain(imageEntity.backendId.id.name);
+
+      // It should have the metadata parameters.
+      expect(updates).toHaveProperty("metadata");
+      expect(updates["metadata"]).toEqual(imageEntity.metadata);
+      expect(updates).toHaveProperty("type");
+      expect(updates["type"]).toEqual(imageEntity.backendId.type);
     });
 
     it("ignores Redux updates when no image ID is set", () => {

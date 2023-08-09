@@ -6,6 +6,7 @@ import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { FileStatus, FrontendFileEntity } from "./types";
 import "./artifact-display";
+import { ObjectType } from "mallard-api";
 
 /**
  * An element that displays a list of files, with provisions for
@@ -128,11 +129,12 @@ export class FileListDisplay extends LitElement {
     return html`
       <mwc-list-item graphic="medium" hasMeta noninteractive>
         <span class="${childClass}">${file.name}</span>
-        <image-display
-          .imageUrl=${file.thumbnailUrl ?? undefined}
+        <artifact-display
+          .sourceUrl=${file.thumbnailUrl ?? undefined}
+          .type=${ObjectType.IMAGE}
           slot="graphic"
           class="${childClass}"
-        ></image-display>
+        ></artifact-display>
         ${statusIcon}
       </mwc-list-item>
       <li divider padded role="separator"></li>

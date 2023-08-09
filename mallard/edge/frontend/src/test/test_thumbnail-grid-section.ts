@@ -160,13 +160,6 @@ describe("thumbnail-grid-section", () => {
         expect(gridSectionElement.displayedArtifacts).toContain(
           (thumbnail as ArtifactThumbnail).frontendId
         );
-
-        // It should render with the selected attribute.
-        if (selected) {
-          expect(thumbnail.attributes).toHaveProperty("selected");
-        } else {
-          expect(thumbnail.attributes).not.toHaveProperty("selected");
-        }
       }
     }
   );

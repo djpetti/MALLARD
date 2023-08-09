@@ -1,7 +1,8 @@
 import { getShadowRoot } from "./element-test-utils";
 import each from "jest-each";
-import { ImageDisplay } from "../image-display";
+import { ArtifactDisplay } from "../artifact-display";
 import { faker } from "@faker-js/faker";
+import { ObjectType } from "mallard-api";
 
 // Using older require syntax here so that we get the correct mock type.
 const pageManager = require("../page-manager");
@@ -16,13 +17,18 @@ jest.mock("../page-manager", () => ({
   },
 }));
 
-describe("image-display", () => {
-  /** Internal artifact-thumbnail to use for testing. */
-  let imageElement: ImageDisplay;
+each([
+  ["image", ObjectType.IMAGE],
+  ["video", ObjectType.VIDEO],
+]).describe("artifact-display (%s)", (_: string, objectType: ObjectType) => {
+  /** Internal artifact-display to use for testing. */
+  let displayElement: ArtifactDisplay;
 
   beforeAll(() => {
     // Manually register the custom element.
-    customElements.define(ImageDisplay.tagName, ImageDisplay);
+    if (!customElements.get(ArtifactDisplay.tagName)) {
+      customElements.define(ArtifactDisplay.tagName, ArtifactDisplay);
+    }
   });
 
   beforeEach(() => {
@@ -33,19 +39,20 @@ describe("image-display", () => {
     mockLoadPage.mockClear();
     mockPageManager.getInstance.mockClear();
 
-    imageElement = window.document.createElement(
-      ImageDisplay.tagName
-    ) as ImageDisplay;
-    document.body.appendChild(imageElement);
+    displayElement = window.document.createElement(
+      ArtifactDisplay.tagName
+    ) as ArtifactDisplay;
+    displayElement.type = objectType;
+    document.body.appendChild(displayElement);
   });
 
   afterEach(() => {
-    document.body.getElementsByTagName(ImageDisplay.tagName)[0].remove();
+    document.body.getElementsByTagName(ArtifactDisplay.tagName)[0].remove();
   });
 
   it("can be instantiated", () => {
     // Assert.
-    expect(imageElement.frontendId).toBeUndefined();
+    expect(displayElement.frontendId).toBeUndefined();
   });
 
   each([
@@ -55,17 +62,18 @@ describe("image-display", () => {
     "displays no image by default %s",
     async (_: string, showLoadingAnimation: boolean) => {
       // Arrange.
-      imageElement.showLoadingAnimation = showLoadingAnimation;
+      displayElement.showLoadingAnimation = showLoadingAnimation;
 
       // Act.
-      await imageElement.updateComplete;
+      await displayElement.updateComplete;
 
       // Assert.
-      const containerDiv = getShadowRoot(ImageDisplay.tagName).querySelector(
-        "#image_container"
+      const containerDiv = getShadowRoot(ArtifactDisplay.tagName).querySelector(
+        "#media_container"
       ) as HTMLElement;
       // There should be no image element displayed.
       expect(containerDiv.getElementsByTagName("img").length).toEqual(0);
+      expect(containerDiv.getElementsByTagName("video").length).toEqual(0);
       // The placeholder should be displayed.
       expect(containerDiv.classList).toContain("placeholder");
 
@@ -81,73 +89,75 @@ describe("image-display", () => {
       }
 
       // It should report that no image is specified.
-      expect(imageElement.hasImage).toBe(false);
+      expect(displayElement.hasContent).toBe(false);
     }
   );
 
   it("displays an image when we set the URL", async () => {
     // Arrange.
-    const fakeImageUrl = faker.image.imageUrl();
+    const fakeArtifactUrl = faker.image.imageUrl();
 
     // Act.
     // Set the URL.
-    imageElement.imageUrl = fakeImageUrl;
+    displayElement.sourceUrl = fakeArtifactUrl;
 
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
 
     // Assert.
     // It should have rendered the image.
-    const containerDiv = getShadowRoot(ImageDisplay.tagName).querySelector(
-      "#image_container"
+    const containerDiv = getShadowRoot(ArtifactDisplay.tagName).querySelector(
+      "#media_container"
     ) as HTMLElement;
 
     // The placeholder should not be displayed.
     expect(containerDiv.classList).not.toContain("placeholder");
 
-    const images = containerDiv.getElementsByTagName("img");
-    expect(images).toHaveLength(1);
+    const artifacts = containerDiv.getElementsByTagName(
+      objectType === ObjectType.IMAGE ? "img" : "video"
+    );
+    expect(artifacts).toHaveLength(1);
 
     // It should have set the correct image source.
-    expect(images[0].src).toEqual(fakeImageUrl);
+    expect(artifacts[0].src).toEqual(fakeArtifactUrl);
   });
 
   it("handles clicks on the image correctly", async () => {
     // Arrange.
     // Create a fake image URL.
-    imageElement.imageUrl = faker.image.imageUrl();
+    displayElement.sourceUrl = faker.image.imageUrl();
     // Make the image link to a particular page.
-    imageElement.imageLink = faker.internet.url();
+    displayElement.onClickLink = faker.internet.url();
 
     // Act.
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
 
     // Try simulating a click event.
-    const rootElement = getShadowRoot(ImageDisplay.tagName);
-    const image = rootElement.querySelector("#image") as HTMLImageElement;
+    const rootElement = getShadowRoot(ArtifactDisplay.tagName);
+    const image = rootElement.querySelector("#media") as HTMLImageElement;
     image.dispatchEvent(new Event("click"));
 
     // Assert.
     // It should have called the handler.
     expect(mockLoadPage).toBeCalledTimes(1);
-    expect(mockLoadPage).toBeCalledWith(imageElement.imageLink);
+    expect(mockLoadPage).toBeCalledWith(displayElement.onClickLink);
   });
 
   it("removes the click handler if we un-set the image link", async () => {
     // Arrange.
     // Create a fake image URL.
-    imageElement.imageUrl = faker.image.imageUrl();
+    displayElement.sourceUrl = faker.image.imageUrl();
     // Make the image link to a particular page.
-    imageElement.imageLink = faker.internet.url();
+    displayElement.onClickLink = faker.internet.url();
 
     // Act.
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
     // Now, make the image link point nowhere, and update again.
-    imageElement.imageLink = undefined;
-    await imageElement.updateComplete;
+    displayElement.onClickLink = undefined;
+    await displayElement.updateComplete;
 
     // Try simulating a click event.
-    const rootElement = getShadowRoot(ImageDisplay.tagName);
-    const image = rootElement.querySelector("#image") as HTMLImageElement;
+    const rootElement = getShadowRoot(ArtifactDisplay.tagName);
+    const image = rootElement.querySelector("#media") as HTMLImageElement;
     image.dispatchEvent(new Event("click"));
 
     // Assert.
@@ -158,18 +168,18 @@ describe("image-display", () => {
   it("does not set a click handler if no image is set", async () => {
     // Arrange.
     // Make the image link point somewhere.
-    imageElement.imageLink = faker.internet.url();
+    displayElement.onClickLink = faker.internet.url();
     // Make the image link to a particular page.
-    imageElement.imageLink = faker.internet.url();
+    displayElement.onClickLink = faker.internet.url();
 
     // Act.
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
     // Now, make the image link point nowhere, and update again.
-    imageElement.imageLink = undefined;
-    await imageElement.updateComplete;
+    displayElement.onClickLink = undefined;
+    await displayElement.updateComplete;
 
     // No image should have been rendered.
-    const rootElement = getShadowRoot(ImageDisplay.tagName);
+    const rootElement = getShadowRoot(ArtifactDisplay.tagName);
     const image = rootElement.querySelector("#image");
     expect(image).toBeNull();
   });
@@ -181,14 +191,14 @@ describe("image-display", () => {
 
     // Setup a fake handler for our event.
     const handler = jest.fn();
-    imageElement.addEventListener(
-      ImageDisplay.ARTIFACT_CHANGED_EVENT_NAME,
+    displayElement.addEventListener(
+      ArtifactDisplay.ARTIFACT_CHANGED_EVENT_NAME,
       handler
     );
 
     // Act.
-    imageElement.frontendId = fakeImageId;
-    await imageElement.updateComplete;
+    displayElement.frontendId = fakeImageId;
+    await displayElement.updateComplete;
 
     // Assert.
     // It should have caught the event.

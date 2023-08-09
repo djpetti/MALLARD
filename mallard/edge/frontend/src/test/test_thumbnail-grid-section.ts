@@ -1,6 +1,6 @@
 import { ConnectedThumbnailGridSection } from "../thumbnail-grid-section";
 import {
-  fakeImageEntity,
+  fakeArtifactEntity,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
@@ -8,7 +8,7 @@ import { ArtifactThumbnail } from "../artifact-thumbnail";
 import each from "jest-each";
 import { IconButton } from "@material/mwc-icon-button";
 import {
-  createImageEntityId,
+  createArtifactEntityId,
   setSectionExpanded,
   thunkClearEntities,
   thunkLoadThumbnails,
@@ -39,7 +39,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     thumbnailGridSelectors: {
       selectById: actualSlice.thumbnailGridSelectors.selectById,
     },
-    createImageEntityId: actualSlice.createImageEntityId,
+    createArtifactEntityId: actualSlice.createArtifactEntityId,
   };
 });
 const mockSelectImages = thunkSelectImages as jest.MockedFn<
@@ -511,10 +511,10 @@ describe("thumbnail-grid-section", () => {
     (_, selectAll: boolean) => {
       // Arrange.
       // Add some artifacts.
-      const image1 = fakeImageEntity();
-      const image2 = fakeImageEntity();
-      const image1Id = createImageEntityId(image1.backendId.id);
-      const image2Id = createImageEntityId(image2.backendId.id);
+      const image1 = fakeArtifactEntity();
+      const image2 = fakeArtifactEntity();
+      const image1Id = createArtifactEntityId(image1.backendId.id);
+      const image2Id = createArtifactEntityId(image2.backendId.id);
       gridSectionElement.displayedArtifacts = [image1Id, image2Id];
 
       if (selectAll) {

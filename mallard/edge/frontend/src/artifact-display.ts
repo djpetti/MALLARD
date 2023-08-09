@@ -1,7 +1,7 @@
-import { css, html, PropertyValues, TemplateResult } from "lit";
+import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
-import { ObjectRef } from "mallard-api";
+import { ObjectRef, ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
 
@@ -12,8 +12,8 @@ type ClickHandler = (_: Event) => any;
  * A generic element for displaying images.
  * @customElement image-display
  */
-export class ImageDisplay extends ArtifactInfoBase {
-  static tagName = "image-display";
+export class ArtifactDisplay extends ArtifactInfoBase {
+  static tagName = "artifact-display";
   static styles = css`
     :host {
       border: none;
@@ -54,31 +54,31 @@ export class ImageDisplay extends ArtifactInfoBase {
   showLoadingAnimation: boolean = false;
 
   /**
-   * The URL of the image to display.
+   * The URL of the artifact to display.
    */
   @property({ type: String })
-  imageUrl?: string;
+  sourceUrl?: string;
 
   /**
-   * An optional location we want to take the user to when the image
+   * An optional location we want to take the user to when the display
    * is clicked.
    */
   @property({ type: String })
-  imageLink?: string;
+  onClickLink?: string;
 
   /**
-   * Accesses the image container element.
+   * Accesses the display container element.
    * @protected
    */
-  @query("#image_container")
-  protected imageContainer?: HTMLDivElement;
+  @query("#media_container")
+  protected displayContainer?: HTMLDivElement;
 
   /**
-   * Accesses the image element.
+   * Accesses the image or video element, if present.
    * @protected
    */
-  @query("#image")
-  protected image?: HTMLImageElement;
+  @query("#media")
+  protected media?: HTMLImageElement | HTMLVideoElement;
 
   /**
    * Keeps track of the handler we are using for image clicks.
@@ -86,24 +86,49 @@ export class ImageDisplay extends ArtifactInfoBase {
   private clickHandler?: ClickHandler;
 
   /**
-   * Checks if an image is set for this component.
+   * Checks if any content is set for this component.
    * @return {boolean} True iff an actual image is set in this component.
    */
-  get hasImage(): boolean {
-    return this.imageUrl != undefined;
+  get hasContent(): boolean {
+    return this.sourceUrl != undefined;
   }
 
   /**
-   * Renders a particular image, adding a link if needed.
+   * Renders a particular image.
    * @return {TemplateResult} The rendered template for the image.
    * @private
    */
-  private renderImage(): TemplateResult {
+  protected renderImage(): TemplateResult {
     return html`<img
-      id="image"
-      src="${this.imageUrl as string}"
+      id="media"
+      src="${this.sourceUrl as string}"
       alt="image"
     />`;
+  }
+
+  /**
+   * Renders a particular video.
+   * @return {TemplateResult} The rendered template for the video.
+   */
+  protected renderVideo(): TemplateResult {
+    return html`<video
+      controls
+      id="media"
+      src="${this.sourceUrl as string}"
+    ></video>`;
+  }
+
+  /**
+   * Renders the contents of the artifact.
+   * @protected
+   * @return {TemplateResult} The HTML for rendering the artifact.
+   */
+  protected renderArtifact(): TemplateResult {
+    return html`
+      ${this.type === ObjectType.IMAGE
+        ? this.renderImage()
+        : this.renderVideo()}
+    `;
   }
 
   /**
@@ -111,21 +136,21 @@ export class ImageDisplay extends ArtifactInfoBase {
    */
   protected override render() {
     // Only show the placeholder if we don't have an image.
-    const placeholderClass = this.hasImage ? "" : "placeholder";
+    const placeholderClass = this.hasContent ? "" : "placeholder";
     // Show the loading indicator if it's enabled, and we don't have an image yet.
     const loaderClass =
-      this.showLoadingAnimation && !this.hasImage ? "" : "hidden";
+      this.showLoadingAnimation && !this.hasContent ? "" : "hidden";
 
     return html`
-      <div id="image_container" class="${placeholderClass} centered">
+      <div id="media_container" class="${placeholderClass} centered">
         <!-- Loading animation -->
         <mwc-circular-progress
           indeterminate
           class="${loaderClass}"
         ></mwc-circular-progress>
 
-        <!-- Image -->
-        ${this.hasImage ? this.renderImage() : html``}
+        <!-- Image/video -->
+        ${this.hasContent ? this.renderArtifact() : nothing}
       </div>
     `;
   }
@@ -136,19 +161,19 @@ export class ImageDisplay extends ArtifactInfoBase {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.has("imageLink") && this.hasImage) {
+    if (_changedProperties.has("onClickLink") && this.hasContent) {
       const clickHandler = (_: Event) =>
-        PageManager.getInstance().loadPage(this.imageLink as string);
-      if (this.imageLink) {
+        PageManager.getInstance().loadPage(this.onClickLink as string);
+      if (this.onClickLink) {
         // Add a click handler that takes us to this location.
         this.clickHandler = clickHandler;
-        (this.image as HTMLImageElement).addEventListener(
+        (this.media as HTMLImageElement).addEventListener(
           "click",
           clickHandler
         );
       } else {
         // Remove any existing handler.
-        (this.image as HTMLImageElement).removeEventListener(
+        (this.media as HTMLImageElement).removeEventListener(
           "click",
           this.clickHandler as ClickHandler
         );

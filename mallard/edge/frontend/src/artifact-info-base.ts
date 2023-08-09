@@ -26,7 +26,7 @@ export class ArtifactInfoBase extends LitElement {
   /**
    * The type of object that we are displaying info for.
    */
-  @property()
+  @property({ type: String })
   type?: ObjectType;
 
   /**
@@ -38,8 +38,8 @@ export class ArtifactInfoBase extends LitElement {
   /**
    * @inheritDoc
    */
-  protected override updated(_changedProperties: PropertyValues) {
-    super.updated(_changedProperties);
+  protected override willUpdate(_changedProperties: PropertyValues) {
+    super.willUpdate(_changedProperties);
 
     if (_changedProperties.has("frontendId") && this.enableLoading) {
       // The image ID has changed. We need to fire an event for this to kick
@@ -67,16 +67,17 @@ export class ArtifactInfoBase extends LitElement {
     }
 
     // Get the metadata for the image.
-    const imageEntity = thumbnailGridSelectors.selectById(
-      state,
-      this.frontendId
-    );
-    if (!imageEntity || imageEntity.metadataStatus != ArtifactStatus.LOADED) {
+    const entity = thumbnailGridSelectors.selectById(state, this.frontendId);
+    if (
+      !entity ||
+      (entity.backendId.type === ObjectType.IMAGE &&
+        entity.metadataStatus != ArtifactStatus.LOADED)
+    ) {
       // Image loading has not been started yet.
       return {};
     }
 
-    return { metadata: imageEntity.metadata, type: imageEntity.backendId.type };
+    return { metadata: entity.metadata, type: entity.backendId.type };
   }
 
   /**

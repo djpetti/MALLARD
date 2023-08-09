@@ -53,12 +53,17 @@ async def get_index(fragment: bool = False) -> str:
     return await _render_template("index.html", fragment=fragment)
 
 
-@router.get("/details/{bucket}/{name}", response_class=HTMLResponse)
-async def get_details(bucket: str, name: str, fragment: bool = False) -> str:
+@router.get(
+    "/details/{artifact_type}/{bucket}/{name}", response_class=HTMLResponse
+)
+async def get_details(
+    artifact_type: str, bucket: str, name: str, fragment: bool = False
+) -> str:
     """
     Handler for the details page.
 
     Args:
+        artifact_type: The type of artifact we are displaying.
         bucket: The bucket that the image is in.
         name: The name of the image.
         fragment: If false, it will render the entire page. Otherwise,
@@ -70,5 +75,9 @@ async def get_details(bucket: str, name: str, fragment: bool = False) -> str:
 
     """
     return await _render_template(
-        "details.html", image_bucket=bucket, image_name=name, fragment=fragment
+        "details.html",
+        image_bucket=bucket,
+        image_name=name,
+        artifact_type=artifact_type,
+        fragment=fragment,
     )

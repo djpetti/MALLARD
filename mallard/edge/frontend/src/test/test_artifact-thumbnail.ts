@@ -1,6 +1,6 @@
 import { ConnectedArtifactThumbnail } from "../artifact-thumbnail";
 import {
-  fakeImageEntity,
+  fakeArtifactEntity,
   fakeImageMetadata,
   fakeState,
   fakeVideoMetadata,
@@ -9,7 +9,7 @@ import {
 import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
 import {
-  createImageEntityId,
+  createArtifactEntityId,
   thunkSelectImages,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
@@ -22,7 +22,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkSelectImages: jest.fn(),
     // Use the actual implementation for these functions.
-    createImageEntityId: actualSlice.createImageEntityId,
+    createArtifactEntityId: actualSlice.createArtifactEntityId,
     thumbnailGridSelectors: {
       selectById: actualSlice.thumbnailGridSelectors.selectById,
     },
@@ -69,7 +69,7 @@ describe("artifact-thumbnail", () => {
     document.body.appendChild(thumbnailElement);
 
     // Make it look like we have an image.
-    thumbnailElement.imageUrl = faker.image.imageUrl();
+    thumbnailElement.sourceUrl = faker.image.imageUrl();
   });
 
   afterEach(() => {
@@ -253,7 +253,7 @@ describe("artifact-thumbnail", () => {
   it("never shows the select button when we have no image", async () => {
     // Arrange.
     // Make it look like it has no image.
-    thumbnailElement.imageUrl = undefined;
+    thumbnailElement.sourceUrl = undefined;
 
     // Act.
     // Simulate the user hovering.
@@ -295,8 +295,8 @@ describe("artifact-thumbnail", () => {
     // Arrange.
     // Make it look like we have a somewhat interesting state.
     const state = fakeState();
-    const image = fakeImageEntity(true);
-    const frontendId = createImageEntityId(image.backendId.id);
+    const image = fakeArtifactEntity(true);
+    const frontendId = createArtifactEntityId(image.backendId.id);
     state.imageView.ids = [frontendId];
     state.imageView.entities[frontendId] = image;
 
@@ -309,9 +309,9 @@ describe("artifact-thumbnail", () => {
 
     // Assert.
     // It should have updated from the state.
-    expect(thumbnailElement.imageUrl).toEqual(image.thumbnailUrl);
+    expect(thumbnailElement.sourceUrl).toEqual(image.thumbnailUrl);
     expect(thumbnailElement.selected).toEqual(image.isSelected);
-    expect(thumbnailElement.imageLink).not.toBeUndefined();
+    expect(thumbnailElement.onClickLink).not.toBeUndefined();
   });
 
   describe("mapState", () => {
@@ -332,7 +332,7 @@ describe("artifact-thumbnail", () => {
 
       // Create a fake state.
       const state: RootState = fakeState();
-      const imageEntity = fakeImageEntity(true);
+      const imageEntity = fakeArtifactEntity(true);
       state.imageView.ids = [imageId];
       state.imageView.entities[imageId] = imageEntity;
 
@@ -341,8 +341,8 @@ describe("artifact-thumbnail", () => {
 
       // Assert.
       // It should have updated the image URL.
-      expect(updates).toHaveProperty("imageUrl");
-      expect(updates["imageUrl"]).toEqual(
+      expect(updates).toHaveProperty("sourceUrl");
+      expect(updates["sourceUrl"]).toEqual(
         state.imageView.entities[imageId]?.thumbnailUrl
       );
 
@@ -351,9 +351,9 @@ describe("artifact-thumbnail", () => {
       expect(updates["selected"]).toEqual(imageEntity.isSelected);
 
       // It should have set a link to the image details.
-      expect(updates).toHaveProperty("imageLink");
-      expect(updates["imageLink"]).toContain(imageEntity.backendId.id.bucket);
-      expect(updates["imageLink"]).toContain(imageEntity.backendId.id.name);
+      expect(updates).toHaveProperty("onClickLink");
+      expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.bucket);
+      expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.name);
 
       // It should have the metadata parameters.
       expect(updates).toHaveProperty("metadata");
@@ -399,7 +399,7 @@ describe("artifact-thumbnail", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       state.imageView.ids = [imageId];
-      state.imageView.entities[imageId] = fakeImageEntity(false);
+      state.imageView.entities[imageId] = fakeArtifactEntity(false);
 
       // Act.
       const updates = thumbnailElement.mapState(state);

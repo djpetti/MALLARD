@@ -1,11 +1,11 @@
 import { ConnectedNotesCard } from "../notes-card";
 import {
-  fakeImageEntity,
+  fakeArtifactEntity,
   fakeImageMetadata,
   fakeState,
 } from "./element-test-utils";
 import {
-  createImageEntityId,
+  createArtifactEntityId,
   thunkLoadMetadata,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
@@ -26,7 +26,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     thumbnailGridSelectors: {
       selectById: actualThumbnailGrid.thumbnailGridSelectors.selectById,
     },
-    createImageEntityId: actualThumbnailGrid.createImageEntityId,
+    createArtifactEntityId: actualThumbnailGrid.createArtifactEntityId,
   };
 });
 
@@ -123,7 +123,7 @@ each([
         [
           "the metadata is not loaded",
           ArtifactStatus.LOADING,
-          fakeImageEntity(),
+          fakeArtifactEntity(),
         ],
       ]).it(
         "does not update when %s",
@@ -135,7 +135,7 @@ each([
           const state = fakeState();
           // Add the entity if necessary.
           if (imageEntity) {
-            const imageId = createImageEntityId(imageEntity.backendId.id);
+            const imageId = createArtifactEntityId(imageEntity.backendId.id);
             state.imageView.ids = [imageId];
             state.imageView.entities[imageId] = imageEntity;
 
@@ -155,10 +155,10 @@ each([
       it("updates the metadata", () => {
         // Arrange.
         const state = fakeState();
-        const imageEntity = fakeImageEntity();
+        const imageEntity = fakeArtifactEntity();
         imageEntity.metadata = fakeImageMetadata();
         imageEntity.metadataStatus = ArtifactStatus.LOADED;
-        const imageId = createImageEntityId(imageEntity.backendId.id);
+        const imageId = createArtifactEntityId(imageEntity.backendId.id);
         state.imageView.ids = [imageId];
         state.imageView.entities[imageId] = imageEntity;
 

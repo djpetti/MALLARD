@@ -1,19 +1,20 @@
 import {
   Configuration,
+  DefaultApi,
   Field,
   ImagesApi,
-  DefaultApi,
   ObjectRef,
+  ObjectType,
   Ordering,
   QueryResponse,
-  UavImageMetadata,
-  VideosApi,
   TypedObjectRef,
-  ObjectType,
+  UavImageMetadata,
   UavVideoMetadata,
+  VideosApi,
 } from "mallard-api";
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
+import urlJoin from "url-join";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
@@ -307,4 +308,19 @@ export async function batchUpdateMetadata(
         throw error;
       });
   }
+}
+
+/**
+ * Gets the URL for an artifact.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {string} The artifact URL.
+ */
+export function getArtifactUrl(artifactId: TypedObjectRef): string {
+  const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
+  return urlJoin(
+    API_BASE_URL,
+    router,
+    artifactId.id.bucket,
+    artifactId.id.name
+  );
 }

@@ -1,20 +1,23 @@
-import { ImageDisplay } from "./image-display";
+import { ArtifactDisplay } from "./artifact-display";
 import { css, PropertyValues } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ArtifactStatus } from "./types";
 import {
+  clearVideoUrl,
+  setVideoUrl,
   thumbnailGridSelectors,
   thunkClearFullSizedImages,
   thunkLoadImage,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
+import { ObjectType } from "mallard-api";
 
 /**
  * An element for displaying a full-sized image.
- * @customElement large-image-display
+ * @customElement large-artifact-display
  */
-export class LargeImageDisplay extends ImageDisplay {
+export class LargeArtifactDisplay extends ArtifactDisplay {
   static styles = css`
     :host {
       display: block;
@@ -31,10 +34,10 @@ export class LargeImageDisplay extends ImageDisplay {
       height: 100vh;
     }
 
-    ${ImageDisplay.styles}
+    ${ArtifactDisplay.styles}
   `;
 
-  static readonly tagName = "large-image-display";
+  static readonly tagName = "large-artifact-display";
 
   // Default to showing the animation for large images, which might
   // take a while to load.
@@ -54,11 +57,11 @@ export class LargeImageDisplay extends ImageDisplay {
     const fullscreenHeight = this.clientHeight;
 
     // Adjust the image and placeholder to use the full height.
-    if (this.imageContainer) {
-      this.imageContainer.style.height = `${fullscreenHeight}px`;
+    if (this.displayContainer) {
+      this.displayContainer.style.height = `${fullscreenHeight}px`;
     }
-    if (this.image) {
-      this.image.style.height = `${fullscreenHeight}px`;
+    if (this.media) {
+      this.media.style.height = `${fullscreenHeight}px`;
     }
   }
 
@@ -82,7 +85,7 @@ export class LargeImageDisplay extends ImageDisplay {
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
-    if (_changedProperties.has("imageUrl")) {
+    if (_changedProperties.has("sourceUrl")) {
       this.adjustSizes();
     }
   }
@@ -100,14 +103,14 @@ export interface ConnectionChangedEvent extends Event {
 /**
  * Extension of `LargeImageDisplay` that connects to Redux.
  */
-export class ConnectedLargeImageDisplay extends connect(
+export class ConnectedLargeArtifactDisplay extends connect(
   store,
-  LargeImageDisplay
+  LargeArtifactDisplay
 ) {
   /**
    * Name for the custom event signaling that the element is disconnected from the DOM.
    */
-  static DISCONNECTED_EVENT_NAME = `${LargeImageDisplay.tagName}-disconnected`;
+  static DISCONNECTED_EVENT_NAME = `${LargeArtifactDisplay.tagName}-disconnected`;
 
   /**
    * The implementation of `disconnectedCallback()` from`redux-connect-element`
@@ -120,7 +123,7 @@ export class ConnectedLargeImageDisplay extends connect(
     // Dispatch the correct event.
     this.dispatchEvent(
       new CustomEvent<string | undefined>(
-        ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME,
+        ConnectedLargeArtifactDisplay.DISCONNECTED_EVENT_NAME,
         {
           bubbles: true,
           composed: false,
@@ -141,16 +144,23 @@ export class ConnectedLargeImageDisplay extends connect(
       return {};
     }
 
-    const imageEntity = thumbnailGridSelectors.selectById(
+    const entity = thumbnailGridSelectors.selectById(
       state,
       frontendId as string
     );
-    if (!imageEntity || imageEntity.imageStatus != ArtifactStatus.LOADED) {
+    if (
+      !entity ||
+      (entity.backendId.type === ObjectType.IMAGE &&
+        entity.imageStatus !== ArtifactStatus.LOADED)
+    ) {
       // Image loading has not completed yet.
       return {};
     }
 
-    return { imageUrl: imageEntity.imageUrl };
+    return {
+      sourceUrl: entity.artifactUrl,
+      ...this.metadataUpdatesFromState(state),
+    };
   }
 
   /**
@@ -162,18 +172,22 @@ export class ConnectedLargeImageDisplay extends connect(
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail
     // produces an AsyncThunkAction but mapEvents is typed as requiring an Action.
     // However, it still works just fine with an AsyncThunkAction.
-    handlers[ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME] = (
+    handlers[ConnectedLargeArtifactDisplay.ARTIFACT_CHANGED_EVENT_NAME] = (
       event: Event
-    ) =>
-      thunkLoadImage(
-        (event as CustomEvent<string>).detail
-      ) as unknown as Action;
-    handlers[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME] = (
+    ) => {
+      const artifactId = (event as CustomEvent<string>).detail;
+      return this.type === ObjectType.IMAGE
+        ? (thunkLoadImage(artifactId) as unknown as Action)
+        : setVideoUrl(artifactId);
+    };
+    handlers[ConnectedLargeArtifactDisplay.DISCONNECTED_EVENT_NAME] = (
       event: Event
-    ) =>
-      thunkClearFullSizedImages([
-        (event as ConnectionChangedEvent).detail,
-      ]) as unknown as Action;
+    ) => {
+      const artifactId = (event as CustomEvent<string>).detail;
+      return this.type === ObjectType.IMAGE
+        ? (thunkClearFullSizedImages([artifactId]) as unknown as Action)
+        : clearVideoUrl(artifactId);
+    };
     return handlers;
   }
 }

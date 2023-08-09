@@ -2,7 +2,7 @@ import { ConnectedThumbnailGrid, GroupedImages } from "../thumbnail-grid";
 import {
   EntitiesAndIds,
   fakeImageEntities,
-  fakeImageEntity,
+  fakeArtifactEntity,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
@@ -23,7 +23,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
-    createImageEntityId: actualSlice.createImageEntityId,
+    createArtifactEntityId: actualSlice.createArtifactEntityId,
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
       selectById: actualSlice.thumbnailGridSelectors.selectById,
@@ -707,7 +707,7 @@ describe("thumbnail-grid", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       state.imageView.ids = [imageId];
-      state.imageView.entities[imageId] = fakeImageEntity(true, false);
+      state.imageView.entities[imageId] = fakeArtifactEntity(true, false);
       state.imageView.currentQueryState = contentState;
       state.imageView.metadataLoadingState = metadataState;
 
@@ -742,7 +742,7 @@ describe("thumbnail-grid", () => {
     // Create a fake state.
     const state: RootState = fakeState();
     state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeImageEntity(false, false);
+    state.imageView.entities[imageId] = fakeArtifactEntity(false, false);
 
     // Act.
     const updates = gridElement.mapState(state);
@@ -790,25 +790,25 @@ describe("thumbnail-grid", () => {
     const session1 = "a" + faker.lorem.words();
     const session2 = "b" + faker.lorem.words();
 
-    state.imageView.entities[imageId1] = fakeImageEntity(
+    state.imageView.entities[imageId1] = fakeArtifactEntity(
       true,
       undefined,
       captureDate1,
       session1
     );
-    state.imageView.entities[imageId2] = fakeImageEntity(
+    state.imageView.entities[imageId2] = fakeArtifactEntity(
       true,
       undefined,
       captureDate1,
       session1
     );
-    state.imageView.entities[imageId3] = fakeImageEntity(
+    state.imageView.entities[imageId3] = fakeArtifactEntity(
       true,
       undefined,
       captureDate2,
       session1
     );
-    state.imageView.entities[imageId4] = fakeImageEntity(
+    state.imageView.entities[imageId4] = fakeArtifactEntity(
       true,
       undefined,
       captureDate2,

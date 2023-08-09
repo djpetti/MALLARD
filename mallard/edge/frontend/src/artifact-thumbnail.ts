@@ -1,4 +1,4 @@
-import { css, html, nothing, PropertyValues } from "lit";
+import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { state, property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
@@ -8,7 +8,7 @@ import {
   thunkSelectImages,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import { ImageDisplay } from "./image-display";
+import { ArtifactDisplay } from "./artifact-display";
 import "@material/mwc-icon-button";
 import "@material/mwc-icon";
 import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
@@ -46,7 +46,7 @@ function formatVideoDuration(metadata: UavVideoMetadata): string {
  * Thumbnail representation of an uploaded artifact.
  * @customElement artifact-thumbnail
  */
-export class ArtifactThumbnail extends ImageDisplay {
+export class ArtifactThumbnail extends ArtifactDisplay {
   static styles = css`
     /* Animation for the padding. */
     @keyframes shrink {
@@ -128,7 +128,7 @@ export class ArtifactThumbnail extends ImageDisplay {
       color: var(--theme-secondary-1-light);
     }
 
-    ${ImageDisplay.styles}
+    ${ArtifactDisplay.styles}
   `;
 
   static tagName: string = "artifact-thumbnail";
@@ -182,7 +182,7 @@ export class ArtifactThumbnail extends ImageDisplay {
     return html` <div class="parent-size">
       <div class="${paddingClass} parent-size">${baseHtml}</div>
       <!-- Selection button -->
-      ${(this.isHovering || this.selected) && this.hasImage
+      ${(this.isHovering || this.selected) && this.hasContent
         ? html`<mwc-icon-button
             id="select_button"
             icon="${selectIcon}"
@@ -229,8 +229,16 @@ export class ConnectedArtifactThumbnail extends connect(
    * @private
    */
   private static makeDetailsUrl(entity: ArtifactEntity): string {
-    const backendId = entity.backendId.id;
-    return `/details/${backendId.bucket}/${backendId.name}`;
+    const backendId = entity.backendId;
+    return `/details/${backendId.type}/${backendId.id.bucket}/${backendId.id.name}`;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override renderArtifact(): TemplateResult {
+    // Always render an image for thumbnails, regardless of the artifact type.
+    return this.renderImage();
   }
 
   /**
@@ -275,9 +283,9 @@ export class ConnectedArtifactThumbnail extends connect(
     }
 
     return {
-      imageUrl: imageEntity.thumbnailUrl,
+      sourceUrl: imageEntity.thumbnailUrl,
       selected: imageEntity.isSelected,
-      imageLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
+      onClickLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
       ...this.metadataUpdatesFromState(state),
     };
   }

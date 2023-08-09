@@ -28,7 +28,7 @@ import {
 } from "mallard-api";
 import { AutocompleteMenu, Suggestions } from "../autocomplete";
 import { EntityId } from "@reduxjs/toolkit";
-import { createImageEntityId } from "../thumbnail-grid-slice";
+import { createArtifactEntityId } from "../thumbnail-grid-slice";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -104,7 +104,7 @@ export function fakeState(): RootState {
  * @param {string} sessionName Specify a specific session name for this entity.
  * @return {ArtifactEntity} The entity that it created.
  */
-export function fakeImageEntity(
+export function fakeArtifactEntity(
   thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
   captureDate?: Date,
@@ -157,7 +157,7 @@ export function fakeImageEntity(
     imageStatus: imageStatus,
     metadataStatus: metadataStatus,
     thumbnailUrl: thumbnailUrl,
-    imageUrl: imageUrl,
+    artifactUrl: imageUrl,
     metadata: metadata,
     isSelected: faker.datatype.boolean(),
   };
@@ -190,8 +190,8 @@ export function fakeImageEntities(
 
   const state: EntitiesAndIds = { ids: [], entities: {} };
   for (let i = 0; i < numEntities; ++i) {
-    const entity = fakeImageEntity(...entityArgs);
-    const frontendId = createImageEntityId(entity.backendId.id);
+    const entity = fakeArtifactEntity(...entityArgs);
+    const frontendId = createArtifactEntityId(entity.backendId.id);
 
     state.ids.push(frontendId);
     state.entities[frontendId] = entity;

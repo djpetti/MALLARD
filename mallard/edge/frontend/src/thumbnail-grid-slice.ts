@@ -19,6 +19,7 @@ import {
   batchUpdateMetadata,
   DEFAULT_ORDERINGS,
   deleteImages,
+  getArtifactUrl,
   getMetadata,
   loadImage,
   loadThumbnail,
@@ -107,7 +108,7 @@ interface DoAutocompleteReturn {
  * @param {ObjectRef} backendId The ID used by the backend.
  * @return {string} The equivalent ID used by the frontend.
  */
-export function createImageEntityId(backendId: ObjectRef): string {
+export function createArtifactEntityId(backendId: ObjectRef): string {
   return `${backendId.bucket}_${backendId.name}`;
 }
 
@@ -123,14 +124,14 @@ function createDefaultEntity(backendId: TypedObjectRef): ArtifactEntity {
     imageStatus: ArtifactStatus.NOT_LOADED,
     metadataStatus: ArtifactStatus.NOT_LOADED,
     thumbnailUrl: null,
-    imageUrl: null,
+    artifactUrl: null,
     metadata: null,
     isSelected: false,
   };
 }
 
 const thumbnailGridAdapter = createEntityAdapter<ArtifactEntity>({
-  selectId: (entity) => createImageEntityId(entity.backendId.id),
+  selectId: (entity) => createArtifactEntityId(entity.backendId.id),
 });
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQuery: [],
@@ -199,7 +200,7 @@ export const thunkStartNewQuery = createAsyncThunk(
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
-        queryResult.imageIds.map((i) => createImageEntityId(i.id))
+        queryResult.imageIds.map((i) => createArtifactEntityId(i.id))
       )
     );
 
@@ -240,7 +241,7 @@ export const thunkContinueQuery = createAsyncThunk(
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
-        queryResult.imageIds.map((i) => createImageEntityId(i.id))
+        queryResult.imageIds.map((i) => createArtifactEntityId(i.id))
       )
     );
 
@@ -396,10 +397,10 @@ export const thunkLoadMetadata = createAsyncThunk(
     // We have to reconstruct the image IDs because we changed the order
     // during filtering.
     const previouslyLoadedImageIds = loadedEntities.map((entity) =>
-      createImageEntityId(entity.backendId.id)
+      createArtifactEntityId(entity.backendId.id)
     );
     const newlyLoadedImageIds = backendIds.map((id) =>
-      createImageEntityId(id.id)
+      createArtifactEntityId(id.id)
     );
     const previousMetadata = loadedEntities.map(
       (entity) => entity.metadata as UavImageMetadata | UavVideoMetadata
@@ -636,8 +637,8 @@ export function thunkClearFullSizedImages(
         state,
         imageId
       ) as ArtifactEntity;
-      if (entity.imageUrl) {
-        URL.revokeObjectURL(entity.imageUrl);
+      if (entity.artifactUrl) {
+        URL.revokeObjectURL(entity.artifactUrl);
         clearedImageIds.push(imageId);
       }
     }
@@ -777,7 +778,7 @@ export function thunkShowDetails(backendId: ObjectRef): ThunkResult<void> {
     const state = getState();
 
     // Check if the image is registered in the state.
-    const frontendId = createImageEntityId(backendId);
+    const frontendId = createArtifactEntityId(backendId);
     if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
       // We need to register it.
       // TODO (danielp): Eventually, we'll need to not assume that this is
@@ -823,7 +824,10 @@ export const thumbnailGridSlice = createSlice({
         state,
         action.payload.map((id: string) => ({
           id: id,
-          changes: { imageUrl: null, imageStatus: ArtifactStatus.NOT_LOADED },
+          changes: {
+            artifactUrl: null,
+            imageStatus: ArtifactStatus.NOT_LOADED,
+          },
         }))
       );
     },
@@ -917,6 +921,32 @@ export const thumbnailGridSlice = createSlice({
     // Sets whether the metadata editing dialog is open.
     setEditingDialogOpen(state, action) {
       state.editingDialogOpen = action.payload;
+    },
+    // Sets the source URL for video artifacts.
+    setVideoUrl(state, action) {
+      const entity = state.entities[action.payload] as ArtifactEntity;
+      if (entity.backendId.type !== ObjectType.VIDEO) {
+        // If it's not a video, do nothing.
+        return;
+      }
+
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.payload,
+        changes: { artifactUrl: getArtifactUrl(entity.backendId) },
+      });
+    },
+    // Clear the source URL for video artifacts.
+    clearVideoUrl(state, action) {
+      const entity = state.entities[action.payload] as ArtifactEntity;
+      if (entity.backendId.type !== ObjectType.VIDEO) {
+        // If it's not a video, do nothing.
+        return;
+      }
+
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.payload,
+        changes: { artifactUrl: null },
+      });
     },
   },
   extraReducers: (builder) => {
@@ -1047,7 +1077,7 @@ export const thumbnailGridSlice = createSlice({
         id: action.payload.imageId,
         changes: {
           imageStatus: ArtifactStatus.LOADED,
-          imageUrl: action.payload.imageUrl,
+          artifactUrl: action.payload.imageUrl,
         },
       });
     });
@@ -1113,5 +1143,7 @@ export const {
   setExportedImagesUrl,
   setSectionExpanded,
   setEditingDialogOpen,
+  setVideoUrl,
+  clearVideoUrl,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

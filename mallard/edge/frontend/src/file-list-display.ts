@@ -5,7 +5,7 @@ import "@material/mwc-list/mwc-list-item";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { FileStatus, FrontendFileEntity } from "./types";
-import "./image-display";
+import "./artifact-display";
 
 /**
  * An element that displays a list of files, with provisions for

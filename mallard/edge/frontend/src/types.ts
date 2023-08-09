@@ -93,8 +93,9 @@ export interface ArtifactEntity {
 
   /** The object URL of the artifact thumbnail. */
   thumbnailUrl: string | null;
-  /** The object URL of the full-sized image, if this is an image */
-  imageUrl: string | null;
+  /** The object URL of the full artifact. This could be an object URL, or
+   *  (for really big artifacts) a remote URL. */
+  artifactUrl: string | null;
 
   /** The metadata associated with the artifact. */
   metadata: UavImageMetadata | UavVideoMetadata | null;

@@ -1,9 +1,9 @@
 import {
-  ConnectedLargeImageDisplay,
-  LargeImageDisplay,
-} from "../large-image-display";
+  ConnectedLargeArtifactDisplay,
+  LargeArtifactDisplay,
+} from "../large-artifact-display";
 import {
-  fakeImageEntity,
+  fakeArtifactEntity,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
@@ -11,9 +11,12 @@ import { RootState } from "../types";
 import {
   thunkLoadImage,
   thunkClearFullSizedImages,
+  setVideoUrl,
+  clearVideoUrl,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
+import { ObjectType } from "mallard-api";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.
@@ -27,6 +30,8 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadImage: jest.fn(),
     addArtifact: jest.fn(),
     thunkClearFullSizedImages: jest.fn(),
+    setVideoUrl: jest.fn(),
+    clearVideoUrl: jest.fn(),
     thumbnailGridSelectors: {
       // Use the actual implementation for this function, but spy on calls.
       selectById: jest.spyOn(actualSlice.thumbnailGridSelectors, "selectById"),
@@ -48,13 +53,13 @@ global.ResizeObserver = mockResizeObserver;
 
 describe("large-image-display", () => {
   /** Internal large-image-display to use for testing. */
-  let imageElement: ConnectedLargeImageDisplay;
+  let displayElement: ConnectedLargeArtifactDisplay;
 
   beforeAll(() => {
     // Manually register the custom element.
     customElements.define(
-      ConnectedLargeImageDisplay.tagName,
-      ConnectedLargeImageDisplay
+      ConnectedLargeArtifactDisplay.tagName,
+      ConnectedLargeArtifactDisplay
     );
   });
 
@@ -62,42 +67,44 @@ describe("large-image-display", () => {
     // Set a faker seed.
     faker.seed(1337);
 
-    imageElement = window.document.createElement(
-      ConnectedLargeImageDisplay.tagName
-    ) as ConnectedLargeImageDisplay;
-    document.body.appendChild(imageElement);
+    displayElement = window.document.createElement(
+      ConnectedLargeArtifactDisplay.tagName
+    ) as ConnectedLargeArtifactDisplay;
+    document.body.appendChild(displayElement);
   });
 
   afterEach(() => {
-    document.body.getElementsByTagName(LargeImageDisplay.tagName)[0].remove();
+    document.body
+      .getElementsByTagName(LargeArtifactDisplay.tagName)[0]
+      .remove();
   });
 
   it("can be rendered", async () => {
     // Act.
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
 
     // Assert.
-    expect(imageElement.frontendId).toBeUndefined();
+    expect(displayElement.frontendId).toBeUndefined();
 
     // It should have added the ResizeObserver.
     expect(mockResizeObserver).toBeCalledTimes(1);
     const mockResizeObserverInstance = mockResizeObserver.mock.results[0].value;
-    expect(mockResizeObserverInstance.observe).toBeCalledWith(imageElement);
+    expect(mockResizeObserverInstance.observe).toBeCalledWith(displayElement);
   });
 
   it("fires an event when the image is updated", async () => {
     // Arrange.
     // Setup a fake handler for our event.
     const handler = jest.fn();
-    imageElement.addEventListener(
-      ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME,
+    displayElement.addEventListener(
+      ConnectedLargeArtifactDisplay.ARTIFACT_CHANGED_EVENT_NAME,
       handler
     );
 
     // Act.
-    imageElement.frontendId = faker.datatype.uuid();
+    displayElement.frontendId = faker.datatype.uuid();
 
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
 
     // Assert.
     // It should have caught the event.
@@ -108,51 +115,64 @@ describe("large-image-display", () => {
     // Arrange.
     // Set the screen height.
     const screenHeight = faker.datatype.number();
-    Object.defineProperty(imageElement, "clientHeight", {
+    Object.defineProperty(displayElement, "clientHeight", {
       value: screenHeight,
     });
 
     // Act.
     // Update the image.
-    imageElement.imageUrl = faker.image.imageUrl();
+    displayElement.sourceUrl = faker.image.imageUrl();
     // Wait for it to render.
-    await imageElement.updateComplete;
+    await displayElement.updateComplete;
 
     // Assert.
     // It should have set the height of the underlying elements.
-    const root = getShadowRoot(ConnectedLargeImageDisplay.tagName);
+    const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
     const containerElement = root.querySelector(
-      "#image_container"
+      "#media_container"
     ) as HTMLElement;
-    const internalImage = root.querySelector("#image") as HTMLImageElement;
+    const internalImage = root.querySelector("#media") as HTMLImageElement;
 
     expect(containerElement.style.height).toEqual(`${screenHeight}px`);
     expect(internalImage.style.height).toEqual(`${screenHeight}px`);
   });
 
   each([
-    ["not specified", undefined],
-    ["not loaded", faker.datatype.uuid()],
+    ["not specified", undefined, ObjectType.IMAGE],
+    ["not loaded", faker.datatype.uuid(), ObjectType.IMAGE],
+    ["a video", faker.datatype.uuid(), ObjectType.VIDEO],
   ]).it(
-    "updates from the Redux state when the image is %s",
-    (_, frontendId: string) => {
+    "updates from the Redux state when the artifact is %s",
+    (_, frontendId: string, artifactType: ObjectType) => {
       // Arrange.
       // Set the image ID.
-      imageElement.frontendId = frontendId;
+      displayElement.frontendId = frontendId;
 
       // Create a fake state.
       const state: RootState = fakeState();
       // Make it look like the image is not loaded.
-      const imageEntity = fakeImageEntity(undefined, false);
+      const entity = fakeArtifactEntity(undefined, false);
+      entity.backendId.type = artifactType;
       state.imageView.ids = [frontendId];
-      state.imageView.entities[frontendId] = imageEntity;
+      state.imageView.entities[frontendId] = entity;
 
       // Act.
-      const updates = imageElement.mapState(state);
+      const updates = displayElement.mapState(state);
 
       // Assert.
-      // It should have set the frontend ID.
-      expect(updates).toEqual({});
+      if (frontendId == undefined || artifactType === ObjectType.IMAGE) {
+        // It have ignored the update for images, and if there is no
+        // frontend ID.
+        expect(updates).toEqual({});
+      } else {
+        // It should not check loading status for videos, because videos are
+        // streamed instead of preloaded.
+        expect(updates).toEqual({
+          sourceUrl: entity.artifactUrl,
+          metadata: entity.metadata,
+          type: artifactType,
+        });
+      }
     }
   );
 
@@ -160,65 +180,95 @@ describe("large-image-display", () => {
     // Arrange.
     // Set the frontend ID.
     const imageId = faker.datatype.uuid();
-    imageElement.frontendId = imageId;
+    displayElement.frontendId = imageId;
 
     // Create a fake state.
     const state: RootState = fakeState();
     // Make it look like the image is loaded.
-    const imageEntity = fakeImageEntity(undefined, true);
+    const entity = fakeArtifactEntity(undefined, true);
     state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = imageEntity;
+    state.imageView.entities[imageId] = entity;
 
     // Act.
-    const updates = imageElement.mapState(state);
+    const updates = displayElement.mapState(state);
 
     // Assert.
-    // It should have set the image URL.
-    expect(updates).toEqual({ imageUrl: imageEntity.imageUrl });
+    // It should have set the source URL.
+    expect(updates).toEqual({
+      sourceUrl: entity.artifactUrl,
+      metadata: entity.metadata,
+      type: entity.backendId.type,
+    });
   });
 
-  it("maps the correct actions to the image changed event", () => {
-    // Arrange.
-    const imageId = faker.datatype.uuid();
+  each([
+    ["images", ObjectType.IMAGE],
+    ["videos", ObjectType.VIDEO],
+  ]).it(
+    "maps the correct actions to the artifact changed event for %s",
+    (_: string, artifactType: ObjectType) => {
+      // Arrange.
+      const imageId = faker.datatype.uuid();
+      displayElement.type = artifactType;
 
-    // Act.
-    const eventMap = imageElement.mapEvents();
+      // Act.
+      const eventMap = displayElement.mapEvents();
 
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME
-    );
+      // Assert.
+      // It should have a mapping for the proper events.
+      expect(eventMap).toHaveProperty(
+        ConnectedLargeArtifactDisplay.ARTIFACT_CHANGED_EVENT_NAME
+      );
 
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: imageId };
-    eventMap[ConnectedLargeImageDisplay.ARTIFACT_CHANGED_EVENT_NAME](
-      testEvent as unknown as Event
-    );
+      // This should fire the appropriate action creator.
+      const testEvent = { detail: imageId };
+      eventMap[ConnectedLargeArtifactDisplay.ARTIFACT_CHANGED_EVENT_NAME](
+        testEvent as unknown as Event
+      );
 
-    // Check image changed event.
-    expect(thunkLoadImage).toBeCalledTimes(1);
-    expect(thunkLoadImage).toBeCalledWith(testEvent.detail);
-  });
+      // Check image changed event.
+      if (artifactType == ObjectType.IMAGE) {
+        expect(thunkLoadImage).toBeCalledTimes(1);
+        expect(thunkLoadImage).toBeCalledWith(testEvent.detail);
+      } else {
+        expect(setVideoUrl).toBeCalledTimes(1);
+        expect(setVideoUrl).toBeCalledWith(testEvent.detail);
+      }
+    }
+  );
 
-  it("maps the correct action to the disconnected event", () => {
-    // Act.
-    const eventMap = imageElement.mapEvents();
+  each([
+    ["images", ObjectType.IMAGE],
+    ["videos", ObjectType.VIDEO],
+  ]).it(
+    "maps the correct action to the disconnected event for %s",
+    (_: string, artifactType: ObjectType) => {
+      // Arrange.
+      displayElement.type = artifactType;
 
-    // Assert.
-    // It should have a mapping for the proper events.
-    expect(eventMap).toHaveProperty(
-      ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME
-    );
+      // Act.
+      const eventMap = displayElement.mapEvents();
 
-    // This should fire the appropriate action creator.
-    const testEvent = { detail: faker.datatype.uuid() };
-    eventMap[ConnectedLargeImageDisplay.DISCONNECTED_EVENT_NAME](
-      testEvent as unknown as Event
-    );
+      // Assert.
+      // It should have a mapping for the proper events.
+      expect(eventMap).toHaveProperty(
+        ConnectedLargeArtifactDisplay.DISCONNECTED_EVENT_NAME
+      );
 
-    // Check disconnected event.
-    expect(thunkClearFullSizedImages).toBeCalledTimes(1);
-    expect(thunkClearFullSizedImages).toBeCalledWith([testEvent.detail]);
-  });
+      // This should fire the appropriate action creator.
+      const testEvent = { detail: faker.datatype.uuid() };
+      eventMap[ConnectedLargeArtifactDisplay.DISCONNECTED_EVENT_NAME](
+        testEvent as unknown as Event
+      );
+
+      // Check disconnected event.
+      if (artifactType == ObjectType.IMAGE) {
+        expect(thunkClearFullSizedImages).toBeCalledTimes(1);
+        expect(thunkClearFullSizedImages).toBeCalledWith([testEvent.detail]);
+      } else {
+        expect(clearVideoUrl).toBeCalledTimes(1);
+        expect(clearVideoUrl).toBeCalledWith(testEvent.detail);
+      }
+    }
+  );
 });

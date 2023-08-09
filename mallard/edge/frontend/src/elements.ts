@@ -7,7 +7,7 @@ import {
   ConnectedMetadataEditingForm,
   ConnectedMetadataForm,
 } from "./metadata-form";
-import { ConnectedLargeImageDisplay } from "./large-image-display";
+import { ConnectedLargeArtifactDisplay } from "./large-artifact-display";
 import { ConnectedMallardApp } from "./mallard-app";
 import { ConnectedSearchBox } from "./search-box";
 import { ConnectedTopNavBar } from "./top-nav-bar";
@@ -15,7 +15,7 @@ import { ConnectedThumbnailGridSection } from "./thumbnail-grid-section";
 import { ConnectedArtifactDetails } from "./artifact-details";
 import { ConnectedMetadataCard } from "./metadata-card";
 import { ConnectedNotesCard } from "./notes-card";
-import { ImageDisplay } from "./image-display";
+import { ArtifactDisplay } from "./artifact-display";
 
 type LitElementType = typeof LitElement;
 export interface ComponentType extends LitElementType {
@@ -32,14 +32,14 @@ const componentClasses: ComponentType[] = [
   FileListDisplay,
   ConnectedMetadataForm,
   ConnectedMetadataEditingForm,
-  ConnectedLargeImageDisplay,
+  ConnectedLargeArtifactDisplay,
   ConnectedMallardApp,
   ConnectedSearchBox,
   ConnectedTopNavBar,
   ConnectedArtifactDetails,
   ConnectedMetadataCard,
   ConnectedNotesCard,
-  ImageDisplay,
+  ArtifactDisplay,
 ];
 
 /**

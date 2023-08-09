@@ -2,13 +2,13 @@ import { css, html, LitElement, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import "@material/mwc-icon/mwc-icon.js";
 import "@material/mwc-list";
-import "./large-image-display";
+import "./large-artifact-display";
 import "./metadata-card";
 import "./notes-card";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
-import { ObjectRef } from "mallard-api";
+import { ObjectRef, ObjectType } from "mallard-api";
 import { thunkShowDetails } from "./thumbnail-grid-slice";
 
 /**
@@ -75,11 +75,17 @@ export class ArtifactDetails extends LitElement {
   backendName?: string;
 
   /**
+   * The type of this artifact.
+   */
+  @property({ type: String })
+  artifactType?: ObjectType;
+
+  /**
    * The frontend ID of the image we are displaying details for.
    * @protected
    */
   @state()
-  protected frontendId?: string;
+  protected frontendId?: string = undefined;
 
   /**
    * @inheritDoc
@@ -93,9 +99,10 @@ export class ArtifactDetails extends LitElement {
     return html`
       <div class="grid-layout">
         <div class="main-panel">
-          <large-image-display
+          <large-artifact-display
             .frontendId=${this.frontendId}
-          ></large-image-display>
+            .type=${this.artifactType}
+          ></large-artifact-display>
         </div>
         <div class="side-panel">
           <metadata-card .frontendId=${this.frontendId}></metadata-card>
@@ -108,8 +115,8 @@ export class ArtifactDetails extends LitElement {
   /**
    * @inheritDoc
    */
-  protected override updated(_changedProperties: PropertyValues) {
-    super.updated(_changedProperties);
+  protected override willUpdate(_changedProperties: PropertyValues) {
+    super.willUpdate(_changedProperties);
 
     if (
       (_changedProperties.has("backendBucket") ||
@@ -117,6 +124,10 @@ export class ArtifactDetails extends LitElement {
       this.backendBucket !== undefined &&
       this.backendName !== undefined
     ) {
+      // Set the frontendId to undefined. We don't want any child
+      // components to update with the old data while the event is being
+      // handled.
+      this.frontendId = undefined;
       // The image was changed. Dispatch the event.
       this.dispatchEvent(
         new CustomEvent<ObjectRef>(ArtifactDetails.IMAGE_CHANGED_EVENT_NAME, {

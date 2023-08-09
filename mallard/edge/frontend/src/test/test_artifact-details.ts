@@ -1,7 +1,7 @@
 import { ConnectedArtifactDetails } from "../artifact-details";
 import each from "jest-each";
 import { fakeObjectRef, fakeState, getShadowRoot } from "./element-test-utils";
-import { ConnectedLargeImageDisplay } from "../large-image-display";
+import { ConnectedLargeArtifactDisplay } from "../large-artifact-display";
 import { ConnectedMetadataCard } from "../metadata-card";
 import { ConnectedNotesCard } from "../notes-card";
 import { ObjectRef } from "mallard-api";
@@ -86,8 +86,8 @@ describe("artifact-details", () => {
     // Check the sub-elements.
     const root = getShadowRoot(TestArtifactDetails.tagName);
     const imageDisplay = root.querySelector(
-      ConnectedLargeImageDisplay.tagName
-    ) as ConnectedLargeImageDisplay;
+      ConnectedLargeArtifactDisplay.tagName
+    ) as ConnectedLargeArtifactDisplay;
     const metadataCard = root.querySelector(
       ConnectedMetadataCard.tagName
     ) as ConnectedMetadataCard;

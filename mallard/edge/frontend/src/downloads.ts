@@ -1,15 +1,11 @@
 import {
-  ObjectType,
   TypedObjectRef,
   UavImageMetadata,
   UavVideoMetadata,
 } from "mallard-api";
 import { downloadZip, InputWithMeta, predictLength } from "client-zip";
-import urlJoin from "url-join";
 import streamSaver from "streamsaver";
-
-// This global variable is expected to be pre-set by an external script.
-declare const API_BASE_URL: string;
+import { getArtifactUrl } from "./api-client";
 
 /**
  * Combines an image with associated metadata.
@@ -17,21 +13,6 @@ declare const API_BASE_URL: string;
 export interface ImageWithMeta {
   id: TypedObjectRef;
   metadata: UavImageMetadata | UavVideoMetadata;
-}
-
-/**
- * Gets the URL for an artifact.
- * @param {TypedObjectRef} artifactId The ID of the artifact.
- * @return {string} The artifact URL.
- */
-function getArtifactUrl(artifactId: TypedObjectRef): string {
-  const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
-  return urlJoin(
-    API_BASE_URL,
-    router,
-    artifactId.id.bucket,
-    artifactId.id.name
-  );
 }
 
 /**

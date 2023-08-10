@@ -180,22 +180,29 @@ describe("thumbnail-grid", () => {
     expect(emptyMessage.classList).toContain("hidden");
   });
 
-  it("renders a loading indicator when requested", async () => {
-    // Arrange.
-    // Make it look like we are loading data.
-    gridElement.loadingState = RequestState.LOADING;
+  each([
+    ["request active", RequestState.LOADING, false],
+    ["request inactive", RequestState.SUCCEEDED, true],
+  ]).it(
+    "renders a loading indicator when requested (%s)",
+    async (_: string, requestState: RequestState, hasMorePages: boolean) => {
+      // Arrange.
+      // Make it look like we are loading data.
+      gridElement.loadingState = requestState;
+      gridElement.hasMorePages = hasMorePages;
 
-    // Act.
-    await gridElement.updateComplete;
+      // Act.
+      await gridElement.updateComplete;
 
-    // Assert.
-    // It should have rendered the loading indicator.
-    const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
-    const loadingIndicator = root.querySelector(
-      "#loading_indicator"
-    ) as HTMLElement;
-    expect(loadingIndicator.classList).not.toContain("hidden");
-  });
+      // Assert.
+      // It should have rendered the loading indicator.
+      const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
+      const loadingIndicator = root.querySelector(
+        "#loading_indicator"
+      ) as HTMLElement;
+      expect(loadingIndicator.classList).not.toContain("hidden");
+    }
+  );
 
   it("renders a message when there are no data", async () => {
     // Arrange.

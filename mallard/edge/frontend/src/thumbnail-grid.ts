@@ -272,7 +272,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
         : "hidden";
     // Visibility of the loading indicator.
     const loadingVisibility =
-      this.sufficientDataLoaded || !this.hasMorePages ? "hidden" : "";
+      (!this.sufficientDataLoaded && this.hasMorePages) ||
+      this.loadingState == RequestState.LOADING
+        ? ""
+        : "hidden";
     // Visibility of the content.
     const contentVisibility = this.groupedArtifacts.length == 0 ? "hidden" : "";
 

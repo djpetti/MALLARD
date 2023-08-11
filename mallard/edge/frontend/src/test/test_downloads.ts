@@ -160,10 +160,12 @@ describe("downloads", () => {
     // Create some fake images with the same name.
     const image1 = fakeTypedObjectRef(ObjectType.IMAGE);
     const image2 = fakeTypedObjectRef(ObjectType.IMAGE);
+    const image3 = fakeTypedObjectRef(ObjectType.IMAGE);
     const metadata1 = fakeImageMetadata();
     const imagesWithMeta = [
       { id: image1, metadata: metadata1 },
       { id: image2, metadata: metadata1 },
+      { id: image3, metadata: metadata1 },
     ];
 
     // Make it look like we can predict the length.
@@ -202,7 +204,7 @@ describe("downloads", () => {
       expect(imageNames.has(name)).toBe(false);
       imageNames.add(name);
     }
-    expect(imageNames.size).toBe(2);
+    expect(imageNames.size).toBe(3);
   });
 
   it("should create a file containing the list of URLs and return the link", () => {

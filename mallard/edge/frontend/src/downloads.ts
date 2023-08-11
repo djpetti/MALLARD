@@ -45,8 +45,9 @@ async function* fetchImages(
     if (name && duplicateNames.has(name)) {
       // This name is a duplicate. Make it unique so it doesn't mess up our
       // zip file.
+      const originalName = name;
       name = `${duplicateNames.get(name)}_${name}`;
-      duplicateNames.set(name, duplicateNames.get(name)! + 1);
+      duplicateNames.set(originalName, duplicateNames.get(originalName)! + 1);
     } else if (name) {
       duplicateNames.set(name, 1);
     }

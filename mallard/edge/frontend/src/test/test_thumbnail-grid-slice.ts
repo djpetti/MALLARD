@@ -705,7 +705,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
       // Assert.
       const actions = store.getActions();
-      expect(actions).toHaveLength(3);
+      expect(actions).toHaveLength(6);
 
       // It should have dispatched the pending action.
       const updatePendingAction = actions[0];
@@ -718,8 +718,16 @@ describe("thumbnail-grid-slice action creators", () => {
       expect(closeDialogAction).toBeDefined();
       expect(closeDialogAction.payload).toBe(false);
 
+      // It should have forced a reload of the thumbnail view.
+      const clearThumbnailsAction = actions[2];
+      expect(clearThumbnailsAction.type).toEqual(clearThumbnails.type);
+      const clearImagesAction = actions[3];
+      expect(clearImagesAction.type).toEqual(clearFullSizedImages.type);
+      const clearViewAction = actions[4];
+      expect(clearViewAction.type).toEqual(clearImageView.type);
+
       // It should have dispatched the fulfilled action.
-      const updateFulfilledAction = actions[2];
+      const updateFulfilledAction = actions[5];
       expect(updateFulfilledAction.type).toEqual(
         thunkUpdateSelectedMetadata.fulfilled.type
       );

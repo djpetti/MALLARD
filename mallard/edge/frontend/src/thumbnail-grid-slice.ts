@@ -495,6 +495,9 @@ export const thunkUpdateSelectedMetadata = createAsyncThunk(
     await batchUpdateMetadata(metadata, selectedBackendIds);
 
     dispatch(setEditingDialogOpen(false));
+    // Force it to reload after editing.
+    type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
+    dispatch(thunkClearImageView() as ActionType);
 
     return selectedIds;
   }

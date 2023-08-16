@@ -146,15 +146,27 @@ export class ArtifactThumbnail extends ArtifactDisplay {
   @property({ type: Object, attribute: false })
   metadata?: UavImageMetadata | UavVideoMetadata;
 
+  /**
+   * A URL of the preview video. This is specifically for video artifacts,
+   * and generally remains undefined for everything else.
+   */
+  @property({ type: String })
+  previewUrl?: string;
+
   /** Whether we are currently hovering over the thumbnail. */
   @state()
   private isHovering: boolean = false;
 
   /**
    * Run whenever the select button is clicked.
+   * @param {Event} event The click event.
    * @private
    */
-  private onSelect(): void {
+  private onSelect(event: Event): void {
+    // Stop propagation so it doesn't interpret this as a click on the
+    // thumbnail.
+    event.stopPropagation();
+
     this.selected = !this.selected;
 
     this.dispatchEvent(
@@ -164,6 +176,28 @@ export class ArtifactThumbnail extends ArtifactDisplay {
         detail: this.selected,
       })
     );
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override renderArtifact(): TemplateResult {
+    if (this.isHovering && this.type === ObjectType.VIDEO && this.previewUrl) {
+      // If we are hovering over a video, show a preview instead.
+      return html`<video
+        disablepictureinpicture
+        disableremoteplayback
+        loop
+        muted
+        autoplay
+        src="${this.previewUrl as string}"
+        poster="${this.sourceUrl as string}"
+        id="media"
+      ></video>`;
+    }
+
+    // Always render an image for thumbnails, regardless of the artifact type.
+    return this.renderImage();
   }
 
   /**
@@ -194,7 +228,9 @@ export class ArtifactThumbnail extends ArtifactDisplay {
       <!-- Video indicator -->
       ${this.type === ObjectType.VIDEO
         ? html`<span
-            class="video_marker ${this.selected ? "marker_hidden" : ""}"
+            class="video_marker ${this.selected || this.isHovering
+              ? "marker_hidden"
+              : ""}"
             ><mwc-icon id="video_icon">play_circle_outline</mwc-icon
             >${formatVideoDuration(this.metadata as UavVideoMetadata)}</span
           >`
@@ -236,14 +272,6 @@ export class ConnectedArtifactThumbnail extends connect(
   /**
    * @inheritDoc
    */
-  protected override renderArtifact(): TemplateResult {
-    // Always render an image for thumbnails, regardless of the artifact type.
-    return this.renderImage();
-  }
-
-  /**
-   * @inheritDoc
-   */
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
 
@@ -278,7 +306,7 @@ export class ConnectedArtifactThumbnail extends connect(
       return defaultState;
     }
     if (imageEntity.thumbnailStatus != ArtifactStatus.LOADED) {
-      // The thumbnail image is has not been loaded yet.
+      // The thumbnail image has not been loaded yet.
       return defaultState;
     }
 
@@ -286,6 +314,7 @@ export class ConnectedArtifactThumbnail extends connect(
       sourceUrl: imageEntity.thumbnailUrl,
       selected: imageEntity.isSelected,
       onClickLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
+      previewUrl: imageEntity.previewUrl ?? undefined,
       ...this.metadataUpdatesFromState(state),
     };
   }

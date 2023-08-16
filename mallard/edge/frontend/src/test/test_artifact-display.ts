@@ -132,9 +132,7 @@ each([
     await displayElement.updateComplete;
 
     // Try simulating a click event.
-    const rootElement = getShadowRoot(ArtifactDisplay.tagName);
-    const image = rootElement.querySelector("#media") as HTMLImageElement;
-    image.dispatchEvent(new Event("click"));
+    displayElement.dispatchEvent(new Event("click"));
 
     // Assert.
     // It should have called the handler.

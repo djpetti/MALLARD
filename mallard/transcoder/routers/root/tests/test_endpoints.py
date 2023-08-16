@@ -233,7 +233,7 @@ async def test_create_video_preview(
 
     # It should have created the response.
     config.mock_streaming_response_class.assert_called_once_with(
-        ANY, media_type="video/mp4"
+        ANY, media_type="video/vp9"
     )
     # It should have sent the preview data.
     preview_data_iter = config.mock_streaming_response_class.call_args.args[0]

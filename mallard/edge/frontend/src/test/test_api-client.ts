@@ -3,7 +3,9 @@ import {
   batchUpdateMetadata,
   createImage,
   deleteImages,
+  getArtifactUrl,
   getMetadata,
+  getPreviewVideoUrl,
   inferMetadata,
   loadImage,
   loadThumbnail,
@@ -541,6 +543,51 @@ describe("api-client", () => {
 
       // It should have logged the error information.
       expect(fakeError.toJSON).toBeCalledTimes(1);
+    }
+  );
+
+  each([
+    ["image", ObjectType.IMAGE],
+    ["video", ObjectType.VIDEO],
+  ]).it("can get the URL for a(n) %s", (_: string, objectType: ObjectType) => {
+    // Arrange.
+    const artifactId = fakeTypedObjectRef(objectType);
+
+    // Act.
+    const gotUrl = getArtifactUrl(artifactId);
+
+    // Assert.
+    if (objectType === ObjectType.IMAGE) {
+      expect(gotUrl).toContain("images");
+    } else {
+      expect(gotUrl).toContain("videos");
+    }
+
+    expect(gotUrl).toContain(`${artifactId.id.bucket}/${artifactId.id.name}`);
+  });
+
+  each([
+    ["image", ObjectType.IMAGE],
+    ["video", ObjectType.VIDEO],
+  ]).it(
+    "can get the preview video URL for a(n) %s",
+    (_: string, objectType: ObjectType) => {
+      // Arrange.
+      const artifactId = fakeTypedObjectRef(objectType);
+
+      // Act.
+      const gotUrl = getPreviewVideoUrl(artifactId);
+
+      // Assert.
+      if (objectType === ObjectType.IMAGE) {
+        // It should just return null for non-video artifacts.
+        expect(gotUrl).toBeNull();
+      } else {
+        expect(gotUrl).toContain("videos");
+        expect(gotUrl).toContain(
+          `${artifactId.id.bucket}/${artifactId.id.name}`
+        );
+      }
     }
   );
 });

@@ -167,16 +167,10 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       if (this.onClickLink) {
         // Add a click handler that takes us to this location.
         this.clickHandler = clickHandler;
-        (this.media as HTMLImageElement).addEventListener(
-          "click",
-          clickHandler
-        );
+        this.addEventListener("click", clickHandler);
       } else {
         // Remove any existing handler.
-        (this.media as HTMLImageElement).removeEventListener(
-          "click",
-          this.clickHandler as ClickHandler
-        );
+        this.removeEventListener("click", this.clickHandler as ClickHandler);
       }
     }
   }

@@ -270,7 +270,7 @@ async def get_preview(
             detail="Requested video preview could not be found.",
         )
 
-    return StreamingResponse(preview_stream, media_type="video/mp4")
+    return StreamingResponse(preview_stream, media_type="video/vp9")
 
 
 @router.post("/metadata", response_model=MetadataResponse)

@@ -452,7 +452,7 @@ async def test_get_preview(config: ConfigForTests, faker: Faker) -> None:
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
-        video_stream, media_type="video/mp4"
+        video_stream, media_type="video/vp9"
     )
     assert response == config.mock_streaming_response_class.return_value
 

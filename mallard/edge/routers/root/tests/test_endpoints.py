@@ -13,6 +13,7 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
 from mallard.edge.routers.root import endpoints
+from mallard.gateway.backends.objects.models import ObjectType
 
 from .....config_view_mock import ConfigViewMock
 from .....type_helpers import ArbitraryTypesConfig

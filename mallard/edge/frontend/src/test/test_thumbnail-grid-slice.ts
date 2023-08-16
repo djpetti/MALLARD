@@ -65,6 +65,7 @@ import {
   deleteImages,
   getArtifactUrl,
   getMetadata,
+  getPreviewVideoUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -86,6 +87,7 @@ jest.mock("../api-client", () => ({
   getMetadata: jest.fn(),
   batchUpdateMetadata: jest.fn(),
   getArtifactUrl: jest.fn(),
+  getPreviewVideoUrl: jest.fn(),
 }));
 
 const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
@@ -98,6 +100,9 @@ const mockBatchUpdateMetadata = batchUpdateMetadata as jest.MockedFn<
 >;
 const mockGetArtifactUrl = getArtifactUrl as jest.MockedFn<
   typeof getArtifactUrl
+>;
+const mockGetPreviewVideoUrl = getPreviewVideoUrl as jest.MockedFn<
+  typeof getPreviewVideoUrl
 >;
 
 // Mock out the autocomplete functions.
@@ -1319,6 +1324,10 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
     const backendId = fakeTypedObjectRef();
 
+    // Make it look like we can get a preview URl.
+    const fakePreviewUrl = faker.internet.url();
+    mockGetPreviewVideoUrl.mockReturnValue(fakePreviewUrl);
+
     // Act.
     const newState = thumbnailGridSlice.reducer(
       state,
@@ -1329,6 +1338,10 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have added a new entity.
     expect(newState.ids.length).toEqual(1);
     expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
+    // It should have used the preview URL.
+    expect(newState.entities[newState.ids[0]]?.previewUrl).toEqual(
+      fakePreviewUrl
+    );
   });
 
   it("handles a clearFullSizedImages action", () => {

@@ -256,9 +256,9 @@ async def create_preview(
         "-vf",
         f"scale={preview_width}:-2,setsar=1:1",
         "-c:v",
-        "libx264",
+        "vp9",
         "-f",
-        "h264",
+        "webm",
         "-",
         **_DEFAULT_PIPES,
     )

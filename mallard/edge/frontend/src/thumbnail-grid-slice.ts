@@ -21,6 +21,7 @@ import {
   deleteImages,
   getArtifactUrl,
   getMetadata,
+  getPreviewVideoUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -125,6 +126,7 @@ function createDefaultEntity(backendId: TypedObjectRef): ArtifactEntity {
     metadataStatus: ArtifactStatus.NOT_LOADED,
     thumbnailUrl: null,
     artifactUrl: null,
+    previewUrl: getPreviewVideoUrl(backendId),
     metadata: null,
     isSelected: false,
   };

@@ -95,7 +95,7 @@ async def create_video_preview(
         video, preview_width=preview_width
     )
     return _streaming_response_with_errors(
-        preview_stream, error_stream=error_stream, content_type="video/mp4"
+        preview_stream, error_stream=error_stream, content_type="video/vp9"
     )
 
 

@@ -125,11 +125,13 @@ export function fakeArtifactEntity(
     sessionName = faker.lorem.words();
   }
 
+  const backendId = fakeTypedObjectRef();
   let thumbnailStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let imageStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let metadataStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
+  let previewUrl: string | null = null;
   let metadata: UavImageMetadata | null = null;
   if (thumbnailLoaded) {
     // Simulate a loaded thumbnail.
@@ -151,6 +153,10 @@ export function fakeArtifactEntity(
     };
   }
 
+  if (backendId.type === ObjectType.VIDEO) {
+    previewUrl = faker.internet.url();
+  }
+
   return {
     backendId: fakeTypedObjectRef(),
     thumbnailStatus: thumbnailStatus,
@@ -158,6 +164,7 @@ export function fakeArtifactEntity(
     metadataStatus: metadataStatus,
     thumbnailUrl: thumbnailUrl,
     artifactUrl: imageUrl,
+    previewUrl: previewUrl,
     metadata: metadata,
     isSelected: faker.datatype.boolean(),
   };
@@ -245,12 +252,7 @@ export function fakeObjectRef(): ObjectRef {
  */
 export function fakeTypedObjectRef(type?: ObjectType): TypedObjectRef {
   if (type === undefined) {
-    type = faker.helpers.arrayElement([
-      ObjectType.IMAGE,
-      ObjectType.RASTER,
-      ObjectType.VIDEO,
-      ObjectType.ARTIFACT,
-    ]);
+    type = faker.helpers.arrayElement([ObjectType.IMAGE, ObjectType.VIDEO]);
   }
   return {
     type: type,

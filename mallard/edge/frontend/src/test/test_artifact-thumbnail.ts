@@ -121,22 +121,43 @@ describe("artifact-thumbnail", () => {
     }
   );
 
-  it("handles mouseenter events", async () => {
-    // Arrange.
-    // The event handlers will be added on the first update.
-    await thumbnailElement.updateComplete;
+  each([
+    ["images", ObjectType.IMAGE],
+    ["videos", ObjectType.VIDEO],
+  ]).it(
+    "handles mouseenter events for %s",
+    async (_: string, objectType: ObjectType) => {
+      // Arrange.
+      thumbnailElement.type = objectType;
+      thumbnailElement.metadata = fakeVideoMetadata();
+      thumbnailElement.previewUrl = faker.internet.url();
 
-    // Act.
-    // Simulate a mouseenter event.
-    thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
-    await thumbnailElement.updateComplete;
+      // The event handlers will be added on the first update.
+      await thumbnailElement.updateComplete;
 
-    // Assert.
-    // It should be showing the selected button.
-    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
-    const selectButton = root.querySelector("#select_button") as IconButton;
-    expect(selectButton).not.toBeNull();
-  });
+      // Act.
+      // Simulate a mouseenter event.
+      thumbnailElement.dispatchEvent(new MouseEvent("mouseenter"));
+      await thumbnailElement.updateComplete;
+
+      // Assert.
+      // It should be showing the selected button.
+      const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+      const selectButton = root.querySelector("#select_button") as IconButton;
+      expect(selectButton).not.toBeNull();
+
+      const media = root.querySelector("#media");
+      if (objectType === ObjectType.VIDEO) {
+        // If we mouse over a video, it should start playing a preview.
+        expect(media?.tagName).toEqual("VIDEO");
+        expect((media as HTMLVideoElement).src).toContain(
+          thumbnailElement.previewUrl
+        );
+      } else {
+        expect(media?.tagName).toEqual("IMG");
+      }
+    }
+  );
 
   it("handles mouseleave events", async () => {
     // Arrange.
@@ -215,13 +236,6 @@ describe("artifact-thumbnail", () => {
       ) as HTMLSpanElement;
       if (objectType === ObjectType.VIDEO) {
         expect(videoMarker).not.toBeNull();
-        if (!select) {
-          // When not selected, it should display the video marker.
-          expect(videoMarker.classList).not.toContainEqual("marker_hidden");
-        } else {
-          // It should hide the marker when selected.
-          expect(videoMarker.classList).toContainEqual("marker_hidden");
-        }
       } else {
         // Otherwise, it shouldn't display it.
         expect(videoMarker).toBeNull();
@@ -231,6 +245,21 @@ describe("artifact-thumbnail", () => {
       expect(selectEventHandler).toBeCalledTimes(1);
     }
   );
+
+  it("hides the video marker when selected", async () => {
+    // Arrange.
+    thumbnailElement.selected = true;
+    thumbnailElement.type = ObjectType.VIDEO;
+    thumbnailElement.metadata = fakeVideoMetadata();
+
+    // Act.
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    const videoMarker = root.querySelector(".video_marker") as HTMLSpanElement;
+    expect(videoMarker.classList).toContainEqual("marker_hidden");
+  });
 
   it("permanently shows the select button when the thumbnail is selected", async () => {
     // Arrange.
@@ -354,6 +383,12 @@ describe("artifact-thumbnail", () => {
       expect(updates).toHaveProperty("onClickLink");
       expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.bucket);
       expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.name);
+
+      // It should have set the preview URL.
+      expect(updates).toHaveProperty("previewUrl");
+      expect(updates["previewUrl"]).toEqual(
+        imageEntity.previewUrl ?? undefined
+      );
 
       // It should have the metadata parameters.
       expect(updates).toHaveProperty("metadata");

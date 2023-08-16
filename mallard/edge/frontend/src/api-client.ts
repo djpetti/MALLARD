@@ -324,3 +324,24 @@ export function getArtifactUrl(artifactId: TypedObjectRef): string {
     artifactId.id.name
   );
 }
+
+/**
+ * Gets the URL for a preview of an artifact.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {string | null} The preview URL, or undefined if the
+ *   artifact is not a video.
+ */
+export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
+  if (artifactId.type !== ObjectType.VIDEO) {
+    // Previews are only available for videos.
+    return null;
+  }
+
+  return urlJoin(
+    API_BASE_URL,
+    "videos",
+    "preview",
+    artifactId.id.bucket,
+    artifactId.id.name
+  );
+}

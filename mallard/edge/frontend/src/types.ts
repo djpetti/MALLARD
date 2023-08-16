@@ -96,6 +96,10 @@ export interface ArtifactEntity {
   /** The object URL of the full artifact. This could be an object URL, or
    *  (for really big artifacts) a remote URL. */
   artifactUrl: string | null;
+  /** The URL of the preview video, for video artifacts. If this artifact is
+   * not a video, this should be null.
+   */
+  previewUrl: string | null;
 
   /** The metadata associated with the artifact. */
   metadata: UavImageMetadata | UavVideoMetadata | null;

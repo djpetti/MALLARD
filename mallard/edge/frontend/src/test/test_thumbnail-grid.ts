@@ -1,7 +1,7 @@
 import { ConnectedThumbnailGrid, GroupedImages } from "../thumbnail-grid";
 import {
   EntitiesAndIds,
-  fakeImageEntities,
+  fakeArtifactEntities,
   fakeArtifactEntity,
   fakeState,
   getShadowRoot,
@@ -379,14 +379,14 @@ describe("thumbnail-grid", () => {
 
         // First, make it look like we have thumbnails in two sections.
         const state = fakeState();
-        section1Images = fakeImageEntities(
+        section1Images = fakeArtifactEntities(
           faker.datatype.number({ min: 1, max: 25 }),
           true,
           undefined,
           section1CaptureDate,
           section1SessionName
         );
-        section2Images = fakeImageEntities(
+        section2Images = fakeArtifactEntities(
           faker.datatype.number({ min: 1, max: 25 }),
           true,
           undefined,
@@ -749,7 +749,9 @@ describe("thumbnail-grid", () => {
     // Create a fake state.
     const state: RootState = fakeState();
     state.imageView.ids = [imageId];
-    state.imageView.entities[imageId] = fakeArtifactEntity(false, false);
+    const entity = fakeArtifactEntity(false, false);
+    entity.metadata = null;
+    state.imageView.entities[imageId] = entity;
 
     // Act.
     const updates = gridElement.mapState(state);

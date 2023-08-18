@@ -14,6 +14,7 @@ import { RequestState, RootState } from "./types";
 import { Action } from "redux";
 import {
   setEditingDialogOpen,
+  thumbnailGridSelectors,
   thunkBulkDownloadSelected,
   thunkClearExportedImages,
   thunkDeleteSelected,
@@ -167,6 +168,20 @@ export class TopNavBar extends LitElement {
   exportedUrlFileLink: string | null = null;
 
   /**
+   * Link to the original artifact, which can be used to display a download
+   * button in a details view.
+   */
+  @property({ type: String })
+  artifactLink: string | null = null;
+
+  /**
+   * Name of the artifact in the details view. This will be used as a
+   * filename for downloads.
+   */
+  @property({ type: String })
+  artifactName: string | null = null;
+
+  /**
    * The deletion confirmation modal.
    */
   @query("#confirm_delete_dialog", true)
@@ -196,8 +211,14 @@ export class TopNavBar extends LitElement {
   /**
    * Hidden link for downloading files.
    */
-  @query("#download_link")
-  private downloadLink?: HTMLElement;
+  @query("#url_list_download_link")
+  private urlListDownloadLink?: HTMLElement;
+
+  /**
+   * Hidden link for downloading the original artifact.
+   */
+  @query("#artifact_download_link")
+  private artifactDownloadLink?: HTMLElement;
 
   /**
    * Run when the download button is clicked.
@@ -302,20 +323,20 @@ export class TopNavBar extends LitElement {
   protected override render(): unknown {
     // Only show the back button if that's been requested.
     const backButtonClass = this.showBack ? "" : "hidden";
-    const topBarClass = this.numItemsSelected ? "selection-mode" : "normal";
+    const inSelectionMode = this.numItemsSelected > 0 && !this.artifactLink;
+    const topBarClass = inSelectionMode ? "selection-mode" : "normal";
 
     // If we have items selected, show a message about that instead of the
     // normal title.
-    const title =
-      this.numItemsSelected > 0
-        ? html`<mwc-icon-button
-              icon="close"
-              id="cancel_selection"
-              @click="${this.onCancelSelectionClick}"
-            ></mwc-icon-button>
-            ${this.numItemsSelected} Selected`
-        : html`${this.title}`;
-    const titleClass = this.numItemsSelected > 0 ? "" : "logo";
+    const title = inSelectionMode
+      ? html`<mwc-icon-button
+            icon="close"
+            id="cancel_selection"
+            @click="${this.onCancelSelectionClick}"
+          ></mwc-icon-button>
+          ${this.numItemsSelected} Selected`
+      : html`${this.title}`;
+    const titleClass = inSelectionMode ? "" : "logo";
 
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
@@ -333,13 +354,13 @@ export class TopNavBar extends LitElement {
         <span slot="title" class="vertical-centered ${titleClass}" id="title">
           ${title}
         </span>
-        ${this.numItemsSelected == 0
+        ${this.numItemsSelected == 0 && !this.artifactLink
           ? html` <!-- Search box. -->
               <search-box id="search"></search-box>`
           : nothing}
 
         <!-- Action items. -->
-        ${this.numItemsSelected > 0
+        ${inSelectionMode
           ? html`
               <mwc-icon-button
                 icon="download"
@@ -373,6 +394,16 @@ export class TopNavBar extends LitElement {
                   >
                 </mwc-menu>
               </div>
+            `
+          : nothing}
+        ${this.artifactLink
+          ? html`
+              <mwc-icon-button
+                icon="download"
+                slot="actionItems"
+                id="original_download_button"
+                @click="${() => this.artifactDownloadLink?.click()}"
+              ></mwc-icon-button>
             `
           : nothing}
 
@@ -448,13 +479,21 @@ export class TopNavBar extends LitElement {
             </mwc-dialog>`
           : nothing}
 
-        <!-- Hidden link for downloading files. -->
+        <!-- Hidden links for downloading files. -->
         ${this.exportedUrlFileLink
           ? html`<a
-              id="download_link"
+              id="url_list_download_link"
               class="hidden"
               href="${this.exportedUrlFileLink}"
-              download
+              download="artifact_urls.txt"
+            ></a>`
+          : nothing}
+        ${this.artifactLink
+          ? html`<a
+              id="artifact_download_link"
+              class="hidden"
+              href="${this.artifactLink}"
+              download="${this.artifactName as string}"
             ></a>`
           : nothing}
 
@@ -483,9 +522,9 @@ export class TopNavBar extends LitElement {
       this.moreActionsMenu.anchor = this.moreActionsButton as Button;
     }
 
-    if (this.downloadLink) {
+    if (this.urlListDownloadLink) {
       // If this is rendered, we should start the download.
-      this.downloadLink.click();
+      this.urlListDownloadLink.click();
       // Clean up after the download is finished.
       this.dispatchEvent(
         new CustomEvent<void>(TopNavBar.URL_EXPORT_FINISHED_EVENT_NAME, {
@@ -505,6 +544,18 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
    * @inheritDoc
    */
   mapState(state: RootState): { [p: string]: any } {
+    let artifactLink = null;
+    let artifactName = null;
+    if (state.imageView.details.frontendId) {
+      // We are in the details view.
+      const entity = thumbnailGridSelectors.selectById(
+        state,
+        state.imageView.details.frontendId
+      );
+      artifactLink = entity?.artifactUrl;
+      artifactName = entity?.metadata?.name;
+    }
+
     return {
       numItemsSelected: state.imageView.numItemsSelected,
       showDeletionProgress:
@@ -513,6 +564,8 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       showEditingProgress:
         state.imageView.metadataEditingState == RequestState.LOADING,
       exportedUrlFileLink: state.imageView.exportedImagesUrl,
+      artifactLink: artifactLink,
+      artifactName: artifactName,
     };
   }
 

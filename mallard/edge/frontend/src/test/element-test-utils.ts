@@ -132,25 +132,19 @@ export function fakeArtifactEntity(
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let previewUrl: string | null = null;
-  let metadata: UavImageMetadata | null = null;
+  const metadata = fakeRasterMetadata();
+  metadata.captureDate = captureDate.toISOString();
+  metadata.sessionName = sessionName;
   if (thumbnailLoaded) {
     // Simulate a loaded thumbnail.
     thumbnailStatus = ArtifactStatus.LOADED;
     thumbnailUrl = faker.image.dataUri();
-    metadata = {
-      captureDate: captureDate.toISOString(),
-      sessionName: sessionName,
-    };
   }
   if (imageLoaded) {
     // Simulate a loaded image.
     imageStatus = ArtifactStatus.LOADED;
     metadataStatus = ArtifactStatus.LOADED;
     imageUrl = faker.image.dataUri();
-    metadata = {
-      captureDate: captureDate.toISOString(),
-      sessionName: sessionName,
-    };
   }
 
   if (backendId.type === ObjectType.VIDEO) {
@@ -179,14 +173,15 @@ export interface EntitiesAndIds {
 }
 
 /**
- * @brief Creates a full set if ImageEntities to use for a test. Note that this
+ * @brief Creates a full set of ArtifactEntities to use for a test.
+ * Note that this
  *  uses `createImageEntityId` internally, so it should not be mocked.
  * @param {number?} numEntities The number of fake entities to add. If not
  *  provided it will choose randomly.
  * @param {any} entityArgs Will be forwarded to `fakeImageEntity`.
  * @return {EntitiesAndIds} The fake entities that it created.
  */
-export function fakeImageEntities(
+export function fakeArtifactEntities(
   numEntities?: number,
   ...entityArgs: any
 ): EntitiesAndIds {

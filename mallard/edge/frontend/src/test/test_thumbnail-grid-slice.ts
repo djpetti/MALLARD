@@ -45,7 +45,7 @@ import {
 import thunk from "redux-thunk";
 import {
   fakeFile,
-  fakeImageEntities,
+  fakeArtifactEntities,
   fakeArtifactEntity,
   fakeImageMetadata,
   fakeImageQuery,
@@ -516,6 +516,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // Initialize the fake store with valid state.
     const unloadedImage = fakeArtifactEntity(false, false);
+    unloadedImage.metadata = null;
     const loadedImage = fakeArtifactEntity(undefined, true);
     const unloadedImageId = createArtifactEntityId(unloadedImage.backendId.id);
     const loadedImageId = createArtifactEntityId(loadedImage.backendId.id);
@@ -1005,7 +1006,7 @@ describe("thumbnail-grid-slice action creators", () => {
     (_: string, imageLoaded: boolean) => {
       // Arrange.
       // Set up the state appropriately.
-      const images = fakeImageEntities(undefined, undefined, imageLoaded);
+      const images = fakeArtifactEntities(undefined, undefined, imageLoaded);
       const state = fakeState();
       state.imageView.ids = images.ids;
       state.imageView.entities = images.entities;
@@ -1075,7 +1076,7 @@ describe("thumbnail-grid-slice action creators", () => {
     (_: string, thumbnailLoaded: boolean) => {
       // Arrange.
       // Set up the state appropriately.
-      const images = fakeImageEntities(undefined, thumbnailLoaded);
+      const images = fakeArtifactEntities(undefined, thumbnailLoaded);
       const state = fakeState();
       state.imageView.ids = images.ids;
       state.imageView.entities = images.entities;
@@ -1139,7 +1140,7 @@ describe("thumbnail-grid-slice action creators", () => {
 
   it("can clear all the images with thunkClearImageView", () => {
     // Arrange.
-    const images = fakeImageEntities(undefined, true, true);
+    const images = fakeArtifactEntities(undefined, true, true);
     const state = fakeState();
     state.imageView.ids = images.ids;
     state.imageView.entities = images.entities;
@@ -1186,7 +1187,7 @@ describe("thumbnail-grid-slice action creators", () => {
       // Arrange.
       const select = faker.datatype.boolean();
       // Make it look like there are various images.
-      const images = fakeImageEntities();
+      const images = fakeArtifactEntities();
       // Make it look like none are selected.
       for (const id of images.ids) {
         images.entities[id].isSelected = changeSelection ? !select : select;
@@ -1230,7 +1231,7 @@ describe("thumbnail-grid-slice action creators", () => {
     // Arrange.
     const select = faker.datatype.boolean();
     // Make it look like there are various images.
-    const images = fakeImageEntities(50);
+    const images = fakeArtifactEntities(50);
 
     const state = fakeState();
     state.imageView.ids = images.ids;
@@ -1905,7 +1906,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
 
     // Images that we are updating metadata for.
-    const images = fakeImageEntities(undefined);
+    const images = fakeArtifactEntities(undefined);
     state.ids = images.ids;
     state.entities = images.entities;
 
@@ -2054,7 +2055,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
 
     // Images that we are loading thumbnails for.
-    const images = fakeImageEntities();
+    const images = fakeArtifactEntities();
     state.ids = images.ids;
     state.entities = images.entities;
 
@@ -2080,7 +2081,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
 
     // Images that we are loading thumbnails for.
-    const images = fakeImageEntities(undefined);
+    const images = fakeArtifactEntities(undefined);
     state.ids = images.ids;
     state.entities = images.entities;
 

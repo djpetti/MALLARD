@@ -1,5 +1,6 @@
 import { ConnectedTopNavBar, TopNavBar } from "../top-nav-bar";
 import {
+  fakeArtifactEntities,
   fakeImageMetadata,
   fakeState,
   getShadowRoot,
@@ -38,10 +39,12 @@ jest.mock("../thumbnail-grid-slice", () => {
 
     setEditingDialogOpen: jest.fn(),
 
-    // Use the actual implementation for this function.
+    // Use the actual implementation for these functions.
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
+      selectById: actualSlice.thumbnailGridSelectors.selectById,
     },
+    createArtifactEntityId: actualSlice.createArtifactEntityId,
   };
 });
 const mockBulkDownloadSelected = thunkBulkDownloadSelected as jest.MockedFn<
@@ -230,6 +233,46 @@ describe("top-nav-bar", () => {
     expect(loader).not.toBeNull();
   });
 
+  each([
+    ["", false],
+    ["when items are selected", true],
+  ]).it(
+    "renders correctly in the details view %s",
+    async (_: string, selected: boolean) => {
+      // Arrange.
+      navBarElement.artifactLink = faker.internet.url();
+      navBarElement.artifactName = faker.system.fileName();
+      navBarElement.numItemsSelected = selected ? 10 : 0;
+
+      // Act.
+      await navBarElement.updateComplete;
+
+      // Assert.
+      // It should be displaying the download button.
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
+      const downloadButton = root.querySelector("#original_download_button");
+      expect(downloadButton).not.toBeNull();
+
+      // It should also have added the hidden download link.
+      const downloadLink = root.querySelector("#artifact_download_link");
+      expect(downloadLink).not.toBeNull();
+      expect(downloadLink?.getAttribute("href")).toEqual(
+        navBarElement.artifactLink
+      );
+      expect(downloadLink?.getAttribute("download")).toEqual(
+        navBarElement.artifactName
+      );
+
+      // It should not have rendered any of the selection-specific stuff.
+      const appBar = root.querySelector("#app_bar");
+      expect(appBar?.classList).not.toContainEqual("selection-mode");
+      const deleteButton = root.querySelector("#delete_button");
+      expect(deleteButton).toBeNull();
+      const editButton = root.querySelector("#edit_button");
+      expect(editButton).toBeNull();
+    }
+  );
+
   it("renders correctly when items are selected", async () => {
     // Act.
     // Make it look like items are selected.
@@ -294,6 +337,34 @@ describe("top-nav-bar", () => {
     // Assert.
     // It should have fired the event.
     expect(downloadHandler).toBeCalledTimes(1);
+  });
+
+  it("starts a download when the download button is clicked in details mode", async () => {
+    // Arrange.
+    navBarElement.artifactLink = faker.internet.url();
+    navBarElement.artifactName = faker.system.fileName();
+
+    // Need to update in order to render the download button and link...
+    await navBarElement.updateComplete;
+
+    // Set up a fake handler for clicks on the download link.
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const downloadLink = root.querySelector(
+      "#artifact_download_link"
+    ) as HTMLElement;
+    const downloadLinkClickHandler = jest.fn();
+    downloadLink.addEventListener("click", downloadLinkClickHandler);
+
+    // Act.
+    // Simulate a click on the button.
+    const downloadButton = root.querySelector(
+      "#original_download_button"
+    ) as IconButton;
+    downloadButton.dispatchEvent(new MouseEvent("click"));
+
+    // Assert.
+    // It should have clicked on the link.
+    expect(downloadLinkClickHandler).toBeCalledTimes(1);
   });
 
   it("dispatches an event when the edit button is clicked", async () => {
@@ -625,39 +696,69 @@ describe("top-nav-bar", () => {
 
     // It should have rendered the hidden link.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const link = root.querySelector("#download_link") as HTMLLinkElement;
+    const link = root.querySelector(
+      "#url_list_download_link"
+    ) as HTMLLinkElement;
     expect(link).not.toBeNull();
     expect(link.href).toContain(downloadLink);
   });
 
-  each([
-    ["deletion is running", RequestState.LOADING],
-    ["deletion is finished", RequestState.SUCCEEDED],
-  ]).it(
-    "updates the properties from the Redux state when %s",
-    (_, deletionState: RequestState) => {
+  describe("mapState", () => {
+    each([
+      ["deletion is running", RequestState.LOADING],
+      ["deletion is finished", RequestState.SUCCEEDED],
+    ]).it(
+      "updates the properties from the Redux state when %s",
+      (_, deletionState: RequestState) => {
+        // Arrange.
+        // Create a fake state.
+        const state = fakeState();
+        const imageView = state.imageView;
+        imageView.numItemsSelected = faker.datatype.number();
+        imageView.imageDeletionState = deletionState;
+
+        // Act.
+        const updates = navBarElement.mapState(state);
+
+        // Assert.
+        // It should have updated the selection state.
+        expect(updates).toHaveProperty("numItemsSelected");
+        expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
+
+        // It should have updated the deletion state.
+        expect(updates).toHaveProperty("showDeletionProgress");
+        expect(updates.showDeletionProgress).toEqual(
+          deletionState == RequestState.LOADING
+        );
+      }
+    );
+
+    it("updates the properties from the Redux state in details mode", () => {
       // Arrange.
       // Create a fake state.
       const state = fakeState();
       const imageView = state.imageView;
-      imageView.numItemsSelected = faker.datatype.number();
-      imageView.imageDeletionState = deletionState;
+
+      // Add fake artifact data.
+      const entities = fakeArtifactEntities(3);
+      imageView.entities = entities.entities;
+      imageView.ids = entities.ids;
+      // Make it looks like we are in details mode.
+      const detailsId = imageView.ids[0];
+      imageView.details.frontendId = detailsId as string;
 
       // Act.
       const updates = navBarElement.mapState(state);
 
       // Assert.
-      // It should have updated the selection state.
-      expect(updates).toHaveProperty("numItemsSelected");
-      expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
-
-      // It should have updated the deletion state.
-      expect(updates).toHaveProperty("showDeletionProgress");
-      expect(updates.showDeletionProgress).toEqual(
-        deletionState == RequestState.LOADING
-      );
-    }
-  );
+      // It should have set the artifact link and name.
+      const detailsEntity = imageView.entities[detailsId];
+      expect(updates).toHaveProperty("artifactLink");
+      expect(updates["artifactLink"]).toEqual(detailsEntity?.artifactUrl);
+      expect(updates).toHaveProperty("artifactName");
+      expect(updates["artifactName"]).toEqual(detailsEntity?.metadata?.name);
+    });
+  });
 
   it(`fires the correct action creator for the ${ConnectedTopNavBar.DOWNLOAD_STARTED_EVENT_NAME} event`, () => {
     // Arrange.

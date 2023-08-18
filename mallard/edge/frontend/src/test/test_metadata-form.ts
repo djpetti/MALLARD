@@ -5,7 +5,7 @@ import {
   MetadataForm,
 } from "../metadata-form";
 import {
-  fakeImageEntities,
+  fakeArtifactEntities,
   fakeImageMetadata,
   fakeState,
   getShadowRoot,
@@ -450,7 +450,7 @@ describe("metadata-form", () => {
         }
 
         // Make it look like we have some selected images.
-        const imageEntities = fakeImageEntities(3);
+        const imageEntities = fakeArtifactEntities(3);
         const seletedIds = imageEntities.ids.slice(0, 2);
         for (const id of imageEntities.ids) {
           imageEntities.entities[id].isSelected = false;

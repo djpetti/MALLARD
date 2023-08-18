@@ -320,38 +320,39 @@ describe("artifact-thumbnail", () => {
     });
   });
 
-  it("updates from the Redux state when the frontend ID changes", async () => {
-    // Arrange.
-    // Make it look like we have a somewhat interesting state.
-    const state = fakeState();
-    const image = fakeArtifactEntity(true);
-    const frontendId = createArtifactEntityId(image.backendId.id);
-    state.imageView.ids = [frontendId];
-    state.imageView.entities[frontendId] = image;
-
-    mockGetState.mockReturnValue(state);
-
-    // Act.
-    // Reset the frontend ID.
-    thumbnailElement.frontendId = frontendId;
-    await thumbnailElement.updateComplete;
-
-    // Assert.
-    // It should have updated from the state.
-    expect(thumbnailElement.sourceUrl).toEqual(image.thumbnailUrl);
-    expect(thumbnailElement.selected).toEqual(image.isSelected);
-    expect(thumbnailElement.onClickLink).not.toBeUndefined();
-  });
-
   describe("mapState", () => {
     /**
      * Updates it will produce when the state is invalid.
      */
     const DEFAULT_UPDATES = {
-      imageUrl: undefined,
+      sourceUrl: undefined,
       selected: false,
-      imageLink: undefined,
+      onClickLink: undefined,
+      previewUrl: undefined,
     };
+
+    it("updates from the Redux state when the frontend ID changes", async () => {
+      // Arrange.
+      // Make it look like we have a somewhat interesting state.
+      const state = fakeState();
+      const image = fakeArtifactEntity(true);
+      const frontendId = createArtifactEntityId(image.backendId.id);
+      state.imageView.ids = [frontendId];
+      state.imageView.entities[frontendId] = image;
+
+      mockGetState.mockReturnValue(state);
+
+      // Act.
+      // Reset the frontend ID.
+      thumbnailElement.frontendId = frontendId;
+      await thumbnailElement.updateComplete;
+
+      // Assert.
+      // It should have updated from the state.
+      expect(thumbnailElement.sourceUrl).toEqual(image.thumbnailUrl);
+      expect(thumbnailElement.selected).toEqual(image.isSelected);
+      expect(thumbnailElement.onClickLink).not.toBeUndefined();
+    });
 
     it("updates the properties from the Redux state", () => {
       // Arrange.

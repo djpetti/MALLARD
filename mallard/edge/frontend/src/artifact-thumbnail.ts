@@ -288,9 +288,10 @@ export class ConnectedArtifactThumbnail extends connect(
    */
   mapState(state: RootState): { [p: string]: any } {
     const defaultState = {
-      imageUrl: undefined,
+      sourceUrl: undefined,
       selected: false,
-      imageLink: undefined,
+      onClickLink: undefined,
+      previewUrl: undefined,
     };
     if (!this.frontendId) {
       // No specific thumbnail has been set.
@@ -311,7 +312,7 @@ export class ConnectedArtifactThumbnail extends connect(
     }
 
     return {
-      sourceUrl: imageEntity.thumbnailUrl,
+      sourceUrl: imageEntity.thumbnailUrl ?? undefined,
       selected: imageEntity.isSelected,
       onClickLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
       previewUrl: imageEntity.previewUrl ?? undefined,

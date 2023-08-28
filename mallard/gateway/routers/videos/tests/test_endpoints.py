@@ -51,11 +51,13 @@ class MockedTranscoderClient:
     Attributes:
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
+        mock_create_streamable: The mocked `create_streamable` function.
 
     """
 
     mock_create_preview: mock.Mock
     mock_create_thumbnail: mock.Mock
+    mock_create_streamable: mock.Mock
 
 
 @pytest.fixture
@@ -118,6 +120,9 @@ def mock_transcoder_client(mocker: MockFixture) -> MockedTranscoderClient:
         mock_create_thumbnail=mocker.patch(
             f"{endpoints.__name__}.create_thumbnail"
         ),
+        mock_create_streamable=mocker.patch(
+            f"{endpoints.__name__}.create_streamable"
+        ),
     )
 
 
@@ -159,7 +164,7 @@ async def test_create_uav_video(
     assert got_video_id.name == create_uav_params.mock_uuid.return_value.hex
 
     # It should have updated the databases.
-    assert config.mock_object_store.create_object.call_count == 3
+    assert config.mock_object_store.create_object.call_count == 4
     config.mock_object_store.create_object.assert_any_call(
         got_video_id, data=create_uav_params.mock_file
     )
@@ -187,6 +192,18 @@ async def test_create_uav_video(
     config.mock_object_store.create_object.assert_any_call(
         ObjectRef(
             bucket=got_video_id.bucket, name=f"{got_video_id.name}.preview"
+        ),
+        data=mock_preview,
+    )
+
+    # It should have created the streaming version.
+    mock_transcoder_client.mock_create_preview.assert_called_once_with(
+        create_uav_params.mock_file, chunk_size=mock.ANY
+    )
+    mock_preview = mock_transcoder_client.mock_create_streamable.return_value
+    config.mock_object_store.create_object.assert_any_call(
+        ObjectRef(
+            bucket=got_video_id.bucket, name=f"{got_video_id.name}.streamable"
         ),
         data=mock_preview,
     )
@@ -259,8 +276,9 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
 
     # Assert.
     # It should have deleted the corresponding items in both databases.
+    # (There are one main artifact and 3 derived objects in the object store.)
     assert (
-        config.mock_object_store.delete_object.call_count == num_to_delete * 3
+        config.mock_object_store.delete_object.call_count == num_to_delete * 4
     )
     assert config.mock_metadata_store.delete.call_count == num_to_delete
     for object_ref in object_refs:
@@ -382,7 +400,9 @@ async def test_get_video(config: ConfigForTests, faker: Faker) -> None:
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
-        video_stream, media_type=mock.ANY
+        video_stream,
+        media_type=mock.ANY,
+        headers={"Content-Length": str(metadata.size)},
     )
     assert response == config.mock_streaming_response_class.return_value
 

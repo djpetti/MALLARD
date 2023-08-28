@@ -158,7 +158,11 @@ export class ConnectedLargeArtifactDisplay extends connect(
     }
 
     return {
-      sourceUrl: entity.artifactUrl,
+      // Use the streamable URL if this is a video.
+      sourceUrl:
+        this.type === ObjectType.VIDEO
+          ? entity.streamableUrl
+          : entity.artifactUrl,
       ...this.metadataUpdatesFromState(state),
     };
   }

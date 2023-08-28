@@ -87,12 +87,12 @@ async def test_ffprobe_invalid_video(invalid_video: UploadFile) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_preview(valid_video) -> None:
+async def test_create_preview(valid_video: UploadFile) -> None:
     """
     Tests that `create_preview` can produce a valid preview.
 
     Args:
-        test_video: The video file to use for testing.
+        valid_video: The video file to use for testing.
 
     """
     # Arrange.
@@ -121,23 +121,67 @@ async def test_create_preview(valid_video) -> None:
     ffprobe_result = await ffmpeg.ffprobe(preview_file)
 
     video_stream = ffprobe_result["streams"][0]
-    assert video_stream["codec_name"] == "h264"
+    assert video_stream["codec_name"] == "vp9"
     assert video_stream["width"] == 128
+
+
+@pytest.mark.asyncio
+async def test_create_streamable(
+    valid_video: UploadFile, faker: Faker
+) -> None:
+    """
+    Tests that `create_streamable` can produce a valid streamable video.
+
+    Args:
+        valid_video: The video file to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    max_width = faker.random_int(min=128, max=3840)
+
+    # Act.
+    preview_stream, stderr_stream = await ffmpeg.create_streamable(
+        valid_video, max_width=max_width
+    )
+
+    # Assert.
+    # Read all the data from the stream.
+    streamable = b"".join([c async for c in preview_stream])
+    stderr = "".join([c.decode("utf8") async for c in stderr_stream])
+    # Having stderr makes debugging A LOT easier.
+    print(f"FFMpeg stderr: {stderr}")
+
+    assert len(streamable) > 0
+
+    # The preview should be a valid video. To test this, we'll run it back
+    # through ffprobe and see what it says.
+    streamable_file = UploadFile(io.BytesIO(), filename="streamable.mp4")
+    await streamable_file.write(streamable)
+    await streamable_file.seek(0)
+
+    ffprobe_result = await ffmpeg.ffprobe(streamable_file)
+
+    video_stream = ffprobe_result["streams"][0]
+    assert video_stream["codec_name"] == "vp9"
+    # The input width of the video is 480, so it shouldn't go any higher than
+    # that.
+    assert video_stream["width"] == min(max_width, 480)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "test_func",
-    [ffmpeg.create_preview, ffmpeg.create_thumbnail],
-    ids=["create_preview", "create_thumbnail"],
+    [ffmpeg.create_preview, ffmpeg.create_thumbnail, ffmpeg.create_streamable],
+    ids=["create_preview", "create_thumbnail", "create_streamable"],
 )
-async def test_create_preview_or_thumbnail_invalid_video(
+async def test_create_derived_invalid_video(
     invalid_video: UploadFile,
     test_func: Callable[[UploadFile], Tuple[AsyncIterable, AsyncIterable]],
 ) -> None:
     """
-    Tests that the `create_preview` and `create_thumbnail` functions gracefully
-    handle an invalid input.
+    Tests that the `create_preview`, `create_thumbnail`,
+    and `create_streamable` functions gracefully handle an invalid input.
 
     Args:
         invalid_video: The video file to use for testing.

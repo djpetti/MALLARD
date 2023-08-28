@@ -22,6 +22,7 @@ import {
   getArtifactUrl,
   getMetadata,
   getPreviewVideoUrl,
+  getStreamableVideoUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -127,6 +128,7 @@ function createDefaultEntity(backendId: TypedObjectRef): ArtifactEntity {
     thumbnailUrl: null,
     artifactUrl: null,
     previewUrl: getPreviewVideoUrl(backendId),
+    streamableUrl: getStreamableVideoUrl(backendId),
     metadata: null,
     isSelected: false,
   };

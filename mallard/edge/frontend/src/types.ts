@@ -100,6 +100,10 @@ export interface ArtifactEntity {
    * not a video, this should be null.
    */
   previewUrl: string | null;
+  /** The URL of the streaming-optimized version of a video. If this
+   * artifact is not a video, this should be null.
+   */
+  streamableUrl: string | null;
 
   /** The metadata associated with the artifact. */
   metadata: UavImageMetadata | UavVideoMetadata | null;

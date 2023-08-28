@@ -116,6 +116,37 @@ async def create_preview(
             yield chunk
 
 
+async def create_streamable(
+    video: UploadFile, chunk_size: int = 1024
+) -> AsyncIterable[bytes]:
+    """
+    Creates a preview for the video.
+
+    Args:
+        video: The video file.
+        chunk_size: Chunk size to use for the output iterator.
+
+    Returns:
+        The preview, in chunks.
+
+    """
+    logger.debug("Creating streamable version for video {}...", video.filename)
+    # This operation can be quite slow, so use a long timeout.
+    async with get_session().post(
+        "/create_streaming_video",
+        data=_make_video_form_data(video),
+        timeout=60 * 60,
+    ) as response:
+        if response.status != 200:
+            raise HTTPException(
+                status_code=response.status,
+                detail=f"Preview creation failed: {response.reason}",
+            )
+
+        async for chunk in _iter_exact_chunked(response.content, chunk_size):
+            yield chunk
+
+
 async def create_thumbnail(
     video: UploadFile, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:

@@ -230,7 +230,9 @@ class IrodsArtifactMetadataStore(IrodsMetadataStore, ArtifactMetadataStore):
 
         # Also filter out thumbnails.
         return sql_query.filter(
-            Criterion("not like", DataObject.name, "%.thumbnail")
+            Criterion("not like", DataObject.name, "%.thumbnail"),
+            Criterion("not like", DataObject.name, "%.preview"),
+            Criterion("not like", DataObject.name, "%.streamable"),
         )
 
     @classmethod

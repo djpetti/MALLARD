@@ -132,6 +132,7 @@ export function fakeArtifactEntity(
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let previewUrl: string | null = null;
+  let streamableUrl: string | null = null;
   const metadata = fakeRasterMetadata();
   metadata.captureDate = captureDate.toISOString();
   metadata.sessionName = sessionName;
@@ -149,6 +150,7 @@ export function fakeArtifactEntity(
 
   if (backendId.type === ObjectType.VIDEO) {
     previewUrl = faker.internet.url();
+    streamableUrl = faker.internet.url();
   }
 
   return {
@@ -159,6 +161,7 @@ export function fakeArtifactEntity(
     thumbnailUrl: thumbnailUrl,
     artifactUrl: imageUrl,
     previewUrl: previewUrl,
+    streamableUrl: streamableUrl,
     metadata: metadata,
     isSelected: faker.datatype.boolean(),
   };

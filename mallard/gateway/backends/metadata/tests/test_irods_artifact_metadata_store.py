@@ -602,10 +602,10 @@ class TestIrodsImageMetadataStore:
         # It should have added filters to the query.
         for call in mock_query.filter.call_args_list:
             args, _ = call
-            assert len(args) in {1, 2}
-            if len(args) == 1:
+            assert len(args) in {1, 2, 3}
+            if len(args) == 1 or len(args) == 3:
                 # These are filters for limiting data to this application and
-                # the correct object type, and excluding thumbnails.
+                # the correct object type, and excluding derived data.
                 assert args[0].query_key in {
                     Collection.name,
                     DataObject.name,

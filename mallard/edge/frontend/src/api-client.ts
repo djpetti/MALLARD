@@ -345,3 +345,26 @@ export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
     artifactId.id.name
   );
 }
+
+/**
+ * Gets the URL for the streamable version of an artifact.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {string | null} The streaming URL, or undefined if the
+ *   artifact is not a video.
+ */
+export function getStreamableVideoUrl(
+  artifactId: TypedObjectRef
+): string | null {
+  if (artifactId.type !== ObjectType.VIDEO) {
+    // Previews are only available for videos.
+    return null;
+  }
+
+  return urlJoin(
+    API_BASE_URL,
+    "videos",
+    "stream",
+    artifactId.id.bucket,
+    artifactId.id.name
+  );
+}

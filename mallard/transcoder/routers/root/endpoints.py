@@ -9,7 +9,12 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile
 from loguru import logger
 from starlette.responses import StreamingResponse
 
-from ...ffmpeg import create_preview, create_thumbnail, ffprobe
+from ...ffmpeg import (
+    create_preview,
+    create_streamable,
+    create_thumbnail,
+    ffprobe,
+)
 
 router = APIRouter(tags=["transcoder"])
 
@@ -96,6 +101,30 @@ async def create_video_preview(
     )
     return _streaming_response_with_errors(
         preview_stream, error_stream=error_stream, content_type="video/vp9"
+    )
+
+
+@router.post("/create_streaming_video")
+async def create_streaming_video(
+    video: UploadFile, max_width: Annotated[int, Query(gt=0)] = 1920
+) -> StreamingResponse:
+    """
+    Creates a preview for a video.
+
+    Args:
+        video: The video to create a preview for.
+        max_width: The maximum width of the video, in pixels. (Videos with an
+            original resolution lower than this will not be resized.)
+
+    Returns:
+        The transcoded video that was created.
+
+    """
+    output_stream, error_stream = await create_streamable(
+        video, max_width=max_width
+    )
+    return _streaming_response_with_errors(
+        output_stream, error_stream=error_stream, content_type="video/vp9"
     )
 
 

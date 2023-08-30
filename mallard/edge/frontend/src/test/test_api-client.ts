@@ -6,6 +6,7 @@ import {
   getArtifactUrl,
   getMetadata,
   getPreviewVideoUrl,
+  getStreamableVideoUrl,
   inferMetadata,
   loadImage,
   loadThumbnail,
@@ -577,6 +578,31 @@ describe("api-client", () => {
 
       // Act.
       const gotUrl = getPreviewVideoUrl(artifactId);
+
+      // Assert.
+      if (objectType === ObjectType.IMAGE) {
+        // It should just return null for non-video artifacts.
+        expect(gotUrl).toBeNull();
+      } else {
+        expect(gotUrl).toContain("videos");
+        expect(gotUrl).toContain(
+          `${artifactId.id.bucket}/${artifactId.id.name}`
+        );
+      }
+    }
+  );
+
+  each([
+    ["image", ObjectType.IMAGE],
+    ["video", ObjectType.VIDEO],
+  ]).it(
+    "can get the streamble video URL for a(n) %s",
+    (_: string, objectType: ObjectType) => {
+      // Arrange.
+      const artifactId = fakeTypedObjectRef(objectType);
+
+      // Act.
+      const gotUrl = getStreamableVideoUrl(artifactId);
 
       // Assert.
       if (objectType === ObjectType.IMAGE) {

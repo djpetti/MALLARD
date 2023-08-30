@@ -4,18 +4,19 @@ Unit tests for the `endpoints` module.
 
 
 import unittest.mock as mock
-from typing import Type
+from typing import Awaitable, Callable, Type
 
 import pytest
 from faker import Faker
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
+from starlette.responses import StreamingResponse
 
 from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import MetadataOperationError
 from mallard.gateway.backends.metadata.schemas import UavVideoMetadata
-from mallard.gateway.backends.objects import ObjectOperationError
+from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
 from mallard.gateway.backends.objects.models import ObjectRef
 from mallard.gateway.routers.conftest import ConfigForTests
 from mallard.gateway.routers.videos import InvalidVideoError, endpoints
@@ -439,13 +440,23 @@ async def test_get_video_nonexistent(
 
 
 @pytest.mark.asyncio
-async def test_get_preview(config: ConfigForTests, faker: Faker) -> None:
+@pytest.mark.parametrize(
+    "endpoint",
+    [endpoints.get_preview, endpoints.get_streamable],
+    ids=["preview", "streamable"],
+)
+async def test_get_transcoded(
+    config: ConfigForTests,
+    faker: Faker,
+    endpoint: Callable[[str, str, ObjectStore], Awaitable[StreamingResponse]],
+) -> None:
     """
-    Tests that the `get_preview` endpoint works.
+    Tests that the `get_preview` and `get_streamable` endpoints works.
 
     Args:
         config: The configuration to use for testing.
         faker: The fixture to use for generating fake data.
+        endpoint: The endpoint to test.
 
     """
     # Arrange.
@@ -454,19 +465,19 @@ async def test_get_preview(config: ConfigForTests, faker: Faker) -> None:
     video_name = faker.pystr()
 
     # Act.
-    response = await endpoints.get_preview(
+    response = await endpoint(
         bucket=bucket,
         name=video_name,
         object_store=config.mock_object_store,
     )
 
     # Assert.
-    # It should have gotten the thumbnail.
+    # It should have gotten the video.
     config.mock_object_store.get_object.assert_called_once()
     args, _ = config.mock_object_store.get_object.call_args
     preview_id = args[0]
     assert preview_id.bucket == bucket
-    # The name for this object should be distinct from that of the raw image.
+    # The name for this object should be distinct from that of the raw artifact.
     assert preview_id.name != video_name
     video_stream = config.mock_object_store.get_object.return_value
 

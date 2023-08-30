@@ -160,7 +160,7 @@ export class ConnectedLargeArtifactDisplay extends connect(
     return {
       // Use the streamable URL if this is a video.
       sourceUrl:
-        this.type === ObjectType.VIDEO
+        entity.backendId.type === ObjectType.VIDEO
           ? entity.streamableUrl
           : entity.artifactUrl,
       ...this.metadataUpdatesFromState(state),

@@ -9,10 +9,10 @@ import {
 } from "./element-test-utils";
 import { RootState } from "../types";
 import {
-  thunkLoadImage,
-  thunkClearFullSizedImages,
-  setVideoUrl,
   clearVideoUrl,
+  setVideoUrl,
+  thunkClearFullSizedImages,
+  thunkLoadImage,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
@@ -138,12 +138,13 @@ describe("large-image-display", () => {
   });
 
   each([
-    ["not specified", undefined, ObjectType.IMAGE],
-    ["not loaded", faker.datatype.uuid(), ObjectType.IMAGE],
-    ["a video", faker.datatype.uuid(), ObjectType.VIDEO],
+    ["not specified", undefined, ObjectType.IMAGE, false],
+    ["not loaded", faker.datatype.uuid(), ObjectType.IMAGE, false],
+    ["a loaded image", faker.datatype.uuid(), ObjectType.IMAGE, true],
+    ["a video", faker.datatype.uuid(), ObjectType.VIDEO, false],
   ]).it(
     "updates from the Redux state when the artifact is %s",
-    (_, frontendId: string, artifactType: ObjectType) => {
+    (_, frontendId: string, artifactType: ObjectType, imageLoaded: boolean) => {
       // Arrange.
       // Set the image ID.
       displayElement.frontendId = frontendId;
@@ -151,8 +152,7 @@ describe("large-image-display", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       // Make it look like the image is not loaded.
-      const entity = fakeArtifactEntity(undefined, false);
-      entity.backendId.type = artifactType;
+      const entity = fakeArtifactEntity(undefined, imageLoaded, undefined, undefined, artifactType);
       state.imageView.ids = [frontendId];
       state.imageView.entities[frontendId] = entity;
 
@@ -160,15 +160,25 @@ describe("large-image-display", () => {
       const updates = displayElement.mapState(state);
 
       // Assert.
-      if (frontendId == undefined || artifactType === ObjectType.IMAGE) {
-        // It have ignored the update for images, and if there is no
+      if (
+        frontendId == undefined ||
+        (artifactType === ObjectType.IMAGE && !imageLoaded)
+      ) {
+        // It should have ignored the update for images, and if there is no
         // frontend ID.
         expect(updates).toEqual({});
+      } else if (artifactType === ObjectType.IMAGE && imageLoaded) {
+        // It should set the correct data for a loaded image.
+        expect(updates).toEqual({
+          sourceUrl: entity.artifactUrl,
+          metadata: entity.metadata,
+          type: artifactType,
+        });
       } else {
         // It should not check loading status for videos, because videos are
         // streamed instead of preloaded.
         expect(updates).toEqual({
-          sourceUrl: entity.artifactUrl,
+          sourceUrl: entity.streamableUrl,
           metadata: entity.metadata,
           type: artifactType,
         });

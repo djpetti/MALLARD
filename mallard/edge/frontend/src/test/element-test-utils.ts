@@ -102,13 +102,15 @@ export function fakeState(): RootState {
  *  image has finished loading. If not specified, it will be set randomly.
  * @param {Date} captureDate Specify a specific capture date for this entity.
  * @param {string} sessionName Specify a specific session name for this entity.
+ * @param {ObjectType} type Specify a specific type for this entity.
  * @return {ArtifactEntity} The entity that it created.
  */
 export function fakeArtifactEntity(
   thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
   captureDate?: Date,
-  sessionName?: string
+  sessionName?: string,
+  type?: ObjectType
 ): ArtifactEntity {
   // Determine whether we should simulate a loaded image or not.
   if (thumbnailLoaded == undefined) {
@@ -125,7 +127,7 @@ export function fakeArtifactEntity(
     sessionName = faker.lorem.words();
   }
 
-  const backendId = fakeTypedObjectRef();
+  const backendId = fakeTypedObjectRef(type);
   let thumbnailStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let imageStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let metadataStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
@@ -154,7 +156,7 @@ export function fakeArtifactEntity(
   }
 
   return {
-    backendId: fakeTypedObjectRef(),
+    backendId: backendId,
     thumbnailStatus: thumbnailStatus,
     imageStatus: imageStatus,
     metadataStatus: metadataStatus,

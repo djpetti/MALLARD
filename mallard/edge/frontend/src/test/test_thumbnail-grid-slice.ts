@@ -66,6 +66,7 @@ import {
   getArtifactUrl,
   getMetadata,
   getPreviewVideoUrl,
+  getStreamableVideoUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -88,6 +89,7 @@ jest.mock("../api-client", () => ({
   batchUpdateMetadata: jest.fn(),
   getArtifactUrl: jest.fn(),
   getPreviewVideoUrl: jest.fn(),
+  getStreamableVideoUrl: jest.fn(),
 }));
 
 const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
@@ -103,6 +105,9 @@ const mockGetArtifactUrl = getArtifactUrl as jest.MockedFn<
 >;
 const mockGetPreviewVideoUrl = getPreviewVideoUrl as jest.MockedFn<
   typeof getPreviewVideoUrl
+>;
+const mockGetStreamableVideoUrl = getStreamableVideoUrl as jest.MockedFn<
+  typeof getStreamableVideoUrl
 >;
 
 // Mock out the autocomplete functions.
@@ -1274,8 +1279,7 @@ describe("thumbnail-grid-slice action creators", () => {
     (_, imageEntity?: ArtifactEntity) => {
       // Arrange.
       // Create a fake image.
-      const backendId =
-        imageEntity?.backendId ?? fakeTypedObjectRef(ObjectType.IMAGE);
+      const backendId = imageEntity?.backendId ?? fakeTypedObjectRef();
       const frontendId = createArtifactEntityId(backendId.id);
 
       const state = fakeState();
@@ -1287,7 +1291,7 @@ describe("thumbnail-grid-slice action creators", () => {
       const store = mockStoreCreator(state);
 
       // Act.
-      thunkShowDetails(backendId.id)(
+      thunkShowDetails(backendId)(
         store.dispatch,
         store.getState as () => RootState,
         {}
@@ -1325,9 +1329,12 @@ describe("thumbnail-grid-slice reducers", () => {
     const state: ImageViewState = fakeState().imageView;
     const backendId = fakeTypedObjectRef();
 
-    // Make it look like we can get a preview URl.
+    // Make it look like we can get a preview URL.
     const fakePreviewUrl = faker.internet.url();
     mockGetPreviewVideoUrl.mockReturnValue(fakePreviewUrl);
+    // Make it look like we can get a streamable URL.
+    const fakeStreamableUrl = faker.internet.url();
+    mockGetStreamableVideoUrl.mockReturnValue(fakeStreamableUrl);
 
     // Act.
     const newState = thumbnailGridSlice.reducer(
@@ -1342,6 +1349,10 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have used the preview URL.
     expect(newState.entities[newState.ids[0]]?.previewUrl).toEqual(
       fakePreviewUrl
+    );
+    // It should have used the streamable URL.
+    expect(newState.entities[newState.ids[0]]?.streamableUrl).toEqual(
+      fakeStreamableUrl
     );
   });
 

@@ -28,6 +28,7 @@ class ConfigForTests:
         mock_ffprobe: The mocked `ffprobe` function.
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
+        mock_create_streamable: The mocked `create_streamable` function.
         mock_streaming_response_class: The mocked `StreamingResponse` class.
 
     """
@@ -35,6 +36,7 @@ class ConfigForTests:
     mock_ffprobe: Mock
     mock_create_preview: Mock
     mock_create_thumbnail: Mock
+    mock_create_streamable: Mock
     mock_streaming_response_class: Mock
 
 
@@ -54,6 +56,9 @@ def config(mocker: MockFixture) -> ConfigForTests:
         ),
         mock_create_thumbnail=mocker.patch(
             endpoints.__name__ + ".create_thumbnail"
+        ),
+        mock_create_streamable=mocker.patch(
+            endpoints.__name__ + ".create_streamable"
         ),
         mock_streaming_response_class=mocker.patch(
             endpoints.__name__ + ".StreamingResponse"
@@ -252,7 +257,7 @@ async def test_create_video_preview_invalid(
     fail_iter: AsyncIterable[bytes],
 ) -> None:
     """
-    Tests that `infer_video_metadata` raises an error when the video is invalid.
+    Tests that `create_video_preview` raises an error when the video is invalid.
 
     Args:
         config: The configuration to use for testing.
@@ -266,6 +271,90 @@ async def test_create_video_preview_invalid(
 
     # Act.
     await endpoints.create_video_preview(fake_video)
+
+    # Assert.
+    with pytest.raises(HTTPException) as exc_info:
+        # Force it to actually read the response data.
+        data_stream = config.mock_streaming_response_class.call_args[0][0]
+        async for _ in data_stream:
+            pass
+
+        assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_streaming_video(
+    config: ConfigForTests,
+    fake_video: UploadFile,
+    faker: Faker,
+    bytes_iter: AsyncIterable[bytes],
+    empty_iter: AsyncIterable[bytes],
+) -> None:
+    """
+    Tests that `create_streaming_video returns the expected result.
+
+    Args:
+        config: The configuration to use for testing.
+        fake_video: The fake video to use for testing.
+        faker: The fixture to use for generating fake data.
+        bytes_iter: Iterable generating random bytes.
+        empty_iter: Iterable returning an empty bytes object.
+
+    """
+    # Arrange.
+    # Create some fake video data to pass off as the response.
+    bytes_iter, reference_bytes = tee(bytes_iter)
+    config.mock_create_streamable.return_value = (bytes_iter, empty_iter)
+
+    max_width = faker.random_int()
+
+    # Act.
+    result = await endpoints.create_streaming_video(
+        fake_video, max_width=max_width
+    )
+
+    # Assert.
+    # It should have called `create_preview` with the video.
+    config.mock_create_streamable.assert_called_once_with(
+        fake_video, max_width=max_width
+    )
+
+    # It should have created the response.
+    config.mock_streaming_response_class.assert_called_once_with(
+        ANY, media_type="video/vp9"
+    )
+    # It should have sent the video data.
+    stream_data_iter = config.mock_streaming_response_class.call_args.args[0]
+    video_data = [c async for c in stream_data_iter]
+    reference_data = [c async for c in reference_bytes]
+    assert video_data == reference_data
+
+    assert result == config.mock_streaming_response_class.return_value
+
+
+@pytest.mark.asyncio
+async def test_create_streaming_video_invalid(
+    config: ConfigForTests,
+    fake_video: UploadFile,
+    empty_iter: AsyncIterable[bytes],
+    fail_iter: AsyncIterable[bytes],
+) -> None:
+    """
+    Tests that `create_streaming_video` raises an error when the video is
+    invalid.
+
+    Args:
+        config: The configuration to use for testing.
+        fake_video: The fake video to use for testing.
+        empty_iter: Iterable returning an empty bytes object.
+        fail_iter: Iterable that eventually raises an OSError.
+
+    """
+    # Arrange.
+    config.mock_create_streamable.return_value = fail_iter, empty_iter
+
+    # Act.
+    await endpoints.create_streaming_video(fake_video)
 
     # Assert.
     with pytest.raises(HTTPException) as exc_info:

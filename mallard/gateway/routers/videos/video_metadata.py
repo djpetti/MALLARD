@@ -11,6 +11,7 @@ from typing import Any, Dict
 from fastapi import UploadFile
 from loguru import logger
 
+from ....ffmpeg_utils import find_video_stream
 from ...artifact_metadata import fill_metadata as artifact_fill_metadata
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from .transcoder_client import probe_video
@@ -47,25 +48,10 @@ class FFProbeReader:
         """
         self.__ffprobe_results = ffprobe_results
         self.__format = ffprobe_results["format"]
-        self.__video_stream = self.__find_video_stream(ffprobe_results)
-
-    @staticmethod
-    def __find_video_stream(ffprobe_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Finds the video stream in the ffprobe results.
-
-        Args:
-            ffprobe_results: The ffprobe results.
-
-        Returns:
-            The video stream.
-
-        """
-        for stream in ffprobe_results["streams"]:
-            if stream["codec_type"] == "video":
-                return stream
-
-        raise InvalidVideoError("Video stream not found.")
+        try:
+            self.__video_stream = find_video_stream(ffprobe_results)
+        except KeyError as error:
+            raise InvalidVideoError(str(error))
 
     @cached_property
     def capture_datetime(self) -> datetime:

@@ -102,13 +102,15 @@ export function fakeState(): RootState {
  *  image has finished loading. If not specified, it will be set randomly.
  * @param {Date} captureDate Specify a specific capture date for this entity.
  * @param {string} sessionName Specify a specific session name for this entity.
+ * @param {ObjectType} type Specify a specific type for this entity.
  * @return {ArtifactEntity} The entity that it created.
  */
 export function fakeArtifactEntity(
   thumbnailLoaded?: boolean,
   imageLoaded?: boolean,
   captureDate?: Date,
-  sessionName?: string
+  sessionName?: string,
+  type?: ObjectType
 ): ArtifactEntity {
   // Determine whether we should simulate a loaded image or not.
   if (thumbnailLoaded == undefined) {
@@ -125,13 +127,14 @@ export function fakeArtifactEntity(
     sessionName = faker.lorem.words();
   }
 
-  const backendId = fakeTypedObjectRef();
+  const backendId = fakeTypedObjectRef(type);
   let thumbnailStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let imageStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let metadataStatus: ArtifactStatus = ArtifactStatus.NOT_LOADED;
   let thumbnailUrl: string | null = null;
   let imageUrl: string | null = null;
   let previewUrl: string | null = null;
+  let streamableUrl: string | null = null;
   const metadata = fakeRasterMetadata();
   metadata.captureDate = captureDate.toISOString();
   metadata.sessionName = sessionName;
@@ -149,16 +152,18 @@ export function fakeArtifactEntity(
 
   if (backendId.type === ObjectType.VIDEO) {
     previewUrl = faker.internet.url();
+    streamableUrl = faker.internet.url();
   }
 
   return {
-    backendId: fakeTypedObjectRef(),
+    backendId: backendId,
     thumbnailStatus: thumbnailStatus,
     imageStatus: imageStatus,
     metadataStatus: metadataStatus,
     thumbnailUrl: thumbnailUrl,
     artifactUrl: imageUrl,
     previewUrl: previewUrl,
+    streamableUrl: streamableUrl,
     metadata: metadata,
     isSelected: faker.datatype.boolean(),
   };

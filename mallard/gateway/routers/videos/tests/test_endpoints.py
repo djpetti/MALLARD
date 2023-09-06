@@ -4,18 +4,19 @@ Unit tests for the `endpoints` module.
 
 
 import unittest.mock as mock
-from typing import Type
+from typing import Awaitable, Callable, Type
 
 import pytest
 from faker import Faker
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
+from starlette.responses import StreamingResponse
 
 from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import MetadataOperationError
 from mallard.gateway.backends.metadata.schemas import UavVideoMetadata
-from mallard.gateway.backends.objects import ObjectOperationError
+from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
 from mallard.gateway.backends.objects.models import ObjectRef
 from mallard.gateway.routers.conftest import ConfigForTests
 from mallard.gateway.routers.videos import InvalidVideoError, endpoints
@@ -51,11 +52,13 @@ class MockedTranscoderClient:
     Attributes:
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
+        mock_create_streamable: The mocked `create_streamable` function.
 
     """
 
     mock_create_preview: mock.Mock
     mock_create_thumbnail: mock.Mock
+    mock_create_streamable: mock.Mock
 
 
 @pytest.fixture
@@ -118,6 +121,9 @@ def mock_transcoder_client(mocker: MockFixture) -> MockedTranscoderClient:
         mock_create_thumbnail=mocker.patch(
             f"{endpoints.__name__}.create_thumbnail"
         ),
+        mock_create_streamable=mocker.patch(
+            f"{endpoints.__name__}.create_streamable"
+        ),
     )
 
 
@@ -159,7 +165,7 @@ async def test_create_uav_video(
     assert got_video_id.name == create_uav_params.mock_uuid.return_value.hex
 
     # It should have updated the databases.
-    assert config.mock_object_store.create_object.call_count == 3
+    assert config.mock_object_store.create_object.call_count == 4
     config.mock_object_store.create_object.assert_any_call(
         got_video_id, data=create_uav_params.mock_file
     )
@@ -187,6 +193,18 @@ async def test_create_uav_video(
     config.mock_object_store.create_object.assert_any_call(
         ObjectRef(
             bucket=got_video_id.bucket, name=f"{got_video_id.name}.preview"
+        ),
+        data=mock_preview,
+    )
+
+    # It should have created the streaming version.
+    mock_transcoder_client.mock_create_preview.assert_called_once_with(
+        create_uav_params.mock_file, chunk_size=mock.ANY
+    )
+    mock_preview = mock_transcoder_client.mock_create_streamable.return_value
+    config.mock_object_store.create_object.assert_any_call(
+        ObjectRef(
+            bucket=got_video_id.bucket, name=f"{got_video_id.name}.streamable"
         ),
         data=mock_preview,
     )
@@ -259,8 +277,9 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
 
     # Assert.
     # It should have deleted the corresponding items in both databases.
+    # (There are one main artifact and 3 derived objects in the object store.)
     assert (
-        config.mock_object_store.delete_object.call_count == num_to_delete * 3
+        config.mock_object_store.delete_object.call_count == num_to_delete * 4
     )
     assert config.mock_metadata_store.delete.call_count == num_to_delete
     for object_ref in object_refs:
@@ -382,8 +401,16 @@ async def test_get_video(config: ConfigForTests, faker: Faker) -> None:
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
-        video_stream, media_type=mock.ANY
+        video_stream, media_type=mock.ANY, headers=mock.ANY
     )
+
+    # Check the headers.
+    _, response_kwargs = config.mock_streaming_response_class.call_args
+    headers = response_kwargs["headers"]
+    assert headers["Content-Length"] == str(metadata.size)
+    assert "attachment" in headers["Content-Disposition"]
+    assert metadata.name in headers["Content-Disposition"]
+
     assert response == config.mock_streaming_response_class.return_value
 
 
@@ -419,13 +446,23 @@ async def test_get_video_nonexistent(
 
 
 @pytest.mark.asyncio
-async def test_get_preview(config: ConfigForTests, faker: Faker) -> None:
+@pytest.mark.parametrize(
+    "endpoint",
+    [endpoints.get_preview, endpoints.get_streamable],
+    ids=["preview", "streamable"],
+)
+async def test_get_transcoded(
+    config: ConfigForTests,
+    faker: Faker,
+    endpoint: Callable[[str, str, ObjectStore], Awaitable[StreamingResponse]],
+) -> None:
     """
-    Tests that the `get_preview` endpoint works.
+    Tests that the `get_preview` and `get_streamable` endpoints works.
 
     Args:
         config: The configuration to use for testing.
         faker: The fixture to use for generating fake data.
+        endpoint: The endpoint to test.
 
     """
     # Arrange.
@@ -434,19 +471,19 @@ async def test_get_preview(config: ConfigForTests, faker: Faker) -> None:
     video_name = faker.pystr()
 
     # Act.
-    response = await endpoints.get_preview(
+    response = await endpoint(
         bucket=bucket,
         name=video_name,
         object_store=config.mock_object_store,
     )
 
     # Assert.
-    # It should have gotten the thumbnail.
+    # It should have gotten the video.
     config.mock_object_store.get_object.assert_called_once()
     args, _ = config.mock_object_store.get_object.call_args
     preview_id = args[0]
     assert preview_id.bucket == bucket
-    # The name for this object should be distinct from that of the raw image.
+    # The name for this object should be distinct from that of the raw artifact.
     assert preview_id.name != video_name
     video_stream = config.mock_object_store.get_object.return_value
 

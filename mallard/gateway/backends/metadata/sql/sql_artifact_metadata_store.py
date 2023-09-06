@@ -461,7 +461,9 @@ class SqlArtifactMetadataStore(
 
             return ObjectType.RASTER
 
-        return ObjectType.ARTIFACT
+        # Currently, we never actually take this path. This might need
+        # reconsideration later if we add new types of artifacts, though.
+        return ObjectType.ARTIFACT  # pragma: no cover
 
     async def add(
         self,

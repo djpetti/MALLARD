@@ -13,7 +13,8 @@ from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 from fastapi import UploadFile
 from loguru import logger
 
-from mallard.cli_utils import find_exe
+from ..cli_utils import find_exe
+from ..ffmpeg_utils import find_video_stream
 
 FFPROBE_ARGS = [
     "-hide_banner",
@@ -124,7 +125,7 @@ async def _streaming_communicate(
     def _submit_background_task(to_run: Coroutine) -> None:
         # This is necessary to stop tasks from getting garbage collected
         # before they're done.
-        next_task = asyncio.create_task(to_run)
+        next_task = asyncio.create_task(to_run, name=to_run.__name__)
         running_tasks.add(next_task)
         # Remove it once it finishes.
         next_task.add_done_callback(_finalize_background_task)
@@ -140,8 +141,9 @@ async def _streaming_communicate(
         process.stdin.write(chunk)
         try:
             await process.stdin.drain()
-        except ConnectionResetError:  # pragma: no coverage
+        except (BrokenPipeError, ConnectionResetError):  # pragma: no coverage
             # The process probably exited, so we should terminate nicely.
+            await process.stdin.wait_closed()
             return
 
         if process.returncode is None:
@@ -254,9 +256,59 @@ async def create_preview(
         "-i",
         "pipe:",
         "-vf",
-        f"scale={preview_width}:-2,setsar=1:1",
+        f"scale={preview_width}:-2,setsar=1:1,fps=30",
         "-c:v",
         "vp9",
+        "-row-mt",
+        "1",
+        "-f",
+        "webm",
+        "-",
+        **_DEFAULT_PIPES,
+    )
+    return await _streaming_communicate(ffmpeg_process, input_source=source)
+
+
+async def create_streamable(
+    source: UploadFile, max_width: int = 1920
+) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
+    """
+    Creates a version of the video optimized for streaming.
+
+    Args:
+        source: The source video to process.
+        max_width: The maximum width of the video, in pixels. (Videos with an
+            original resolution lower than this will not be resized.)
+
+    Returns:
+        The video preview, as a raw stream, and the stderr from FFMpeg.
+
+    """
+    # First, use FFProbe to get the input resolution.
+    ffprobe_results = await ffprobe(source)
+    # Reset the file so we can read it again.
+    await source.seek(0)
+    input_width = find_video_stream(ffprobe_results)["width"]
+    output_width = min(input_width, max_width)
+    logger.debug("Transcoding video to width {}.", output_width)
+
+    ffmpeg = find_exe("ffmpeg")
+    ffmpeg_process = await asyncio.create_subprocess_exec(
+        ffmpeg,
+        "-i",
+        "pipe:",
+        "-vf",
+        f"scale={output_width}:-2,setsar=1:1,fps=30",
+        "-c:v",
+        "vp9",
+        "-row-mt",
+        "1",
+        "-b:v",
+        "1800k",
+        "-maxrate",
+        "2610k",
+        "-crf",
+        "10",
         "-f",
         "webm",
         "-",

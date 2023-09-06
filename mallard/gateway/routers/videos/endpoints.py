@@ -3,7 +3,7 @@ API endpoints for managing video data.
 """
 import asyncio
 import uuid
-from typing import List, cast
+from typing import Any, Awaitable, List, Set, Type, cast
 
 from fastapi import (
     APIRouter,
@@ -31,7 +31,11 @@ from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id
 from ..common import check_key_errors, get_metadata, update_metadata
 from .schemas import CreateResponse, MetadataResponse
-from .transcoder_client import create_preview, create_thumbnail
+from .transcoder_client import (
+    create_preview,
+    create_streamable,
+    create_thumbnail,
+)
 from .video_metadata import InvalidVideoError, fill_metadata
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -49,6 +53,30 @@ _VIDEO_FORMAT_TO_MIME_TYPES = {
 """
 Maps video formats to corresponding MIME types.
 """
+
+
+async def ignore_errors(
+    awaitable: Awaitable,
+    to_ignore: Set[Type[Exception]] = frozenset({KeyError}),
+) -> Any:
+    """
+    Wrapper for a task that ignores certain errors.
+
+    Args:
+        awaitable: The awaitable to run as a task.
+        to_ignore: The exceptions to ignore.
+
+    Returns:
+        The awaitable's return value.
+
+    """
+    try:
+        return await awaitable
+    except Exception as error:
+        if type(error) in to_ignore:
+            logger.warning("Ignoring exception {} from {}.", error, awaitable)
+        else:
+            raise error
 
 
 async def filled_uav_metadata(
@@ -141,22 +169,30 @@ async def create_uav_video(
     # Create and save the preview.
     thumbnail_object_id = derived_id(object_id, "thumbnail")
     preview_object_id = derived_id(object_id, "preview")
+    streamable_object_id = derived_id(object_id, "streamable")
+
+    # Create the thumbnail.
+    await video_data.seek(0)
+    thumbnail = create_thumbnail(
+        video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+    )
+    await object_store.create_object(thumbnail_object_id, data=thumbnail)
 
     async def _create_preview_and_thumbnail() -> None:
         # Do this sequentially so that it doesn't try to read from the file
         # concurrently.
         logger.debug("Starting video transcode background task...")
         await video_data.seek(0)
-        thumbnail = create_thumbnail(
-            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-        )
-        await object_store.create_object(thumbnail_object_id, data=thumbnail)
-
-        await video_data.seek(0)
         preview = create_preview(
             video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
         )
         await object_store.create_object(preview_object_id, data=preview)
+
+        await video_data.seek(0)
+        streamable = create_streamable(
+            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+        )
+        await object_store.create_object(streamable_object_id, data=streamable)
         logger.debug("Finished video transcode background task.")
 
     background_tasks.add_task(_create_preview_and_thumbnail)
@@ -186,15 +222,30 @@ async def delete_videos(
     with check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for video in videos:
+                tasks.create_task(metadata_store.delete(video))
+
                 tasks.create_task(object_store.delete_object(video))
                 tasks.create_task(
                     object_store.delete_object(derived_id(video, "thumbnail"))
                 )
-                tasks.create_task(
-                    object_store.delete_object(derived_id(video, "preview"))
-                )
 
-                tasks.create_task(metadata_store.delete(video))
+                # These are created as background tasks, and could
+                # potentially fail if the video is deleted before the tasks
+                # are finished.
+                tasks.create_task(
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "preview")
+                        )
+                    )
+                )
+                tasks.create_task(
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "streamable")
+                        )
+                    )
+                )
 
 
 @router.get("/{bucket}/{name}")
@@ -234,10 +285,44 @@ async def get_video(
     return StreamingResponse(
         object_task.result(),
         media_type=mime_type,
-        # TODO (danielp) Re-enable content length once we can be sure that
-        #  saved sizes are correct.
-        # headers={"Content-Length": str(metadata.size)},
+        headers={
+            "Content-Length": str(metadata.size),
+            "Content-Disposition": f'attachment; filename= "{metadata.name}"',
+        },
     )
+
+
+async def _get_transcoded_video_stream(
+    *,
+    bucket: str,
+    name: str,
+    suffix: str,
+    object_store: ObjectStore,
+) -> StreamingResponse:
+    """
+    Retrieves a transcoded video from the server.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        suffix: The suffix to apply to the object id.
+        object_store: The object store to use.
+
+    Returns:
+        A `StreamingResponse` object containing the thumbnail.
+
+    """
+    object_id = ObjectRef(bucket=bucket, name=name)
+    preview_object_id = derived_id(object_id, suffix=suffix)
+    try:
+        preview_stream = await object_store.get_object(preview_object_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail="Requested video could not be found.",
+        )
+
+    return StreamingResponse(preview_stream, media_type="video/vp9")
 
 
 @router.get("/preview/{bucket}/{name}")
@@ -250,8 +335,8 @@ async def get_preview(
     Retrieves a preview from the server.
 
     Args:
-        bucket: The bucket the thumbnail is in.
-        name: The name of the thumbnail.
+        bucket: The bucket the video is in.
+        name: The name of the video.
         object_store: The object store to use.
 
     Returns:
@@ -259,18 +344,38 @@ async def get_preview(
 
     """
     logger.info("Getting preview for video {} in bucket {}.", name, bucket)
+    return await _get_transcoded_video_stream(
+        bucket=bucket, name=name, suffix="preview", object_store=object_store
+    )
 
-    object_id = ObjectRef(bucket=bucket, name=name)
-    preview_object_id = derived_id(object_id, suffix="preview")
-    try:
-        preview_stream = await object_store.get_object(preview_object_id)
-    except KeyError:
-        raise HTTPException(
-            status_code=404,
-            detail="Requested video preview could not be found.",
-        )
 
-    return StreamingResponse(preview_stream, media_type="video/vp9")
+@router.get("/stream/{bucket}/{name}")
+async def get_streamable(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> StreamingResponse:
+    """
+    Retrieves a streaming-optimized version of the video from the server.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        object_store: The object store to use.
+
+    Returns:
+        A `StreamingResponse` object containing the thumbnail.
+
+    """
+    logger.info(
+        "Getting streamable version of video {} in bucket {}.", name, bucket
+    )
+    return await _get_transcoded_video_stream(
+        bucket=bucket,
+        name=name,
+        suffix="streamable",
+        object_store=object_store,
+    )
 
 
 @router.post("/metadata", response_model=MetadataResponse)

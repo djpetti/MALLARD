@@ -61,7 +61,12 @@ def config(mocker: MockFixture, faker: Faker) -> ConfigForTests:
 
 @pytest.mark.parametrize(
     "endpoint",
-    [endpoints.get_index, partial(endpoints.get_details, "bucket", "name")],
+    [
+        endpoints.get_index,
+        partial(
+            endpoints.get_details, ObjectType.ARTIFACT.value, "bucket", "name"
+        ),
+    ],
     ids=["get_index", "get_details"],
 )
 @pytest.mark.parametrize("fragment", [False, True], ids=["normal", "fragment"])
@@ -127,9 +132,10 @@ async def test_get_details(faker: Faker, config: ConfigForTests) -> None:
     # Arrange.
     bucket = faker.pystr()
     name = faker.pystr()
+    object_type = faker.random_element(ObjectType)
 
     # Act.
-    got_response = await endpoints.get_details(bucket, name)
+    got_response = await endpoints.get_details(object_type, bucket, name)
 
     # Assert.
     # It should have filled in the template.

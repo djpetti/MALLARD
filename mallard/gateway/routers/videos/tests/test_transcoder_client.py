@@ -183,7 +183,6 @@ async def test_probe_video_bad_response(
 @pytest.mark.asyncio
 async def test_create_preview(
     config: ConfigForTests,
-    faker: Faker,
     mock_response: ClientResponse,
     binary_content: bytes,
 ) -> None:
@@ -192,7 +191,6 @@ async def test_create_preview(
 
     Args:
         config: The configuration to use for testing.
-        faker: The fixture to use for generating fake data.
         mock_response: The mocked response object.
         binary_content: The binary content of the response object.
 
@@ -252,6 +250,83 @@ async def test_create_preview_bad_response(
     # Act and assert.
     with pytest.raises(transcoder_client.HTTPException):
         async for _ in transcoder_client.create_preview(
+            config.mock_video,
+        ):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_create_streamable(
+    config: ConfigForTests,
+    mock_response: ClientResponse,
+    binary_content: bytes,
+) -> None:
+    """
+    Tests that `create_streamable` works.
+
+    Args:
+        config: The configuration to use for testing.
+        mock_response: The mocked response object.
+        binary_content: The binary content of the response object.
+
+    """
+    # Arrange.
+    mock_post = config.mock_get_session.return_value.post
+
+    # Make it look like the transcoder service produced a valid response.
+    mock_post.return_value.__aenter__.return_value = mock_response
+
+    # Act.
+    got_stream = transcoder_client.create_streamable(
+        config.mock_video,
+    )
+
+    # Assert.
+    # It should have read the probe results.
+    got_video_data = b"".join([c async for c in got_stream])
+    assert got_video_data == binary_content
+
+    config.mock_get_session.assert_called_once_with()
+    mock_post.assert_called_once_with(
+        "/create_streaming_video", data=mock.ANY, timeout=mock.ANY
+    )
+    config.mock_read_file_chunks.assert_called_once_with(config.mock_video)
+
+    # It should have produced a correct form.
+    config.mock_form_data_class.assert_called_once_with()
+    mock_form_data = config.mock_form_data_class.return_value
+    mock_form_data.add_field.assert_called_once_with(
+        "video",
+        config.mock_read_file_chunks.return_value,
+        filename=config.mock_video.filename,
+        content_type=config.mock_video.content_type,
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_streamable_bad_response(
+    config: ConfigForTests, mocker: MockFixture
+) -> None:
+    """
+    Tests that `create_streamable` handles a bad response from the transcoder
+    service.
+
+    Args:
+        config: The configuration to use for testing.
+        mocker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    mock_post = config.mock_get_session.return_value.post
+
+    # Make it look like the transcoder service produced an invalid response.
+    mock_response = mocker.create_autospec(ClientResponse, instance=True)
+    mock_response.status = 500
+    mock_post.return_value.__aenter__.return_value = mock_response
+
+    # Act and assert.
+    with pytest.raises(transcoder_client.HTTPException):
+        async for _ in transcoder_client.create_streamable(
             config.mock_video,
         ):
             pass

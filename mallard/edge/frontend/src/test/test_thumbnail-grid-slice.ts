@@ -1279,8 +1279,7 @@ describe("thumbnail-grid-slice action creators", () => {
     (_, imageEntity?: ArtifactEntity) => {
       // Arrange.
       // Create a fake image.
-      const backendId =
-        imageEntity?.backendId ?? fakeTypedObjectRef(ObjectType.IMAGE);
+      const backendId = imageEntity?.backendId ?? fakeTypedObjectRef();
       const frontendId = createArtifactEntityId(backendId.id);
 
       const state = fakeState();

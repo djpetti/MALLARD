@@ -51,7 +51,12 @@ const mockResizeObserver = jest.fn(() => ({
 }));
 global.ResizeObserver = mockResizeObserver;
 
-describe("large-image-display", () => {
+// Use fake timers.
+jest.useFakeTimers();
+jest.spyOn(window, "setInterval");
+jest.spyOn(window, "clearInterval");
+
+describe("large-artifact-display", () => {
   /** Internal large-image-display to use for testing. */
   let displayElement: ConnectedLargeArtifactDisplay;
 
@@ -90,6 +95,49 @@ describe("large-image-display", () => {
     expect(mockResizeObserver).toBeCalledTimes(1);
     const mockResizeObserverInstance = mockResizeObserver.mock.results[0].value;
     expect(mockResizeObserverInstance.observe).toBeCalledWith(displayElement);
+  });
+
+  it("renders the transcoding message when the video fails to load", async () => {
+    // Arrange.
+    displayElement.type = ObjectType.VIDEO;
+    displayElement.sourceUrl = faker.internet.url();
+
+    // Act.
+    await displayElement.updateComplete;
+
+    // Make it look like loading failed with an error.
+    const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
+    const videoElement = root.querySelector("#media") as HTMLVideoElement;
+    expect(videoElement).not.toBeNull();
+    videoElement.dispatchEvent(new Event("error"));
+
+    await displayElement.updateComplete;
+
+    // Assert.
+    // It should be displaying the transcoding message.
+    let transcodingMessageElement = root.querySelector(
+      ".transcode_message_background"
+    ) as HTMLDivElement;
+    expect(transcodingMessageElement).not.toBeNull();
+
+    // It should have set a timer to try reloading the video.
+    expect(window.setInterval).toBeCalledTimes(1);
+
+    // Act.
+    // Wait for the timer to run.
+    jest.runOnlyPendingTimers();
+
+    await displayElement.updateComplete;
+
+    // Assert.
+    // It should have cleared the timer again.
+    expect(window.clearInterval).toBeCalledTimes(1);
+
+    // It should have not rendered the transcoding message.
+    transcodingMessageElement = root.querySelector(
+      ".transcode_message_background"
+    ) as HTMLDivElement;
+    expect(transcodingMessageElement).toBeNull();
   });
 
   it("fires an event when the image is updated", async () => {
@@ -152,7 +200,13 @@ describe("large-image-display", () => {
       // Create a fake state.
       const state: RootState = fakeState();
       // Make it look like the image is not loaded.
-      const entity = fakeArtifactEntity(undefined, imageLoaded, undefined, undefined, artifactType);
+      const entity = fakeArtifactEntity(
+        undefined,
+        imageLoaded,
+        undefined,
+        undefined,
+        artifactType
+      );
       state.imageView.ids = [frontendId];
       state.imageView.entities[frontendId] = entity;
 

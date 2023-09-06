@@ -282,9 +282,12 @@ async def get_image(
     return StreamingResponse(
         image_stream,
         media_type=mime_type,
-        # TODO (danielp) Re-enable content length once we can be sure that
-        #  saved sizes are correct.
-        # headers={"Content-Length": str(metadata.size)},
+        headers={
+            # TODO (danielp) Re-enable content length once we can be sure that
+            #  saved sizes are correct.
+            # "Content-Length": str(metadata.size)
+            "Content-Disposition": f'attachment; filename= "{metadata.name}"',
+        },
     )
 
 

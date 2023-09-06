@@ -401,10 +401,16 @@ async def test_get_video(config: ConfigForTests, faker: Faker) -> None:
 
     # It should have used a StreamingResponse object.
     config.mock_streaming_response_class.assert_called_once_with(
-        video_stream,
-        media_type=mock.ANY,
-        headers={"Content-Length": str(metadata.size)},
+        video_stream, media_type=mock.ANY, headers=mock.ANY
     )
+
+    # Check the headers.
+    _, response_kwargs = config.mock_streaming_response_class.call_args
+    headers = response_kwargs["headers"]
+    assert headers["Content-Length"] == str(metadata.size)
+    assert "attachment" in headers["Content-Disposition"]
+    assert metadata.name in headers["Content-Disposition"]
+
     assert response == config.mock_streaming_response_class.return_value
 
 

@@ -3,7 +3,7 @@ API endpoints for managing video data.
 """
 import asyncio
 import uuid
-from typing import List, cast
+from typing import Any, Awaitable, List, Set, Type, cast
 
 from fastapi import (
     APIRouter,
@@ -53,6 +53,30 @@ _VIDEO_FORMAT_TO_MIME_TYPES = {
 """
 Maps video formats to corresponding MIME types.
 """
+
+
+async def ignore_errors(
+    awaitable: Awaitable,
+    to_ignore: Set[Type[Exception]] = frozenset({KeyError}),
+) -> Any:
+    """
+    Wrapper for a task that ignores certain errors.
+
+    Args:
+        awaitable: The awaitable to run as a task.
+        to_ignore: The exceptions to ignore.
+
+    Returns:
+        The awaitable's return value.
+
+    """
+    try:
+        return await awaitable
+    except Exception as error:
+        if type(error) in to_ignore:
+            logger.warning("Ignoring exception {} from {}.", error, awaitable)
+        else:
+            raise error
 
 
 async def filled_uav_metadata(
@@ -147,16 +171,17 @@ async def create_uav_video(
     preview_object_id = derived_id(object_id, "preview")
     streamable_object_id = derived_id(object_id, "streamable")
 
+    # Create the thumbnail.
+    await video_data.seek(0)
+    thumbnail = create_thumbnail(
+        video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+    )
+    await object_store.create_object(thumbnail_object_id, data=thumbnail)
+
     async def _create_preview_and_thumbnail() -> None:
         # Do this sequentially so that it doesn't try to read from the file
         # concurrently.
         logger.debug("Starting video transcode background task...")
-        await video_data.seek(0)
-        thumbnail = create_thumbnail(
-            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-        )
-        await object_store.create_object(thumbnail_object_id, data=thumbnail)
-
         await video_data.seek(0)
         preview = create_preview(
             video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
@@ -197,18 +222,30 @@ async def delete_videos(
     with check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for video in videos:
+                tasks.create_task(metadata_store.delete(video))
+
                 tasks.create_task(object_store.delete_object(video))
                 tasks.create_task(
                     object_store.delete_object(derived_id(video, "thumbnail"))
                 )
-                tasks.create_task(
-                    object_store.delete_object(derived_id(video, "preview"))
-                )
-                tasks.create_task(
-                    object_store.delete_object(derived_id(video, "streamable"))
-                )
 
-                tasks.create_task(metadata_store.delete(video))
+                # These are created as background tasks, and could
+                # potentially fail if the video is deleted before the tasks
+                # are finished.
+                tasks.create_task(
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "preview")
+                        )
+                    )
+                )
+                tasks.create_task(
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "streamable")
+                        )
+                    )
+                )
 
 
 @router.get("/{bucket}/{name}")
@@ -248,7 +285,10 @@ async def get_video(
     return StreamingResponse(
         object_task.result(),
         media_type=mime_type,
-        headers={"Content-Length": str(metadata.size)},
+        headers={
+            "Content-Length": str(metadata.size),
+            "Content-Disposition": f'attachment; filename= "{metadata.name}"',
+        },
     )
 
 

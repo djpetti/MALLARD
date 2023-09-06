@@ -776,21 +776,19 @@ export function thunkSelectImages({
  * Thunk that handles displaying the details view for an image. It handles
  * all the tasks including registering the image in the state (if needed),
  * and loading the image and metadata.
- * @param {ObjectRef} backendId The ID of the image on the backend.
+ * @param {TypedObjectRef} backendId The ID of the image on the backend.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
  */
-export function thunkShowDetails(backendId: ObjectRef): ThunkResult<void> {
+export function thunkShowDetails(backendId: TypedObjectRef): ThunkResult<void> {
   return (dispatch, getState) => {
     const state = getState();
 
     // Check if the image is registered in the state.
-    const frontendId = createArtifactEntityId(backendId);
+    const frontendId = createArtifactEntityId(backendId.id);
     if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
       // We need to register it.
-      // TODO (danielp): Eventually, we'll need to not assume that this is
-      //  an image.
-      dispatch(addArtifacts([{ id: backendId, type: ObjectType.IMAGE }]));
+      dispatch(addArtifacts([backendId]));
     }
 
     // Mark this as the image displayed on the details page.

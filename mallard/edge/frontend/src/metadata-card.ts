@@ -55,7 +55,7 @@ export class MetadataCard extends ArtifactInfoBase {
       <div class="mdc-card card">
         <div class="card-content">
           ${
-            this.metadata === undefined
+            !this.metadata
               ? html` <!-- Show the loading indicator -->
                   <mwc-circular-progress
                     class="vertical-center"

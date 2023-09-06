@@ -1,5 +1,5 @@
 import { ArtifactDisplay } from "./artifact-display";
-import { css, PropertyValues } from "lit";
+import { css, html, PropertyValues, TemplateResult } from "lit";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ArtifactStatus } from "./types";
@@ -12,6 +12,9 @@ import {
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import { ObjectType } from "mallard-api";
+import { state } from "lit/decorators.js";
+import "@material/mwc-icon";
+import "@material/mwc-linear-progress";
 
 /**
  * An element for displaying a full-sized image.
@@ -26,6 +29,55 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
       height: calc(100vh - 64px);
     }
 
+    .transcode_message_background {
+      background-color: var(--theme-dark-gray);
+      width: 100%;
+      height: 100%;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .grid_container {
+      display: grid;
+      grid-template-columns: auto 30px auto;
+      justify-items: center;
+      align-items: center;
+    }
+
+    h1 {
+      font-family: Roboto;
+      font-size: 40pt;
+      font-weight: bold;
+      color: var(--theme-whitish);
+    }
+
+    p {
+      font-family: Roboto;
+      font-size: 12pt;
+      font-weight: lighter;
+      color: var(--theme-whitish);
+    }
+
+    .grid_full_row {
+      /* Use an entire row of the grid layout. */
+      grid-column-start: 1;
+      grid-column-end: 4;
+    }
+
+    .grid_justify_right {
+      justify-self: end;
+    }
+
+    .grid_justify_left {
+      justify-self: start;
+    }
+
+    #download_icon {
+      color: var(--theme-whitish);
+    }
+
     .placeholder {
       height: 100vh;
     }
@@ -38,6 +90,20 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
   `;
 
   static readonly tagName = "large-artifact-display";
+
+  /**
+   * If true, it will show a message about video transcoding running instead
+   * of the artifact itself.
+   * @private
+   */
+  @state()
+  private showTranscodingMessage: boolean = false;
+
+  /**
+   * Interval that will periodically try reloading the video if the initial
+   * load fails.
+   */
+  private videoReloadInterval?: number;
 
   // Default to showing the animation for large images, which might
   // take a while to load.
@@ -66,6 +132,65 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
   }
 
   /**
+   * Sets up periodic reloading of the video.
+   * @private
+   */
+  private setVideoReloadInterval() {
+    if (this.videoReloadInterval !== undefined) {
+      // It's already set up.
+      return;
+    }
+
+    this.videoReloadInterval = window.setInterval(() => {
+      // Clear this before reloading. It will be reset if loading the
+      // video fails again.
+      this.showTranscodingMessage = false;
+      this.requestUpdate();
+    }, 15000);
+  }
+
+  /**
+   * Disables periodic reloading of the video.
+   * @private
+   */
+  private clearVideoReloadInterval() {
+    if (this.videoReloadInterval !== undefined) {
+      window.clearInterval(this.videoReloadInterval);
+    }
+    this.videoReloadInterval = undefined;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected override renderVideo(): TemplateResult {
+    if (!this.showTranscodingMessage) {
+      this.clearVideoReloadInterval();
+      return super.renderVideo();
+    }
+
+    // Rerender periodically.
+    this.setVideoReloadInterval();
+
+    // Render the transcoding message.
+    return html`
+      <div class="transcode_message_background">
+        <div class="grid_container">
+          <h1 class="grid_full_row">This video is being transcoded...</h1>
+          <mwc-linear-progress
+            style="width: 100%"
+            class="grid_full_row"
+            indeterminate
+          ></mwc-linear-progress>
+          <p class="grid_justify_right">In the meantime, you can press</p>
+          <mwc-icon id="download_icon">download</mwc-icon>
+          <p class="grid_justify_left">to download the original file.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * @inheritDoc
    */
   protected override firstUpdated(_changedProperties: PropertyValues) {
@@ -88,6 +213,24 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     if (_changedProperties.has("sourceUrl")) {
       this.adjustSizes();
     }
+
+    if (this.type === ObjectType.VIDEO) {
+      // Add a handler for the error event. We assume that this is because
+      // the video is still being transcoded.
+      this.media?.addEventListener(
+        "error",
+        () => (this.showTranscodingMessage = true),
+        { once: true }
+      );
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public override disconnectedCallback() {
+    // Make sure the reload interval is not running.
+    this.clearVideoReloadInterval();
   }
 }
 

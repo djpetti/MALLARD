@@ -8,7 +8,7 @@ import "./notes-card";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
-import { ObjectRef, ObjectType } from "mallard-api";
+import { ObjectType, TypedObjectRef } from "mallard-api";
 import { thunkShowDetails } from "./thumbnail-grid-slice";
 
 /**
@@ -130,11 +130,17 @@ export class ArtifactDetails extends LitElement {
       this.frontendId = undefined;
       // The image was changed. Dispatch the event.
       this.dispatchEvent(
-        new CustomEvent<ObjectRef>(ArtifactDetails.IMAGE_CHANGED_EVENT_NAME, {
-          bubbles: true,
-          composed: false,
-          detail: { bucket: this.backendBucket, name: this.backendName },
-        })
+        new CustomEvent<TypedObjectRef>(
+          ArtifactDetails.IMAGE_CHANGED_EVENT_NAME,
+          {
+            bubbles: true,
+            composed: false,
+            detail: {
+              id: { bucket: this.backendBucket, name: this.backendName },
+              type: this.artifactType as ObjectType,
+            },
+          }
+        )
       );
     }
   }
@@ -165,7 +171,7 @@ export class ConnectedArtifactDetails extends connect(store, ArtifactDetails) {
       event: Event
     ) =>
       thunkShowDetails(
-        (event as CustomEvent<ObjectRef>).detail
+        (event as CustomEvent<TypedObjectRef>).detail
       ) as unknown as Action;
     return handlers;
   }

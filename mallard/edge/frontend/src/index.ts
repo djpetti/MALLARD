@@ -11,6 +11,7 @@ import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import "@material/mwc-radio";
 import "@material/mwc-formfield";
+import "@material/mwc-linear-progress";
 import "./thumbnail-grid";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";

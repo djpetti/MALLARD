@@ -1292,7 +1292,7 @@ describe("thumbnail-grid-slice action creators", () => {
       const store = mockStoreCreator(state);
 
       // Act.
-      thunkShowDetails(backendId.id)(
+      thunkShowDetails(backendId)(
         store.dispatch,
         store.getState as () => RootState,
         {}

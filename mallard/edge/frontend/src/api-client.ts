@@ -176,23 +176,34 @@ export async function getMetadata(
  * Uploads a new image.
  * @param {Blob} imageData The raw image data.
  * @param {string} name The name to use for the uploaded file.
- * @param {UavImageMetadata} metadata The associated metadata for the image.
+ * @param {function} onProgress A callback to run
+ *  whenever the upload progresses.
  * @return {ObjectRef} The ID of the new artifact that it created.
  */
 export async function createImage(
   imageData: Blob,
-  { name, metadata }: { name: string; metadata: UavImageMetadata }
+  { name, metadata }: { name: string; metadata: UavImageMetadata },
+  onProgress?: (percentDone: number) => void
 ): Promise<ObjectRef> {
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
   // Set the size based on the image to upload.
   metadata.size = imageData.size;
 
+  let config = {};
+  if (onProgress !== undefined) {
+    config = {
+      onUploadProgress: (progressEvent: ProgressEvent) => {
+        onProgress((progressEvent.loaded / progressEvent.total) * 100);
+      },
+    };
+  }
+
   const response = await imagesApi
     .createUavImageImagesCreateUavPost(
       offset,
       new File([imageData], name),
-      ...metadataToForm(metadata)
+      ...metadataToForm(metadata).concat(config)
     )
     .catch(function (error) {
       console.error(error.toJSON());

@@ -109,7 +109,7 @@ export class FileListDisplay extends LitElement {
       case FileStatus.UPLOADING: {
         statusIcon = html`<mwc-circular-progress
           slot="meta"
-          indeterminate
+          progress="${file.uploadProgress / 100}"
           density="-6"
         ></mwc-circular-progress>`;
         break;

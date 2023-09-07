@@ -238,6 +238,8 @@ export interface FrontendFileEntity {
   name: string;
   /** Current status of the file. */
   status: FileStatus;
+  /** Percentage of the file that has been uploaded. */
+  uploadProgress: number;
 
   /**
    * The corresponding reference to this file on the backend, if it exists there.

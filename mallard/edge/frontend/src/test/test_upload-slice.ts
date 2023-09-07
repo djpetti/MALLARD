@@ -1,24 +1,25 @@
 import configureStore, { MockStore, MockStoreCreator } from "redux-mock-store";
 import thunk from "redux-thunk";
 import {
+  fakeFile,
   fakeFrontendFileEntity,
   fakeImageMetadata,
   fakeObjectRef,
-  fakeFile,
   fakeState,
 } from "./element-test-utils";
 import uploadReducer, {
-  thunkFinishUpload,
+  addSelectedFiles,
   dialogClosed,
   dialogOpened,
   fileDropZoneEntered,
   fileDropZoneExited,
   setMetadata,
+  thunkFinishUpload,
   thunkInferMetadata,
-  thunkUploadFile,
-  uploadSlice,
-  addSelectedFiles,
   thunkPreProcessFiles,
+  thunkUploadFile,
+  updateProgress,
+  uploadSlice,
 } from "../upload-slice";
 import {
   FileStatus,
@@ -156,9 +157,27 @@ describe("upload-slice action creators", () => {
       // It should have uploaded the image.
       const fakeFile = idsToFiles.get(uploadFile.id) as File;
       expect(mockCreateImage).toHaveBeenCalledTimes(1);
-      expect(mockCreateImage).toBeCalledWith(fakeFile, {
-        name: fakeFile.name,
-        metadata: {},
+      expect(mockCreateImage).toBeCalledWith(
+        fakeFile,
+        {
+          name: fakeFile.name,
+          metadata: {},
+        },
+        expect.anything()
+      );
+
+      // The process callback should dispatch a new action to update the
+      // progress.
+      const progressCallback = mockCreateImage.mock.calls[0][2];
+      const progress = faker.datatype.number({ min: 0, max: 100 });
+      progressCallback(progress);
+
+      expect(store.getActions()).toHaveLength(3);
+      const updateProgressAction = store.getActions()[2];
+      expect(updateProgressAction.type).toEqual(updateProgress.type);
+      expect(updateProgressAction.payload).toEqual({
+        id: uploadFile.id,
+        progress,
       });
     });
 
@@ -419,6 +438,32 @@ describe("upload-slice reducers", () => {
     // Assert.
     expect(newState.metadata).toEqual(newMetadata);
     expect(newState.metadataChanged).toEqual(true);
+  });
+
+  it("handles an updateProgress action", () => {
+    // Arrange.
+    const state: UploadState = fakeState().uploads;
+
+    // Create a fake file that is being uploaded.
+    const uploadingFile = fakeFrontendFileEntity(FileStatus.UPLOADING);
+    uploadingFile.uploadProgress = 0.0;
+    state.ids = [uploadingFile.id];
+    state.entities[uploadingFile.id] = uploadingFile;
+
+    // Act.
+    const newProgress = faker.datatype.number({ min: 0.0, max: 100.0 });
+    const newState = uploadSlice.reducer(
+      state,
+      updateProgress({
+        id: uploadingFile.id,
+        progress: newProgress,
+      })
+    );
+
+    // Assert.
+    expect(newState.entities[uploadingFile.id]?.uploadProgress).toEqual(
+      newProgress
+    );
   });
 
   it("handles an uploadFile/pending action", () => {

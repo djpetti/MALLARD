@@ -58,14 +58,34 @@ describe("file-list-display", () => {
     // after each one.
     expect(listItems).toHaveLength(fakeFiles.length);
 
-    // It should correctly display the file names.
+    // It should correctly display the file names and upload progress.
     const displayedNames = [];
+    const namesToProgress = new Map<string, number | undefined>();
     for (const listItem of listItems ?? []) {
-      displayedNames.push(listItem.querySelector("span")?.textContent);
+      const name = listItem.querySelector("span")?.textContent;
+      displayedNames.push(name);
+      if (name) {
+        namesToProgress.set(
+          name,
+          listItem.querySelector("mwc-circular-progress")?.progress
+        );
+      }
     }
-    const fileNames = fakeFiles.map((f) => f.name);
-    for (const fileName of fileNames) {
-      expect(displayedNames).toContain(fileName);
+
+    for (const entity of fakeFiles) {
+      // Check the name.
+      expect(displayedNames).toContain(entity.name);
+
+      // Check the progress.
+      if (entity.status === FileStatus.UPLOADING) {
+        expect(namesToProgress.get(entity.name)).toEqual(
+          entity.uploadProgress / 100
+        );
+      } else {
+        // If it's not actively uploading, it should not display the
+        // progress indicator.
+        expect(namesToProgress.get(entity.name)).toBeUndefined();
+      }
     }
 
     // It should have displayed things in the correct order.

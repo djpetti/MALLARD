@@ -132,7 +132,7 @@ describe("file-uploader", () => {
         fakeFrontendFileEntity(FileStatus.UPLOADING),
         fakeFrontendFileEntity(FileStatus.COMPLETE),
       ],
-      ConnectedFileUploader.MAX_CONCURRENT_UPLOADS - 1,
+      Math.min(ConnectedFileUploader.MAX_CONCURRENT_UPLOADS - 1, 3),
     ],
     [
       "none ready",
@@ -148,7 +148,7 @@ describe("file-uploader", () => {
         fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
         fakeFrontendFileEntity(FileStatus.AWAITING_UPLOAD),
       ],
-      2,
+      Math.min(ConnectedFileUploader.MAX_CONCURRENT_UPLOADS, 2),
     ],
     [
       "max uploads reached",
@@ -200,7 +200,72 @@ describe("file-uploader", () => {
 
     // Assert.
     expect(handler).toBeCalledTimes(1);
+
+    // It should have selected the right file.
+    expect(handler.mock.calls[0][0].detail).toEqual(fakeFile.id);
   });
+
+  each([
+    [
+      "some ready",
+      [
+        fakeFrontendFileEntity(FileStatus.PENDING),
+        fakeFrontendFileEntity(FileStatus.PENDING),
+        fakeFrontendFileEntity(FileStatus.PENDING),
+        fakeFrontendFileEntity(FileStatus.UPLOADING),
+        fakeFrontendFileEntity(FileStatus.COMPLETE),
+      ],
+      Math.min(ConnectedFileUploader.MAX_CONCURRENT_PRE_PROCESSING, 3),
+    ],
+    [
+      "none ready",
+      [
+        fakeFrontendFileEntity(FileStatus.UPLOADING),
+        fakeFrontendFileEntity(FileStatus.COMPLETE),
+      ],
+      0,
+    ],
+    [
+      "all ready",
+      [
+        fakeFrontendFileEntity(FileStatus.PENDING),
+        fakeFrontendFileEntity(FileStatus.PENDING),
+      ],
+      Math.min(ConnectedFileUploader.MAX_CONCURRENT_PRE_PROCESSING, 2),
+    ],
+    [
+      "max concurrency reached",
+      Array(FileUploader.MAX_CONCURRENT_PRE_PROCESSING)
+        .fill(fakeFrontendFileEntity(FileStatus.PRE_PROCESSING))
+        .concat([FileStatus.AWAITING_UPLOAD]),
+      0,
+    ],
+  ]).it(
+    "dispatches events when a file is found for preprocessing (%s)",
+    async (
+      _: string,
+      files: FrontendFileEntity[],
+      numExpectedFiles: number
+    ) => {
+      // Arrange.
+      // Setup a fake handler for our event.
+      const handler = jest.fn();
+      fileUploader.addEventListener(
+        ConnectedFileUploader.PRE_PROCESS_READY_EVENT_NAME,
+        handler
+      );
+
+      // Act.
+      fileUploader.uploadingFiles = files;
+      await fileUploader.updateComplete;
+
+      // Assert.
+      expect(handler).toBeCalledTimes(numExpectedFiles > 0 ? 1 : 0);
+      if (numExpectedFiles > 0) {
+        expect(handler.mock.calls[0][0].detail).toHaveLength(numExpectedFiles);
+      }
+    }
+  );
 
   each([
     ["valid", true, true],

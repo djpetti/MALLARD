@@ -3,11 +3,11 @@
  */
 
 import {
+  ArtifactEntity,
+  ArtifactStatus,
   FileStatus,
   FrontendFileEntity,
-  ArtifactEntity,
   ImageQuery,
-  ArtifactStatus,
   MetadataInferenceStatus,
   RequestState,
   RootState,
@@ -218,9 +218,12 @@ export function fakeFrontendFileEntity(
   const id = faker.datatype.uuid();
   const iconUrl = faker.image.dataUri();
   const name = faker.system.fileName();
-  if (status == undefined) {
+  const progress = faker.datatype.number({ min: 0.0, max: 100.0 });
+  if (status === undefined) {
     status = faker.helpers.arrayElement([
       FileStatus.PENDING,
+      FileStatus.PRE_PROCESSING,
+      FileStatus.AWAITING_UPLOAD,
       FileStatus.UPLOADING,
       FileStatus.COMPLETE,
     ]);
@@ -231,6 +234,7 @@ export function fakeFrontendFileEntity(
     thumbnailUrl: iconUrl,
     name: name,
     status: status,
+    uploadProgress: progress,
   };
 }
 

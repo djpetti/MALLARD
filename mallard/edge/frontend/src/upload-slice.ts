@@ -156,6 +156,7 @@ export const addSelectedFiles = createAction(
         thumbnailUrl: null,
         name: file.name,
         status: FileStatus.PENDING,
+        uploadProgress: 0.0,
       });
     }
 
@@ -219,23 +220,33 @@ export const thunkPreProcessFiles = createAsyncThunk(
  */
 export const thunkUploadFile = createAsyncThunk(
   "upload/uploadFile",
-  async ({
-    fileId,
-    idsToFiles,
-  }: {
-    fileId: string;
-    idsToFiles: Map<string, File>;
-  }): Promise<TypedObjectRef> => {
+  async (
+    {
+      fileId,
+      idsToFiles,
+    }: {
+      fileId: string;
+      idsToFiles: Map<string, File>;
+    },
+    { dispatch }
+  ): Promise<TypedObjectRef> => {
     // Obtain the file with this ID.
     const uploadFile = idsToFiles.get(fileId) as File;
 
     // Upload all the files.
     // File should always be loaded at the time we perform this action.
     return {
-      id: await createImage(uploadFile, {
-        name: uploadFile.name,
-        metadata: {},
-      }),
+      id: await createImage(
+        uploadFile,
+        {
+          name: uploadFile.name,
+          metadata: {},
+        },
+        (progress: number) => {
+          // Update the progress of the file.
+          dispatch(updateProgress({ id: fileId, progress: progress }));
+        }
+      ),
       type: ObjectType.IMAGE,
     };
   }
@@ -369,6 +380,13 @@ export const uploadSlice = createSlice({
       state.metadata = action.payload;
       state.metadataChanged = true;
     },
+    // Sets the upload progress for a file.
+    updateProgress(state, action) {
+      uploadAdapter.updateOne(state, {
+        id: action.payload.id,
+        changes: { uploadProgress: action.payload.progress },
+      });
+    },
   },
   extraReducers: (builder) => {
     // Updates the state when an upload to the backend starts.
@@ -456,5 +474,6 @@ export const {
   fileDropZoneEntered,
   fileDropZoneExited,
   setMetadata,
+  updateProgress,
 } = uploadSlice.actions;
 export default uploadSlice.reducer;

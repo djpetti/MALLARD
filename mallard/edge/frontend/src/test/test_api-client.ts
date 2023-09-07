@@ -33,6 +33,7 @@ import {
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
+import { AxiosRequestConfig } from "axios";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
@@ -286,44 +287,70 @@ describe("api-client", () => {
   );
 
   each([
-    ["location", true],
-    ["no location", false],
-  ]).it("can upload a new image", async (_: string, hasLocation: boolean) => {
-    // Arrange.
-    // Fake a valid response.
-    const mockUavImageCreate =
-      mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
+    ["location", true, undefined],
+    ["no location", false, undefined],
+    ["progress callback", false, jest.fn()],
+  ]).it(
+    "can upload a new image with %s",
+    async (
+      _: string,
+      hasLocation: boolean,
+      progressCallback?: jest.MockedFn<any>
+    ) => {
+      // Arrange.
+      // Fake a valid response.
+      const mockUavImageCreate =
+        mockImagesApiClass.prototype.createUavImageImagesCreateUavPost;
 
-    const artifactId = fakeObjectRef();
-    // @ts-ignore
-    mockUavImageCreate.mockResolvedValue({ data: { imageId: artifactId } });
+      const artifactId = fakeObjectRef();
+      // @ts-ignore
+      mockUavImageCreate.mockResolvedValue({ data: { imageId: artifactId } });
 
-    const imageData = new Blob([faker.datatype.string()]);
-    const metadata = fakeImageMetadata();
-    if (!hasLocation) {
-      // Remove location data.
-      metadata.location = undefined;
+      const imageData = new Blob([faker.datatype.string()]);
+      const metadata = fakeImageMetadata();
+      if (!hasLocation) {
+        // Remove location data.
+        metadata.location = undefined;
+      }
+
+      const fileName = faker.system.fileName();
+
+      // Act.
+      const result: ObjectRef = await createImage(
+        imageData,
+        {
+          name: fileName,
+          metadata: metadata,
+        },
+        progressCallback
+      );
+
+      // Assert.
+      // It should have created the image.
+      expect(mockUavImageCreate).toBeCalledTimes(1);
+      // It should have specified the file name.
+      const callArgs = mockUavImageCreate.mock.calls[0];
+      expect(callArgs[1].name).toEqual(fileName);
+      // It should have specified the size in the metadata.
+      expect(callArgs[2]).toEqual(imageData.size);
+
+      if (progressCallback !== undefined) {
+        // It should have specified the progress callback.
+        const gotConfig = callArgs[callArgs.length - 1] as AxiosRequestConfig;
+        expect(gotConfig).toHaveProperty("onUploadProgress");
+
+        // Calling it should run the callback.
+        (gotConfig["onUploadProgress"] as (progressEvent: any) => void)({
+          loaded: 1,
+          total: 10,
+        });
+        expect(progressCallback).toBeCalledWith(10);
+      }
+
+      // It should have returned the ID of the artifact it created.
+      expect(result).toEqual(artifactId);
     }
-
-    const fileName = faker.system.fileName();
-
-    // Act.
-    const result: ObjectRef = await createImage(imageData, {
-      name: fileName,
-      metadata: metadata,
-    });
-
-    // Assert.
-    // It should have created the image.
-    expect(mockUavImageCreate).toBeCalledTimes(1);
-    // It should have specified the file name.
-    expect(mockUavImageCreate.mock.calls[0][1].name).toEqual(fileName);
-    // It should have specified the size in the metadata.
-    expect(mockUavImageCreate.mock.calls[0][2]).toEqual(imageData.size);
-
-    // It should have returned the ID of the artifact it created.
-    expect(result).toEqual(artifactId);
-  });
+  );
 
   it("handles a failure when creating the image", async () => {
     // Arrange.

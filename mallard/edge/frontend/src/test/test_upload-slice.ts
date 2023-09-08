@@ -6,6 +6,7 @@ import {
   fakeImageMetadata,
   fakeObjectRef,
   fakeState,
+  fakeVideoMetadata,
 } from "./element-test-utils";
 import uploadReducer, {
   addSelectedFiles,
@@ -37,13 +38,15 @@ import imageBlobReduce, {
   ImageBlobReduceStatic,
 } from "image-blob-reduce";
 import { faker } from "@faker-js/faker";
-import { UavImageMetadata } from "mallard-api";
-
-// Using older require syntax here so we get the correct mock type.
-const apiClient = require("../api-client");
-const mockCreateImage: jest.Mock = apiClient.createImage;
-const mockInferMetadata: jest.Mock = apiClient.inferMetadata;
-const mockUpdateMetadata: jest.Mock = apiClient.batchUpdateMetadata;
+import { ObjectType, UavImageMetadata } from "mallard-api";
+import {
+  batchUpdateMetadata,
+  createImage,
+  createVideo,
+  inferImageMetadata,
+  inferVideoMetadata,
+} from "../api-client";
+import MockedFn = jest.MockedFn;
 
 // Mock out the thumbnailGridSlice.
 jest.mock("../thumbnail-grid-slice", () => ({
@@ -56,9 +59,23 @@ const mockClearImageView = thunkClearImageView as jest.MockedFn<
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
   createImage: jest.fn(),
-  inferMetadata: jest.fn(),
+  createVideo: jest.fn(),
+  inferImageMetadata: jest.fn(),
+  inferVideoMetadata: jest.fn(),
   batchUpdateMetadata: jest.fn(),
 }));
+
+const mockCreateImage = createImage as jest.MockedFn<typeof createImage>;
+const mockCreateVideo = createVideo as jest.MockedFn<typeof createVideo>;
+const mockInferImageMetadata = inferImageMetadata as jest.MockedFn<
+  typeof inferImageMetadata
+>;
+const mockInferVideoMetadata = inferVideoMetadata as jest.MockedFn<
+  typeof inferVideoMetadata
+>;
+const mockUpdateMetadata = batchUpdateMetadata as jest.MockedFn<
+  typeof batchUpdateMetadata
+>;
 
 // Mock out image-blob-reduce.
 jest.mock("image-blob-reduce");
@@ -96,7 +113,10 @@ describe("upload-slice action creators", () => {
     jest.clearAllMocks();
   });
 
-  describe("async thunks", () => {
+  each([
+    ["images", ObjectType.IMAGE],
+    ["videos", ObjectType.VIDEO],
+  ]).describe("async thunks with %s", (_: string, objectType: ObjectType) => {
     /** A fake state to use for testing. */
     let state: RootState;
     /** A fake upload file to use for testing. */
@@ -112,7 +132,7 @@ describe("upload-slice action creators", () => {
       state.uploads.dialogOpen = true;
 
       // The state should have a single pending file.
-      uploadFile = fakeFrontendFileEntity();
+      uploadFile = fakeFrontendFileEntity(undefined, objectType);
       idsToFiles = new Map([[uploadFile.id, fakeFile()]]);
 
       state.uploads.ids = [uploadFile.id];
@@ -140,8 +160,14 @@ describe("upload-slice action creators", () => {
     it("creates an uploadFile action", async () => {
       // Arrange.
       // Make it look like the create request succeeds.
-      const newImageId = fakeObjectRef();
-      mockCreateImage.mockResolvedValue(newImageId);
+      const newFileId = fakeObjectRef();
+      let uploadFunction:
+        | MockedFn<typeof createImage>
+        | MockedFn<typeof createVideo> = mockCreateImage;
+      if (objectType === ObjectType.VIDEO) {
+        uploadFunction = mockCreateVideo;
+      }
+      uploadFunction.mockResolvedValue(newFileId);
 
       // Act.
       await thunkUploadFile({ fileId: uploadFile.id, idsToFiles: idsToFiles })(
@@ -156,8 +182,8 @@ describe("upload-slice action creators", () => {
 
       // It should have uploaded the image.
       const fakeFile = idsToFiles.get(uploadFile.id) as File;
-      expect(mockCreateImage).toHaveBeenCalledTimes(1);
-      expect(mockCreateImage).toBeCalledWith(
+      expect(uploadFunction).toHaveBeenCalledTimes(1);
+      expect(uploadFunction).toBeCalledWith(
         fakeFile,
         {
           name: fakeFile.name,
@@ -168,7 +194,9 @@ describe("upload-slice action creators", () => {
 
       // The process callback should dispatch a new action to update the
       // progress.
-      const progressCallback = mockCreateImage.mock.calls[0][2];
+      const progressCallback = uploadFunction.mock.calls[0][2] as (
+        percentDone: number
+      ) => void;
       const progress = faker.datatype.number({ min: 0, max: 100 });
       progressCallback(progress);
 
@@ -187,8 +215,13 @@ describe("upload-slice action creators", () => {
       state.uploads.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
 
       // Make it look like the inference request succeeds.
-      const metadata = fakeImageMetadata();
-      mockInferMetadata.mockResolvedValue(metadata);
+      if (objectType === ObjectType.IMAGE) {
+        const metadata = fakeImageMetadata();
+        mockInferImageMetadata.mockResolvedValue(metadata);
+      } else if (objectType === ObjectType.VIDEO) {
+        const metadata = fakeVideoMetadata();
+        mockInferVideoMetadata.mockResolvedValue(metadata);
+      }
 
       // Act.
       await thunkInferMetadata({
@@ -202,10 +235,17 @@ describe("upload-slice action creators", () => {
 
       // It should have inferred the metadata.
       const fakeFile = idsToFiles.get(uploadFile.id);
-      expect(mockInferMetadata).toHaveBeenCalledWith(
-        fakeFile,
-        expect.anything()
-      );
+      if (objectType === ObjectType.IMAGE) {
+        expect(mockInferImageMetadata).toHaveBeenCalledWith(
+          fakeFile,
+          expect.anything()
+        );
+      } else if (objectType === ObjectType.VIDEO) {
+        expect(mockInferVideoMetadata).toHaveBeenCalledWith(
+          fakeFile,
+          expect.anything()
+        );
+      }
     });
 
     it("does not dispatch inferMetadata if inference is in-progress", async () => {
@@ -248,19 +288,24 @@ describe("upload-slice action creators", () => {
       // It should have dispatched the lifecycle actions.
       checkDispatchedActions(thunkPreProcessFiles);
 
-      // It should have created thumbnails for the images.
-      expect(mockToBlob).toHaveBeenCalledTimes(1);
-      const fakeFileData = idsToFiles.get(uploadFile.id) as File;
-      expect(mockToBlob).toHaveBeenCalledWith(fakeFileData, expect.anything());
+      if (objectType === ObjectType.IMAGE) {
+        // It should have created thumbnails for the images.
+        expect(mockToBlob).toHaveBeenCalledTimes(1);
+        const fakeFileData = idsToFiles.get(uploadFile.id) as File;
+        expect(mockToBlob).toHaveBeenCalledWith(
+          fakeFileData,
+          expect.anything()
+        );
 
-      expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
-      expect(URL.createObjectURL).toHaveBeenCalledWith(thumbnailBlob);
+        expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+        expect(URL.createObjectURL).toHaveBeenCalledWith(thumbnailBlob);
+      }
 
       // It should have returned the correct results.
       expect(store.getActions()[1].payload).toEqual([
         {
           id: uploadFile.id,
-          dataUrl: thumbnailUrl,
+          dataUrl: objectType === ObjectType.IMAGE ? thumbnailUrl : null,
         },
       ]);
     });

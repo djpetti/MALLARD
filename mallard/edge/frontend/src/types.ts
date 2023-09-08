@@ -1,5 +1,6 @@
 import { Dictionary, EntityId } from "@reduxjs/toolkit";
 import {
+  ObjectType,
   Ordering,
   PlatformType,
   RangeDate,
@@ -240,6 +241,8 @@ export interface FrontendFileEntity {
   status: FileStatus;
   /** Percentage of the file that has been uploaded. */
   uploadProgress: number;
+  /** The type of artifact this is. */
+  type: ObjectType;
 
   /**
    * The corresponding reference to this file on the backend, if it exists there.

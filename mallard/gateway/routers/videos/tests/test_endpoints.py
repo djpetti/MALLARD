@@ -666,7 +666,7 @@ async def test_infer_metadata(create_uav_params: CreateUavParams) -> None:
 
     """
     # Act.
-    got_metadata = await endpoints.infer_image_metadata(
+    got_metadata = await endpoints.infer_video_metadata(
         create_uav_params.mock_metadata
     )
 

@@ -210,15 +210,21 @@ export function fakeArtifactEntities(
 /**
  * Creates a fake entity in our normalized upload file database.
  * @param {FileStatus} status If specified, use a specific status for this file.
+ * @param {ObjectType} type If specified, use a specific type to use for
+ *  this file.
  * @return {FrontendFileEntity} The entity that it created.
  */
 export function fakeFrontendFileEntity(
-  status?: FileStatus
+  status?: FileStatus,
+  type?: ObjectType
 ): FrontendFileEntity {
   const id = faker.datatype.uuid();
   const iconUrl = faker.image.dataUri();
   const name = faker.system.fileName();
   const progress = faker.datatype.number({ min: 0.0, max: 100.0 });
+  if (type === undefined) {
+    type = faker.helpers.arrayElement([ObjectType.IMAGE, ObjectType.VIDEO]);
+  }
   if (status === undefined) {
     status = faker.helpers.arrayElement([
       FileStatus.PENDING,
@@ -235,6 +241,7 @@ export function fakeFrontendFileEntity(
     name: name,
     status: status,
     uploadProgress: progress,
+    type,
   };
 }
 

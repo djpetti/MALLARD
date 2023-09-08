@@ -14,7 +14,13 @@ import {
   createSlice,
   EntityId,
 } from "@reduxjs/toolkit";
-import { batchUpdateMetadata, createImage, inferMetadata } from "./api-client";
+import {
+  batchUpdateMetadata,
+  createImage,
+  createVideo,
+  inferImageMetadata,
+  inferVideoMetadata,
+} from "./api-client";
 import { Action } from "redux";
 import { ThunkAction } from "redux-thunk";
 import {
@@ -115,10 +121,11 @@ gBlobReduce._transform = function (env) {
 };
 
 /**
- * Supported image file types. We limit ourselves to ones with broad
+ * Supported upload file types. We limit ourselves to ones with broad
  * browser support.
  */
-const SUPPORTED_IMAGE_TYPES = new Set<string>([
+const SUPPORTED_FILE_TYPES = new Set<string>([
+  // Images
   "image/apng",
   "image/avif",
   "image/gif",
@@ -126,6 +133,10 @@ const SUPPORTED_IMAGE_TYPES = new Set<string>([
   "image/png",
   "image/svg+xml",
   "image/webp",
+
+  // Videos
+  "video/mp4",
+  "video/webm",
 ]);
 
 /**
@@ -146,7 +157,7 @@ export const addSelectedFiles = createAction(
   function prepare(files: Map<string, File>) {
     const frontendFiles: FrontendFileEntity[] = [];
     for (const [id, file] of files) {
-      if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+      if (!SUPPORTED_FILE_TYPES.has(file.type)) {
         // Filter invalid files.
         continue;
       }
@@ -157,6 +168,9 @@ export const addSelectedFiles = createAction(
         name: file.name,
         status: FileStatus.PENDING,
         uploadProgress: 0.0,
+        type: file.type.startsWith("image/")
+          ? ObjectType.IMAGE
+          : ObjectType.VIDEO,
       });
     }
 
@@ -167,7 +181,7 @@ export const addSelectedFiles = createAction(
 /** Represents a file ID with corresponding data URL. */
 interface FileIdWithData {
   id: string;
-  dataUrl: string;
+  dataUrl: string | null;
 }
 
 /**
@@ -196,12 +210,18 @@ export const thunkPreProcessFiles = createAsyncThunk(
 
     // Create thumbnails for the images.
     const thumbnailUrlPromises = fileEntities.map(async (entity) => {
-      // Read the file data.
-      const file = idsToFiles.get(entity.id) as File;
-      const resizedImage = await gBlobReduce.toBlob(file, {
-        max: 128,
-      });
-      return URL.createObjectURL(resizedImage);
+      if (entity.type === ObjectType.IMAGE) {
+        // Read the file data.
+        const file = idsToFiles.get(entity.id) as File;
+        // Create the thumbnail.
+        const resizedImage = await gBlobReduce.toBlob(file, {
+          max: 128,
+        });
+        return URL.createObjectURL(resizedImage);
+      } else {
+        // This is not an image. Don't try to create a thumbnail.
+        return null;
+      }
     });
     const thumbnailUrls = await Promise.all(thumbnailUrlPromises);
 
@@ -228,27 +248,51 @@ export const thunkUploadFile = createAsyncThunk(
       fileId: string;
       idsToFiles: Map<string, File>;
     },
-    { dispatch }
+    { getState, dispatch }
   ): Promise<TypedObjectRef> => {
+    const state = getState() as RootState;
+    const entity = uploadSelectors.selectById(
+      state,
+      fileId
+    ) as FrontendFileEntity;
     // Obtain the file with this ID.
     const uploadFile = idsToFiles.get(fileId) as File;
 
+    // Callback that updates the upload progress of the file.
+    const progressCallback = (progress: number) => {
+      // Update the progress of the file.
+      dispatch(updateProgress({ id: fileId, progress: progress }));
+    };
+
     // Upload all the files.
     // File should always be loaded at the time we perform this action.
-    return {
-      id: await createImage(
-        uploadFile,
-        {
-          name: uploadFile.name,
-          metadata: {},
-        },
-        (progress: number) => {
-          // Update the progress of the file.
-          dispatch(updateProgress({ id: fileId, progress: progress }));
-        }
-      ),
-      type: ObjectType.IMAGE,
-    };
+    if (entity.type === ObjectType.IMAGE) {
+      // Upload the image.
+      return {
+        id: await createImage(
+          uploadFile,
+          {
+            name: uploadFile.name,
+            metadata: {},
+          },
+          progressCallback
+        ),
+        type: ObjectType.IMAGE,
+      };
+    } else {
+      // Upload the video.
+      return {
+        id: await createVideo(
+          uploadFile,
+          {
+            name: uploadFile.name,
+            metadata: {},
+          },
+          progressCallback
+        ),
+        type: ObjectType.VIDEO,
+      };
+    }
   }
 );
 
@@ -260,21 +304,36 @@ export const thunkUploadFile = createAsyncThunk(
  */
 export const thunkInferMetadata = createAsyncThunk(
   "upload/inferMetadata",
-  async ({
-    fileId,
-    idsToFiles,
-  }: {
-    fileId: string;
-    idsToFiles: Map<string, File>;
-  }): Promise<UavImageMetadata> => {
+  async (
+    {
+      fileId,
+      idsToFiles,
+    }: {
+      fileId: string;
+      idsToFiles: Map<string, File>;
+    },
+    { getState }
+  ): Promise<UavImageMetadata | UavVideoMetadata> => {
+    const state = getState() as RootState;
+    const entity = uploadSelectors.selectById(
+      state,
+      fileId
+    ) as FrontendFileEntity;
     // Obtain the file with this ID.
     const uploadFile = idsToFiles.get(fileId) as File;
 
     // Infer the metadata.
-    return await inferMetadata(uploadFile, {
-      name: uploadFile.name,
-      knownMetadata: {},
-    });
+    if (entity.type === ObjectType.IMAGE) {
+      return await inferImageMetadata(uploadFile, {
+        name: uploadFile.name,
+        knownMetadata: {},
+      });
+    } else {
+      return await inferVideoMetadata(uploadFile, {
+        name: uploadFile.name,
+        knownMetadata: {},
+      });
+    }
   },
   {
     condition: (_, { getState }) => {

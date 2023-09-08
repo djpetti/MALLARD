@@ -1,6 +1,7 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
+import "@material/mwc-icon";
 import { ObjectRef, ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
@@ -23,6 +24,16 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       background-color: var(--theme-gray);
       width: 100%;
       height: 100%;
+
+      /** Center the contents. */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .placeholder_icon {
+      color: var(--theme-whitish);
+      --mdc-icon-size: 48px;
     }
 
     .centered {
@@ -140,9 +151,17 @@ export class ArtifactDisplay extends ArtifactInfoBase {
     // Show the loading indicator if it's enabled, and we don't have an image yet.
     const loaderClass =
       this.showLoadingAnimation && !this.hasContent ? "" : "hidden";
+    const showVideoPlaceholder =
+      this.type === ObjectType.VIDEO &&
+      !this.hasContent &&
+      !this.showLoadingAnimation;
 
     return html`
       <div id="media_container" class="${placeholderClass} centered">
+        <!-- Placeholder icon to differentiate videos. -->
+        ${showVideoPlaceholder
+          ? html`<mwc-icon class="placeholder_icon">movie</mwc-icon>`
+          : nothing}
         <!-- Loading animation -->
         <mwc-circular-progress
           indeterminate

@@ -433,7 +433,7 @@ async def batch_update_metadata(
 
 
 @router.post("/metadata/infer", response_model=UavVideoMetadata)
-async def infer_image_metadata(
+async def infer_video_metadata(
     metadata: UavVideoMetadata = Depends(filled_uav_metadata),
 ) -> UavVideoMetadata:
     """

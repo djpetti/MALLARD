@@ -3,6 +3,7 @@ import each from "jest-each";
 import { ArtifactDisplay } from "../artifact-display";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
+import { Icon } from "@material/mwc-icon";
 
 // Using older require syntax here so that we get the correct mock type.
 const pageManager = require("../page-manager");
@@ -59,7 +60,7 @@ each([
     ["with a loading animation", true],
     ["without a loading animation", false],
   ]).it(
-    "displays no image by default %s",
+    "displays no media by default %s",
     async (_: string, showLoadingAnimation: boolean) => {
       // Arrange.
       displayElement.showLoadingAnimation = showLoadingAnimation;
@@ -86,6 +87,16 @@ each([
         expect(loadingSpinners[0].classList).not.toContain("hidden");
       } else {
         expect(loadingSpinners[0].classList).toContain("hidden");
+      }
+
+      // Check whether the video placeholder is properly displayed.
+      const placeholderIcon = containerDiv.querySelector(
+        ".placeholder_icon"
+      ) as Icon;
+      if (objectType === ObjectType.VIDEO && !showLoadingAnimation) {
+        expect(placeholderIcon).not.toBeNull();
+      } else {
+        expect(placeholderIcon).toBeNull();
       }
 
       // It should report that no image is specified.

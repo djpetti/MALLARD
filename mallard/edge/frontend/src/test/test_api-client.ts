@@ -2,12 +2,14 @@ import { ImageQuery } from "../types";
 import {
   batchUpdateMetadata,
   createImage,
+  createVideo,
   deleteImages,
   getArtifactUrl,
   getMetadata,
   getPreviewVideoUrl,
   getStreamableVideoUrl,
-  inferMetadata,
+  inferImageMetadata,
+  inferVideoMetadata,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -289,7 +291,7 @@ describe("api-client", () => {
   each([
     ["location", true, undefined],
     ["no location", false, undefined],
-    ["progress callback", false, jest.fn()],
+    ["a progress callback", false, jest.fn()],
   ]).it(
     "can upload a new image with %s",
     async (
@@ -352,6 +354,72 @@ describe("api-client", () => {
     }
   );
 
+  each([
+    ["location", true, undefined],
+    ["no location", false, undefined],
+    ["a progress callback", false, jest.fn()],
+  ]).it(
+    "can upload a new video with %s",
+    async (
+      _: string,
+      hasLocation: boolean,
+      progressCallback?: jest.MockedFn<any>
+    ) => {
+      // Arrange.
+      // Fake a valid response.
+      const mockUavVideoCreate =
+        mockVideosApiClass.prototype.createUavVideoVideosCreateUavPost;
+
+      const artifactId = fakeObjectRef();
+      // @ts-ignore
+      mockUavVideoCreate.mockResolvedValue({ data: { videoId: artifactId } });
+
+      const videoData = new Blob([faker.datatype.string()]);
+      const metadata = fakeVideoMetadata();
+      if (!hasLocation) {
+        // Remove location data.
+        metadata.location = undefined;
+      }
+
+      const fileName = faker.system.fileName();
+
+      // Act.
+      const result: ObjectRef = await createVideo(
+        videoData,
+        {
+          name: fileName,
+          metadata: metadata,
+        },
+        progressCallback
+      );
+
+      // Assert.
+      // It should have created the image.
+      expect(mockUavVideoCreate).toBeCalledTimes(1);
+      // It should have specified the file name.
+      const callArgs = mockUavVideoCreate.mock.calls[0];
+      expect(callArgs[0].name).toEqual(fileName);
+      // It should have specified the size in the metadata.
+      expect(callArgs[1]).toEqual(videoData.size);
+
+      if (progressCallback !== undefined) {
+        // It should have specified the progress callback.
+        const gotConfig = callArgs[callArgs.length - 1] as AxiosRequestConfig;
+        expect(gotConfig).toHaveProperty("onUploadProgress");
+
+        // Calling it should run the callback.
+        (gotConfig["onUploadProgress"] as (progressEvent: any) => void)({
+          loaded: 1,
+          total: 10,
+        });
+        expect(progressCallback).toBeCalledWith(10);
+      }
+
+      // It should have returned the ID of the artifact it created.
+      expect(result).toEqual(artifactId);
+    }
+  );
+
   it("handles a failure when creating the image", async () => {
     // Arrange.
     // Make it look like creating the image fails.
@@ -366,6 +434,29 @@ describe("api-client", () => {
     // Act and assert.
     await expect(
       createImage(imageData, {
+        name: faker.system.fileName(),
+        metadata: metadata,
+      })
+    ).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("handles a failure when creating the video", async () => {
+    // Arrange.
+    // Make it look like creating the image fails.
+    const mockUavVideoCreate =
+      mockVideosApiClass.prototype.createUavVideoVideosCreateUavPost;
+    const fakeError = new FakeAxiosError();
+    mockUavVideoCreate.mockRejectedValue(fakeError);
+
+    const imageData = new Blob([faker.datatype.string()]);
+    const metadata = fakeVideoMetadata();
+
+    // Act and assert.
+    await expect(
+      createVideo(imageData, {
         name: faker.system.fileName(),
         metadata: metadata,
       })
@@ -431,7 +522,7 @@ describe("api-client", () => {
     const fileName = faker.system.fileName();
 
     // Act.
-    const result: UavImageMetadata = await inferMetadata(imageData, {
+    const result: UavImageMetadata = await inferImageMetadata(imageData, {
       name: fileName,
       knownMetadata: initialMetadata,
     });
@@ -447,7 +538,43 @@ describe("api-client", () => {
     expect(result).toEqual(expectedResponse);
   });
 
-  it("handles a failure when inferring metadata", async () => {
+  it("can infer metadata from a video", async () => {
+    // Arrange.
+    // Fake a valid response.
+    const expectedResponse = fakeVideoMetadata();
+    const response: { [p in keyof UavVideoMetadata]: any } = expectedResponse;
+    // In real server responses, the enum values come as raw strings.
+    response.format = response.format.toString();
+    response.platformType = response.platformType.toString();
+
+    const mockMetadataInfer =
+      mockVideosApiClass.prototype.inferVideoMetadataVideosMetadataInferPost;
+    // @ts-ignore
+    mockMetadataInfer.mockResolvedValue({ data: response });
+
+    const videoData = new Blob([faker.datatype.string()]);
+    const initialMetadata = fakeVideoMetadata();
+
+    const fileName = faker.system.fileName();
+
+    // Act.
+    const result = await inferVideoMetadata(videoData, {
+      name: fileName,
+      knownMetadata: initialMetadata,
+    });
+
+    // Assert.
+    expect(mockMetadataInfer).toBeCalledTimes(1);
+    // It should have specified the file name.
+    expect(mockMetadataInfer.mock.calls[0][0].name).toEqual(fileName);
+    // It should have specified the size in the metadata.
+    expect(mockMetadataInfer.mock.calls[0][1]).toEqual(videoData.size);
+
+    // It should have inferred the metadata.
+    expect(result).toEqual(expectedResponse);
+  });
+
+  it("handles a failure when inferring image metadata", async () => {
     // Arrange.
     // Make it look like inferring the metadata failed.
     const mockMetadataInfer =
@@ -460,7 +587,30 @@ describe("api-client", () => {
 
     // Act and assert.
     await expect(
-      inferMetadata(imageData, {
+      inferImageMetadata(imageData, {
+        name: faker.system.fileName(),
+        knownMetadata: metadata,
+      })
+    ).rejects.toThrow(FakeAxiosError);
+
+    // It should have logged the error information.
+    expect(fakeError.toJSON).toBeCalledTimes(1);
+  });
+
+  it("handles a failure when inferring video metadata", async () => {
+    // Arrange.
+    // Make it look like inferring the metadata failed.
+    const mockMetadataInfer =
+      mockVideosApiClass.prototype.inferVideoMetadataVideosMetadataInferPost;
+    const fakeError = new FakeAxiosError();
+    mockMetadataInfer.mockRejectedValue(fakeError);
+
+    const videoData = new Blob([faker.datatype.string()]);
+    const metadata = fakeVideoMetadata();
+
+    // Act and assert.
+    await expect(
+      inferVideoMetadata(videoData, {
         name: faker.system.fileName(),
         knownMetadata: metadata,
       })
@@ -487,7 +637,7 @@ describe("api-client", () => {
     ],
     ["video metadata", false, false, fakeVideoMetadata(), ObjectType.VIDEO],
   ]).it(
-    "can update existing image metadata, %s",
+    "can update existing %s",
     async (
       _,
       ignoreName: boolean,

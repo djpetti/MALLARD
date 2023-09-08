@@ -34,29 +34,58 @@ export const DEFAULT_ORDERINGS: Ordering[] = [
 ];
 
 /**
- * Some functions require separate form parameters for input.
- * This function takes a metadata object, and breaks it down as
- * an array that can be spread to one of these functions.
- * @param {UavImageMetadata} metadata The metadata object.
+ * Generates the common metadata elements from `imageMetadataToForm` and
+ * `videoMetadataToForm`.
+ * @param {UavImageMetadata | UavVideoMetadata} metadata The metadata object.
  * @return {any[]} Array containing the metadata.
  */
-function metadataToForm(metadata: UavImageMetadata): any[] {
+function commonMetadataToForm(
+  metadata: UavImageMetadata | UavVideoMetadata
+): any[] {
   return [
     metadata.size,
     metadata.name,
-    metadata.format,
     metadata.platformType,
     metadata.notes,
     metadata.sessionName,
     metadata.sequenceNumber,
     metadata.captureDate,
-    metadata.camera,
     metadata.locationDescription,
+    metadata.camera,
     metadata.altitudeMeters,
     metadata.gsdCmPx,
+    metadata.format,
+  ];
+}
+
+/**
+ * Some functions require separate form parameters for input.
+ * This function takes an image metadata object, and breaks it down as
+ * an array that can be spread to one of these functions.
+ * @param {UavImageMetadata} metadata The metadata object.
+ * @return {any[]} Array containing the metadata.
+ */
+function imageMetadataToForm(metadata: UavImageMetadata): any[] {
+  return commonMetadataToForm(metadata).concat([
     metadata.location?.latitudeDeg,
     metadata.location?.longitudeDeg,
-  ];
+  ]);
+}
+
+/**
+ * Some functions require separate form parameters for input.
+ * This function takes a video metadata object, and breaks it down as
+ * an array that can be spread to one of these functions.
+ * @param {UavImageMetadata} metadata The metadata object.
+ * @return {any[]} Array containing the metadata.
+ */
+function videoMetadataToForm(metadata: UavVideoMetadata): any[] {
+  return commonMetadataToForm(metadata).concat([
+    metadata.frameRate,
+    metadata.numFrames,
+    metadata.location?.latitudeDeg,
+    metadata.location?.longitudeDeg,
+  ]);
 }
 
 /**
@@ -203,7 +232,7 @@ export async function createImage(
     .createUavImageImagesCreateUavPost(
       offset,
       new File([imageData], name),
-      ...metadataToForm(metadata).concat(config)
+      ...imageMetadataToForm(metadata).concat(config)
     )
     .catch(function (error) {
       console.error(error.toJSON());
@@ -214,6 +243,48 @@ export async function createImage(
   return {
     bucket: response.data.imageId.bucket,
     name: response.data.imageId.name,
+  };
+}
+
+/**
+ * Uploads a new video.
+ * @param {Blob} videoData The raw image data.
+ * @param {string} name The name to use for the uploaded file.
+ * @param {function} onProgress A callback to run
+ *  whenever the upload progresses.
+ * @return {ObjectRef} The ID of the new artifact that it created.
+ */
+export async function createVideo(
+  videoData: Blob,
+  { name, metadata }: { name: string; metadata: UavVideoMetadata },
+  onProgress?: (percentDone: number) => void
+): Promise<ObjectRef> {
+  // Set the size based on the image to upload.
+  metadata.size = videoData.size;
+
+  let config = {};
+  if (onProgress !== undefined) {
+    config = {
+      onUploadProgress: (progressEvent: ProgressEvent) => {
+        onProgress((progressEvent.loaded / progressEvent.total) * 100);
+      },
+    };
+  }
+
+  const response = await videosApi
+    .createUavVideoVideosCreateUavPost(
+      new File([videoData], name),
+      ...videoMetadataToForm(metadata).concat(config)
+    )
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
+
+  // Convert from JSON.
+  return {
+    bucket: response.data.videoId.bucket,
+    name: response.data.videoId.name,
   };
 }
 
@@ -233,11 +304,11 @@ export async function deleteImages(images: ObjectRef[]): Promise<void> {
 /**
  * Infers metadata from a provided image.
  * @param {Blob} imageData The image to infer metadata from.
- * @param {name} The name to use for the image file.
+ * @param {string} name The name to use for the image file.
  * @param {UavImageMetadata} knownMetadata Any previously-known metadata.
  * @return {UavImageMetadata} The inferred metadata.
  */
-export async function inferMetadata(
+export async function inferImageMetadata(
   imageData: Blob,
   { name, knownMetadata }: { name: string; knownMetadata: UavImageMetadata }
 ): Promise<UavImageMetadata> {
@@ -250,7 +321,34 @@ export async function inferMetadata(
     .inferImageMetadataImagesMetadataInferPost(
       offset,
       new File([imageData], name),
-      ...metadataToForm(knownMetadata)
+      ...imageMetadataToForm(knownMetadata)
+    )
+    .catch(function (error) {
+      console.error(error.toJSON());
+      throw error;
+    });
+
+  return response.data;
+}
+
+/**
+ * Infers metadata from a provided video.
+ * @param {Blob} videoData The video to infer metadata from.
+ * @param {string} name The name to use for the video file.
+ * @param {UavImageMetadata} knownMetadata Any previously-known metadata.
+ * @return {UavImageMetadata} The inferred metadata.
+ */
+export async function inferVideoMetadata(
+  videoData: Blob,
+  { name, knownMetadata }: { name: string; knownMetadata: UavVideoMetadata }
+): Promise<UavVideoMetadata> {
+  // Set the size based on the image to upload.
+  knownMetadata.size = videoData.size;
+
+  const response = await videosApi
+    .inferVideoMetadataVideosMetadataInferPost(
+      new File([videoData], name),
+      ...videoMetadataToForm(knownMetadata)
     )
     .catch(function (error) {
       console.error(error.toJSON());

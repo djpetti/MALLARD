@@ -552,7 +552,9 @@ describe("api-client", () => {
     // @ts-ignore
     mockMetadataInfer.mockResolvedValue({ data: response });
 
-    const videoData = new Blob([faker.datatype.string()]);
+    // This is sized to make it larger than the probe size.
+    const videoSize = 5 * 2 * 2 ** 20;
+    const videoData = new Blob([faker.datatype.string(videoSize)]);
     const initialMetadata = fakeVideoMetadata();
 
     const fileName = faker.system.fileName();
@@ -567,6 +569,8 @@ describe("api-client", () => {
     expect(mockMetadataInfer).toBeCalledTimes(1);
     // It should have specified the file name.
     expect(mockMetadataInfer.mock.calls[0][0].name).toEqual(fileName);
+    // It should have only sent the first few MBs of the file.
+    expect(mockMetadataInfer.mock.calls[0][0].size).toBeLessThan(videoSize);
     // It should have specified the size in the metadata.
     expect(mockMetadataInfer.mock.calls[0][1]).toEqual(videoData.size);
 

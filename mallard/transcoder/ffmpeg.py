@@ -10,7 +10,7 @@ import asyncio
 import json
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
-from fastapi import UploadFile
+from aioitertools import chain
 from loguru import logger
 
 from ..cli_utils import find_exe
@@ -84,7 +84,7 @@ async def _read_from_queue_until_finished(
 
 
 async def _streaming_communicate(
-    process: asyncio.subprocess.Process, *, input_source: UploadFile
+    process: asyncio.subprocess.Process, *, input_source: AsyncIterable[bytes]
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     This function is sort of similar to `Process.communicate()`, but it
@@ -132,23 +132,21 @@ async def _streaming_communicate(
 
     async def _feed_input() -> None:
         # Feed data from the source to the process stdin.
-        chunk = await input_source.read(_INPUT_CHUNK_SIZE)
-        if len(chunk) == 0:
-            # We have exhausted the input.
-            process.stdin.close()
-            await process.stdin.wait_closed()
-            return
-        process.stdin.write(chunk)
-        try:
-            await process.stdin.drain()
-        except (BrokenPipeError, ConnectionResetError):  # pragma: no coverage
-            # The process probably exited, so we should terminate nicely.
-            await process.stdin.wait_closed()
-            return
+        async for chunk in input_source:
+            process.stdin.write(chunk)
+            try:
+                await process.stdin.drain()
+            except (
+                BrokenPipeError,
+                ConnectionResetError,
+            ):  # pragma: no coverage
+                # The process probably exited, so we should terminate nicely.
+                await process.stdin.wait_closed()
+                return
 
-        if process.returncode is None:
-            # If it's still running, repeat this step.
-            _submit_background_task(_feed_input())
+        # We have exhausted the input.
+        process.stdin.close()
+        await process.stdin.wait_closed()
 
     async def _stream_output(
         reader: asyncio.StreamReader,
@@ -204,7 +202,7 @@ async def _streaming_communicate(
     )
 
 
-async def ffprobe(source: UploadFile) -> Dict[str, Any]:
+async def ffprobe(source: AsyncIterable[bytes]) -> Dict[str, Any]:
     """
     Runs `ffprobe` and returns the results.
 
@@ -236,7 +234,7 @@ async def ffprobe(source: UploadFile) -> Dict[str, Any]:
 
 
 async def create_preview(
-    source: UploadFile, preview_width: int = 128
+    source: AsyncIterable[bytes], preview_width: int = 128
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     Creates a preview, which is just a small, low-resolution version of a video.
@@ -270,7 +268,7 @@ async def create_preview(
 
 
 async def create_streamable(
-    source: UploadFile, max_width: int = 1920
+    source: AsyncIterable[bytes], max_width: int = 1920
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     Creates a version of the video optimized for streaming.
@@ -284,10 +282,20 @@ async def create_streamable(
         The video preview, as a raw stream, and the stderr from FFMpeg.
 
     """
+    initial_bytes = b""
+
+    async def _read_and_buffer() -> AsyncIterable[bytes]:
+        # Buffers the initial part of the file so we can process it twice.
+        nonlocal initial_bytes
+        async for chunk in source:
+            initial_bytes += chunk
+            yield chunk
+
     # First, use FFProbe to get the input resolution.
-    ffprobe_results = await ffprobe(source)
-    # Reset the file so we can read it again.
-    await source.seek(0)
+    ffprobe_results = await ffprobe(_read_and_buffer())
+    # Add the part we read back.
+    source = chain([initial_bytes], source)
+
     input_width = find_video_stream(ffprobe_results)["width"]
     output_width = min(input_width, max_width)
     logger.debug("Transcoding video to width {}.", output_width)
@@ -318,7 +326,7 @@ async def create_streamable(
 
 
 async def create_thumbnail(
-    source: UploadFile, thumbnail_width: int = 128
+    source: AsyncIterable[bytes], thumbnail_width: int = 128
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     Creates a thumbnail of the video based on the first frame.

@@ -18,6 +18,8 @@ import urlJoin from "url-join";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
+// How many bytes from the beginning of the video we send when probing.
+const PROBE_SIZE = 5 * 2 ** 20;
 
 /** Singleton API client used by the entire application. */
 const imagesApi = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
@@ -344,6 +346,8 @@ export async function inferVideoMetadata(
 ): Promise<UavVideoMetadata> {
   // Set the size based on the image to upload.
   knownMetadata.size = videoData.size;
+  // For probing, we only need the first few MBs.
+  videoData = videoData.slice(0, PROBE_SIZE);
 
   const response = await videosApi
     .inferVideoMetadataVideosMetadataInferPost(

@@ -630,10 +630,12 @@ class TestS3ObjectStore:
 
         # Make it look like we got valid data.
         mock_body = mocker.create_autospec(StreamingBody, instace=True)
+        object_chunk = faker.binary()
+        mock_body.read.side_effect = [object_chunk, b""]
         config.mock_client.get_object.return_value = dict(Body=mock_body)
 
         # Act.
-        got_data = await config.store.get_object(object_id)
+        object_iter = await config.store.get_object(object_id)
 
         # Assert.
         # It should have read the data from the backend.
@@ -641,8 +643,10 @@ class TestS3ObjectStore:
             Bucket=object_id.bucket, Key=object_id.name
         )
 
-        mock_body.iter_chunks.assert_called_once_with()
-        assert got_data == mock_body.iter_chunks.return_value
+        # Make sure we got the right data.
+        got_data = b"".join([c async for c in object_iter])
+        assert got_data == object_chunk
+        mock_body.read.assert_called()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

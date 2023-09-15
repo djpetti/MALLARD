@@ -10,6 +10,7 @@ from typing import AsyncIterable, AsyncIterator, Optional, Union
 
 from aiobotocore import get_session
 from aiobotocore.client import AioBaseClient
+from aiobotocore.response import StreamingBody
 from botocore.exceptions import ClientError
 from confuse import ConfigView
 from loguru import logger
@@ -209,6 +210,37 @@ class _MultiPartUploadHelper:
 
         """
         return len(self.__pending_upload_tasks)
+
+
+class _SafeObjectIter:
+    """
+    `aiobotocore` gets mad if we don't properly close response handles,
+    so this class exists in order to make sure they get closed.
+
+    """
+
+    _DEFAULT_CHUNK_SIZE = 2**20
+    """
+    Default chunk size to use for the output iterator.
+    """
+
+    def __init__(
+        self, response: StreamingBody, chunk_size: int = _DEFAULT_CHUNK_SIZE
+    ):
+        self.__response = response
+        self.__chunk_size = chunk_size
+
+    def __del__(self):
+        # Ensure, at all costs, that the response is closed.
+        self.__response.close()
+
+    def __aiter__(self) -> AsyncIterator[bytes]:
+        return self
+
+    async def __anext__(self) -> bytes:
+        if chunk := await self.__response.read(self.__chunk_size):
+            return chunk
+        raise StopAsyncIteration
 
 
 class S3ObjectStore(ObjectStore):
@@ -416,4 +448,4 @@ class S3ObjectStore(ObjectStore):
             raise ObjectOperationError(str(error))
 
         body = data_object["Body"]
-        return body.iter_chunks()
+        return _SafeObjectIter(body)

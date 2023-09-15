@@ -12,16 +12,26 @@ from loguru import logger
 from ....config import config
 from ...aiohttp_session import Session
 from ...async_utils import read_file_chunks
+from ...backends.objects.models import ObjectRef
+
+_PROBE_SIZE = 5 * 2**20  # 5 MB
+"""
+Number of bytes to read from the start of the video when probing it.
+"""
+
 
 get_session = Session(base_url=config["transcoder_base_url"].as_str())
 
 
-def _make_video_form_data(video: UploadFile) -> aiohttp.FormData:
+def _make_video_form_data(
+    video: UploadFile, max_length: int | None = None
+) -> aiohttp.FormData:
     """
     Creates the multipart form for uploading video data.
 
     Args:
         video: The video file.
+        max_length: The maximum number of bytes from the file to upload.
 
     Returns:
         The multipart form.
@@ -30,7 +40,7 @@ def _make_video_form_data(video: UploadFile) -> aiohttp.FormData:
     data = aiohttp.FormData()
     data.add_field(
         "video",
-        read_file_chunks(video),
+        read_file_chunks(video, max_length=max_length),
         filename=video.filename,
         content_type=video.content_type,
     )
@@ -77,7 +87,8 @@ async def probe_video(video: UploadFile) -> Dict[str, Any]:
     logger.debug("Probing video {}...", video.filename)
 
     async with get_session().post(
-        "/metadata/infer", data=_make_video_form_data(video)
+        "/metadata/infer",
+        data=_make_video_form_data(video, max_length=_PROBE_SIZE),
     ) as response:
         if response.status != 200:
             raise HTTPException(
@@ -89,7 +100,7 @@ async def probe_video(video: UploadFile) -> Dict[str, Any]:
 
 
 async def create_preview(
-    video: UploadFile, chunk_size: int = 1024
+    video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
     """
     Creates a preview for the video.
@@ -102,9 +113,9 @@ async def create_preview(
         The preview, in chunks.
 
     """
-    logger.debug("Creating preview for video {}...", video.filename)
+    logger.debug("Creating preview for video {}...", video)
     async with get_session().post(
-        "/create_preview", data=_make_video_form_data(video)
+        f"/create_preview/{video.bucket}/{video.name}"
     ) as response:
         if response.status != 200:
             raise HTTPException(
@@ -117,7 +128,7 @@ async def create_preview(
 
 
 async def create_streamable(
-    video: UploadFile, chunk_size: int = 1024
+    video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
     """
     Creates a preview for the video.
@@ -130,17 +141,17 @@ async def create_streamable(
         The preview, in chunks.
 
     """
-    logger.debug("Creating streamable version for video {}...", video.filename)
-    # This operation can be quite slow, so use a long timeout.
+    logger.debug("Creating streamable version for video {}...", video)
     async with get_session().post(
-        "/create_streaming_video",
-        data=_make_video_form_data(video),
+        f"/create_streaming_video/{video.bucket}/{video.name}",
+        # This operation can be quite slow, so use a long timeout.
         timeout=60 * 60,
     ) as response:
         if response.status != 200:
+            logger.error("Streamable creation failed: {}", response.reason)
             raise HTTPException(
                 status_code=response.status,
-                detail=f"Preview creation failed: {response.reason}",
+                detail=f"Streamable creation failed: {response.reason}",
             )
 
         async for chunk in _iter_exact_chunked(response.content, chunk_size):
@@ -148,7 +159,7 @@ async def create_streamable(
 
 
 async def create_thumbnail(
-    video: UploadFile, chunk_size: int = 1024
+    video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
     """
     Creates a thumbnail for the video.
@@ -161,9 +172,9 @@ async def create_thumbnail(
         The thumbnail, in chunks.
 
     """
-    logger.debug("Creating thumbnail for video {}...", video.filename)
+    logger.debug("Creating thumbnail for video {}...", video)
     async with get_session().post(
-        "/create_thumbnail", data=_make_video_form_data(video)
+        f"/create_thumbnail/{video.bucket}/{video.name}",
     ) as response:
         if response.status != 200:
             raise HTTPException(

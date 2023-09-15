@@ -98,7 +98,9 @@ async def make_async_iter(
 
 
 async def read_file_chunks(
-    file_data: UploadFile, chunk_size: int = 2**20
+    file_data: UploadFile,
+    chunk_size: int = 2**20,
+    max_length: int | None = None,
 ) -> AsyncIterable[bytes]:
     """
     Helper function that reads file data in chunks asynchronously.
@@ -106,10 +108,19 @@ async def read_file_chunks(
     Args:
         file_data: The raw video data.
         chunk_size: The size of the chunks to read.
+        max_length: The maximum amount of data to read.
 
     Yields:
         The next chunk of the video data.
 
     """
+    read_bytes = 0
     while chunk := await file_data.read(chunk_size):
         yield chunk
+        read_bytes += len(chunk)
+
+        if max_length is not None:
+            if read_bytes >= max_length:
+                break
+            # Read the exact amount requested.
+            chunk_size = min(chunk_size, max_length - read_bytes)

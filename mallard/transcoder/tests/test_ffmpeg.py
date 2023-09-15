@@ -4,7 +4,7 @@ Tests for the `ffmpeg` module.
 
 
 import io
-from typing import AsyncIterable, Callable, Tuple
+from typing import AsyncIterable, Awaitable, Callable, Tuple
 
 import pytest
 from faker import Faker
@@ -17,24 +17,25 @@ from .data import BIG_BUCK_BUNNY_PATH
 
 
 @pytest.fixture()
-def valid_video(faker: Faker) -> UploadFile:
+def valid_video() -> AsyncIterable[bytes]:
     """
     Creates the video file to test with.
 
-    Args:
-        faker: The fixture to use for generating fake data.
-
     Yields:
-        The file that it created.
+        The bytes from the file, in chunks.
 
     """
-    filename = faker.file_name(category="video")
+
+    async def _read_file_chunks(file_: io.IOBase) -> AsyncIterable[bytes]:
+        while chunk := file_.read(100 * 1024):
+            yield chunk
+
     with BIG_BUCK_BUNNY_PATH.open("rb") as raw_file:
-        yield UploadFile(raw_file, filename=filename)
+        yield _read_file_chunks(raw_file)
 
 
 @pytest.fixture()
-def invalid_video(faker: Faker) -> UploadFile:
+def invalid_video(faker: Faker) -> AsyncIterable[bytes]:
     """
     Creates a "video file" to test with that does not contain
     valid video data.
@@ -46,20 +47,20 @@ def invalid_video(faker: Faker) -> UploadFile:
         The file that it created.
 
     """
-    filename = faker.file_name(category="video")
-    return UploadFile(
-        io.BytesIO("This is not a video " "file.".encode("utf8")),
-        filename=filename,
-    )
+
+    async def _read_file_chunks() -> AsyncIterable[bytes]:
+        yield "This is not a video file.".encode("utf8")
+
+    yield _read_file_chunks()
 
 
 @pytest.mark.asyncio
-async def test_ffprobe(valid_video) -> None:
+async def test_ffprobe(valid_video: AsyncIterable[bytes]) -> None:
     """
     Tests that the `ffprobe` function can get valid metadata.
 
     Args:
-        test_video: The video file to use for testing.
+        valid_video: The video file to use for testing.
 
     """
     # Act.
@@ -72,7 +73,9 @@ async def test_ffprobe(valid_video) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ffprobe_invalid_video(invalid_video: UploadFile) -> None:
+async def test_ffprobe_invalid_video(
+    invalid_video: AsyncIterable[bytes],
+) -> None:
     """
     Tests that the `ffprobe` function gracefully handles an invalid input.
 
@@ -87,7 +90,7 @@ async def test_ffprobe_invalid_video(invalid_video: UploadFile) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_preview(valid_video: UploadFile) -> None:
+async def test_create_preview(valid_video: AsyncIterable[bytes]) -> None:
     """
     Tests that `create_preview` can produce a valid preview.
 
@@ -114,11 +117,10 @@ async def test_create_preview(valid_video: UploadFile) -> None:
 
     # The preview should be a valid video. To test this, we'll run it back
     # through ffprobe and see what it says.
-    preview_file = UploadFile(io.BytesIO(), filename="preview.mp4")
-    await preview_file.write(preview)
-    await preview_file.seek(0)
+    async def _preview_async() -> AsyncIterable[bytes]:
+        yield preview
 
-    ffprobe_result = await ffmpeg.ffprobe(preview_file)
+    ffprobe_result = await ffmpeg.ffprobe(_preview_async())
 
     video_stream = ffprobe_result["streams"][0]
     assert video_stream["codec_name"] == "vp9"
@@ -127,7 +129,7 @@ async def test_create_preview(valid_video: UploadFile) -> None:
 
 @pytest.mark.asyncio
 async def test_create_streamable(
-    valid_video: UploadFile, faker: Faker
+    valid_video: AsyncIterable[bytes], faker: Faker
 ) -> None:
     """
     Tests that `create_streamable` can produce a valid streamable video.
@@ -154,13 +156,12 @@ async def test_create_streamable(
 
     assert len(streamable) > 0
 
-    # The preview should be a valid video. To test this, we'll run it back
+    # The stream should be a valid video. To test this, we'll run it back
     # through ffprobe and see what it says.
-    streamable_file = UploadFile(io.BytesIO(), filename="streamable.mp4")
-    await streamable_file.write(streamable)
-    await streamable_file.seek(0)
+    async def _streamable_async() -> AsyncIterable[bytes]:
+        yield streamable
 
-    ffprobe_result = await ffmpeg.ffprobe(streamable_file)
+    ffprobe_result = await ffmpeg.ffprobe(_streamable_async())
 
     video_stream = ffprobe_result["streams"][0]
     assert video_stream["codec_name"] == "vp9"
@@ -176,8 +177,11 @@ async def test_create_streamable(
     ids=["create_preview", "create_thumbnail", "create_streamable"],
 )
 async def test_create_derived_invalid_video(
-    invalid_video: UploadFile,
-    test_func: Callable[[UploadFile], Tuple[AsyncIterable, AsyncIterable]],
+    invalid_video: AsyncIterable[bytes],
+    test_func: Callable[
+        [AsyncIterable[bytes]],
+        Awaitable[Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]],
+    ],
 ) -> None:
     """
     Tests that the `create_preview`, `create_thumbnail`,
@@ -203,12 +207,12 @@ async def test_create_derived_invalid_video(
 
 
 @pytest.mark.asyncio
-async def test_create_thumbnail(valid_video) -> None:
+async def test_create_thumbnail(valid_video: AsyncIterable[bytes]) -> None:
     """
     Tests that `create_thumbnail` can produce a valid thumbnail.
 
     Args:
-        test_video: The video file to use for testing.
+        valid_video: The video file to use for testing.
 
     """
     # Arrange.

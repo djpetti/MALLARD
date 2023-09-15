@@ -5,7 +5,7 @@ Common interface for all object storage backends.
 
 import abc
 from io import BytesIO
-from typing import AsyncIterable, Iterable
+from typing import AsyncIterable
 
 from starlette.datastructures import UploadFile
 
@@ -155,9 +155,7 @@ class ObjectStore(Injectable):
         """
 
     @abc.abstractmethod
-    async def get_object(
-        self, object_id: ObjectRef
-    ) -> Iterable[bytes] | AsyncIterable[bytes]:
+    async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
         """
         Gets an existing object from the object store.
 

@@ -171,31 +171,32 @@ async def create_uav_video(
     preview_object_id = derived_id(object_id, "preview")
     streamable_object_id = derived_id(object_id, "streamable")
 
-    # Create the thumbnail.
-    await video_data.seek(0)
-    thumbnail = create_thumbnail(
-        video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-    )
-    await object_store.create_object(thumbnail_object_id, data=thumbnail)
-
-    async def _create_preview_and_thumbnail() -> None:
-        # Do this sequentially so that it doesn't try to read from the file
-        # concurrently.
-        logger.debug("Starting video transcode background task...")
-        await video_data.seek(0)
+    # Background tasks can be dispatched now that the video is added to the
+    # object store.
+    async def _create_preview() -> None:
+        logger.debug("Starting video preview background task...")
         preview = create_preview(
-            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
         )
         await object_store.create_object(preview_object_id, data=preview)
+        logger.debug("Finished video preview background task.")
 
-        await video_data.seek(0)
+    async def _create_streamable() -> None:
+        logger.debug("Starting video streamable background task...")
         streamable = create_streamable(
-            video_data, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
         )
         await object_store.create_object(streamable_object_id, data=streamable)
-        logger.debug("Finished video transcode background task.")
+        logger.debug("Finished video streamable background task.")
 
-    background_tasks.add_task(_create_preview_and_thumbnail)
+    background_tasks.add_task(_create_preview)
+    background_tasks.add_task(_create_streamable)
+
+    # Create the thumbnail.
+    thumbnail = create_thumbnail(
+        object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+    )
+    await object_store.create_object(thumbnail_object_id, data=thumbnail)
 
     return CreateResponse(video_id=object_id)
 

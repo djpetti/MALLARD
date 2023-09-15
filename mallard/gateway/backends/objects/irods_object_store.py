@@ -12,6 +12,7 @@ from irods.exception import CollectionDoesNotExist
 from loguru import logger
 from starlette.datastructures import UploadFile
 
+from ...async_utils import make_async_iter
 from ..irods_store import IrodsStore
 from .models import ObjectRef
 from .object_store import BucketOperationError, ObjectStore
@@ -142,6 +143,9 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
             force=True,
         )
 
-    async def get_object(self, object_id: ObjectRef) -> BytesIO:
+    async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
         data_object = await self._get_object(object_id)
-        return await self._async_db_op(data_object.open, "r")
+        object_file = await self._async_db_op(data_object.open, "r")
+        return make_async_iter(
+            (c for c in object_file.read(self._COPY_BUFFER_SIZE))
+        )

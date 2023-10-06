@@ -8,6 +8,7 @@ import time
 from typing import Iterable
 
 import pytest
+from faker import Faker
 
 from mallard.gateway import async_utils
 
@@ -109,6 +110,7 @@ async def test_make_async_iter_exception() -> None:
     synchronous iteration raises an exception.
 
     """
+
     # Arrange.
     # This will raise an exception when iterated.
     def failing_iterable() -> Iterable[int]:
@@ -119,3 +121,35 @@ async def test_make_async_iter_exception() -> None:
     with pytest.raises(ValueError, match="Hark"):
         async for _ in async_utils.make_async_iter(failing_iterable()):
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("max_length", [None, 512], ids=["no_limit", "limit"])
+async def test_read_file_chunks(faker: Faker, max_length: int | None) -> None:
+    """
+    Tests that `read_file` works.
+
+    Args:
+        faker: The fixture to use for generating fake data.
+        max_length: The maximum length of the data to read from the file.
+
+    """
+    # Arrange.
+    contents = faker.binary(length=1024)
+    upload_file = faker.upload_file(contents=contents)
+
+    # Act.
+    chunk_iter = async_utils.read_file_chunks(
+        upload_file, max_length=max_length, chunk_size=32
+    )
+    got_chunks = [chunk async for chunk in chunk_iter]
+
+    # Assert.
+    # It should have read the same content.
+    combined = b"".join(got_chunks)
+    if max_length is None:
+        assert combined == contents
+    else:
+        # It should have truncated the content (to the nearest chunk).
+        expected_size = max_length + (max_length % 32)
+        assert combined == contents[:expected_size]

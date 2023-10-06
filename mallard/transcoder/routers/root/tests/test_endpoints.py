@@ -14,6 +14,7 @@ from fastapi import HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
+from mallard.gateway.backends.objects import ObjectStore
 from mallard.transcoder.routers.root import endpoints
 
 from .....type_helpers import ArbitraryTypesConfig
@@ -29,7 +30,10 @@ class ConfigForTests:
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
         mock_create_streamable: The mocked `create_streamable` function.
+        mock_read_file_chunks: The mocked `read_file_chunks` function.
         mock_streaming_response_class: The mocked `StreamingResponse` class.
+
+        mock_object_store: The mocked `ObjectStore` instance.
 
     """
 
@@ -37,7 +41,10 @@ class ConfigForTests:
     mock_create_preview: Mock
     mock_create_thumbnail: Mock
     mock_create_streamable: Mock
+    mock_read_file_chunks: Mock
     mock_streaming_response_class: Mock
+
+    mock_object_store: ObjectStore
 
 
 @pytest.fixture()
@@ -60,9 +67,13 @@ def config(mocker: MockFixture) -> ConfigForTests:
         mock_create_streamable=mocker.patch(
             endpoints.__name__ + ".create_streamable"
         ),
+        mock_read_file_chunks=mocker.patch(
+            endpoints.__name__ + ".read_file_chunks"
+        ),
         mock_streaming_response_class=mocker.patch(
             endpoints.__name__ + ".StreamingResponse"
         ),
+        mock_object_store=mocker.create_autospec(ObjectStore, instance=True),
     )
 
 
@@ -171,8 +182,12 @@ async def test_infer_video_metadata(
     result = await endpoints.infer_video_metadata(fake_video)
 
     # Assert.
+    # It should have read the file data.
+    config.mock_read_file_chunks.assert_called_once_with(fake_video)
     # It should have called `ffprobe` with the video.
-    config.mock_ffprobe.assert_called_once_with(fake_video)
+    config.mock_ffprobe.assert_called_once_with(
+        config.mock_read_file_chunks.return_value
+    )
 
     assert result == fake_metadata
 
@@ -202,7 +217,6 @@ async def test_infer_video_metadata_invalid(
 @pytest.mark.asyncio
 async def test_create_video_preview(
     config: ConfigForTests,
-    fake_video: UploadFile,
     faker: Faker,
     bytes_iter: AsyncIterable[bytes],
     empty_iter: AsyncIterable[bytes],
@@ -212,7 +226,6 @@ async def test_create_video_preview(
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
         faker: The fixture to use for generating fake data.
         bytes_iter: Iterable generating random bytes.
         empty_iter: Iterable returning an empty bytes object.
@@ -224,16 +237,24 @@ async def test_create_video_preview(
     config.mock_create_preview.return_value = (bytes_iter, empty_iter)
 
     preview_width = faker.random_int()
+    fake_video = faker.object_ref()
 
     # Act.
     result = await endpoints.create_video_preview(
-        fake_video, preview_width=preview_width
+        fake_video.bucket,
+        fake_video.name,
+        preview_width=preview_width,
+        object_store=config.mock_object_store,
     )
 
     # Assert.
+    # It should have read the video from the object store.
+    config.mock_object_store.get_object.assert_called_once_with(fake_video)
+    video_data = config.mock_object_store.get_object.return_value
+
     # It should have called `create_preview` with the video.
     config.mock_create_preview.assert_called_once_with(
-        fake_video, preview_width=preview_width
+        video_data, preview_width=preview_width
     )
 
     # It should have created the response.
@@ -252,25 +273,30 @@ async def test_create_video_preview(
 @pytest.mark.asyncio
 async def test_create_video_preview_invalid(
     config: ConfigForTests,
-    fake_video: UploadFile,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
+    faker: Faker,
 ) -> None:
     """
     Tests that `create_video_preview` raises an error when the video is invalid.
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
+        faker: The fixture to use for generating fake data.
 
     """
     # Arrange.
     config.mock_create_preview.return_value = fail_iter, empty_iter
+    fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_video_preview(fake_video)
+    await endpoints.create_video_preview(
+        fake_video.bucket,
+        fake_video.name,
+        object_store=config.mock_object_store,
+    )
 
     # Assert.
     with pytest.raises(HTTPException) as exc_info:
@@ -285,7 +311,6 @@ async def test_create_video_preview_invalid(
 @pytest.mark.asyncio
 async def test_create_streaming_video(
     config: ConfigForTests,
-    fake_video: UploadFile,
     faker: Faker,
     bytes_iter: AsyncIterable[bytes],
     empty_iter: AsyncIterable[bytes],
@@ -295,7 +320,6 @@ async def test_create_streaming_video(
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
         faker: The fixture to use for generating fake data.
         bytes_iter: Iterable generating random bytes.
         empty_iter: Iterable returning an empty bytes object.
@@ -307,16 +331,24 @@ async def test_create_streaming_video(
     config.mock_create_streamable.return_value = (bytes_iter, empty_iter)
 
     max_width = faker.random_int()
+    fake_video = faker.object_ref()
 
     # Act.
     result = await endpoints.create_streaming_video(
-        fake_video, max_width=max_width
+        fake_video.bucket,
+        fake_video.name,
+        max_width=max_width,
+        object_store=config.mock_object_store,
     )
 
     # Assert.
-    # It should have called `create_preview` with the video.
+    # It should have read the video from the object store.
+    config.mock_object_store.get_object.assert_called_once_with(fake_video)
+    video_data = config.mock_object_store.get_object.return_value
+
+    # It should have called `create_streamable` with the video.
     config.mock_create_streamable.assert_called_once_with(
-        fake_video, max_width=max_width
+        video_data, max_width=max_width
     )
 
     # It should have created the response.
@@ -335,9 +367,9 @@ async def test_create_streaming_video(
 @pytest.mark.asyncio
 async def test_create_streaming_video_invalid(
     config: ConfigForTests,
-    fake_video: UploadFile,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
+    faker: Faker,
 ) -> None:
     """
     Tests that `create_streaming_video` raises an error when the video is
@@ -345,16 +377,21 @@ async def test_create_streaming_video_invalid(
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
+        faker: The fixture to use for generating fake data.
 
     """
     # Arrange.
     config.mock_create_streamable.return_value = fail_iter, empty_iter
+    fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_streaming_video(fake_video)
+    await endpoints.create_streaming_video(
+        fake_video.bucket,
+        fake_video.name,
+        object_store=config.mock_object_store,
+    )
 
     # Assert.
     with pytest.raises(HTTPException) as exc_info:
@@ -369,7 +406,6 @@ async def test_create_streaming_video_invalid(
 @pytest.mark.asyncio
 async def test_create_video_thumbnail(
     config: ConfigForTests,
-    fake_video: UploadFile,
     faker: Faker,
     bytes_iter: AsyncIterable[bytes],
     empty_iter: AsyncIterable[bytes],
@@ -379,7 +415,6 @@ async def test_create_video_thumbnail(
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
         faker: The fixture to use for generating fake data.
         bytes_iter: Iterable generating random bytes.
         empty_iter: Iterable returning an empty bytes object.
@@ -391,16 +426,24 @@ async def test_create_video_thumbnail(
     config.mock_create_thumbnail.return_value = (bytes_iter, empty_iter)
 
     thumbnail_width = faker.random_int()
+    fake_video = faker.object_ref()
 
     # Act.
     result = await endpoints.create_video_thumbnail(
-        fake_video, thumbnail_width=thumbnail_width
+        fake_video.bucket,
+        fake_video.name,
+        thumbnail_width=thumbnail_width,
+        object_store=config.mock_object_store,
     )
 
     # Assert.
+    # It should have read the video from the object store.
+    config.mock_object_store.get_object.assert_called_once_with(fake_video)
+    video_data = config.mock_object_store.get_object.return_value
+
     # It should have called `create_thumbnail` with the video.
     config.mock_create_thumbnail.assert_called_once_with(
-        fake_video, thumbnail_width=thumbnail_width
+        video_data, thumbnail_width=thumbnail_width
     )
 
     # It should have created the response.
@@ -421,7 +464,7 @@ async def test_create_video_thumbnail(
 @pytest.mark.asyncio
 async def test_create_video_thumbnail_invalid(
     config: ConfigForTests,
-    fake_video: UploadFile,
+    faker: Faker,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
 ) -> None:
@@ -430,16 +473,21 @@ async def test_create_video_thumbnail_invalid(
 
     Args:
         config: The configuration to use for testing.
-        fake_video: The fake video to use for testing.
+        faker: The fixture to use for generating fake data.
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
 
     """
     # Arrange.
     config.mock_create_thumbnail.return_value = fail_iter, empty_iter
+    fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_video_thumbnail(fake_video)
+    await endpoints.create_video_thumbnail(
+        fake_video.bucket,
+        fake_video.name,
+        object_store=config.mock_object_store,
+    )
 
     # Assert.
     with pytest.raises(HTTPException) as exc_info:

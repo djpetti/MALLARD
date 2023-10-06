@@ -10,11 +10,11 @@ import asyncio
 import json
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
-from aioitertools import chain
 from loguru import logger
 
 from ..cli_utils import find_exe
-from ..ffmpeg_utils import find_video_stream
+from ..config import config
+from .concurrency_limited_runner import ConcurrencyLimitedRunner
 
 FFPROBE_ARGS = [
     "-hide_banner",
@@ -45,6 +45,14 @@ _DEFAULT_PIPES = dict(
 )
 """
 Default configuration for stdin, stdout, and stderr for subprocesses.
+"""
+
+
+_g_runner = ConcurrencyLimitedRunner(
+    max_processes=config["transcoder"]["max_num_processes"].as_number()
+)
+"""
+Runner that limits the number of concurrent processes.
 """
 
 
@@ -249,7 +257,7 @@ async def create_preview(
 
     """
     ffmpeg = find_exe("ffmpeg")
-    ffmpeg_process = await asyncio.create_subprocess_exec(
+    ffmpeg_process = await _g_runner.run(
         ffmpeg,
         "-i",
         "pipe:",
@@ -282,31 +290,13 @@ async def create_streamable(
         The video preview, as a raw stream, and the stderr from FFMpeg.
 
     """
-    initial_bytes = b""
-
-    async def _read_and_buffer() -> AsyncIterable[bytes]:
-        # Buffers the initial part of the file so we can process it twice.
-        nonlocal initial_bytes
-        async for chunk in source:
-            initial_bytes += chunk
-            yield chunk
-
-    # First, use FFProbe to get the input resolution.
-    ffprobe_results = await ffprobe(_read_and_buffer())
-    # Add the part we read back.
-    source = chain([initial_bytes], source)
-
-    input_width = find_video_stream(ffprobe_results)["width"]
-    output_width = min(input_width, max_width)
-    logger.debug("Transcoding video to width {}.", output_width)
-
     ffmpeg = find_exe("ffmpeg")
-    ffmpeg_process = await asyncio.create_subprocess_exec(
+    ffmpeg_process = await _g_runner.run(
         ffmpeg,
         "-i",
         "pipe:",
         "-vf",
-        f"scale={output_width}:-2,setsar=1:1,fps=30",
+        f"scale='min({max_width},iw)':-2,setsar=1:1,fps=30",
         "-c:v",
         "vp9",
         "-row-mt",

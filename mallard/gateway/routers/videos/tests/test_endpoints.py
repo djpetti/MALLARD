@@ -154,9 +154,13 @@ async def test_create_uav_video(
     )
 
     # Run the background tasks.
-    create_uav_params.mock_background_tasks.add_task.assert_called_once()
-    task = create_uav_params.mock_background_tasks.add_task.call_args.args[0]
-    await task()
+    assert create_uav_params.mock_background_tasks.add_task.call_count == 2
+    tasks = [
+        c.args[0]
+        for c in create_uav_params.mock_background_tasks.add_task.call_args_list
+    ]
+    for task in tasks:
+        await task()
 
     # Assert.
     # It should have named the object correctly.
@@ -175,7 +179,7 @@ async def test_create_uav_video(
 
     # It should have created the thumbnail.
     mock_transcoder_client.mock_create_thumbnail.assert_called_once_with(
-        create_uav_params.mock_file, chunk_size=mock.ANY
+        got_video_id, chunk_size=mock.ANY
     )
     mock_thumbnail = mock_transcoder_client.mock_create_thumbnail.return_value
     config.mock_object_store.create_object.assert_any_call(
@@ -187,7 +191,7 @@ async def test_create_uav_video(
 
     # It should have created the preview.
     mock_transcoder_client.mock_create_preview.assert_called_once_with(
-        create_uav_params.mock_file, chunk_size=mock.ANY
+        got_video_id, chunk_size=mock.ANY
     )
     mock_preview = mock_transcoder_client.mock_create_preview.return_value
     config.mock_object_store.create_object.assert_any_call(
@@ -199,7 +203,7 @@ async def test_create_uav_video(
 
     # It should have created the streaming version.
     mock_transcoder_client.mock_create_preview.assert_called_once_with(
-        create_uav_params.mock_file, chunk_size=mock.ANY
+        got_video_id, chunk_size=mock.ANY
     )
     mock_preview = mock_transcoder_client.mock_create_streamable.return_value
     config.mock_object_store.create_object.assert_any_call(

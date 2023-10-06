@@ -6,7 +6,7 @@ Object store that uses iRODS as backing storage.
 import shutil
 from functools import singledispatchmethod
 from io import BufferedRandom, BytesIO
-from typing import Any, AsyncIterable, Union
+from typing import Any, AsyncIterable, Iterable, Union
 
 from irods.exception import CollectionDoesNotExist
 from loguru import logger
@@ -23,7 +23,7 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
     Object store that uses iRODS as backing storage.
     """
 
-    _COPY_BUFFER_SIZE = 4096
+    _COPY_BUFFER_SIZE = 2**20  # 1 MB
     """
     Buffer size to use when copying file data, in bytes.
     """
@@ -146,6 +146,9 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
     async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
         data_object = await self._get_object(object_id)
         object_file = await self._async_db_op(data_object.open, "r")
-        return make_async_iter(
-            (c for c in object_file.read(self._COPY_BUFFER_SIZE))
-        )
+
+        def _read_chunks() -> Iterable[bytes]:
+            while chunk := object_file.read(self._COPY_BUFFER_SIZE):
+                yield chunk
+
+        return make_async_iter(_read_chunks())

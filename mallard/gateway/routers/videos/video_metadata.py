@@ -5,10 +5,10 @@ Handles parsing video metadata
 
 from datetime import datetime, timezone
 from fractions import Fraction
-from functools import cached_property
+from functools import cached_property, partial
 from typing import Any, Dict
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from loguru import logger
 
 from ....ffmpeg_utils import find_video_stream
@@ -125,23 +125,33 @@ async def fill_metadata(
         The filled video metadata.
 
     """
+    _fill_metadata = partial(artifact_fill_metadata, metadata, artifact=video)
+
     # Probe the video.
-    probe_results = await probe_video(video)
-    reader = FFProbeReader(probe_results)
+    probe_results = None
+    try:
+        probe_results = await probe_video(video)
+    except HTTPException:
+        # In this case, the best thing to do is log the error but continue so
+        # things don't *completely* break.
+        logger.exception("Video probe failed. Using default metadata.")
 
     # Reset the video file after probing.
     await video.seek(0)
 
-    if metadata.format is not None and metadata.format != reader.format:
-        raise InvalidVideoError(
-            f"Got video format '{reader.format}' but expected '{metadata.format}'."
+    if probe_results is not None:
+        reader = FFProbeReader(probe_results)
+        if metadata.format is not None and metadata.format != reader.format:
+            raise InvalidVideoError(
+                f"Got video format '{reader.format}' but expected '{metadata.format}'."
+            )
+
+        _fill_metadata = partial(
+            _fill_metadata,
+            capture_date=reader.capture_datetime.date(),
+            format=reader.format,
+            frame_rate=reader.frame_rate,
+            num_frames=reader.num_frames,
         )
 
-    return artifact_fill_metadata(
-        metadata,
-        artifact=video,
-        capture_date=reader.capture_datetime.date(),
-        format=reader.format,
-        frame_rate=reader.frame_rate,
-        num_frames=reader.num_frames,
-    )
+    return _fill_metadata()

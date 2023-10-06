@@ -8,6 +8,7 @@ from functools import partial
 from typing import Set
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     Date,
     Enum,
@@ -121,7 +122,7 @@ class Artifact(Base):
     bucket = Column(String(50), primary_key=True)
     key = Column(String(50), primary_key=True)
 
-    size = Column(Integer)
+    size = Column(BigInteger)
 
     name = Column(String(100), index=True)
     platform_type = Column(Enum(PlatformType), nullable=False, index=True)

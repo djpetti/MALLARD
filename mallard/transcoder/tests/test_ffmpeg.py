@@ -3,13 +3,14 @@ Tests for the `ffmpeg` module.
 """
 
 
+import asyncio
 import io
 from typing import AsyncIterable, Awaitable, Callable, Tuple
 
 import pytest
 from faker import Faker
-from fastapi import UploadFile
 from PIL import Image
+from pytest_mock import MockerFixture
 
 from mallard.transcoder import ffmpeg
 
@@ -35,13 +36,10 @@ def valid_video() -> AsyncIterable[bytes]:
 
 
 @pytest.fixture()
-def invalid_video(faker: Faker) -> AsyncIterable[bytes]:
+def invalid_video() -> AsyncIterable[bytes]:
     """
     Creates a "video file" to test with that does not contain
     valid video data.
-
-    Args:
-        faker: The fixture to use for generating fake data.
 
     Yields:
         The file that it created.
@@ -52,6 +50,18 @@ def invalid_video(faker: Faker) -> AsyncIterable[bytes]:
         yield "This is not a video file.".encode("utf8")
 
     yield _read_file_chunks()
+
+
+@pytest.fixture(autouse=True)
+def replace_concurrency_limited_runner(mocker: MockerFixture) -> None:
+    """
+    Replaces the `ConcurrencyLimitedRunner` class with a pass-through.
+
+    """
+    mock_runner = mocker.patch.object(ffmpeg, "_g_runner")
+
+    # Replace the `run()` method with a pass-through.
+    mock_runner.run.side_effect = asyncio.create_subprocess_exec
 
 
 @pytest.mark.asyncio
@@ -149,10 +159,10 @@ async def test_create_streamable(
 
     # Assert.
     # Read all the data from the stream.
-    streamable = b"".join([c async for c in preview_stream])
     stderr = "".join([c.decode("utf8") async for c in stderr_stream])
     # Having stderr makes debugging A LOT easier.
     print(f"FFMpeg stderr: {stderr}")
+    streamable = b"".join([c async for c in preview_stream])
 
     assert len(streamable) > 0
 

@@ -6,11 +6,14 @@ Testing configuration file.
 import pytest
 from faker import Faker
 
-from .backends.metadata.tests.faker_providers import MetadataProvider
-from .backends.objects.tests.faker_providers import S3Provider
-from .routers.images.tests.faker_providers import ExifProvider, ImageProvider
-from .routers.videos.tests.faker_providers import VideoProvider
-from .tests.faker_providers import FastApiProvider
+from .gateway.backends.metadata.tests.faker_providers import MetadataProvider
+from .gateway.backends.objects.tests.faker_providers import S3Provider
+from .gateway.routers.images.tests.faker_providers import (
+    ExifProvider,
+    ImageProvider,
+)
+from .gateway.routers.videos.tests.faker_providers import VideoProvider
+from .gateway.tests.faker_providers import FastApiProvider
 
 
 @pytest.fixture(autouse=True)

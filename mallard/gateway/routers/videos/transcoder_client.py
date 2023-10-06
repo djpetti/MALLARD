@@ -20,7 +20,7 @@ Number of bytes to read from the start of the video when probing it.
 """
 
 
-get_session = Session(base_url=config["transcoder_base_url"].as_str())
+get_session = Session(base_url=config["transcoder"]["base_url"].as_str())
 
 
 def _make_video_form_data(
@@ -115,7 +115,9 @@ async def create_preview(
     """
     logger.debug("Creating preview for video {}...", video)
     async with get_session().post(
-        f"/create_preview/{video.bucket}/{video.name}"
+        f"/create_preview/{video.bucket}/{video.name}",
+        # This operation can be quite slow, so use a long timeout.
+        timeout=60 * 60,
     ) as response:
         if response.status != 200:
             raise HTTPException(

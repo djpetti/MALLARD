@@ -7,6 +7,7 @@ import enum
 import io
 from pathlib import Path
 from typing import Type, Union
+from unittest import mock
 
 import pytest
 from faker import Faker
@@ -46,12 +47,14 @@ class TestIrodsObjectStore:
             store: The `IrodsObjectStore` under test.
             mock_session: The mocked `iRODSSession` instance.
             root_collection: The root collection path that we use for the store.
+            mock_make_async_iter: The mocked `make_async_iter` function.
 
         """
 
         store: irods_object_store.IrodsObjectStore
         mock_session: iRODSSession
         root_collection: Path
+        mock_make_async_iter: mock.Mock
 
     @classmethod
     @pytest.fixture
@@ -85,7 +88,12 @@ class TestIrodsObjectStore:
         )
 
         return cls.ConfigForTests(
-            store=store, mock_session=mock_session, root_collection=root_path
+            store=store,
+            mock_session=mock_session,
+            root_collection=root_path,
+            mock_make_async_iter=mocker.patch(
+                f"{irods_object_store.__name__}.make_async_iter",
+            ),
         )
 
     @pytest.mark.asyncio
@@ -542,6 +550,11 @@ class TestIrodsObjectStore:
         # Arrange.
         object_id = faker.object_ref()
 
+        # Make it look like it produces a file with some data.
+        mock_object = config.mock_session.data_objects.get.return_value
+        test_data = faker.binary(length=1024)
+        mock_object.open.return_value = io.BytesIO(test_data)
+
         # Act.
         got_data = await config.store.get_object(object_id)
 
@@ -553,10 +566,14 @@ class TestIrodsObjectStore:
         config.mock_session.data_objects.get.assert_called_once_with(
             expected_path.as_posix()
         )
-        mock_object = config.mock_session.data_objects.get.return_value
 
         mock_object.open.assert_called_once_with("r")
-        assert got_data == mock_object.open.return_value
+
+        # Piece the chunks back together.
+        assert got_data == config.mock_make_async_iter.return_value
+        file_chunks = config.mock_make_async_iter.call_args.args[0]
+        file_stream = b"".join([c for c in file_chunks])
+        assert file_stream == test_data
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

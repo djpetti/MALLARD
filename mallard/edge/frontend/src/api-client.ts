@@ -15,6 +15,7 @@ import {
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
+import { AxiosRequestConfig } from "axios";
 
 // This global variable is expected to be pre-set by an external script.
 declare const API_BASE_URL: string;
@@ -264,7 +265,7 @@ export async function createVideo(
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
-  let config = {};
+  let config: AxiosRequestConfig = { timeout: 60 * 60 };
   if (onProgress !== undefined) {
     config = {
       onUploadProgress: (progressEvent: ProgressEvent) => {

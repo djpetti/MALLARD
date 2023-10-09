@@ -265,7 +265,7 @@ export async function createVideo(
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
-  let config: AxiosRequestConfig = { timeout: 60 * 60 };
+  let config: AxiosRequestConfig = { timeout: 30 * 60 };
   if (onProgress !== undefined) {
     config = {
       onUploadProgress: (progressEvent: ProgressEvent) => {

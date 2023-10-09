@@ -22,6 +22,13 @@ Number of bytes to read from the start of the video when probing it.
 
 get_session = Session(base_url=config["transcoder"]["base_url"].as_str())
 
+LONG_OP_TIMEOUT = aiohttp.ClientTimeout(connect=60)
+"""
+Timeout for long operations. By default, there is no timeout, except to
+establish the initial connection (this should happen quickly, even if the
+transcoder service is under high load.)
+"""
+
 
 def _make_video_form_data(
     video: UploadFile, max_length: int | None = None
@@ -117,7 +124,7 @@ async def create_preview(
     async with get_session().post(
         f"/create_preview/{video.bucket}/{video.name}",
         # This operation can be quite slow, so use a long timeout.
-        timeout=60 * 60,
+        timeout=LONG_OP_TIMEOUT,
     ) as response:
         if response.status != 200:
             raise HTTPException(
@@ -147,7 +154,7 @@ async def create_streamable(
     async with get_session().post(
         f"/create_streaming_video/{video.bucket}/{video.name}",
         # This operation can be quite slow, so use a long timeout.
-        timeout=60 * 60,
+        timeout=LONG_OP_TIMEOUT,
     ) as response:
         if response.status != 200:
             logger.error("Streamable creation failed: {}", response.reason)

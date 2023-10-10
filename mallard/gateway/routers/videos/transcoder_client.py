@@ -2,12 +2,19 @@
 This is a client for the transcoder service. We *should* be able to
 autogenerate this, but OpenAPI is weird about async stuff.
 """
+import asyncio
 from asyncio import IncompleteReadError
 from typing import Any, AsyncIterable, Dict
 
 import aiohttp
 from fastapi import HTTPException, UploadFile
 from loguru import logger
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from ....config import config
 from ...aiohttp_session import Session
@@ -28,6 +35,13 @@ Timeout for long operations. By default, there is no timeout, except to
 establish the initial connection (this should happen quickly, even if the
 transcoder service is under high load.)
 """
+
+client_retry = retry(
+    retry=retry_if_exception_type(asyncio.Timeout),
+    wait=wait_random_exponential(multiplier=1, max=60),
+    after=lambda _: logger.warning("Retrying transcoder API call..."),
+    stop=stop_after_attempt(10),
+)
 
 
 def _make_video_form_data(
@@ -80,6 +94,7 @@ async def _iter_exact_chunked(
             break
 
 
+@client_retry
 async def probe_video(video: UploadFile) -> Dict[str, Any]:
     """
     Probes the video file using ffprobe.
@@ -106,6 +121,7 @@ async def probe_video(video: UploadFile) -> Dict[str, Any]:
         return await response.json()
 
 
+@client_retry
 async def create_preview(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
@@ -136,6 +152,7 @@ async def create_preview(
             yield chunk
 
 
+@client_retry
 async def create_streamable(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
@@ -167,6 +184,7 @@ async def create_streamable(
             yield chunk
 
 
+@client_retry
 async def create_thumbnail(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:

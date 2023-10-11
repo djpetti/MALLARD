@@ -121,13 +121,20 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
    */
   private adjustSizes() {
     const fullscreenHeight = this.clientHeight;
+    // Maximum width allowed by the column layout.
+    const maxWidth = this.clientWidth;
 
     // Adjust the image and placeholder to use the full height.
     if (this.displayContainer) {
       this.displayContainer.style.height = `${fullscreenHeight}px`;
     }
     if (this.media) {
-      this.media.style.height = `${fullscreenHeight}px`;
+      // Determine the maximum allowable height for the media that won't
+      // overflow horizontally.
+      const boundingRect = this.media.getBoundingClientRect();
+      const maxHeight = (boundingRect.height / boundingRect.width) * maxWidth;
+
+      this.media.style.height = `${maxHeight}px`;
     }
   }
 

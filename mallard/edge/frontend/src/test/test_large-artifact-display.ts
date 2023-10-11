@@ -161,11 +161,19 @@ describe("large-artifact-display", () => {
 
   it("sets the image size when the image is updated", async () => {
     // Arrange.
-    // Set the screen height.
+    // Set the screen size.
     const screenHeight = faker.datatype.number();
+    const screenWidth = faker.datatype.number();
     Object.defineProperty(displayElement, "clientHeight", {
       value: screenHeight,
     });
+    Object.defineProperty(displayElement, "clientWidth", {
+      value: screenWidth,
+    });
+
+    // Set up the bounding rectangle check.
+    const mockGetBoundingClientRect = jest.fn();
+    mockGetBoundingClientRect.mockReturnValue({width: screenWidth / 2, height: screenHeight / 3});
 
     // Act.
     // Update the image.
@@ -182,7 +190,8 @@ describe("large-artifact-display", () => {
     const internalImage = root.querySelector("#media") as HTMLImageElement;
 
     expect(containerElement.style.height).toEqual(`${screenHeight}px`);
-    expect(internalImage.style.height).toEqual(`${screenHeight}px`);
+    // Image should be sized so as not to overflow.
+    expect(internalImage.style.height).toEqual(`${screenHeight / screenWidth *}px`);
   });
 
   each([

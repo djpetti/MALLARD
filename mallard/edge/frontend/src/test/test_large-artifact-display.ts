@@ -173,25 +173,41 @@ describe("large-artifact-display", () => {
 
     // Set up the bounding rectangle check.
     const mockGetBoundingClientRect = jest.fn();
-    mockGetBoundingClientRect.mockReturnValue({width: screenWidth / 2, height: screenHeight / 3});
+    const imageWidth = screenWidth / 2;
+    const imageHeight = screenHeight / 3;
+    mockGetBoundingClientRect.mockReturnValue({
+      width: imageWidth,
+      height: imageHeight,
+    });
 
     // Act.
     // Update the image.
-    displayElement.sourceUrl = faker.image.imageUrl();
+    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
     // Wait for it to render.
     await displayElement.updateComplete;
 
-    // Assert.
-    // It should have set the height of the underlying elements.
     const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
     const containerElement = root.querySelector(
       "#media_container"
     ) as HTMLElement;
     const internalImage = root.querySelector("#media") as HTMLImageElement;
 
+    // Mock out the boundingClientRectangle check.
+    Object.assign(internalImage, {
+      getBoundingClientRect: mockGetBoundingClientRect,
+    });
+
+    // Force it to adjust sizes again.
+    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
+    await displayElement.updateComplete;
+
+    // Assert.
+    // It should have set the height of the underlying elements.
     expect(containerElement.style.height).toEqual(`${screenHeight}px`);
     // Image should be sized so as not to overflow.
-    expect(internalImage.style.height).toEqual(`${screenHeight / screenWidth *}px`);
+    expect(internalImage.style.height).toEqual(
+      `${(imageHeight / imageWidth) * screenWidth}px`
+    );
   });
 
   each([

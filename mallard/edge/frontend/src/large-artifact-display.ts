@@ -22,11 +22,16 @@ import "@material/mwc-linear-progress";
  */
 export class LargeArtifactDisplay extends ArtifactDisplay {
   static styles = css`
+    @media only screen and (orientation: landscape) {
+      :host {
+        /* Extra 64px leaves room for the navigation bar. */
+        height: calc(100vh - 64px);
+      }
+    }
+
     :host {
       display: block;
       width: 100%;
-      /* Extra 64px leaves room for the navigation bar. */
-      height: calc(100vh - 64px);
     }
 
     .transcode_message_background {
@@ -82,10 +87,6 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
       height: 100vh;
     }
 
-    img {
-      height: 100vh;
-    }
-
     ${ArtifactDisplay.styles}
   `;
 
@@ -120,21 +121,32 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
    * @private
    */
   private adjustSizes() {
+    const isPortrait = window.innerHeight > window.innerWidth;
+
     const fullscreenHeight = this.clientHeight;
     // Maximum width allowed by the column layout.
     const maxWidth = this.clientWidth;
 
     // Adjust the image and placeholder to use the full height.
     if (this.displayContainer) {
-      this.displayContainer.style.height = `${fullscreenHeight}px`;
+      if (isPortrait) {
+        this.displayContainer.style.height = "auto";
+      } else {
+        // Take up the whole viewport with the placeholder.
+        this.displayContainer.style.height = `${fullscreenHeight}px`;
+      }
     }
     if (this.media) {
-      // Determine the maximum allowable height for the media that won't
-      // overflow horizontally.
-      const boundingRect = this.media.getBoundingClientRect();
-      const maxHeight = (boundingRect.height / boundingRect.width) * maxWidth;
+      if (isPortrait) {
+        this.media.style.height = "auto";
+      } else {
+        // Determine the maximum allowable height for the media that won't
+        // overflow horizontally.
+        const boundingRect = this.media.getBoundingClientRect();
+        const maxHeight = (boundingRect.height / boundingRect.width) * maxWidth;
 
-      this.media.style.height = `${maxHeight}px`;
+        this.media.style.height = `${maxHeight}px`;
+      }
     }
   }
 

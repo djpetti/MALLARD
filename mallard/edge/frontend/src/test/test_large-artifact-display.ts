@@ -159,56 +159,72 @@ describe("large-artifact-display", () => {
     expect(handler).toBeCalledTimes(1);
   });
 
-  it("sets the image size when the image is updated", async () => {
-    // Arrange.
-    // Set the screen size.
-    const screenHeight = faker.datatype.number();
-    const screenWidth = faker.datatype.number();
-    Object.defineProperty(displayElement, "clientHeight", {
-      value: screenHeight,
-    });
-    Object.defineProperty(displayElement, "clientWidth", {
-      value: screenWidth,
-    });
+  each([
+    ["landscape", 1920, 1080],
+    ["portrait", 1080, 1920],
+  ]).it(
+    "sets the image size when the image is updated in %s orientation",
+    async (_, screenWidth: number, screenHeight: number) => {
+      // Arrange.
+      // Set the screen size.
+      Object.defineProperty(displayElement, "clientHeight", {
+        value: screenHeight,
+      });
+      Object.defineProperty(displayElement, "clientWidth", {
+        value: screenWidth,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        value: screenHeight,
+      });
+      Object.defineProperty(window, "innerWidth", {
+        value: screenWidth,
+      });
 
-    // Set up the bounding rectangle check.
-    const mockGetBoundingClientRect = jest.fn();
-    const imageWidth = screenWidth / 2;
-    const imageHeight = screenHeight / 3;
-    mockGetBoundingClientRect.mockReturnValue({
-      width: imageWidth,
-      height: imageHeight,
-    });
+      // Set up the bounding rectangle check.
+      const mockGetBoundingClientRect = jest.fn();
+      const imageWidth = screenWidth / 2;
+      const imageHeight = screenHeight / 3;
+      mockGetBoundingClientRect.mockReturnValue({
+        width: imageWidth,
+        height: imageHeight,
+      });
 
-    // Act.
-    // Update the image.
-    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
-    // Wait for it to render.
-    await displayElement.updateComplete;
+      // Act.
+      // Update the image.
+      displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
+      // Wait for it to render.
+      await displayElement.updateComplete;
 
-    const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
-    const containerElement = root.querySelector(
-      "#media_container"
-    ) as HTMLElement;
-    const internalImage = root.querySelector("#media") as HTMLImageElement;
+      const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
+      const containerElement = root.querySelector(
+        "#media_container"
+      ) as HTMLElement;
+      const internalImage = root.querySelector("#media") as HTMLImageElement;
 
-    // Mock out the boundingClientRectangle check.
-    Object.assign(internalImage, {
-      getBoundingClientRect: mockGetBoundingClientRect,
-    });
+      // Mock out the boundingClientRectangle check.
+      Object.assign(internalImage, {
+        getBoundingClientRect: mockGetBoundingClientRect,
+      });
 
-    // Force it to adjust sizes again.
-    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
-    await displayElement.updateComplete;
+      // Force it to adjust sizes again.
+      displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
+      await displayElement.updateComplete;
 
-    // Assert.
-    // It should have set the height of the underlying elements.
-    expect(containerElement.style.height).toEqual(`${screenHeight}px`);
-    // Image should be sized so as not to overflow.
-    expect(internalImage.style.height).toEqual(
-      `${(imageHeight / imageWidth) * screenWidth}px`
-    );
-  });
+      // Assert.
+      if (screenWidth > screenHeight) {
+        // It should have set the height of the underlying elements.
+        expect(containerElement.style.height).toEqual(`${screenHeight}px`);
+        // Image should be sized so as not to overflow.
+        expect(internalImage.style.height).toEqual(
+          `${(imageHeight / imageWidth) * screenWidth}px`
+        );
+      } else {
+        // In portrait mode, it should not mess with the sizing.
+        expect(containerElement.style.height).toEqual("auto");
+        expect(internalImage.style.height).toEqual("auto");
+      }
+    }
+  );
 
   each([
     ["not specified", undefined, ObjectType.IMAGE, false],

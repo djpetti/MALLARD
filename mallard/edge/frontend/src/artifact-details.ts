@@ -28,29 +28,69 @@ export class ArtifactDetails extends LitElement {
       }
     }
 
+    /* Animation for flying in from the bottom. */
+    @keyframes fly-in-bottom {
+      from {
+        top: 100%;
+      }
+      to {
+        top: 0;
+      }
+    }
+
     .grid-layout {
       display: grid;
     }
 
     /* The main image panel. */
-    .main-panel {
-      grid-column-start: 1;
-      grid-column-end: 3;
+    @media only screen and (orientation: landscape) {
+      /* Landscape layout. */
+      .main-panel-layout {
+        grid-column-start: 1;
+        grid-column-end: 3;
+      }
+
+      .side-panel-layout {
+        grid-column-start: 3;
+        grid-column-end: 4;
+      }
+    }
+
+    @media only screen and (orientation: portrait) {
+      /* Portrait layout. */
+      .main-panel-layout {
+        grid-column-start: 1;
+        grid-column-end: 2;
+      }
+
+      .side-panel-layout {
+        grid-column-start: 1;
+        grid-column-end: 2;
+      }
+    }
+
+    @media only screen and (orientation: landscape) {
+      .side-panel {
+        left: 100%;
+        animation-name: fly-in-right;
+      }
+    }
+
+    @media only screen and (orientation: portrait) {
+      .side-panel {
+        top: 100%;
+        animation-name: fly-in-bottom;
+      }
     }
 
     /* The side panel. */
     .side-panel {
-      grid-column-start: 3;
-      grid-column-end: 4;
-      width: 25vw;
       overflow: auto;
       /* Extra 64px leaves room for the navigation bar. */
       height: calc(100vh - 64px);
 
       /** Start all the way off to the side. */
       position: relative;
-      left: 100%;
-      animation-name: fly-in-right;
       animation-duration: 0.25s;
       animation-delay: 0.5s;
       animation-fill-mode: forwards;
@@ -98,13 +138,13 @@ export class ArtifactDetails extends LitElement {
 
     return html`
       <div class="grid-layout">
-        <div class="main-panel">
+        <div class="main-panel-layout">
           <large-artifact-display
             .frontendId=${this.frontendId}
             .type=${this.artifactType}
           ></large-artifact-display>
         </div>
-        <div class="side-panel">
+        <div class="side-panel-layout side-panel">
           <metadata-card .frontendId=${this.frontendId}></metadata-card>
           <notes-card .frontendId=${this.frontendId}></notes-card>
         </div>

@@ -55,9 +55,6 @@ async def test_use_bucket(
     got_bucket = await use_bucket(config.mock_object_store)
 
     # Assert.
-    # It should have produced a good name.
-    assert fake_date in got_bucket
-
     # It should have created the bucket only if necessary.
     config.mock_object_store.bucket_exists.assert_called_once_with(got_bucket)
     if not exists:

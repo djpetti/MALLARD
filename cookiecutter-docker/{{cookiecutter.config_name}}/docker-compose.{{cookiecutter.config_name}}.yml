@@ -63,6 +63,26 @@ services:
       - mallard
     command: "server /data"
 
+  # Backup service.
+  {%- if cookiecutter.backup == "yes" %}
+  backup:
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: backup
+    hostname: backup
+    environment:
+      # Use MinIO credentials.
+      ACCESS_KEY: minioadmin
+      ACCESS_KEY_ID: minioadmin
+    volumes:
+      - ./backups:/backups
+    networks:
+      - mallard
+    command:
+
+  {% endif %}
+
   # Metadata storage service.
   metadata_store:
     image: mariadb:10.11

@@ -127,3 +127,10 @@ COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
 CMD gunicorn -w 1 -b 0.0.0.0:8000 \
      -k mallard.configurable_worker.ConfigurableWorker \
      mallard.transcoder.main:app
+
+#####
+# backup image is used for handling backups.
+#####
+FROM ubuntu:22.10 as backup
+
+RUN apt-get update && apt-get install s3fs

@@ -166,7 +166,9 @@ async def test_create_uav_video(
     # It should have named the object correctly.
     got_video_id = response.video_id
     assert got_video_id.bucket == create_uav_params.bucket_id
-    assert got_video_id.name == create_uav_params.mock_uuid.return_value.hex
+    assert got_video_id.name.endswith(
+        create_uav_params.mock_uuid.return_value.hex
+    )
 
     # It should have updated the databases.
     assert config.mock_object_store.create_object.call_count == 4

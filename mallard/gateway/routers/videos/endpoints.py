@@ -132,10 +132,10 @@ async def move_artifacts(
     bucket: str = Depends(use_bucket_videos),
     background_tasks: BackgroundTasks = BackgroundTasks,
 ) -> None:
-    async def _move_from_query(results: AsyncIterable[TypedObjectRef]) -> bool:
-        processed_at_least_one = False
+    async def _move_from_query(results: AsyncIterable[TypedObjectRef]) -> int:
+        num_processed = 0
         async for result in results:
-            processed_at_least_one = True
+            num_processed += 1
             if result.type != ObjectType.VIDEO:
                 # We're only moving images here.
                 continue
@@ -175,20 +175,22 @@ async def move_artifacts(
             except ObjectOperationError:
                 logger.exception("Failed to move object {}.", result.id)
 
-        return processed_at_least_one
+        return num_processed
 
     async def _background_move() -> None:
         base_query = ImageQuery()
         offset = 0
+        num_results = 1000000
         while True:
             logger.debug("Processing artifacts ({})", offset)
 
             results = metadata_store.query(
-                [base_query], skip_first=offset, max_num_results=100
+                [base_query], skip_first=offset, max_num_results=num_results
             )
-            offset += 100
-            if not await _move_from_query(results):
+            num_processed = await _move_from_query(results)
+            if num_processed == 0:
                 break
+            offset += num_processed
 
         logger.info("Finished moving.")
 

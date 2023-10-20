@@ -5,11 +5,18 @@ API endpoints for managing image data.
 
 import asyncio
 import io
-import uuid
 from datetime import timezone
-from typing import List, cast
+from typing import AsyncIterable, List, cast
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+)
 from loguru import logger
 from PIL import Image
 from starlette.responses import StreamingResponse
@@ -27,9 +34,19 @@ from ...backends.metadata import (
     MetadataOperationError,
     MetadataStore,
 )
-from ...backends.metadata.schemas import ImageFormat, UavImageMetadata
+from ...backends.metadata.schemas import (
+    ImageFormat,
+    ImageQuery,
+    UavImageMetadata,
+)
 from ...backends.objects import ObjectOperationError, ObjectStore
-from ...backends.objects.models import ObjectRef, derived_id, unique_name
+from ...backends.objects.models import (
+    ObjectRef,
+    ObjectType,
+    TypedObjectRef,
+    derived_id,
+    unique_name,
+)
 from ..common import check_key_errors, get_metadata, update_metadata
 from .image_metadata import InvalidImageError, fill_metadata
 from .schemas import CreateResponse, MetadataResponse
@@ -135,6 +152,73 @@ async def filled_uav_metadata(
             detail="You must provide a size for the uploaded image, either in "
             "the metadata, or in the content-length header.",
         )
+
+
+@router.post("/move_artifacts")
+async def move_artifacts(
+    object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.image_metadata_store
+    ),
+    bucket: str = Depends(use_bucket_images),
+    background_tasks: BackgroundTasks = BackgroundTasks,
+) -> None:
+    async def _move_from_query(results: AsyncIterable[TypedObjectRef]) -> bool:
+        processed_at_least_one = False
+        async for result in results:
+            processed_at_least_one = True
+            if result.type != ObjectType.IMAGE:
+                # We're only moving images here.
+                continue
+            if result.id.bucket == bucket:
+                # We're already in the correct bucket.
+                continue
+
+            # Get the metadata.
+            metadata = await get_metadata(
+                [result.id], metadata_store=metadata_store
+            )
+            metadata = metadata[0]
+
+            # Move to a new bucket.
+            new_object_id = ObjectRef(bucket=bucket, name=unique_name())
+            await metadata_store.add(
+                object_id=new_object_id, metadata=metadata
+            )
+            await metadata_store.delete(result.id)
+            try:
+                await object_store.copy_object(result.id, new_object_id)
+                await object_store.delete_object(result.id)
+
+                thumbnail_id = derived_id(result.id, "thumbnail")
+                new_thumbnail_id = derived_id(new_object_id, "thumbnail")
+                await object_store.copy_object(thumbnail_id, new_thumbnail_id)
+                await object_store.delete_object(thumbnail_id)
+            except KeyError:
+                logger.warning(
+                    "Skipping object that does not exist: {}.", result.id
+                )
+            except ObjectOperationError:
+                logger.exception("Failed to move object {}.", result.id)
+
+        return processed_at_least_one
+
+    async def _background_move() -> None:
+        base_query = ImageQuery()
+        offset = 0
+        while True:
+            logger.debug("Processing artifacts ({})", offset)
+
+            results = metadata_store.query(
+                [base_query], skip_first=offset, max_num_results=100
+            )
+            offset += 100
+            if not await _move_from_query(results):
+                break
+
+        logger.info("Finished moving.")
+
+    background_tasks.add_task(_background_move)
 
 
 @router.post(

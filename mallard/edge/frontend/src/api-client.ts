@@ -373,13 +373,16 @@ export async function inferVideoMetadata(
  *  parameter of the individual artifacts.
  * @param {boolean} ignoreSize If true, it will not overwrite the size
  *  parameter of the individual artifacts.
+ * @param {boolean} ignoreLength If true, it will not overwrite the
+ *  number of frames and FPS parameters for videos.
  */
 export async function batchUpdateMetadata(
   metadata: UavImageMetadata | UavVideoMetadata,
   artifacts: TypedObjectRef[],
   incrementSequence?: boolean,
   ignoreName: boolean = true,
-  ignoreSize: boolean = true
+  ignoreSize: boolean = true,
+  ignoreLength: boolean = true
 ): Promise<void> {
   // Copy to avoid surprising the user by modifying the argument.
   const metadataCopy = cloneDeep(metadata);
@@ -390,6 +393,17 @@ export async function batchUpdateMetadata(
   if (ignoreSize) {
     // Don't overwrite the sizes.
     metadataCopy.size = undefined;
+  }
+  if (ignoreLength) {
+    // Don't overwrite video length parameters.
+    const videoMetadata = metadataCopy as UavVideoMetadata;
+    if (
+      videoMetadata.numFrames !== undefined ||
+      videoMetadata.frameRate !== undefined
+    ) {
+      videoMetadata.numFrames = undefined;
+      videoMetadata.frameRate = undefined;
+    }
   }
 
   const { imageIds, videoIds } = separateByType(artifacts);

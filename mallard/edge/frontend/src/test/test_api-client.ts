@@ -629,6 +629,7 @@ describe("api-client", () => {
       "image metadata, ignoring the names and sizes",
       true,
       true,
+      true,
       fakeImageMetadata(),
       ObjectType.IMAGE,
     ],
@@ -636,16 +637,33 @@ describe("api-client", () => {
       "image metadata, setting the names and sizes",
       false,
       false,
+      false,
       fakeImageMetadata(),
       ObjectType.IMAGE,
     ],
-    ["video metadata", false, false, fakeVideoMetadata(), ObjectType.VIDEO],
+    [
+      "video metadata, ignoring length",
+      false,
+      false,
+      true,
+      fakeVideoMetadata(),
+      ObjectType.VIDEO,
+    ],
+    [
+      "video metadata, setting length",
+      false,
+      false,
+      false,
+      fakeVideoMetadata(),
+      ObjectType.VIDEO,
+    ],
   ]).it(
     "can update existing %s",
     async (
       _,
       ignoreName: boolean,
       ignoreSize: boolean,
+      ignoreLength: boolean,
       metadata: UavImageMetadata | UavVideoMetadata,
       objectType: ObjectType
     ) => {
@@ -672,7 +690,8 @@ describe("api-client", () => {
         artifacts,
         incrementSequence,
         ignoreName,
-        ignoreSize
+        ignoreSize,
+        ignoreLength
       );
 
       // Assert.
@@ -684,6 +703,17 @@ describe("api-client", () => {
       if (ignoreSize) {
         // We shouldn't have set the size.
         expectedMetadata.size = undefined;
+      }
+      if (ignoreLength) {
+        // We shouldn't have set the length parameters.
+        const videoMetadata = expectedMetadata as UavVideoMetadata;
+        if (
+          videoMetadata.numFrames !== undefined ||
+          videoMetadata.frameRate !== undefined
+        ) {
+          videoMetadata.numFrames = undefined;
+          videoMetadata.frameRate = undefined;
+        }
       }
 
       // It should have updated the metadata.

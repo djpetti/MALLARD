@@ -336,6 +336,8 @@ export function fakeVideoMetadata(notes?: string): UavVideoMetadata {
     VideoFormat.HEVC,
     VideoFormat.THEORA,
   ]);
+  metadata.numFrames = faker.datatype.number({ min: 0, max: 50000 });
+  metadata.frameRate = faker.datatype.number({ min: 0, max: 120 });
   return metadata;
 }
 

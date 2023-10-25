@@ -6,13 +6,19 @@ import {
 } from "../metadata-form";
 import {
   fakeArtifactEntities,
+  fakeEditableMetadata,
   fakeImageMetadata,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
 import each from "jest-each";
-import { PlatformType, UavImageMetadata } from "mallard-api";
-import { MetadataInferenceStatus, RootState } from "../types";
+import { PlatformType } from "mallard-api";
+import {
+  EditableMetadata,
+  filterOnlyEditable,
+  MetadataInferenceStatus,
+  RootState,
+} from "../types";
 import { Action } from "redux";
 import { faker } from "@faker-js/faker";
 
@@ -143,7 +149,7 @@ describe("metadata-form", () => {
     it("correctly parses capture dates", async () => {
       // Arrange.
       // Set the capture date in the metadata.
-      const metadata = fakeImageMetadata();
+      const metadata = fakeEditableMetadata();
       const captureDate = faker.date.past();
       metadata.captureDate = captureDate.toISOString();
 
@@ -175,7 +181,7 @@ describe("metadata-form", () => {
       async (_: string, platform: PlatformType) => {
         // Arrange.
         // Generate metadata with the correct platform type.
-        const metadata = fakeImageMetadata();
+        const metadata = fakeEditableMetadata();
         metadata.platformType = platform;
 
         // Act.
@@ -213,12 +219,12 @@ describe("metadata-form", () => {
       async (
         _: string,
         id: string,
-        metadataProperty: keyof UavImageMetadata,
+        metadataProperty: keyof EditableMetadata,
         fakeValue: string
       ) => {
         // Arrange.
         // Set some initial metadata to be updated.
-        metadataForm.metadata = fakeImageMetadata();
+        metadataForm.metadata = fakeEditableMetadata();
 
         // Act.
         // Dispatch a fake change event on a text field.
@@ -246,11 +252,11 @@ describe("metadata-form", () => {
       async (
         _: string,
         id: string,
-        metadataProperty: keyof UavImageMetadata
+        metadataProperty: keyof EditableMetadata
       ) => {
         // Arrange.
         // Set some initial metadata to be updated.
-        const metadata = fakeImageMetadata();
+        const metadata = fakeEditableMetadata();
         // Make sure to set the aerial platform type so it shows the field we're looking for.
         metadata.platformType = PlatformType.AERIAL;
         metadataForm.metadata = metadata;
@@ -282,7 +288,7 @@ describe("metadata-form", () => {
     it("handles a change to a radio field", async () => {
       // Arrange.
       // Set some initial metadata to be updated.
-      const metadata = fakeImageMetadata();
+      const metadata = fakeEditableMetadata();
       metadata.platformType = PlatformType.GROUND;
       metadataForm.metadata = metadata;
 
@@ -312,7 +318,7 @@ describe("metadata-form", () => {
       (_: string, userModified: boolean, dialogOpen: boolean) => {
         // Arrange.
         // Set some initial metadata.
-        const oldMetadata = fakeImageMetadata();
+        const oldMetadata = fakeEditableMetadata();
         metadataForm.metadata = oldMetadata;
 
         if (userModified) {
@@ -329,7 +335,7 @@ describe("metadata-form", () => {
         const state: RootState = fakeState();
 
         // Set the relevant parameters.
-        state.uploads.metadata = fakeImageMetadata();
+        state.uploads.metadata = fakeEditableMetadata();
         state.uploads.metadataStatus = faker.helpers.arrayElement([
           MetadataInferenceStatus.NOT_STARTED,
           MetadataInferenceStatus.LOADING,
@@ -436,7 +442,7 @@ describe("metadata-form", () => {
       (_: string, userModified: boolean, dialogOpen: boolean) => {
         // Arrange.
         // Set some initial metadata.
-        const oldMetadata = fakeImageMetadata();
+        const oldMetadata = fakeEditableMetadata();
         metadataForm.metadata = oldMetadata;
 
         if (userModified) {
@@ -474,8 +480,9 @@ describe("metadata-form", () => {
           expect(updates.metadata).toEqual(oldMetadata);
         } else {
           // The metadata should have been set from the selected images.
+          const setEntity = state.imageView.entities[seletedIds[0]];
           expect(updates.metadata).toEqual(
-            state.imageView.entities[seletedIds[0]]?.metadata
+            setEntity?.metadata ? filterOnlyEditable(setEntity.metadata) : null
           );
         }
 

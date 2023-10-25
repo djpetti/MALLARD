@@ -5,7 +5,9 @@
 import {
   ArtifactEntity,
   ArtifactStatus,
+  EditableMetadata,
   FileStatus,
+  filterOnlyEditable,
   FrontendFileEntity,
   ImageQuery,
   MetadataInferenceStatus,
@@ -339,6 +341,15 @@ export function fakeVideoMetadata(notes?: string): UavVideoMetadata {
   metadata.numFrames = faker.datatype.number({ min: 0, max: 50000 });
   metadata.frameRate = faker.datatype.number({ min: 0, max: 120 });
   return metadata;
+}
+
+/**
+ * Creates a fake `EditableMetadata`.
+ * @param {any} args Will be forwarded to `fakeImageMetadata`.
+ * @return {EditableMetadata} The random `EditableMetadata` that it created.
+ */
+export function fakeEditableMetadata(...args: any[]): EditableMetadata {
+  return filterOnlyEditable(fakeImageMetadata(...args));
 }
 
 /**

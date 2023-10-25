@@ -1,6 +1,7 @@
 import configureStore, { MockStore, MockStoreCreator } from "redux-mock-store";
 import thunk from "redux-thunk";
 import {
+  fakeEditableMetadata,
   fakeFile,
   fakeFrontendFileEntity,
   fakeImageMetadata,
@@ -23,7 +24,9 @@ import uploadReducer, {
   uploadSlice,
 } from "../upload-slice";
 import {
+  EditableMetadata,
   FileStatus,
+  filterOnlyEditable,
   FrontendFileEntity,
   MetadataInferenceStatus,
   RootState,
@@ -38,7 +41,7 @@ import imageBlobReduce, {
   ImageBlobReduceStatic,
 } from "image-blob-reduce";
 import { faker } from "@faker-js/faker";
-import { ObjectType, UavImageMetadata } from "mallard-api";
+import { ObjectType } from "mallard-api";
 import {
   batchUpdateMetadata,
   createImage,
@@ -311,15 +314,15 @@ describe("upload-slice action creators", () => {
     });
 
     each([
-      ["changed metadata", true, fakeImageMetadata()],
-      ["unchanged metadata", false, fakeImageMetadata()],
+      ["changed metadata", true, fakeEditableMetadata()],
+      ["unchanged metadata", false, fakeEditableMetadata()],
       ["no metadata", true, null],
     ]).it(
       "finalizes the upload with %s",
       async (
         _: string,
         hasNewMetadata: boolean,
-        metadata: UavImageMetadata | null
+        metadata: EditableMetadata | null
       ) => {
         // Arrange.
         const state = fakeState();
@@ -606,7 +609,7 @@ describe("upload-slice reducers", () => {
 
     // Assert.
     expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.COMPLETE);
-    expect(newState.metadata).toEqual(metadata);
+    expect(newState.metadata).toEqual(filterOnlyEditable(metadata));
   });
 
   it("handles an addSelectedFiles action", () => {

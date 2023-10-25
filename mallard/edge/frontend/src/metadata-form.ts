@@ -1,6 +1,11 @@
 import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
-import { MetadataInferenceStatus, RootState } from "./types";
+import {
+  EditableMetadata,
+  filterOnlyEditable,
+  MetadataInferenceStatus,
+  RootState,
+} from "./types";
 import "@material/mwc-circular-progress";
 import "@material/mwc-formfield";
 import "@material/mwc-radio";
@@ -8,7 +13,7 @@ import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
-import { PlatformType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
+import { PlatformType } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
 import { thumbnailGridSelectors } from "./thumbnail-grid-slice";
@@ -55,7 +60,7 @@ export class MetadataForm extends LitElement {
    * no metadata has been provided yet.
    */
   @property({ attribute: false })
-  metadata: UavImageMetadata | UavVideoMetadata | null = null;
+  metadata: EditableMetadata | null = null;
 
   /** Current state of this element. */
   @property({ attribute: false })
@@ -88,11 +93,11 @@ export class MetadataForm extends LitElement {
    */
   private updateMetadata(
     event: Event,
-    property: keyof UavImageMetadata,
+    property: keyof EditableMetadata,
     value?: any
   ): void {
     // Metadata should never be null if we're interacting with the form.
-    const metadata = { ...(this.metadata as UavImageMetadata) };
+    const metadata = { ...(this.metadata as EditableMetadata) };
 
     const eventTarget = event.target as HTMLInputElement;
     // Either we set a pre-supplied value, or the value of the input element.
@@ -113,7 +118,7 @@ export class MetadataForm extends LitElement {
    */
   private updateMetadataNumber(
     event: Event,
-    property: keyof UavImageMetadata
+    property: keyof EditableMetadata
   ): void {
     // Properly convert the value to a number.
     const eventTarget = event.target as HTMLInputElement;
@@ -284,12 +289,12 @@ export class MetadataForm extends LitElement {
     if (this.userModified && _changedProperties.has("metadata")) {
       // Update with the values that the user entered.
       this.dispatchEvent(
-        new CustomEvent<UavImageMetadata>(
+        new CustomEvent<EditableMetadata>(
           MetadataForm.FORM_CHANGED_EVENT_NAME,
           {
             bubbles: true,
             composed: true,
-            detail: this.metadata as UavImageMetadata,
+            detail: this.metadata as EditableMetadata,
           }
         )
       );
@@ -332,7 +337,7 @@ export class ConnectedMetadataForm extends connect(store, MetadataForm) {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     handlers[MetadataForm.FORM_CHANGED_EVENT_NAME] = (event: Event) =>
-      setMetadata((event as CustomEvent<UavImageMetadata>).detail);
+      setMetadata((event as CustomEvent<EditableMetadata>).detail);
 
     return handlers;
   }
@@ -358,7 +363,9 @@ export class ConnectedMetadataEditingForm extends connect(store, MetadataForm) {
       for (const id of ids) {
         const imageEntity = thumbnailGridSelectors.selectById(state, id);
         if (imageEntity?.isSelected) {
-          showMetadata = imageEntity.metadata;
+          showMetadata = imageEntity.metadata
+            ? filterOnlyEditable(imageEntity.metadata)
+            : null;
           break;
         }
       }

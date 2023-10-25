@@ -9,6 +9,56 @@ import {
   UavVideoMetadata,
 } from "mallard-api";
 import { Suggestions } from "./autocomplete";
+import { cloneDeep } from "lodash";
+
+/**
+ * Subset of the metadata fields that are actually editable by the user.
+ */
+export const EDITABLE_METADATA_FIELDS = [
+  "platformType",
+  "altitudeMeters",
+  "gsdCmPx",
+  "sessionName",
+  "captureDate",
+  "camera",
+  "notes",
+] as const;
+const EDITABLE_METADATA_FIELDS_SET = new Set(EDITABLE_METADATA_FIELDS);
+
+export type EditableMetadata = Record<
+  (typeof EDITABLE_METADATA_FIELDS)[number],
+  any
+>;
+
+// Ensure that EditableMetadata is a subset of the real metadata interfaces.
+type Satisfies<T, _U extends T> = void;
+type _AssertSubsetKeysImage = Satisfies<
+  keyof UavImageMetadata,
+  keyof EditableMetadata
+>;
+type _AssertSubsetKeysVideo = Satisfies<
+  keyof UavVideoMetadata,
+  keyof EditableMetadata
+>;
+
+/**
+ * Filters out any parameters from the metadata that aren't editable.
+ * @param {UavImageMetadata | UavVideoMetadata} metadata The metadata to filter.
+ * @return {EditableMetadata} The same metadata, but with any properties not in
+ * `EditableMetadata` removed.
+ */
+export function filterOnlyEditable(
+  metadata: UavImageMetadata | UavVideoMetadata
+): EditableMetadata {
+  const metadataCopy = cloneDeep(metadata);
+  for (const key of Object.keys(metadataCopy)) {
+    if (!EDITABLE_METADATA_FIELDS_SET.has(key as keyof EditableMetadata)) {
+      delete metadataCopy[key as keyof (UavImageMetadata | UavVideoMetadata)];
+    }
+  }
+
+  return metadataCopy as EditableMetadata;
+}
 
 /**
  * Represents the state of a long-running request.
@@ -267,7 +317,7 @@ export interface UploadState extends NormalizedState<FrontendFileEntity> {
   metadataStatus: MetadataInferenceStatus;
   /** The current metadata. Can be null if no metadata has been set or
    * inferred yet. */
-  metadata: UavImageMetadata | UavVideoMetadata | null;
+  metadata: EditableMetadata | null;
   /** Whether the loaded metadata has been modified by the user. */
   metadataChanged: boolean;
 

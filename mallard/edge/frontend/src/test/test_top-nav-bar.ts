@@ -1,6 +1,7 @@
 import { ConnectedTopNavBar, TopNavBar } from "../top-nav-bar";
 import {
   fakeArtifactEntities,
+  fakeEditableMetadata,
   fakeImageMetadata,
   fakeState,
   getShadowRoot,
@@ -455,7 +456,7 @@ describe("top-nav-bar", () => {
     const metadataForm = root.querySelector(
       "#metadata_form"
     ) as ConnectedMetadataEditingForm;
-    const mockMetadata = fakeImageMetadata();
+    const mockMetadata = fakeEditableMetadata();
     metadataForm.metadata = mockMetadata;
 
     // Add a handler for the event.

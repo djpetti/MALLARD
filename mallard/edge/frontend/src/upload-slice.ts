@@ -1,5 +1,6 @@
 import {
   FileStatus,
+  filterOnlyEditable,
   FrontendFileEntity,
   MetadataInferenceStatus,
   RootState,
@@ -478,7 +479,7 @@ export const uploadSlice = createSlice({
       // Mark metadata inference as complete.
       state.metadataStatus = MetadataInferenceStatus.COMPLETE;
       // Set the inferred metadata.
-      state.metadata = action.payload;
+      state.metadata = filterOnlyEditable(action.payload);
     });
     // The user selected some new files that must be processed.
     builder.addCase(

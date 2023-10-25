@@ -3,7 +3,7 @@ This is a client for the transcoder service. We *should* be able to
 autogenerate this, but OpenAPI is weird about async stuff.
 """
 import asyncio
-from asyncio import IncompleteReadError
+from asyncio import IncompleteReadError, TimeoutError
 from typing import Any, AsyncIterable, Dict
 
 import aiohttp
@@ -37,7 +37,7 @@ transcoder service is under high load.)
 """
 
 client_retry = retry(
-    retry=retry_if_exception_type(asyncio.Timeout),
+    retry=retry_if_exception_type((asyncio.Timeout, TimeoutError)),
     wait=wait_random_exponential(multiplier=1, max=60),
     after=lambda _: logger.warning("Retrying transcoder API call..."),
     stop=stop_after_attempt(10),

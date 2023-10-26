@@ -129,7 +129,7 @@ CMD gunicorn -w 1 -b 0.0.0.0:8000 \
      mallard.transcoder.main:app
 
 #####
-# backup image is used for handling backups.
+# backup image is used for handling object store backups.
 #####
 FROM efrecon/s3fs:1.93 as backup
 
@@ -138,3 +138,12 @@ COPY s3fs_entrypoint.sh /s3fs_entrypoint.sh
 
 ENTRYPOINT [ "tini", "-g", "--", "/s3fs_entrypoint.sh" ]
 CMD [ "empty.sh" ]
+
+#####
+# backup_metadata image is used for handling metadata backups.
+#####
+FROM mariadb:10.11 as backup_metadata
+
+COPY backup_metadata.sh /backup_metadata.sh
+
+ENTRYPOINT [ "/backup_metadata.sh" ]

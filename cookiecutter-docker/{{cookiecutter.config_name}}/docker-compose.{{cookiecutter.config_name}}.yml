@@ -111,6 +111,20 @@ services:
     volumes:
       - ./backups/images:/opt/s3fs/bucket:rshared
     <<: *backup_service_common
+
+  backup_metadata:
+    hostname: backup-metadata
+    depends_on:
+      - metadata_store
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: backup_metadata
+    volumes:
+      - ./backups/metadata:/backups
+    networks:
+      - mallard
+
   {% endif %}
 
   # Metadata storage service.

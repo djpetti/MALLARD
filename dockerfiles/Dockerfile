@@ -131,6 +131,10 @@ CMD gunicorn -w 1 -b 0.0.0.0:8000 \
 #####
 # backup image is used for handling backups.
 #####
-FROM ubuntu:22.10 as backup
+FROM efrecon/s3fs:1.93 as backup
 
-RUN apt-get update && apt-get install s3fs
+# Custom entry point to work around issue of `ls` on large directories.
+COPY s3fs_entrypoint.sh /s3fs_entrypoint.sh
+
+ENTRYPOINT [ "tini", "-g", "--", "/s3fs_entrypoint.sh" ]
+CMD [ "empty.sh" ]

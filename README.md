@@ -85,8 +85,8 @@ backend. To enable backups, use the following procedure:
    true. (See [this section](#deploying-locally).)
 1. Start the MALLARD server. After initialization completes, you should see
    a new sub-directory in the current folder called `backups/`. This
-   directory allows for access to the data in the object store through [s3fs]
-   (https://github.com/s3fs-fuse/s3fs-fuse). Additionally, the contents of
+   directory allows for access to the data in the object store through
+   [s3fs](https://github.com/s3fs-fuse/s3fs-fuse). Additionally, the contents of
    the metadata DB will be automatically dumped to this folder once per day.
 1. Point your favorite backup tool at the `backups/` directory.
 

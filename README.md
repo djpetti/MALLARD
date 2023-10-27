@@ -33,6 +33,9 @@ You will be given the chance to specify the following options:
   be stored.
 - `metadata_location`: Specifies the path where the MALLARD database will be
   stored.
+- `backup`: If true, it will enable the containers necessary for backing up
+  data. Enable if you are planning to use MALLARD's [built-in backup
+  capabilities](#backing-up)
 
 A `docker-compose` file will be created in the repository root, named based
 on the value you set for `config_name`. For instance, if you set
@@ -70,3 +73,26 @@ https://localhost:8081 (or whatever you set `host_port` to). The MALLARD API
 should be accessible at https://localhost:8081/api/v1. To access a convenient
 interface that allows you to test the API manually, visit
 https://localhost:8081/api/v1/docs.
+
+# Backing Up
+
+Any production deployment of MALLARD is likely going to need some mechanism
+to back up the data. MALLARD includes some functionality designed to
+simplify this. Currently, it only works with the default MinIO+MariaDB
+backend. To enable backups, use the following procedure:
+
+1. Generate your compose file with the `backup` configuration option set to
+   true. (See [this section](#deploying-locally).)
+1. Start the MALLARD server. After initialization completes, you should see
+   a new sub-directory in the current folder called `backups/`. This
+   directory allows for access to the data in the object store through [s3fs]
+   (https://github.com/s3fs-fuse/s3fs-fuse). Additionally, the contents of
+   the metadata DB will be automatically dumped to this folder once per day.
+1. Point your favorite backup tool at the `backups/` directory.
+
+## Restoring
+
+Since the object store is mirrored through S3FS, restoring it should be
+trivial: just restore all the files into the original folder. Restoring
+the metadata involves accessing the latest DB dump (located in
+`/backups/metadata/`) and restoring it manually to MariaDB.

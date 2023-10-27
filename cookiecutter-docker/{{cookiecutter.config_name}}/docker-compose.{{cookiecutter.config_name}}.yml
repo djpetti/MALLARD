@@ -15,6 +15,21 @@ x-local_volumes: &local_volumes
   {}
   {% endif %}
 
+# Portions of the backup services that are the same.volumes:
+x-backup_service_common: &backup_service_common
+  build:
+    dockerfile: dockerfiles/Dockerfile
+    context: .
+    target: backup
+  security_opt:
+    - apparmor:unconfined
+  cap_add:
+    - SYS_ADMIN
+  devices:
+    - /dev/fuse
+  networks:
+    - mallard
+
 services:
 
   # Gateway service.
@@ -62,6 +77,55 @@ services:
     networks:
       - mallard
     command: "server /data"
+
+  # Backup service.
+  {%- if cookiecutter.backup == "yes" %}
+  backup_videos:
+    hostname: backup-videos
+    depends_on:
+      - object_store
+    environment:
+      # Use MinIO credentials.
+      AWS_S3_SECRET_ACCESS_KEY: HFgwH5U5RNaAbe
+      AWS_S3_ACCESS_KEY_ID: minio_user_51c173
+      S3FS_ARGS: use_path_request_style
+      AWS_S3_BUCKET: mallard-videos
+      # Use correct endpoint.
+      AWS_S3_URL: "http://object-store:9000"
+    volumes:
+      - ./backups/videos:/opt/s3fs/bucket:rshared
+    <<: *backup_service_common
+
+  backup_images:
+    hostname: backup-images
+    depends_on:
+      - object_store
+    environment:
+      # Use MinIO credentials.
+      AWS_S3_SECRET_ACCESS_KEY: HFgwH5U5RNaAbe
+      AWS_S3_ACCESS_KEY_ID: minio_user_51c173
+      S3FS_ARGS: use_path_request_style
+      AWS_S3_BUCKET: mallard-images
+      # Use correct endpoint.
+      AWS_S3_URL: "http://object-store:9000"
+    volumes:
+      - ./backups/images:/opt/s3fs/bucket:rshared
+    <<: *backup_service_common
+
+  backup_metadata:
+    hostname: backup-metadata
+    depends_on:
+      - metadata_store
+    build:
+      dockerfile: dockerfiles/Dockerfile
+      context: .
+      target: backup_metadata
+    volumes:
+      - ./backups/metadata:/backups
+    networks:
+      - mallard
+
+  {% endif %}
 
   # Metadata storage service.
   metadata_store:

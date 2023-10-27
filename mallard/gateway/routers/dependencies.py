@@ -12,6 +12,15 @@ from loguru import logger
 from ..backends import backend_manager as backends
 from ..backends.objects import ObjectStore
 
+_IMAGE_BUCKET = "mallard-images"
+"""
+Name of the bucket to use for images.
+"""
+_VIDEO_BUCKET = "mallard-videos"
+"""
+Name of the bucket to use for videos.
+"""
+
 
 def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:
     """
@@ -28,19 +37,17 @@ def user_timezone(tz: Annotated[float, Query(..., ge=-24, le=24)]) -> timezone:
     return timezone(timedelta(hours=tz))
 
 
-async def _use_bucket(object_store: ObjectStore, *, suffix: str) -> str:
+async def _use_bucket(object_store: ObjectStore, *, bucket_name: str) -> str:
     """
     Args:
         object_store: The object store to use.
-        suffix: The suffix to apply to the bucket name.
+        bucket_name: The name of the bucket.
 
     Returns:
         The bucket to use for saving new artifacts. It will create it if it
         doesn't exist.
 
     """
-    bucket_name = f"{date.today().isoformat()}-{suffix}"
-
     if not await object_store.bucket_exists(bucket_name):
         logger.debug("Creating a new bucket: {}", bucket_name)
         # We specify exists_ok because there is a possible race-condition if
@@ -62,7 +69,7 @@ async def use_bucket_images(
         doesn't exist.
 
     """
-    return await _use_bucket(object_store, suffix="images")
+    return await _use_bucket(object_store, bucket_name=_IMAGE_BUCKET)
 
 
 async def use_bucket_videos(
@@ -77,4 +84,4 @@ async def use_bucket_videos(
         doesn't exist.
 
     """
-    return await _use_bucket(object_store, suffix="videos")
+    return await _use_bucket(object_store, bucket_name=_VIDEO_BUCKET)

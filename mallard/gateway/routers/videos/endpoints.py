@@ -28,7 +28,7 @@ from ...backends.metadata import (
 )
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import ObjectOperationError, ObjectStore
-from ...backends.objects.models import ObjectRef, derived_id
+from ...backends.objects.models import ObjectRef, derived_id, unique_name
 from ..common import check_key_errors, get_metadata, update_metadata
 from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import (
@@ -141,8 +141,7 @@ async def create_uav_video(
 
     """
     # Create the image in the object store.
-    unique_name = uuid.uuid4().hex
-    object_id = ObjectRef(bucket=bucket, name=unique_name)
+    object_id = ObjectRef(bucket=bucket, name=unique_name())
     logger.info("Creating a new video {} in bucket {}.", unique_name, bucket)
     object_task = asyncio.create_task(
         object_store.create_object(object_id, data=video_data)

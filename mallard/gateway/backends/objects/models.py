@@ -4,6 +4,8 @@ Data models for object storage.
 
 
 import enum
+import uuid
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -67,3 +69,14 @@ def derived_id(object_id: ObjectRef, suffix: str) -> ObjectRef:
     """
     derived_name = f"{object_id.name}.{suffix}"
     return ObjectRef(bucket=object_id.bucket, name=derived_name)
+
+
+def unique_name() -> str:
+    """
+    Generates a unique name for an object.
+
+    Returns:
+        The generated name.
+
+    """
+    return f"{date.today().isoformat()}-{uuid.uuid4().hex}"

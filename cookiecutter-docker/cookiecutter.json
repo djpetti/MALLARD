@@ -4,5 +4,6 @@
   "proxy_config": ["ssl", "no_ssl"],
   "host_port": 8081,
   "object_location": "./objects",
-  "metadata_location": "./metadata"
+  "metadata_location": "./metadata",
+  "backup": ["no", "yes"]
 }

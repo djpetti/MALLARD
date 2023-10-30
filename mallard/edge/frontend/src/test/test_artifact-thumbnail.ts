@@ -121,6 +121,23 @@ describe("artifact-thumbnail", () => {
     }
   );
 
+  it("mutes video previews", async () => {
+    // Arrange.
+    // Make it look like it's a video.
+    thumbnailElement.type = ObjectType.VIDEO;
+    thumbnailElement.metadata = fakeVideoMetadata();
+    thumbnailElement.previewUrl = faker.internet.url();
+
+    // Act.
+    await thumbnailElement.updateComplete;
+
+    // Assert.
+    // It should have muted the video.
+    const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
+    const media = root.querySelector("#media") as HTMLVideoElement | null;
+    expect(media?.muted).toBeTruthy();
+  });
+
   each([
     ["images", ObjectType.IMAGE],
     ["videos", ObjectType.VIDEO],

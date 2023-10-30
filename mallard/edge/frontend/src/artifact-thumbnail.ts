@@ -249,6 +249,20 @@ export class ArtifactThumbnail extends ArtifactDisplay {
     this.addEventListener("mouseenter", () => (this.isHovering = true));
     this.addEventListener("mouseleave", () => (this.isHovering = false));
   }
+
+  /**
+   * @inheritDoc
+   */
+  protected override updated(_changedProperties: PropertyValues) {
+    super.updated(_changedProperties);
+
+    // Muting does not work on dynamically-loaded videos, so we set
+    // it manually here.
+    // See https://stackoverflow.com/a/51755171
+    if (this.media && this.type === ObjectType.VIDEO) {
+      (this.media as HTMLVideoElement).muted = true;
+    }
+  }
 }
 
 /**

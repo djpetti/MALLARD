@@ -1,0 +1,9 @@
+security:
+  # Enable authentication.
+  enable_auth: True
+
+  fief:
+    # The base URL for Fief.
+    base_url: "https://example.fief.dev"
+    # The Fief client ID.
+    client_id: "YOUR_CLIENT_ID"

@@ -44,5 +44,6 @@ export default {
                 src: 'static/*',
                 dest: 'bundled/'
             }]
-        })],
+        }),
+    ],
 };

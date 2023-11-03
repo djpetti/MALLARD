@@ -9,7 +9,7 @@ import {
   UavVideoMetadata,
 } from "mallard-api";
 import { Suggestions } from "./autocomplete";
-import { cloneDeep } from "lodash";
+import { cloneDeep } from "lodash-es";
 
 /**
  * Subset of the metadata fields that are actually editable by the user.

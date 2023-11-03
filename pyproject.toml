@@ -27,7 +27,7 @@ SQLAlchemy = "2.0"
 aiomysql = "^0.1.1"
 alembic = "^1.6.4"
 methodtools = "^0.4.7"
-faust-streaming = "^0.10.16"
+fief-client = {extras = ["fastapi"], version = "^0.18.1"}
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.12.0"

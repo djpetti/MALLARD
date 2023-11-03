@@ -30,9 +30,13 @@ async def _render_template(
 
     """
     template = template_environment.get_template(template_name)
+    security_config = config["security"]
     return await template.render_async(
         fragment=fragment,
         api_base_url=config["api_base_url"].as_str(),
+        auth_enabled=security_config["enable_auth"].get(bool),
+        auth_base_url=security_config["fief"]["base_url"].as_str(),
+        auth_client_id=security_config["fief"]["client_id"].as_str(),
         **kwargs
     )
 
@@ -42,15 +46,33 @@ async def get_index(fragment: bool = False) -> str:
     """
     Handler for the default path.
 
-    fragment: If false, it will render the entire page. Otherwise,
-            it will render only the fragment, suitable for loading
-            via AJAX.
+    Args:
+        fragment: If false, it will render the entire page. Otherwise,
+                it will render only the fragment, suitable for loading
+                via AJAX.
 
     Returns:
         The HTML response.
 
     """
-    return await _render_template("index.html", fragment=fragment)
+    return await _render_template(
+        "index.html",
+        fragment=fragment,
+    )
+
+
+@router.get("/auth_callback", response_class=HTMLResponse)
+async def auth_callback() -> str:
+    """
+    Authentication callback for the main page.
+
+    Returns:
+        The HTML response.
+
+    """
+    return await _render_template(
+        "index.html", fragment=False, auth_callback=True
+    )
 
 
 @router.get(

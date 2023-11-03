@@ -3,3 +3,9 @@ transcoder:
   base_url: http://transcoder:8000
   # The maximum number of concurrent transcoding processes to run.
   max_num_processes: 2
+
+security:
+  fief:
+    # Default to no Fief configuration.
+    base_url: ""
+    client_id: ""

@@ -17,8 +17,20 @@ import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
 import { AxiosRequestConfig } from "axios";
 
-// This global variable is expected to be pre-set by an external script.
+// These global variables are expected to be pre-set by an external script.
+// Base URL for the MALLARD API.
 declare const API_BASE_URL: string;
+// Whether Fief authentication is enabled.
+declare const AUTH_ENABLED: boolean;
+// Base URL for Fief authentication.
+declare const AUTH_BASE_URL: string;
+// Client ID for Fief authentication.
+declare const AUTH_CLIENT_ID: string;
+// Whether this is running as the callback for authentication.
+declare const AUTH_CALLBACK: boolean;
+
+declare const fief: any;
+
 // How many bytes from the beginning of the video we send when probing.
 const PROBE_SIZE = 5 * 2 ** 20;
 
@@ -26,6 +38,20 @@ const PROBE_SIZE = 5 * 2 ** 20;
 const imagesApi = new ImagesApi(new Configuration({ basePath: API_BASE_URL }));
 const videosApi = new VideosApi(new Configuration({ basePath: API_BASE_URL }));
 const api = new DefaultApi(new Configuration({ basePath: API_BASE_URL }));
+
+/** Singleton Fief client used by the entire application. */
+const fiefClient = AUTH_ENABLED
+  ? new fief.Fief({
+      baseURL: AUTH_BASE_URL,
+      clientId: AUTH_CLIENT_ID,
+    })
+  : undefined;
+const fiefAuth = AUTH_ENABLED
+  ? new fief.browser.FiefAuth(fiefClient)
+  : undefined;
+
+/** True if any authentication is currently pending. */
+let authPending: boolean = false;
 
 /** Default orderings to use for queries. This will put the newest stuff at
  * the top, but sort by name for images collected on the same day.
@@ -35,6 +61,32 @@ export const DEFAULT_ORDERINGS: Ordering[] = [
   { field: Field.SESSION, ascending: true },
   { field: Field.NAME, ascending: true },
 ];
+
+/**
+ * Checks that the user is authenticated, and forces them to log in
+ * if they aren't.
+ */
+function ensureAuthenticated(): void {
+  if (!fiefAuth || authPending) {
+    // Authentication is not enabled or is already running.
+    return;
+  }
+  authPending = true;
+
+  const location = window.location.href.split("?")[0];
+  if (AUTH_CALLBACK) {
+    // This is the callback.
+    fiefAuth.authCallback(new URL(location).href).then(() => {
+      window.location.href = new URL("../", location).href;
+      authPending = false;
+    });
+  } else if (!fiefAuth.isAuthenticated()) {
+    // Force the user to log in.
+    const rootLocation = new URL(location);
+    rootLocation.pathname = "/";
+    fiefAuth.redirectToLogin(new URL("/auth_callback", rootLocation.href).href);
+  }
+}
 
 /**
  * Generates the common metadata elements from `imageMetadataToForm` and
@@ -120,6 +172,8 @@ export async function queryImages(
   resultsPerPage?: number,
   pageNum: number = 1
 ): Promise<QueryResponse> {
+  ensureAuthenticated();
+
   const response = await api
     .queryArtifactsQueryPost(resultsPerPage, pageNum, {
       queries: query,
@@ -138,6 +192,8 @@ export async function queryImages(
  * @return {Blob} The raw thumbnail image blob data.
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
+  ensureAuthenticated();
+
   const response = await api
     .getThumbnailThumbnailBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
@@ -156,6 +212,8 @@ export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
  * @return {Blob} The raw image blob data.
  */
 export async function loadImage(imageId: ObjectRef): Promise<Blob> {
+  ensureAuthenticated();
+
   const response = await imagesApi
     .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
@@ -176,6 +234,8 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
 export async function getMetadata(
   artifactIds: TypedObjectRef[]
 ): Promise<(UavImageMetadata | UavVideoMetadata)[]> {
+  ensureAuthenticated();
+
   const { imageIds, videoIds } = separateByType(artifactIds);
 
   const idsToMeta = new Map<ObjectRef, UavImageMetadata | UavVideoMetadata>();
@@ -217,6 +277,8 @@ export async function createImage(
   { name, metadata }: { name: string; metadata: UavImageMetadata },
   onProgress?: (percentDone: number) => void
 ): Promise<ObjectRef> {
+  ensureAuthenticated();
+
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
   // Set the size based on the image to upload.
@@ -262,6 +324,8 @@ export async function createVideo(
   { name, metadata }: { name: string; metadata: UavVideoMetadata },
   onProgress?: (percentDone: number) => void
 ): Promise<ObjectRef> {
+  ensureAuthenticated();
+
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
@@ -296,6 +360,8 @@ export async function createVideo(
  * @param {ObjectRef[]} images The images to delete.
  */
 export async function deleteImages(images: ObjectRef[]): Promise<void> {
+  ensureAuthenticated();
+
   await imagesApi
     .deleteImagesImagesDeleteDelete(images)
     .catch(function (error) {
@@ -315,6 +381,8 @@ export async function inferImageMetadata(
   imageData: Blob,
   { name, knownMetadata }: { name: string; knownMetadata: UavImageMetadata }
 ): Promise<UavImageMetadata> {
+  ensureAuthenticated();
+
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
   // Set the size based on the image to upload.
@@ -345,6 +413,8 @@ export async function inferVideoMetadata(
   videoData: Blob,
   { name, knownMetadata }: { name: string; knownMetadata: UavVideoMetadata }
 ): Promise<UavVideoMetadata> {
+  ensureAuthenticated();
+
   // Set the size based on the image to upload.
   knownMetadata.size = videoData.size;
   // For probing, we only need the first few MBs.
@@ -384,6 +454,8 @@ export async function batchUpdateMetadata(
   ignoreSize: boolean = true,
   ignoreLength: boolean = true
 ): Promise<void> {
+  ensureAuthenticated();
+
   // Copy to avoid surprising the user by modifying the argument.
   const metadataCopy = cloneDeep(metadata);
   if (ignoreName) {
@@ -444,6 +516,8 @@ export async function batchUpdateMetadata(
  * @return {string} The artifact URL.
  */
 export function getArtifactUrl(artifactId: TypedObjectRef): string {
+  ensureAuthenticated();
+
   const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
   return urlJoin(
     API_BASE_URL,
@@ -464,6 +538,8 @@ export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
     // Previews are only available for videos.
     return null;
   }
+
+  ensureAuthenticated();
 
   return urlJoin(
     API_BASE_URL,
@@ -487,6 +563,8 @@ export function getStreamableVideoUrl(
     // Previews are only available for videos.
     return null;
   }
+
+  ensureAuthenticated();
 
   return urlJoin(
     API_BASE_URL,

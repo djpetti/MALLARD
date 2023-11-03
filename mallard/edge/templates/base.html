@@ -26,7 +26,25 @@
 
 </body>
 
-<script>const API_BASE_URL = "{{ api_base_url }}"</script>
+<script>
+    {% if auth_enabled %}
+    const AUTH_ENABLED = true;
+    {%  else %}
+    const AUTH_ENABLED = false;
+    {% endif %}
+
+    {% if auth_callback | default(false) %}
+    const AUTH_CALLBACK = true;
+    {%  else %}
+    const AUTH_CALLBACK = false;
+    {% endif %}
+
+    const API_BASE_URL = "{{ api_base_url }}";
+    const AUTH_BASE_URL = "{{ auth_base_url }}";
+    const AUTH_CLIENT_ID = "{{ auth_client_id }}";
+</script>
+<!-- Fief client -->
+<script src="https://unpkg.com/@fief/fief/build/index.umd.js"></script>
 <script src="/static/mallard-edge.js"></script>
 
 </html>

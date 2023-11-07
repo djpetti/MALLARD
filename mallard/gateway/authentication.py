@@ -1,47 +1,38 @@
 """
-Encapsulates code for handling authentication.
+Encapsulates boilerplate code for handling authentication.
 """
 
-from typing import TypeVar
 
-from fastapi import Header, HTTPException
-from loguru import logger
+from functools import cache
+from urllib.parse import urljoin
+
+from fastapi.security import OAuth2AuthorizationCodeBearer
+from fief_client import FiefAsync
+from fief_client.integrations.fastapi import FiefAuth
 
 from ..config import config
-from .aiohttp_session import Session
-
-ResponseType = TypeVar("ResponseType")
-
-get_session = Session()
 
 
-async def check_auth_token(x_api_token: str = Header(...)) -> None:
+@cache
+def get_auth() -> FiefAuth:
     """
-    Dependency for checking an authentication token.
-
-    The way this works is that it will read the token from the `X-Api-Token`
-    header, verify the token with an external server, and determine whether to
-    proceed or not based on the server's response.
-
-    Args:
-        x_api_token: The authentication token.
+    Returns:
+        The `FiefAuth` instance to use.
 
     """
-    # Check the validity of the token.
-    logger.debug("Verifying token validity...")
-    auth_url = config["security"]["auth_url"].as_str()
-    async with get_session().post(
-        auth_url, data={"token": x_api_token}
-    ) as response:
-        await response.raise_for_status()
-        json_response = await response.json()
+    fief_config = config["security"]["fief"]
+    base_url = fief_config["base_url"].as_str()
 
-    if not json_response["token_valid"]:
-        # Authentication server rejected our token.
-        logger.error("Token was rejected by authentication server.")
-        raise HTTPException(
-            status_code=401, detail="Authentication token is invalid."
-        )
+    fief = FiefAsync(
+        base_url,
+        fief_config["client_id"].as_str(),
+        verify=fief_config["verify_ssl"].get(bool),
+    )
+    scheme = OAuth2AuthorizationCodeBearer(
+        urljoin(base_url, "authorize"),
+        urljoin(base_url, "api/token"),
+        scopes={"openid": "openid", "offline_access": "offline_access"},
+        auto_error=False,
+    )
 
-    # Otherwise, proceed as normal.
-    logger.debug("Token is valid.")
+    return FiefAuth(fief, scheme)

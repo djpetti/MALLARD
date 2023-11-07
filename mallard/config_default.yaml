@@ -9,3 +9,4 @@ security:
     # Default to no Fief configuration.
     base_url: ""
     client_id: ""
+    verify_ssl: true

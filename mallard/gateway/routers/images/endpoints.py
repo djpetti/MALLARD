@@ -5,7 +5,6 @@ API endpoints for managing image data.
 
 import asyncio
 import io
-import uuid
 from datetime import timezone
 from typing import List, cast
 

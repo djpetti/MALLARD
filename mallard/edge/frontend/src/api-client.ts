@@ -15,7 +15,8 @@ import {
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
-import { AxiosRequestConfig } from "axios";
+import { AxiosRequestConfig, AxiosRequestHeaders } from "axios";
+import { browser, Fief } from "@fief/fief";
 
 // These global variables are expected to be pre-set by an external script.
 // Base URL for the MALLARD API.
@@ -29,7 +30,12 @@ declare const AUTH_CLIENT_ID: string;
 // Whether this is running as the callback for authentication.
 declare const AUTH_CALLBACK: boolean;
 
+// This hack is to deal with the fact that Rollup currently doesn't want
+// to work with the fief package. I guess this is one of the joys of using
+// beta software...
 declare const fief: any;
+const FiefClient = fief.Fief as typeof Fief;
+const FiefAuth = fief.browser.FiefAuth as typeof browser.FiefAuth;
 
 // How many bytes from the beginning of the video we send when probing.
 const PROBE_SIZE = 5 * 2 ** 20;
@@ -41,17 +47,12 @@ const api = new DefaultApi(new Configuration({ basePath: API_BASE_URL }));
 
 /** Singleton Fief client used by the entire application. */
 const fiefClient = AUTH_ENABLED
-  ? new fief.Fief({
+  ? new FiefClient({
       baseURL: AUTH_BASE_URL,
       clientId: AUTH_CLIENT_ID,
     })
   : undefined;
-const fiefAuth = AUTH_ENABLED
-  ? new fief.browser.FiefAuth(fiefClient)
-  : undefined;
-
-/** True if any authentication is currently pending. */
-let authPending: boolean = false;
+const fiefAuth = AUTH_ENABLED ? new FiefAuth(fiefClient as Fief) : undefined;
 
 /** Default orderings to use for queries. This will put the newest stuff at
  * the top, but sort by name for images collected on the same day.
@@ -66,26 +67,48 @@ export const DEFAULT_ORDERINGS: Ordering[] = [
  * Checks that the user is authenticated, and forces them to log in
  * if they aren't.
  */
-function ensureAuthenticated(): void {
-  if (!fiefAuth || authPending) {
-    // Authentication is not enabled or is already running.
+async function ensureAuthenticated(): Promise<void> {
+  if (!fiefAuth) {
+    // Authentication is not enabled.
     return;
   }
-  authPending = true;
 
-  const location = window.location.href.split("?")[0];
-  if (AUTH_CALLBACK) {
-    // This is the callback.
-    fiefAuth.authCallback(new URL(location).href).then(() => {
+  // Use a lock here so that it doesn't try to authenticate multiple times
+  // concurrently in concurrent requests.
+  await navigator.locks.request("auth", async (_) => {
+    const location = window.location.href.split("?")[0];
+    if (AUTH_CALLBACK) {
+      // This is the callback.
+      await fiefAuth.authCallback(new URL(location).href);
+
       window.location.href = new URL("../", location).href;
-      authPending = false;
-    });
-  } else if (!fiefAuth.isAuthenticated()) {
-    // Force the user to log in.
-    const rootLocation = new URL(location);
-    rootLocation.pathname = "/";
-    fiefAuth.redirectToLogin(new URL("/auth_callback", rootLocation.href).href);
+    } else if (!fiefAuth.isAuthenticated()) {
+      // Force the user to log in.
+      const rootLocation = new URL(location);
+      rootLocation.pathname = "/";
+
+      await fiefAuth.redirectToLogin(
+        new URL("/auth_callback", rootLocation.href).href
+      );
+    }
+  });
+}
+
+/**
+ * Gets the correct headers to use for authentication.
+ * @return {AxiosRequestHeaders} The authentication headers.
+ */
+async function getAuthHeaders(): Promise<AxiosRequestHeaders> {
+  if (!AUTH_ENABLED) {
+    // Authentication is not enabled. Don't add headers.
+    return {};
   }
+
+  await ensureAuthenticated();
+
+  const tokenInfo = (fiefAuth as browser.FiefAuth).getTokenInfo();
+  const accessToken = tokenInfo?.access_token;
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 /**
@@ -172,13 +195,18 @@ export async function queryImages(
   resultsPerPage?: number,
   pageNum: number = 1
 ): Promise<QueryResponse> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   const response = await api
-    .queryArtifactsQueryPost(resultsPerPage, pageNum, {
-      queries: query,
-      orderings: orderings,
-    })
+    .queryArtifactsQueryPost(
+      resultsPerPage,
+      pageNum,
+      {
+        queries: query,
+        orderings: orderings,
+      },
+      { headers: authHeaders }
+    )
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -192,11 +220,12 @@ export async function queryImages(
  * @return {Blob} The raw thumbnail image blob data.
  */
 export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   const response = await api
     .getThumbnailThumbnailBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
+      headers: authHeaders,
     })
     .catch(function (error) {
       console.error(error.toJSON());
@@ -212,11 +241,12 @@ export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
  * @return {Blob} The raw image blob data.
  */
 export async function loadImage(imageId: ObjectRef): Promise<Blob> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   const response = await imagesApi
     .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
       responseType: "blob",
+      headers: authHeaders,
     })
     .catch(function (error) {
       console.error(error.toJSON());
@@ -234,14 +264,17 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
 export async function getMetadata(
   artifactIds: TypedObjectRef[]
 ): Promise<(UavImageMetadata | UavVideoMetadata)[]> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   const { imageIds, videoIds } = separateByType(artifactIds);
 
   const idsToMeta = new Map<ObjectRef, UavImageMetadata | UavVideoMetadata>();
   if (imageIds.length > 0) {
     const response = await imagesApi
-      .findImageMetadataImagesMetadataPost(imageIds.map((e) => e.id))
+      .findImageMetadataImagesMetadataPost(
+        imageIds.map((e) => e.id),
+        { headers: authHeaders }
+      )
       .catch(function (error) {
         console.error(error.toJSON());
         throw error;
@@ -250,7 +283,10 @@ export async function getMetadata(
   }
   if (videoIds.length > 0) {
     const response = await videosApi
-      .findVideoMetadataVideosMetadataPost(videoIds.map((e) => e.id))
+      .findVideoMetadataVideosMetadataPost(
+        videoIds.map((e) => e.id),
+        { headers: authHeaders }
+      )
       .catch(function (error) {
         console.error(error.toJSON());
         throw error;
@@ -277,19 +313,17 @@ export async function createImage(
   { name, metadata }: { name: string; metadata: UavImageMetadata },
   onProgress?: (percentDone: number) => void
 ): Promise<ObjectRef> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
   // Set the size based on the image to upload.
   metadata.size = imageData.size;
 
-  let config = {};
+  const config: AxiosRequestConfig = { headers: authHeaders };
   if (onProgress !== undefined) {
-    config = {
-      onUploadProgress: (progressEvent: ProgressEvent) => {
-        onProgress((progressEvent.loaded / progressEvent.total) * 100);
-      },
+    config.onUploadProgress = (progressEvent: ProgressEvent) => {
+      onProgress((progressEvent.loaded / progressEvent.total) * 100);
     };
   }
 
@@ -324,12 +358,12 @@ export async function createVideo(
   { name, metadata }: { name: string; metadata: UavVideoMetadata },
   onProgress?: (percentDone: number) => void
 ): Promise<ObjectRef> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
-  let config: AxiosRequestConfig = { timeout: 30 * 60 };
+  let config: AxiosRequestConfig = { timeout: 30 * 60, headers: authHeaders };
   if (onProgress !== undefined) {
     config = {
       onUploadProgress: (progressEvent: ProgressEvent) => {
@@ -360,10 +394,10 @@ export async function createVideo(
  * @param {ObjectRef[]} images The images to delete.
  */
 export async function deleteImages(images: ObjectRef[]): Promise<void> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   await imagesApi
-    .deleteImagesImagesDeleteDelete(images)
+    .deleteImagesImagesDeleteDelete(images, { headers: authHeaders })
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -381,7 +415,7 @@ export async function inferImageMetadata(
   imageData: Blob,
   { name, knownMetadata }: { name: string; knownMetadata: UavImageMetadata }
 ): Promise<UavImageMetadata> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   // Get the local timezone offset.
   const offset = new Date().getTimezoneOffset() / 60;
@@ -392,7 +426,7 @@ export async function inferImageMetadata(
     .inferImageMetadataImagesMetadataInferPost(
       offset,
       new File([imageData], name),
-      ...imageMetadataToForm(knownMetadata)
+      ...imageMetadataToForm(knownMetadata).concat({ headers: authHeaders })
     )
     .catch(function (error) {
       console.error(error.toJSON());
@@ -413,7 +447,7 @@ export async function inferVideoMetadata(
   videoData: Blob,
   { name, knownMetadata }: { name: string; knownMetadata: UavVideoMetadata }
 ): Promise<UavVideoMetadata> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   // Set the size based on the image to upload.
   knownMetadata.size = videoData.size;
@@ -423,7 +457,7 @@ export async function inferVideoMetadata(
   const response = await videosApi
     .inferVideoMetadataVideosMetadataInferPost(
       new File([videoData], name),
-      ...videoMetadataToForm(knownMetadata)
+      ...videoMetadataToForm(knownMetadata).concat({ headers: authHeaders })
     )
     .catch(function (error) {
       console.error(error.toJSON());
@@ -454,7 +488,7 @@ export async function batchUpdateMetadata(
   ignoreSize: boolean = true,
   ignoreLength: boolean = true
 ): Promise<void> {
-  ensureAuthenticated();
+  const authHeaders = await getAuthHeaders();
 
   // Copy to avoid surprising the user by modifying the argument.
   const metadataCopy = cloneDeep(metadata);
@@ -487,7 +521,8 @@ export async function batchUpdateMetadata(
           metadata: metadataCopy as UavImageMetadata,
           images: imageIds.map((e) => e.id),
         },
-        incrementSequence
+        incrementSequence,
+        { headers: authHeaders }
       )
       .catch(function (error) {
         console.error(error.toJSON());
@@ -501,7 +536,8 @@ export async function batchUpdateMetadata(
           metadata: metadataCopy as UavVideoMetadata,
           videos: videoIds.map((e) => e.id),
         },
-        incrementSequence
+        incrementSequence,
+        { headers: authHeaders }
       )
       .catch(function (error) {
         console.error(error.toJSON());
@@ -516,8 +552,6 @@ export async function batchUpdateMetadata(
  * @return {string} The artifact URL.
  */
 export function getArtifactUrl(artifactId: TypedObjectRef): string {
-  ensureAuthenticated();
-
   const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
   return urlJoin(
     API_BASE_URL,
@@ -538,8 +572,6 @@ export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
     // Previews are only available for videos.
     return null;
   }
-
-  ensureAuthenticated();
 
   return urlJoin(
     API_BASE_URL,
@@ -563,8 +595,6 @@ export function getStreamableVideoUrl(
     // Previews are only available for videos.
     return null;
   }
-
-  ensureAuthenticated();
 
   return urlJoin(
     API_BASE_URL,

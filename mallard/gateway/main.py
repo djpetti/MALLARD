@@ -3,16 +3,19 @@ Main entry point for API gateway.
 """
 
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from ..config import config
+from .authentication import get_auth
 from .routers import images, root, videos
 
 dependencies = []
 if not config["security"]["enable_auth"].get(bool):
     logger.warning("Authentication has been disabled through the config file.")
+else:
+    dependencies.append(Depends(get_auth().authenticated()))
 app = FastAPI(debug=True, dependencies=dependencies)
 
 app.include_router(images.router)

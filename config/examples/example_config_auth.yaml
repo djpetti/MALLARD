@@ -7,3 +7,7 @@ security:
     base_url: "https://example.fief.dev"
     # The Fief client ID.
     client_id: "YOUR_CLIENT_ID"
+
+    # Whether to verify SSL certificates during authentication. Set this
+    # to false if your Fief server uses a self-signed certificate.
+    verify_ssl: false

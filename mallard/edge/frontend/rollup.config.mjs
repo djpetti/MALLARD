@@ -6,6 +6,7 @@ import nodePolyfills from 'rollup-plugin-polyfill-node';
 import sourcemaps from "rollup-plugin-sourcemaps";
 import scss from "rollup-plugin-scss";
 import copy from "rollup-plugin-copy";
+import externalGlobals from "rollup-plugin-external-globals";
 
 export default {
     input: 'build/index.js',
@@ -38,6 +39,7 @@ export default {
         }
     },
     plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
+        externalGlobals({"fief": "fief"}),
         scss({fileName: "mallard-edge.css"}),
         copy({
             targets: [{

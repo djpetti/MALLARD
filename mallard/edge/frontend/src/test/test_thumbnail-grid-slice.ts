@@ -1,6 +1,5 @@
 import configureStore, { MockStoreCreator } from "redux-mock-store";
 import thumbnailGridReducer, {
-  addArtifacts,
   setSearchString,
   clearFullSizedImages,
   clearImageView,
@@ -33,6 +32,7 @@ import thumbnailGridReducer, {
   thunkUpdateSelectedMetadata,
   setVideoUrl,
   clearVideoUrl,
+  thunkAddArtifacts,
 } from "../thumbnail-grid-slice";
 import {
   ArtifactEntity,
@@ -164,6 +164,45 @@ describe("thumbnail-grid-slice action creators", () => {
     jest.clearAllMocks();
   });
 
+  it("creates an addArtifacts action", async () => {
+    // Arrange.
+    // Make it look like we can get URLs for the previews and streamable videos.
+    const previewUrl = faker.internet.url();
+    const streamableUrl = faker.internet.url();
+    mockGetPreviewVideoUrl.mockResolvedValue(previewUrl);
+    mockGetStreamableVideoUrl.mockResolvedValue(streamableUrl);
+
+    const backendIds = [fakeTypedObjectRef(), fakeTypedObjectRef()];
+
+    // Act.
+    const state = fakeState();
+    const store = mockStoreCreator(state);
+    await thunkAddArtifacts(backendIds)(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have gotten the URLs.
+    expect(mockGetPreviewVideoUrl).toBeCalledTimes(2);
+    expect(mockGetStreamableVideoUrl).toBeCalledTimes(2);
+
+    // It should have dispatched the actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    const pendingAction = actions[0];
+    expect(pendingAction.type).toEqual(thunkAddArtifacts.pending.type);
+    expect(pendingAction.meta.arg).toEqual(backendIds);
+
+    const fulfilledAction = actions[1];
+    expect(fulfilledAction.type).toEqual(thunkAddArtifacts.fulfilled.type);
+    expect(fulfilledAction.payload).toEqual(
+      backendIds.map((id) => ({
+        backendId: id,
+        previewUrl: previewUrl,
+        streamableUrl: streamableUrl,
+      }))
+    );
+  });
+
   each([
     ["no start page", undefined],
     ["start page", faker.datatype.number()],
@@ -220,8 +259,8 @@ describe("thumbnail-grid-slice action creators", () => {
 
       // Then, it should add the artifacts.
       const addArtifactsAction = actions[1];
-      expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-      expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+      expect(addArtifactsAction.type).toEqual(thunkAddArtifacts.pending.type);
+      expect(addArtifactsAction.meta.arg).toEqual(queryResult.imageIds);
 
       // Then, it should load metadata, which will dispatch two lifecycle
       // actions.
@@ -298,8 +337,8 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // Then, it should add the artifacts.
     const addArtifactsAction = actions[1];
-    expect(addArtifactsAction.type).toEqual(addArtifacts.type);
-    expect(addArtifactsAction.payload).toEqual(queryResult.imageIds);
+    expect(addArtifactsAction.type).toEqual(thunkAddArtifacts.pending.type);
+    expect(addArtifactsAction.meta.arg).toEqual(queryResult.imageIds);
 
     // Then, it should load metadata, which will dispatch two lifecycle
     // actions.
@@ -1305,8 +1344,8 @@ describe("thumbnail-grid-slice action creators", () => {
       if (!imageEntity) {
         // There will be one extra action to register the artifact
         const registerAction = actions[0];
-        expect(registerAction.type).toEqual(addArtifacts.type);
-        expect(registerAction.payload).toEqual([backendId]);
+        expect(registerAction.type).toEqual(thunkAddArtifacts.pending.type);
+        expect(registerAction.meta.arg).toEqual([backendId]);
       }
 
       // There should be an action to update which image we are showing
@@ -1322,38 +1361,6 @@ describe("thumbnail-grid-slice reducers", () => {
   beforeEach(() => {
     // Set the faker seed.
     faker.seed(1337);
-  });
-
-  it("handles an addArtifacts action", () => {
-    // Arrange.
-    const state: ImageViewState = fakeState().imageView;
-    const backendId = fakeTypedObjectRef();
-
-    // Make it look like we can get a preview URL.
-    const fakePreviewUrl = faker.internet.url();
-    mockGetPreviewVideoUrl.mockReturnValue(fakePreviewUrl);
-    // Make it look like we can get a streamable URL.
-    const fakeStreamableUrl = faker.internet.url();
-    mockGetStreamableVideoUrl.mockReturnValue(fakeStreamableUrl);
-
-    // Act.
-    const newState = thumbnailGridSlice.reducer(
-      state,
-      addArtifacts([backendId])
-    );
-
-    // Assert.
-    // It should have added a new entity.
-    expect(newState.ids.length).toEqual(1);
-    expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
-    // It should have used the preview URL.
-    expect(newState.entities[newState.ids[0]]?.previewUrl).toEqual(
-      fakePreviewUrl
-    );
-    // It should have used the streamable URL.
-    expect(newState.entities[newState.ids[0]]?.streamableUrl).toEqual(
-      fakeStreamableUrl
-    );
   });
 
   it("handles a clearFullSizedImages action", () => {
@@ -1761,6 +1768,64 @@ describe("thumbnail-grid-slice reducers", () => {
       // It should have collapsed the section.
       expect(newImageState.collapsedSections[sectionName]).toEqual(true);
     }
+  });
+
+  it(`handles an ${thunkAddArtifacts.pending.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    const backendId = fakeTypedObjectRef();
+
+    // Act.
+    const newState = thumbnailGridSlice.reducer(state, {
+      type: thunkAddArtifacts.pending.type,
+      meta: { arg: [backendId] },
+    });
+
+    // Assert.
+    // It should have added a new entity.
+    expect(newState.ids.length).toEqual(1);
+    expect(newState.entities[newState.ids[0]]?.backendId).toEqual(backendId);
+    // It should have set the preview and streamable URLs to null.
+    expect(newState.entities[newState.ids[0]]?.previewUrl).toBeNull();
+    expect(newState.entities[newState.ids[0]]?.streamableUrl).toBeNull();
+  });
+
+  it(`handles an ${thunkAddArtifacts.fulfilled.type} action`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    // Add an existing entity.
+    const entity = fakeArtifactEntity();
+    const backendId = entity.backendId;
+    const frontendId = createArtifactEntityId(backendId.id);
+    entity.previewUrl = null;
+    entity.streamableUrl = null;
+    state.ids = [frontendId];
+    state.entities[frontendId] = entity;
+
+    const fakePreviewUrl = faker.internet.url();
+    const fakeStreamableUrl = faker.internet.url();
+
+    // Act.
+    const newState = thumbnailGridSlice.reducer(state, {
+      type: thunkAddArtifacts.fulfilled.type,
+      payload: [
+        {
+          backendId: backendId,
+          previewUrl: fakePreviewUrl,
+          streamableUrl: fakeStreamableUrl,
+        },
+      ],
+    });
+
+    // Assert.
+    // It should have updated the entity.
+    expect(newState.ids).toEqual([frontendId]);
+    expect(newState.entities[frontendId]?.backendId).toEqual(backendId);
+    // It should have set the preview and streamable URLs.
+    expect(newState.entities[frontendId]?.previewUrl).toEqual(fakePreviewUrl);
+    expect(newState.entities[frontendId]?.streamableUrl).toEqual(
+      fakeStreamableUrl
+    );
   });
 
   it(`handles a ${thunkStartNewQuery.pending.type} action`, () => {

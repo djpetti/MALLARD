@@ -95,20 +95,38 @@ async function ensureAuthenticated(): Promise<void> {
 }
 
 /**
- * Gets the correct headers to use for authentication.
- * @return {AxiosRequestHeaders} The authentication headers.
+ * Gets the current authentication token.
+ * @return {string} The authentication token or undefined if auth is not
+ *  enabled, or it failed.
  */
-async function getAuthHeaders(): Promise<AxiosRequestHeaders> {
+async function getAuthToken(): Promise<string | undefined> {
   if (!AUTH_ENABLED) {
     // Authentication is not enabled. Don't add headers.
-    return {};
+    return undefined;
   }
 
   await ensureAuthenticated();
 
   const tokenInfo = (fiefAuth as browser.FiefAuth).getTokenInfo();
-  const accessToken = tokenInfo?.access_token;
+  return tokenInfo?.access_token;
+}
+
+/**
+ * Gets the correct headers to use for authentication.
+ * @return {AxiosRequestHeaders} The authentication headers.
+ */
+async function getAuthHeaders(): Promise<AxiosRequestHeaders> {
+  const accessToken = await getAuthToken();
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+/**
+ * Gets the query string to use for authentication.
+ * @return {string} The query string.
+ */
+async function getAuthQueryString(): Promise<string> {
+  const accessToken = await getAuthToken();
+  return accessToken ? `auth_token=${accessToken}` : "";
 }
 
 /**
@@ -567,7 +585,9 @@ export function getArtifactUrl(artifactId: TypedObjectRef): string {
  * @return {string | null} The preview URL, or undefined if the
  *   artifact is not a video.
  */
-export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
+export async function getPreviewVideoUrl(
+  artifactId: TypedObjectRef
+): Promise<string | null> {
   if (artifactId.type !== ObjectType.VIDEO) {
     // Previews are only available for videos.
     return null;
@@ -578,7 +598,7 @@ export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
     "videos",
     "preview",
     artifactId.id.bucket,
-    artifactId.id.name
+    `${artifactId.id.name}?${await getAuthQueryString()}`
   );
 }
 
@@ -588,9 +608,9 @@ export function getPreviewVideoUrl(artifactId: TypedObjectRef): string | null {
  * @return {string | null} The streaming URL, or undefined if the
  *   artifact is not a video.
  */
-export function getStreamableVideoUrl(
+export async function getStreamableVideoUrl(
   artifactId: TypedObjectRef
-): string | null {
+): Promise<string | null> {
   if (artifactId.type !== ObjectType.VIDEO) {
     // Previews are only available for videos.
     return null;
@@ -601,6 +621,6 @@ export function getStreamableVideoUrl(
     "videos",
     "stream",
     artifactId.id.bucket,
-    artifactId.id.name
+    `${artifactId.id.name}?${await getAuthQueryString()}`
   );
 }

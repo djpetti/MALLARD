@@ -88,6 +88,15 @@ interface LoadImageReturn {
 }
 
 /**
+ * Return type for the `thunkAddArtifacts` creator.
+ */
+interface AddArtifactsReturn {
+  backendId: TypedObjectRef;
+  previewUrl: string | null;
+  streamableUrl: string | null;
+}
+
+/**
  * Return type for the `thunkLoadMetadata` creator.
  */
 interface LoadMetadataReturn {
@@ -116,19 +125,21 @@ export function createArtifactEntityId(backendId: ObjectRef): string {
 
 /**
  * Creates an image entity with default values for all the attributes.
- * @param {TypedObjectRef} backendId ID of the entity on the backend.
+ * @param {AddArtifactsReturn} artifact The specification of the artifact to
+ *   add.
+ *  artifact.
  * @return {ArtifactEntity} The entity that it created.
  */
-function createDefaultEntity(backendId: TypedObjectRef): ArtifactEntity {
+function createDefaultEntity(artifact: AddArtifactsReturn): ArtifactEntity {
   return {
-    backendId: backendId,
+    backendId: artifact.backendId,
     thumbnailStatus: ArtifactStatus.NOT_LOADED,
     imageStatus: ArtifactStatus.NOT_LOADED,
     metadataStatus: ArtifactStatus.NOT_LOADED,
     thumbnailUrl: null,
     artifactUrl: null,
-    previewUrl: getPreviewVideoUrl(backendId),
-    streamableUrl: getStreamableVideoUrl(backendId),
+    previewUrl: artifact.previewUrl,
+    streamableUrl: artifact.streamableUrl,
     metadata: null,
     isSelected: false,
   };
@@ -168,6 +179,29 @@ export const thumbnailGridSelectors =
   thumbnailGridAdapter.getSelectors<RootState>((state) => state.imageView);
 
 /**
+ * Action creator that adds a batch of new artifacts to the state.
+ */
+export const thunkAddArtifacts = createAsyncThunk(
+  "thumbnailGrid/addArtifacts",
+  async (backendIds: TypedObjectRef[]): Promise<AddArtifactsReturn[]> => {
+    const artifacts: AddArtifactsReturn[] = [];
+    for (const id of backendIds) {
+      // Get the preview and streamable URLs for videos.
+      const previewUrl = await getPreviewVideoUrl(id);
+      const streamableUrl = await getStreamableVideoUrl(id);
+
+      artifacts.push({
+        backendId: id,
+        previewUrl: previewUrl,
+        streamableUrl: streamableUrl,
+      });
+    }
+
+    return artifacts;
+  }
+);
+
+/**
  * Action creator that starts a new request for thumbnails on the homepage.
  */
 export const thunkStartNewQuery = createAsyncThunk(
@@ -200,7 +234,7 @@ export const thunkStartNewQuery = createAsyncThunk(
     );
 
     // Add the results to the state.
-    dispatch(addArtifacts(queryResult.imageIds));
+    dispatch(thunkAddArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
@@ -241,7 +275,7 @@ export const thunkContinueQuery = createAsyncThunk(
     );
 
     // Add the results to the state.
-    dispatch(addArtifacts(queryResult.imageIds));
+    dispatch(thunkAddArtifacts(queryResult.imageIds));
     // Fetch all the metadata.
     dispatch(
       thunkLoadMetadata(
@@ -788,7 +822,7 @@ export function thunkShowDetails(backendId: TypedObjectRef): ThunkResult<void> {
     const frontendId = createArtifactEntityId(backendId.id);
     if (thumbnailGridSelectors.selectById(state, frontendId) == undefined) {
       // We need to register it.
-      dispatch(addArtifacts([backendId]));
+      dispatch(thunkAddArtifacts([backendId]));
     }
 
     // Mark this as the image displayed on the details page.
@@ -814,15 +848,6 @@ export const thumbnailGridSlice = createSlice({
   name: "thumbnailGrid",
   initialState: initialState as ImageViewState,
   reducers: {
-    // We are manually adding a new artifact to the frontend state.
-    addArtifacts(state, action) {
-      thumbnailGridAdapter.upsertMany(
-        state,
-        action.payload.map((backendId: TypedObjectRef) =>
-          createDefaultEntity(backendId)
-        )
-      );
-    },
     // Clears a loaded full-sized image.
     clearFullSizedImages(state, action) {
       thumbnailGridAdapter.updateMany(
@@ -955,6 +980,34 @@ export const thumbnailGridSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    // We are adding new artifacts to the state.
+    builder.addCase(thunkAddArtifacts.pending, (state, action) => {
+      // Add the artifacts without dynamically-created parameters.
+      thumbnailGridAdapter.upsertMany(
+        state,
+        action.meta.arg.map((id: TypedObjectRef) =>
+          createDefaultEntity({
+            backendId: id,
+            streamableUrl: null,
+            previewUrl: null,
+          })
+        )
+      );
+    });
+
+    builder.addCase(thunkAddArtifacts.fulfilled, (state, action) => {
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.payload.map((artifact: AddArtifactsReturn) => ({
+          id: createArtifactEntityId(artifact.backendId.id),
+          changes: {
+            previewUrl: artifact.previewUrl,
+            streamableUrl: artifact.streamableUrl,
+          },
+        }))
+      );
+    });
+
     // We initiated a new query for home screen data.
     builder.addCase(thunkStartNewQuery.pending, (state) => {
       // Remove the current images, which will now be out-of-date.
@@ -1140,7 +1193,6 @@ export const thumbnailGridSlice = createSlice({
 export const {
   clearFullSizedImages,
   clearThumbnails,
-  addArtifacts,
   clearImageView,
   setSearchString,
   selectImages,

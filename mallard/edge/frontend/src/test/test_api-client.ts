@@ -808,12 +808,12 @@ describe("api-client", () => {
     ["video", ObjectType.VIDEO],
   ]).it(
     "can get the streamble video URL for a(n) %s",
-    (_: string, objectType: ObjectType) => {
+    async (_: string, objectType: ObjectType) => {
       // Arrange.
       const artifactId = fakeTypedObjectRef(objectType);
 
       // Act.
-      const gotUrl = getStreamableVideoUrl(artifactId);
+      const gotUrl = await getStreamableVideoUrl(artifactId);
 
       // Assert.
       if (objectType === ObjectType.IMAGE) {

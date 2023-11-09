@@ -77,11 +77,16 @@ async function ensureAuthenticated(): Promise<void> {
   // concurrently in concurrent requests.
   await navigator.locks.request("auth", async (_) => {
     const location = window.location.href.split("?")[0];
+    // Save this so we can retrieve it in the callback.
+    window.localStorage.setItem("pre_auth_location", location);
+
     if (AUTH_CALLBACK) {
       // This is the callback.
       await fiefAuth.authCallback(new URL(location).href);
 
-      window.location.href = new URL("../", location).href;
+      // Redirect to the original page.
+      const preAuthLocation = window.localStorage.getItem("pre_auth_location");
+      window.location.href = new URL(preAuthLocation ?? "../", location).href;
     } else if (!fiefAuth.isAuthenticated()) {
       // Force the user to log in.
       const rootLocation = new URL(location);

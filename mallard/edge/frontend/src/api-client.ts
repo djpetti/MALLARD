@@ -387,13 +387,11 @@ export async function createVideo(
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
-  let config: AxiosRequestConfig = { timeout: 30 * 60, headers: authHeaders };
+  const config: AxiosRequestConfig = { timeout: 30 * 60, headers: authHeaders };
   if (onProgress !== undefined) {
-    config = {
-      onUploadProgress: (progressEvent: ProgressEvent) => {
+    config.onUploadProgress = (progressEvent: ProgressEvent) => {
         onProgress((progressEvent.loaded / progressEvent.total) * 100);
-      },
-    };
+      };
   }
 
   const response = await videosApi

@@ -1,0 +1,12 @@
+<script>
+    // Inject global variables in JavaScript.
+    {% if auth_enabled %}
+        const AUTH_ENABLED = true;
+    {%  else %}
+        const AUTH_ENABLED = false;
+    {% endif %}
+
+    const API_BASE_URL = "{{ api_base_url }}";
+    const AUTH_BASE_URL = "{{ auth_base_url }}";
+    const AUTH_CLIENT_ID = "{{ auth_client_id }}";
+</script>

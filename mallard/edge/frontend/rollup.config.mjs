@@ -8,7 +8,18 @@ import scss from "rollup-plugin-scss";
 import copy from "rollup-plugin-copy";
 import externalGlobals from "rollup-plugin-external-globals";
 
-export default {
+let allPlugins =
+    [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
+        externalGlobals({"fief": "fief"}),
+        scss({fileName: "mallard-edge.css"}),
+        copy({
+            targets: [{
+                src: 'static/*',
+                dest: 'bundled/'
+            }]
+        }),
+    ];
+export default [{
     input: 'build/index.js',
     output: [
         {
@@ -28,7 +39,7 @@ export default {
                         regex: /^__/,
                     },
                 },
-                compress: { evaluate: false }
+                compress: {evaluate: false}
             }),
             ],
         },
@@ -38,14 +49,37 @@ export default {
             console.error(`(!) ${warning.message}`);
         }
     },
-    plugins: [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
-        externalGlobals({"fief": "fief"}),
-        scss({fileName: "mallard-edge.css"}),
-        copy({
-            targets: [{
-                src: 'static/*',
-                dest: 'bundled/'
-            }]
-        }),
-    ],
-};
+    plugins: allPlugins
+},
+    {
+        input: 'build/auth_callback.js',
+        output: [
+            {
+                file: 'bundled/mallard-auth.js',
+                sourcemap: true,
+                format: 'esm',
+            },
+            {
+                file: 'bundled/mallard-auth.min.js',
+                format: 'iife',
+                name: 'version',
+                plugins: [terser({
+                    module: true,
+                    warnings: true,
+                    mangle: {
+                        properties: {
+                            regex: /^__/,
+                        },
+                    },
+                    compress: {evaluate: false}
+                }),
+                ],
+            },
+        ],
+        onwarn(warning) {
+            if (warning.code !== 'THIS_IS_UNDEFINED') {
+                console.error(`(!) ${warning.message}`);
+            }
+        },
+        plugins: allPlugins
+    }];

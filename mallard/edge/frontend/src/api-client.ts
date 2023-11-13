@@ -27,8 +27,6 @@ declare const AUTH_ENABLED: boolean;
 declare const AUTH_BASE_URL: string;
 // Client ID for Fief authentication.
 declare const AUTH_CLIENT_ID: string;
-// Whether this is running as the callback for authentication.
-declare const AUTH_CALLBACK: boolean;
 
 // This hack is to deal with the fact that Rollup currently doesn't want
 // to work with the fief package. I guess this is one of the joys of using
@@ -78,14 +76,7 @@ async function ensureAuthenticated(): Promise<void> {
   await navigator.locks.request("auth", async (_) => {
     const location = window.location.href.split("?")[0];
 
-    if (AUTH_CALLBACK) {
-      // This is the callback.
-      await fiefAuth.authCallback(new URL(location).href);
-
-      // Redirect to the original page.
-      const preAuthLocation = window.localStorage.getItem("pre_auth_location");
-      window.location.href = new URL(preAuthLocation ?? "../", location).href;
-    } else if (!fiefAuth.isAuthenticated()) {
+    if (!fiefAuth.isAuthenticated()) {
       // Save this so we can retrieve it in the callback.
       window.localStorage.setItem("pre_auth_location", location);
 

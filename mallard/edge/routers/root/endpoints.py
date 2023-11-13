@@ -70,9 +70,7 @@ async def auth_callback() -> str:
         The HTML response.
 
     """
-    return await _render_template(
-        "index.html", fragment=False, auth_callback=True
-    )
+    return await _render_template("auth_callback.html", fragment=False)
 
 
 @router.get(

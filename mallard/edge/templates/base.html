@@ -2,18 +2,8 @@
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Mallard</title>
+{% include "head.html" %}
 
-    <!-- Load fonts for web components. -->
-    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css?family=Material+Icons&display=block" rel="stylesheet">
-    <!-- Custom styles -->
-    <link rel="stylesheet" href="/static/mallard-edge.css">
-    <!-- Favicon -->
-    <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
-</head>
 <body>
 
 <top-nav-bar id="main_app_bar" title="{% block title %}Mallard{% endblock %}">
@@ -26,26 +16,11 @@
 
 </body>
 
-<script>
-    {% if auth_enabled %}
-    const AUTH_ENABLED = true;
-    {%  else %}
-    const AUTH_ENABLED = false;
-    {% endif %}
+{% include "globals.html" %}
 
-    {% if auth_callback | default(false) %}
-    const AUTH_CALLBACK = true;
-    {%  else %}
-    const AUTH_CALLBACK = false;
-    {% endif %}
-
-    const API_BASE_URL = "{{ api_base_url }}";
-    const AUTH_BASE_URL = "{{ auth_base_url }}";
-    const AUTH_CLIENT_ID = "{{ auth_client_id }}";
-</script>
 <!-- Fief client -->
 <script src="/static/fief_0.14.1.umd.js"></script>
-<script src="/static/mallard-edge.js"></script>
+<script src="/static/mallard-edge.min.js"></script>
 
 </html>
 {% endif %}

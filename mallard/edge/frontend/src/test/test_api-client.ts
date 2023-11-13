@@ -36,14 +36,26 @@ import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
 import { AxiosRequestConfig } from "axios";
+import { browser, Fief } from "@fief/fief";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
-// Deliberately using `any` here so we can make the API return any type of
-// object instead of having to tediously simulate AxiosResponse.
 const mockImagesApiClass = ImagesApi as jest.MockedClass<typeof ImagesApi>;
 const mockVideosApiClass = VideosApi as jest.MockedClass<typeof VideosApi>;
 const mockApiClass = DefaultApi as jest.MockedClass<typeof DefaultApi>;
+
+// Mock out Fief.
+jest.mock("@fief/fief");
+const mockFief = Fief as jest.MockedClass<typeof Fief>;
+const mockFiefAuth = browser.FiefAuth as jest.MockedClass<
+  typeof browser.FiefAuth
+>;
+
+// Mock out session locking.
+const mockLockRequest = jest.fn();
+Object.defineProperty(global.navigator, "locks", {
+  value: { request: mockLockRequest },
+});
 
 describe("api-client", () => {
   beforeEach(() => {
@@ -51,6 +63,22 @@ describe("api-client", () => {
 
     // Set the faker seed.
     faker.seed(1337);
+
+    // Make it so requesting a lock transparently runs the callback.
+    mockLockRequest.mockImplementation(
+      async (_: string, callback: () => Promise<void>) => await callback()
+    );
+    // Default to making it look like a user is logged in.
+    mockFiefAuth.prototype.isAuthenticated.mockReturnValue(true);
+    mockFiefAuth.prototype.getTokenInfo.mockReturnValue({
+      access_token: faker.datatype.string(25),
+      id_token: faker.datatype.string(25),
+      expires_in: faker.datatype.number(),
+      token_type: "bearer",
+    });
+
+    // Clear relevant data from local storage.
+    window.localStorage.removeItem("pre_auth_location");
   });
 
   /**
@@ -67,6 +95,32 @@ describe("api-client", () => {
 
     toJSON: () => string;
   }
+
+  it("can redirect the user to the login page", async () => {
+    // Arrange.
+    // Make it look like the user isn't logged in.
+    mockFiefAuth.prototype.isAuthenticated.mockReturnValue(false);
+
+    // Set this up so the function call doesn't fail.
+    const mockThumbnailGet =
+      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
+    // @ts-ignore
+    mockThumbnailGet.mockResolvedValue({ data: undefined });
+
+    // Act.
+    // Call a function that requires login.
+    await loadThumbnail(fakeObjectRef());
+
+    // Assert.
+    // It should have checked login status.
+    expect(mockFiefAuth.prototype.isAuthenticated).toBeCalledTimes(1);
+    // It should have saved the location.
+    expect(window.localStorage.getItem("pre_auth_location")).toEqual(
+      window.location.href
+    );
+    // It should have redirected to the login page.
+    expect(mockFiefAuth.prototype.redirectToLogin).toBeCalledTimes(1);
+  });
 
   it("can query images", async () => {
     // Arrange.
@@ -103,10 +157,16 @@ describe("api-client", () => {
     // Assert.
     // It should have queried the images.
     expect(mockQueryImages).toBeCalledTimes(1);
-    expect(mockQueryImages).toBeCalledWith(resultsPerPage, pageNum, {
-      queries: queries,
-      orderings: orderings,
-    });
+    expect(mockQueryImages).toBeCalledWith(
+      resultsPerPage,
+      pageNum,
+      undefined,
+      {
+        queries: queries,
+        orderings: orderings,
+      },
+      { headers: { Authorization: expect.any(String) } }
+    );
 
     // It should have gotten the proper result.
     expect(result.imageIds).toEqual(imageIds);
@@ -149,7 +209,8 @@ describe("api-client", () => {
     expect(mockImageGet).toBeCalledWith(
       imageId.bucket,
       imageId.name,
-      expect.any(Object)
+      undefined,
+      { responseType: "blob", headers: { Authorization: expect.any(String) } }
     );
 
     // It should have gotten the proper result.
@@ -194,7 +255,8 @@ describe("api-client", () => {
     expect(mockThumbnailGet).toBeCalledWith(
       imageId.bucket,
       imageId.name,
-      expect.any(Object)
+      undefined,
+      { responseType: "blob", headers: { Authorization: expect.any(String) } }
     );
 
     // It should have gotten the proper result.
@@ -250,14 +312,18 @@ describe("api-client", () => {
     // Assert.
     // It should have loaded the metadata.
     expect(mockFindImageMetadata).toBeCalledTimes(1);
-    expect(mockFindImageMetadata).toBeCalledWith([
-      { bucket: imageArtifactId.id.bucket, name: imageArtifactId.id.name },
-    ]);
+    expect(mockFindImageMetadata).toBeCalledWith(
+      [{ bucket: imageArtifactId.id.bucket, name: imageArtifactId.id.name }],
+      undefined,
+      { headers: { Authorization: expect.any(String) } }
+    );
 
     expect(mockFindVideoMetadata).toBeCalledTimes(1);
-    expect(mockFindVideoMetadata).toBeCalledWith([
-      { bucket: videoArtifactId.id.bucket, name: videoArtifactId.id.name },
-    ]);
+    expect(mockFindVideoMetadata).toBeCalledWith(
+      [{ bucket: videoArtifactId.id.bucket, name: videoArtifactId.id.name }],
+      undefined,
+      { headers: { Authorization: expect.any(String) } }
+    );
 
     // It should have gotten the proper result in the right order.
     expect(result).toEqual([videoMetadata, imageMetadata]);
@@ -333,12 +399,17 @@ describe("api-client", () => {
       // It should have specified the file name.
       const callArgs = mockUavImageCreate.mock.calls[0];
       expect(callArgs[1].name).toEqual(fileName);
+      // It should not have passed a token in the query.
+      expect(callArgs[2]).toBeUndefined();
       // It should have specified the size in the metadata.
-      expect(callArgs[2]).toEqual(imageData.size);
+      expect(callArgs[3]).toEqual(imageData.size);
+
+      // It should have specified the authentication token.
+      const gotConfig = callArgs[callArgs.length - 1] as AxiosRequestConfig;
+      expect(gotConfig.headers).toEqual({ Authorization: expect.any(String) });
 
       if (progressCallback !== undefined) {
         // It should have specified the progress callback.
-        const gotConfig = callArgs[callArgs.length - 1] as AxiosRequestConfig;
         expect(gotConfig).toHaveProperty("onUploadProgress");
 
         // Calling it should run the callback.
@@ -399,8 +470,14 @@ describe("api-client", () => {
       // It should have specified the file name.
       const callArgs = mockUavVideoCreate.mock.calls[0];
       expect(callArgs[0].name).toEqual(fileName);
+      // It should not have passed a token in the query.
+      expect(callArgs[1]).toBeUndefined();
       // It should have specified the size in the metadata.
-      expect(callArgs[1]).toEqual(videoData.size);
+      expect(callArgs[2]).toEqual(videoData.size);
+
+      // It should have specified the authentication token.
+      const gotConfig = callArgs[callArgs.length - 1] as AxiosRequestConfig;
+      expect(gotConfig.headers).toEqual({ Authorization: expect.any(String) });
 
       if (progressCallback !== undefined) {
         // It should have specified the progress callback.
@@ -482,7 +559,9 @@ describe("api-client", () => {
     // Assert.
     // It should have deleted the images.
     expect(mockImageDelete).toBeCalledTimes(1);
-    expect(mockImageDelete).toBeCalledWith(artifactIds);
+    expect(mockImageDelete).toBeCalledWith(artifactIds, undefined, {
+      headers: { Authorization: expect.any(String) },
+    });
   });
 
   it("handles a failure when deleting images", async () => {
@@ -532,7 +611,7 @@ describe("api-client", () => {
     // It should have specified the file name.
     expect(mockMetadataInfer.mock.calls[0][1].name).toEqual(fileName);
     // It should have specified the size in the metadata.
-    expect(mockMetadataInfer.mock.calls[0][2]).toEqual(imageData.size);
+    expect(mockMetadataInfer.mock.calls[0][3]).toEqual(imageData.size);
 
     // It should have inferred the metadata.
     expect(result).toEqual(expectedResponse);
@@ -572,7 +651,7 @@ describe("api-client", () => {
     // It should have only sent the first few MBs of the file.
     expect(mockMetadataInfer.mock.calls[0][0].size).toBeLessThan(videoSize);
     // It should have specified the size in the metadata.
-    expect(mockMetadataInfer.mock.calls[0][1]).toEqual(videoData.size);
+    expect(mockMetadataInfer.mock.calls[0][2]).toEqual(videoData.size);
 
     // It should have inferred the metadata.
     expect(result).toEqual(expectedResponse);
@@ -722,7 +801,9 @@ describe("api-client", () => {
         objectType === ObjectType.IMAGE
           ? { metadata: expectedMetadata, images: untypedIds }
           : { metadata: expectedMetadata, videos: untypedIds },
-        incrementSequence
+        incrementSequence,
+        undefined,
+        { headers: { Authorization: expect.any(String) } }
       );
     }
   );
@@ -783,12 +864,12 @@ describe("api-client", () => {
     ["video", ObjectType.VIDEO],
   ]).it(
     "can get the preview video URL for a(n) %s",
-    (_: string, objectType: ObjectType) => {
+    async (_: string, objectType: ObjectType) => {
       // Arrange.
       const artifactId = fakeTypedObjectRef(objectType);
 
       // Act.
-      const gotUrl = getPreviewVideoUrl(artifactId);
+      const gotUrl = await getPreviewVideoUrl(artifactId);
 
       // Assert.
       if (objectType === ObjectType.IMAGE) {
@@ -807,7 +888,7 @@ describe("api-client", () => {
     ["image", ObjectType.IMAGE],
     ["video", ObjectType.VIDEO],
   ]).it(
-    "can get the streamble video URL for a(n) %s",
+    "can get the streamable video URL for a(n) %s",
     async (_: string, objectType: ObjectType) => {
       // Arrange.
       const artifactId = fakeTypedObjectRef(objectType);

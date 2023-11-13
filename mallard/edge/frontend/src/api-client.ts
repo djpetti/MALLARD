@@ -16,7 +16,7 @@ import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
 import { AxiosRequestConfig, AxiosRequestHeaders } from "axios";
-import { browser, Fief } from "@fief/fief";
+import { Fief, browser } from "@fief/fief";
 
 // These global variables are expected to be pre-set by an external script.
 // Base URL for the MALLARD API.
@@ -28,13 +28,6 @@ declare const AUTH_BASE_URL: string;
 // Client ID for Fief authentication.
 declare const AUTH_CLIENT_ID: string;
 
-// This hack is to deal with the fact that Rollup currently doesn't want
-// to work with the fief package. I guess this is one of the joys of using
-// beta software...
-declare const fief: any;
-const FiefClient = fief.Fief as typeof Fief;
-const FiefAuth = fief.browser.FiefAuth as typeof browser.FiefAuth;
-
 // How many bytes from the beginning of the video we send when probing.
 const PROBE_SIZE = 5 * 2 ** 20;
 
@@ -45,12 +38,14 @@ const api = new DefaultApi(new Configuration({ basePath: API_BASE_URL }));
 
 /** Singleton Fief client used by the entire application. */
 const fiefClient = AUTH_ENABLED
-  ? new FiefClient({
+  ? new Fief({
       baseURL: AUTH_BASE_URL,
       clientId: AUTH_CLIENT_ID,
     })
   : undefined;
-const fiefAuth = AUTH_ENABLED ? new FiefAuth(fiefClient as Fief) : undefined;
+const fiefAuth = AUTH_ENABLED
+  ? new browser.FiefAuth(fiefClient as Fief)
+  : undefined;
 
 /** Default orderings to use for queries. This will put the newest stuff at
  * the top, but sort by name for images collected on the same day.
@@ -68,13 +63,14 @@ export const DEFAULT_ORDERINGS: Ordering[] = [
 async function ensureAuthenticated(): Promise<void> {
   if (!fiefAuth) {
     // Authentication is not enabled.
+    // istanbul ignore next
     return;
   }
 
   // Use a lock here so that it doesn't try to authenticate multiple times
   // concurrently in concurrent requests.
   await navigator.locks.request("auth", async (_) => {
-    const location = window.location.href.split("?")[0];
+    const location = window.location.href;
 
     if (!fiefAuth.isAuthenticated()) {
       // Save this so we can retrieve it in the callback.
@@ -98,7 +94,8 @@ async function ensureAuthenticated(): Promise<void> {
  */
 async function getAuthToken(): Promise<string | undefined> {
   if (!AUTH_ENABLED) {
-    // Authentication is not enabled. Don't add headers.
+    // Authentication is not enabled. There is no token.
+    // istanbul ignore next
     return undefined;
   }
 
@@ -387,11 +384,14 @@ export async function createVideo(
   // Set the size based on the image to upload.
   metadata.size = videoData.size;
 
-  const config: AxiosRequestConfig = { timeout: 30 * 60 * 1000, headers: authHeaders };
+  const config: AxiosRequestConfig = {
+    timeout: 30 * 60 * 1000,
+    headers: authHeaders,
+  };
   if (onProgress !== undefined) {
     config.onUploadProgress = (progressEvent: ProgressEvent) => {
-        onProgress((progressEvent.loaded / progressEvent.total) * 100);
-      };
+      onProgress((progressEvent.loaded / progressEvent.total) * 100);
+    };
   }
 
   const response = await videosApi

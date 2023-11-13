@@ -10,7 +10,7 @@ import externalGlobals from "rollup-plugin-external-globals";
 
 let allPlugins =
     [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
-        externalGlobals({"fief": "fief"}),
+        externalGlobals({"@fief/fief": "fief"}),
         scss({fileName: "mallard-edge.css"}),
         copy({
             targets: [{
@@ -52,7 +52,7 @@ export default [{
     plugins: allPlugins
 },
     {
-        input: 'build/auth_callback.js',
+        input: 'build/auth-callback.js',
         output: [
             {
                 file: 'bundled/mallard-auth.js',

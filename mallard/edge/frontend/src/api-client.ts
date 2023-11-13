@@ -216,6 +216,7 @@ export async function queryImages(
     .queryArtifactsQueryPost(
       resultsPerPage,
       pageNum,
+      undefined,
       {
         queries: query,
         orderings: orderings,
@@ -238,10 +239,15 @@ export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
   const authHeaders = await getAuthHeaders();
 
   const response = await api
-    .getThumbnailThumbnailBucketNameGet(imageId.bucket, imageId.name, {
-      responseType: "blob",
-      headers: authHeaders,
-    })
+    .getThumbnailThumbnailBucketNameGet(
+      imageId.bucket,
+      imageId.name,
+      undefined,
+      {
+        responseType: "blob",
+        headers: authHeaders,
+      }
+    )
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -259,7 +265,7 @@ export async function loadImage(imageId: ObjectRef): Promise<Blob> {
   const authHeaders = await getAuthHeaders();
 
   const response = await imagesApi
-    .getImageImagesBucketNameGet(imageId.bucket, imageId.name, {
+    .getImageImagesBucketNameGet(imageId.bucket, imageId.name, undefined, {
       responseType: "blob",
       headers: authHeaders,
     })
@@ -288,6 +294,7 @@ export async function getMetadata(
     const response = await imagesApi
       .findImageMetadataImagesMetadataPost(
         imageIds.map((e) => e.id),
+        undefined,
         { headers: authHeaders }
       )
       .catch(function (error) {
@@ -300,6 +307,7 @@ export async function getMetadata(
     const response = await videosApi
       .findVideoMetadataVideosMetadataPost(
         videoIds.map((e) => e.id),
+        undefined,
         { headers: authHeaders }
       )
       .catch(function (error) {
@@ -346,6 +354,7 @@ export async function createImage(
     .createUavImageImagesCreateUavPost(
       offset,
       new File([imageData], name),
+      undefined,
       ...imageMetadataToForm(metadata).concat(config)
     )
     .catch(function (error) {
@@ -390,6 +399,7 @@ export async function createVideo(
   const response = await videosApi
     .createUavVideoVideosCreateUavPost(
       new File([videoData], name),
+      undefined,
       ...videoMetadataToForm(metadata).concat(config)
     )
     .catch(function (error) {
@@ -412,7 +422,7 @@ export async function deleteImages(images: ObjectRef[]): Promise<void> {
   const authHeaders = await getAuthHeaders();
 
   await imagesApi
-    .deleteImagesImagesDeleteDelete(images, { headers: authHeaders })
+    .deleteImagesImagesDeleteDelete(images, undefined, { headers: authHeaders })
     .catch(function (error) {
       console.error(error.toJSON());
       throw error;
@@ -441,6 +451,7 @@ export async function inferImageMetadata(
     .inferImageMetadataImagesMetadataInferPost(
       offset,
       new File([imageData], name),
+      undefined,
       ...imageMetadataToForm(knownMetadata).concat({ headers: authHeaders })
     )
     .catch(function (error) {
@@ -472,6 +483,7 @@ export async function inferVideoMetadata(
   const response = await videosApi
     .inferVideoMetadataVideosMetadataInferPost(
       new File([videoData], name),
+      undefined,
       ...videoMetadataToForm(knownMetadata).concat({ headers: authHeaders })
     )
     .catch(function (error) {
@@ -537,6 +549,7 @@ export async function batchUpdateMetadata(
           images: imageIds.map((e) => e.id),
         },
         incrementSequence,
+        undefined,
         { headers: authHeaders }
       )
       .catch(function (error) {
@@ -552,6 +565,7 @@ export async function batchUpdateMetadata(
           videos: videoIds.map((e) => e.id),
         },
         incrementSequence,
+        undefined,
         { headers: authHeaders }
       )
       .catch(function (error) {

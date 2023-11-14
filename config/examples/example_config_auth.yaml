@@ -1,6 +1,6 @@
 security:
   # Enable authentication.
-  enable_auth: True
+  enable_auth: true
 
   fief:
     # The base URL for Fief.

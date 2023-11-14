@@ -96,3 +96,45 @@ Since the object store is mirrored through S3FS, restoring it should be
 trivial: just restore all the files into the original folder. Restoring
 the metadata involves accessing the latest DB dump (located in
 `/backups/metadata/`) and restoring it manually to MariaDB.
+
+# Authentication
+
+In the event that MALLARD is exposed on a public network, you will probably
+want some control over who has access to it. MALLARD currently supports user
+authentication through [Fief](https://www.fief.dev/). Note that, going forward,
+we will assume that you have [installed and configured](https://docs.fief.dev/getting-started/introduction/)
+Fief and it is running at `https://example.fief.dev/`.
+
+## MALLARD Configuration
+
+The MALLARD config file must be updated to enable authentication. For a
+default (production) deployment, the [`local_config.yaml`](config/local/local_config.yaml)
+file will be used. Modify this file an rebuild the Docker container to change
+the configuration.
+
+Under the `security` section, there is an `enable_auth` option that defaults to
+`false`. Instead, you will want to set it to `true`, and add the additional
+`fief` section that is present in [the example config](config/examples/example_config_auth.yaml).
+Fill out the `base_url` and `client_id` parameters appropriately for your Fief
+configuration. The `client_id` can be found on the Fief admin page:
+![fief_client_id](images/fief_client_id.png)
+
+## Fief Configuration
+
+For authentication to work in Fief, you have to configure you client to allow
+all of the MALLARD redict URIs. This can be done on the Fief admin page,
+in the "Clients" section, by clicking on the client you are using. It should
+open up a panel on the right with a list of redirect URIs. Click the "Edit
+Client" button at the bottom.
+![fief_edit_client](images/fief_edit_client.png)
+
+This will open a modal where you can change the client settings. First of
+all, under "Type", select "Public".
+![fief_client_type](images/fief_client_type.png)
+
+Also, under "Redirect URIs", add the following new entries:
+- `https://mallard.example.com/auth_callback`
+- `https://mallard.example.com/api/v1/docs/oauth2-redirect`
+
+Note that you should change `mallard.example.com` to whatever domain your
+MALLARD deployment is served at.

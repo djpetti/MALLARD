@@ -109,7 +109,7 @@ Fief and it is running at `https://example.fief.dev/`.
 
 The MALLARD config file must be updated to enable authentication. For a
 default (production) deployment, the [`local_config.yaml`](config/local/local_config.yaml)
-file will be used. Modify this file an rebuild the Docker container to change
+file will be used. Modify this file and rebuild the Docker container to change
 the configuration.
 
 Under the `security` section, there is an `enable_auth` option that defaults to
@@ -121,8 +121,8 @@ configuration. The `client_id` can be found on the Fief admin page:
 
 ## Fief Configuration
 
-For authentication to work in Fief, you have to configure you client to allow
-all of the MALLARD redict URIs. This can be done on the Fief admin page,
+For authentication to work in Fief, you have to configure your client to allow
+all of the MALLARD redirect URIs. This can be done on the Fief admin page,
 in the "Clients" section, by clicking on the client you are using. It should
 open up a panel on the right with a list of redirect URIs. Click the "Edit
 Client" button at the bottom.

@@ -20,13 +20,6 @@ export enum AutocompleteMenu {
   PLATFORM,
 }
 
-export interface Suggestions {
-  /** The menu-based suggestions. */
-  menu: AutocompleteMenu;
-  /** The text completion suggestions. */
-  textCompletions: string[];
-}
-
 /**
  * Represents a token.
  */
@@ -560,10 +553,11 @@ function queriesFromParsedSearchString(predicates: Predicate[]): ImageQuery[] {
 
 /**
  * Determines whether to show an autocomplete menu, and which one to show.
- * @param {Token[]} tokens The tokenized search text.
+ * @param {string} searchString The search string.
  * @return {AutocompleteMenu} Which menu to show.
  */
-function updateMenu(tokens: Token[]): AutocompleteMenu {
+export function updateMenu(searchString: string): AutocompleteMenu {
+  const tokens = tokenize(searchString);
   if (tokens.length < 2) {
     // Not enough data to determine if we should show a menu.
     return AutocompleteMenu.NONE;
@@ -669,13 +663,13 @@ export function completeSearch(
  * @param {number} numSuggestions The maximum number of autocomplete suggestions
  *  to get.
  * @param {number} desiredLength The desired length of the suggestions.
- * @return {string[]} The autocomplete suggestions.
+ * @return {string[]} The suggested search completions.
  */
 export async function requestAutocomplete(
   searchString: string,
   numSuggestions: number = 5,
   desiredLength: number = MAX_AUTOCOMPLETE_LENGTH
-): Promise<Suggestions> {
+): Promise<string[]> {
   const tokens = tokenize(searchString);
   const predicates = parse(tokens);
   // Initially, query for any entities that match the search string.
@@ -702,7 +696,5 @@ export async function requestAutocomplete(
       )
     );
   }
-  const textCompletions = deDuplicateSuggestions(suggestions);
-
-  return { menu: updateMenu(tokens), textCompletions: textCompletions };
+  return deDuplicateSuggestions(suggestions);
 }

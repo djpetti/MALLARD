@@ -8,8 +8,8 @@ import {
   UavImageMetadata,
   UavVideoMetadata,
 } from "mallard-api";
-import { Suggestions } from "./autocomplete";
 import { cloneDeep } from "lodash-es";
+import { AutocompleteMenu } from "./autocomplete";
 
 /**
  * Subset of the metadata fields that are actually editable by the user.
@@ -161,6 +161,13 @@ export interface ArtifactEntity {
 
   /** Whether this artifact is currently selected. */
   isSelected: boolean;
+}
+
+export interface Suggestions {
+  /** The menu-based suggestions. */
+  menu: AutocompleteMenu;
+  /** The text completion suggestions. */
+  textCompletions: string[];
 }
 
 /**

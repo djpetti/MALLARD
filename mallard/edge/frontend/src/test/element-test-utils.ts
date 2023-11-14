@@ -13,6 +13,7 @@ import {
   MetadataInferenceStatus,
   RequestState,
   RootState,
+  Suggestions,
   UploadWorkflowStatus,
 } from "../types";
 import { faker } from "@faker-js/faker";
@@ -28,7 +29,7 @@ import {
   UavVideoMetadata,
   VideoFormat,
 } from "mallard-api";
-import { AutocompleteMenu, Suggestions } from "../autocomplete";
+import { AutocompleteMenu } from "../autocomplete";
 import { EntityId } from "@reduxjs/toolkit";
 import { createArtifactEntityId } from "../thumbnail-grid-slice";
 

@@ -75,6 +75,7 @@ import {
   AutocompleteMenu,
   queriesFromSearchString,
   requestAutocomplete,
+  updateMenu,
 } from "../autocomplete";
 import { downloadArtifactZip, makeArtifactUrlList } from "../downloads";
 import { faker } from "@faker-js/faker";
@@ -117,6 +118,7 @@ jest.mock("../autocomplete", () => {
   return {
     requestAutocomplete: jest.fn(),
     queriesFromSearchString: jest.fn(),
+    updateMenu: jest.fn(),
     AutocompleteMenu: realAutocomplete.AutocompleteMenu,
   };
 });
@@ -127,6 +129,7 @@ const mockRequestAutocomplete = requestAutocomplete as jest.MockedFn<
 const mockQueriesFromSearchString = queriesFromSearchString as jest.MockedFn<
   typeof queriesFromSearchString
 >;
+const mockUpdateMenu = updateMenu as jest.MockedFn<typeof updateMenu>;
 
 // Mock out the download functions.
 jest.mock("../downloads", () => ({
@@ -963,7 +966,7 @@ describe("thumbnail-grid-slice action creators", () => {
     // Arrange.
     // Make it look lit it got some autocomplete suggestions.
     const suggestions = fakeSuggestions();
-    mockRequestAutocomplete.mockResolvedValue(suggestions);
+    mockRequestAutocomplete.mockResolvedValue(suggestions.textCompletions);
 
     // Initialize the fake store with valid state.
     const state = fakeState();
@@ -999,7 +1002,7 @@ describe("thumbnail-grid-slice action creators", () => {
     );
     expect(fulfilledAction.payload).toEqual({
       searchString: searchString,
-      autocompleteSuggestions: suggestions,
+      completions: suggestions.textCompletions,
     });
   });
 
@@ -2088,6 +2091,10 @@ describe("thumbnail-grid-slice reducers", () => {
     state.search.queryState = RequestState.IDLE;
     state.search.searchString = "";
 
+    // Make it look like we got a valid autocomplete menu suggestion.
+    const suggestions = fakeSuggestions();
+    mockUpdateMenu.mockReturnValue(suggestions.menu);
+
     // Act.
     const searchString = faker.lorem.words();
     const newState: ImageViewState = thumbnailGridReducer(state, {
@@ -2100,6 +2107,12 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newState.search.queryState).toEqual(RequestState.LOADING);
     // It should have saved the search string.
     expect(newState.search.searchString).toEqual(searchString);
+
+    // It should have updated the autocomplete menu.
+    expect(mockUpdateMenu).toHaveBeenCalledWith(searchString);
+    expect(newState.search.autocompleteSuggestions.menu).toEqual(
+      suggestions.menu
+    );
   });
 
   it(`handles a ${thunkDoAutocomplete.fulfilled.type} action`, () => {
@@ -2115,7 +2128,7 @@ describe("thumbnail-grid-slice reducers", () => {
     const newState: ImageViewState = thumbnailGridReducer(state, {
       type: thunkDoAutocomplete.fulfilled.type,
       payload: {
-        autocompleteSuggestions: suggestions,
+        completions: suggestions.textCompletions,
       },
     });
 
@@ -2123,7 +2136,36 @@ describe("thumbnail-grid-slice reducers", () => {
     // It should have marked the query request as succeeded.
     expect(newState.search.queryState).toEqual(RequestState.SUCCEEDED);
     // It should have saved the suggestions.
-    expect(newState.search.autocompleteSuggestions).toEqual(suggestions);
+    expect(newState.search.autocompleteSuggestions.textCompletions).toEqual(
+      suggestions.textCompletions
+    );
+    // It should not have set the menu.
+    expect(newState.search.autocompleteSuggestions.menu).toEqual(
+      AutocompleteMenu.NONE
+    );
+  });
+
+  it(`does not update autocomplete if the search has already run`, () => {
+    // Arrange.
+    const state: ImageViewState = fakeState().imageView;
+    // Make it look like the search is complete.
+    state.search.queryState = RequestState.IDLE;
+    state.search.searchString = faker.lorem.words();
+    state.search.autocompleteSuggestions.menu = AutocompleteMenu.NONE;
+    state.search.autocompleteSuggestions.textCompletions = [];
+
+    // Act.
+    const suggestions = fakeSuggestions();
+    const newState: ImageViewState = thumbnailGridReducer(state, {
+      type: thunkDoAutocomplete.fulfilled.type,
+      payload: {
+        completions: suggestions.textCompletions,
+      },
+    });
+
+    // Assert.
+    // It should have done nothing.
+    expect(newState).toEqual(state);
   });
 
   it("handles a thumbnailGrid/loadThumbnailsChunk/pending action", () => {

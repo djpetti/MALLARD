@@ -41,7 +41,7 @@ import {
   AutocompleteMenu,
   queriesFromSearchString,
   requestAutocomplete,
-  Suggestions,
+  updateMenu,
 } from "./autocomplete";
 import { downloadArtifactZip, makeArtifactUrlList } from "./downloads";
 import { chunk } from "lodash";
@@ -111,7 +111,7 @@ interface DoAutocompleteReturn {
   /** Current search string. */
   searchString: string;
   /** Current autocomplete suggestions. */
-  autocompleteSuggestions: Suggestions;
+  completions: string[];
 }
 
 /**
@@ -625,8 +625,11 @@ export const thunkDoAutocomplete = createAsyncThunk(
     numSuggestions: number;
   }): Promise<DoAutocompleteReturn> => {
     // Query the backend for autocomplete suggestions.
-    const suggestions = await requestAutocomplete(searchString, numSuggestions);
-    return { searchString: searchString, autocompleteSuggestions: suggestions };
+    const completions = await requestAutocomplete(searchString, numSuggestions);
+    return {
+      searchString: searchString,
+      completions: completions,
+    };
   }
 );
 
@@ -1072,15 +1075,26 @@ export const thumbnailGridSlice = createSlice({
     // We initiated a new autocomplete query.
     builder.addCase(thunkDoAutocomplete.pending, (state, action) => {
       state.search.queryState = RequestState.LOADING;
+
       state.search.searchString = action.meta.arg.searchString;
+      state.search.autocompleteSuggestions.menu = updateMenu(
+        action.meta.arg.searchString
+      );
     });
 
     // We completed an autocomplete query and have suggestions.
     builder.addCase(thunkDoAutocomplete.fulfilled, (state, action) => {
+      if (state.search.queryState !== RequestState.LOADING) {
+        // This means that the user initiated a search before autocomplete
+        // finished running. In this case, we just want to discard the
+        // suggestions.
+        return;
+      }
+
       // Add the results to the state.
       state.search.queryState = RequestState.SUCCEEDED;
-      state.search.autocompleteSuggestions =
-        action.payload.autocompleteSuggestions;
+      state.search.autocompleteSuggestions.textCompletions =
+        action.payload.completions;
     });
 
     // We initiated thumbnail loading.

@@ -4,6 +4,7 @@ import {
   completeToken,
   queriesFromSearchString,
   requestAutocomplete,
+  updateMenu,
 } from "../autocomplete";
 import { queryImages, getMetadata } from "../api-client";
 import each from "jest-each";
@@ -201,8 +202,8 @@ describe("autocomplete", () => {
       // Assert.
       // Since we only mocked a single result, we should get a single
       // suggestion.
-      expect(suggestions.textCompletions).toHaveLength(1);
-      expect(suggestions.textCompletions[0]).toEqual(suggestion);
+      expect(suggestions).toHaveLength(1);
+      expect(suggestions[0]).toEqual(suggestion);
     }
   );
 
@@ -216,25 +217,12 @@ describe("autocomplete", () => {
     ["is too short", "be", AutocompleteMenu.NONE],
   ]).it(
     "gets correct autocomplete menu suggestions when the search string %s",
-    async (_, searchString: string, menu: AutocompleteMenu) => {
-      // Arrange.
-      // Make it look like the initial queries succeeded.
-      const queryResults = [fakeTypedObjectRef()];
-      mockQueryImages.mockResolvedValue({
-        imageIds: queryResults,
-        pageNum: 1,
-        isLastPage: true,
-      });
-
-      // Make it look like getting the metadata succeeded.
-      const metadata = fakeImageMetadata();
-      mockGetMetadata.mockResolvedValue([metadata]);
-
+    (_, searchString: string, menu: AutocompleteMenu) => {
       // Act.
-      const suggestions = await requestAutocomplete(searchString, 5, 20);
+      const gotMenu = updateMenu(searchString);
 
       // Assert.
-      expect(suggestions.menu).toEqual(menu);
+      expect(gotMenu).toEqual(menu);
     }
   );
 

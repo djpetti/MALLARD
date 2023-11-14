@@ -62,7 +62,7 @@ async def get_index(fragment: bool = False) -> str:
 
 
 @router.get("/auth_callback", response_class=HTMLResponse)
-async def auth_callback() -> str:
+async def get_auth_callback() -> str:
     """
     Authentication callback for the main page.
 

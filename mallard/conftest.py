@@ -13,7 +13,7 @@ from .gateway.routers.images.tests.faker_providers import (
     ImageProvider,
 )
 from .gateway.routers.videos.tests.faker_providers import VideoProvider
-from .gateway.tests.faker_providers import FastApiProvider
+from .gateway.tests.faker_providers import FastApiProvider, FiefProvider
 
 
 @pytest.fixture(autouse=True)
@@ -45,3 +45,4 @@ def add_custom_faker_providers(faker: Faker) -> None:
     faker.add_provider(MetadataProvider)
     faker.add_provider(S3Provider)
     faker.add_provider(VideoProvider)
+    faker.add_provider(FiefProvider)

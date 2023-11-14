@@ -27,11 +27,15 @@ class ConfigForTests:
     Attributes:
         mock_config: The mocked `ConfigurationView`.
         api_base_url: The API base URL to use for testing.
+        auth_base_url: The authentication base URL to use for testing.
+        auth_client_id: The authentication client ID to use for testing.
 
     """
 
     mock_config: ConfigViewMock
     api_base_url: str
+    auth_base_url: str
+    auth_client_id: str
 
 
 @pytest.fixture()
@@ -54,9 +58,23 @@ def config(mocker: MockFixture, faker: Faker) -> ConfigForTests:
 
     # Make it look like we have an API base URL configured.
     api_base_url = faker.url()
+    auth_base_url = faker.url()
     mock_config["api_base_url"].as_str.return_value = api_base_url
+    mock_config["security"]["fief"][
+        "base_url"
+    ].as_str.return_value = auth_base_url
 
-    return ConfigForTests(mock_config=mock_config, api_base_url=api_base_url)
+    client_id = faker.pystr()
+    mock_config["security"]["fief"][
+        "client_id"
+    ].as_str.return_value = client_id
+
+    return ConfigForTests(
+        mock_config=mock_config,
+        api_base_url=api_base_url,
+        auth_base_url=auth_base_url,
+        auth_client_id=client_id,
+    )
 
 
 @pytest.mark.parametrize(
@@ -115,7 +133,9 @@ async def test_get_index(config: ConfigForTests) -> None:
     # It should have made the response.
     assert "</html>" in got_response
 
-    # It should have specified the base URL.
+    # It should have specified the global variables.
+    assert config.auth_base_url in got_response
+    assert config.auth_client_id in got_response
     assert config.api_base_url in got_response
 
 
@@ -144,5 +164,30 @@ async def test_get_details(faker: Faker, config: ConfigForTests) -> None:
     assert bucket in got_response
     assert name in got_response
 
-    # It should have specified the base URL.
+    # It should have specified the global variables.
+    assert config.auth_base_url in got_response
+    assert config.auth_client_id in got_response
+    assert config.api_base_url in got_response
+
+
+@pytest.mark.asyncio
+async def test_get_auth_callback(config: ConfigForTests) -> None:
+    """
+    Tests that the `get_auth_callback` endpoint works.
+
+    Args:
+        config: The configuration to use for testing.
+
+    """
+    # Act.
+    got_response = await endpoints.get_auth_callback()
+
+    # Assert.
+    # It should have filled in the template.
+    assert "</html>" in got_response
+    assert "mallard-auth.min.js" in got_response
+
+    # It should have specified the global variables.
+    assert config.auth_base_url in got_response
+    assert config.auth_client_id in got_response
     assert config.api_base_url in got_response

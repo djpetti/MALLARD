@@ -36,7 +36,7 @@ import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
 import { AxiosRequestConfig } from "axios";
-import { browser, Fief } from "@fief/fief";
+import { browser } from "@fief/fief";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
@@ -46,7 +46,6 @@ const mockApiClass = DefaultApi as jest.MockedClass<typeof DefaultApi>;
 
 // Mock out Fief.
 jest.mock("@fief/fief");
-const mockFief = Fief as jest.MockedClass<typeof Fief>;
 const mockFiefAuth = browser.FiefAuth as jest.MockedClass<
   typeof browser.FiefAuth
 >;

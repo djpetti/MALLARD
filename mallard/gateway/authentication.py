@@ -57,9 +57,8 @@ def _get_auth() -> FiefAuth:
 
 
 async def flexible_token(
-    token_info: FiefAccessTokenInfo = Depends(
-        _get_auth().authenticated(optional=True)
-    ),
+    token_info: FiefAccessTokenInfo
+    | None = Depends(_get_auth().authenticated(optional=True)),
     auth_token: str | None = None,
 ) -> FiefAccessTokenInfo:
     """

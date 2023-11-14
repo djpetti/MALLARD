@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 from faker import Faker
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
@@ -358,3 +358,43 @@ async def test_fill_metadata_mismatched_format(
         await video_metadata.fill_metadata(
             metadata, video=fill_meta_config.mock_upload_file
         )
+
+
+@pytest.mark.asyncio
+async def test_fill_metadata_probe_error(
+    fill_meta_config: FillMetadataConfig, faker: Faker
+) -> None:
+    """
+    Tests that `fill_metadata` handles a failure to probe the video.
+
+    Args:
+        fill_meta_config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    # Make it look like the probe failed.
+    fill_meta_config.mock_probe_video.side_effect = HTTPException(
+        status_code=500
+    )
+
+    metadata = UavVideoMetadata()
+
+    # Act.
+    got_metadata = await video_metadata.fill_metadata(
+        metadata,
+        video=fill_meta_config.mock_upload_file,
+    )
+
+    # Assert.
+    fill_meta_config.mock_probe_video.assert_called_once_with(
+        fill_meta_config.mock_upload_file
+    )
+
+    # It should have filled what metadata it could.
+    assert got_metadata.name is not None
+    # Since it failed to probe the video, everything else should be blank.
+    assert got_metadata.frame_rate is None
+    assert got_metadata.num_frames is None
+    assert got_metadata.format is None
+    assert got_metadata.capture_date is None

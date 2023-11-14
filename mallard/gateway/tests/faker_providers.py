@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 from faker import Faker
 from faker.providers import BaseProvider
 from fastapi import UploadFile
+from fief_client import FiefAccessTokenInfo, FiefACR
 
 
 class FastApiProvider(BaseProvider):
@@ -71,3 +72,29 @@ class FastApiProvider(BaseProvider):
         upload_file.headers = headers.copy()
 
         return upload_file
+
+
+class FiefProvider(BaseProvider):
+    """
+    A provider for Fief datatypes.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.__faker = Faker()
+
+    def fief_access_token_info(self) -> FiefAccessTokenInfo:
+        """
+        Returns:
+            The fake `FiefAccessTokenInfo` object that it created.
+
+        """
+        return FiefAccessTokenInfo(
+            id=self.__faker.uuid4(),
+            scope=[self.__faker.word()],
+            acr=FiefACR.LEVEL_ONE,
+            permissions=self.random_elements(
+                ["read", "create", "update", "delete"]
+            ),
+            access_token=self.__faker.pystr(),
+        )

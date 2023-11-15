@@ -16,7 +16,14 @@ import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
 import { AxiosRequestConfig, AxiosRequestHeaders } from "axios";
-import { Fief, browser } from "@fief/fief";
+import {
+  Fief,
+  browser,
+  FiefTokenResponse,
+  FiefAccessTokenExpired,
+  FiefAccessTokenInvalid,
+  FiefAccessTokenMissingScope,
+} from "@fief/fief";
 
 // These global variables are expected to be pre-set by an external script.
 // Base URL for the MALLARD API.
@@ -72,7 +79,27 @@ async function ensureAuthenticated(): Promise<void> {
   await navigator.locks.request("auth", async (_) => {
     const location = window.location.href;
 
-    if (!fiefAuth.isAuthenticated()) {
+    let authValid = false;
+    if (fiefAuth.isAuthenticated()) {
+      // Check that the saved token is actually valid.
+      const tokenInfo = fiefAuth.getTokenInfo() as FiefTokenResponse;
+      try {
+        await fiefClient?.validateAccessToken(tokenInfo.access_token);
+        // If we get here, this token is valid.
+        authValid = true;
+      } catch (err) {
+        if (
+          err! instanceof FiefAccessTokenExpired &&
+          err! instanceof FiefAccessTokenInvalid &&
+          err! instanceof FiefAccessTokenMissingScope
+        ) {
+          // istanbul ignore next
+          throw err;
+        }
+      }
+    }
+
+    if (!authValid) {
       // Save this so we can retrieve it in the callback.
       window.localStorage.setItem("pre_auth_location", location);
 

@@ -36,7 +36,7 @@ import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
 import { AxiosRequestConfig } from "axios";
-import { browser } from "@fief/fief";
+import { browser, Fief, FiefAccessTokenExpired } from "@fief/fief";
 
 // Mock out the gateway API.
 jest.mock("mallard-api");
@@ -49,6 +49,7 @@ jest.mock("@fief/fief");
 const mockFiefAuth = browser.FiefAuth as jest.MockedClass<
   typeof browser.FiefAuth
 >;
+const mockFiefClient = Fief as jest.MockedClass<typeof Fief>;
 
 // Mock out session locking.
 const mockLockRequest = jest.fn();
@@ -95,31 +96,45 @@ describe("api-client", () => {
     toJSON: () => string;
   }
 
-  it("can redirect the user to the login page", async () => {
-    // Arrange.
-    // Make it look like the user isn't logged in.
-    mockFiefAuth.prototype.isAuthenticated.mockReturnValue(false);
+  each([
+    ["token is missing", false],
+    ["token is invalid", true],
+  ]).it(
+    "can redirect the user to the login page when the %s",
+    async (_: string, hasToken: boolean) => {
+      // Arrange.
+      // Make it look like the user isn't logged in.
+      mockFiefAuth.prototype.isAuthenticated.mockReturnValue(hasToken);
+      if (hasToken) {
+        // In this case, we have a token, but it is invalid.
+        mockFiefClient.prototype.validateAccessToken.mockImplementationOnce(
+          () => {
+            throw FiefAccessTokenExpired;
+          }
+        );
+      }
 
-    // Set this up so the function call doesn't fail.
-    const mockThumbnailGet =
-      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
-    // @ts-ignore
-    mockThumbnailGet.mockResolvedValue({ data: undefined });
+      // Set this up so the function call doesn't fail.
+      const mockThumbnailGet =
+        mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
+      // @ts-ignore
+      mockThumbnailGet.mockResolvedValue({ data: undefined });
 
-    // Act.
-    // Call a function that requires login.
-    await loadThumbnail(fakeObjectRef());
+      // Act.
+      // Call a function that requires login.
+      await loadThumbnail(fakeObjectRef());
 
-    // Assert.
-    // It should have checked login status.
-    expect(mockFiefAuth.prototype.isAuthenticated).toBeCalledTimes(1);
-    // It should have saved the location.
-    expect(window.localStorage.getItem("pre_auth_location")).toEqual(
-      window.location.href
-    );
-    // It should have redirected to the login page.
-    expect(mockFiefAuth.prototype.redirectToLogin).toBeCalledTimes(1);
-  });
+      // Assert.
+      // It should have checked login status.
+      expect(mockFiefAuth.prototype.isAuthenticated).toBeCalledTimes(1);
+      // It should have saved the location.
+      expect(window.localStorage.getItem("pre_auth_location")).toEqual(
+        window.location.href
+      );
+      // It should have redirected to the login page.
+      expect(mockFiefAuth.prototype.redirectToLogin).toBeCalledTimes(1);
+    }
+  );
 
   it("can query images", async () => {
     // Arrange.

@@ -49,6 +49,7 @@ _VIDEO_FORMAT_TO_MIME_TYPES = {
     VideoFormat.THEORA: "video/ogg",
     VideoFormat.VP8: "video/VP8",
     VideoFormat.VP9: "video/VP9",
+    VideoFormat.MPEG4: "video/x-msvideo",
 }
 """
 Maps video formats to corresponding MIME types.
@@ -100,7 +101,8 @@ async def filled_uav_metadata(
     """
     try:
         return await fill_metadata(metadata, video=video_data)
-    except InvalidVideoError:
+    except InvalidVideoError as error:
+        logger.exception(error)
         raise HTTPException(
             status_code=415,
             detail="The uploaded video has an invalid format, or does not "

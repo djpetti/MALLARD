@@ -138,6 +138,7 @@ const SUPPORTED_FILE_TYPES = new Set<string>([
   // Videos
   "video/mp4",
   "video/webm",
+  "video/x-msvideo",
 ]);
 
 /**

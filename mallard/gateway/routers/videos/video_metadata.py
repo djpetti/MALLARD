@@ -36,6 +36,7 @@ class FFProbeReader:
         "theora": VideoFormat.THEORA,
         "vp8": VideoFormat.VP8,
         "vp9": VideoFormat.VP9,
+        "mpeg4": VideoFormat.MPEG4,
     }
     """
     Maps `codec_name` parameters from `ffprobe` to `VideoFormat` values.

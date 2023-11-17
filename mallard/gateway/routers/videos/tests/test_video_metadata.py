@@ -348,10 +348,10 @@ async def test_fill_metadata_mismatched_format(
     """
     # Arrange.
     # Make it look like the format does not match.
-    fill_meta_config.probe_results["format"]["format_name"] = "h264"
+    fill_meta_config.probe_results["streams"][1]["codec_name"] = "h264"
 
     metadata = faker.video_metadata()
-    metadata.copy(update=dict(format=VideoFormat.H263))
+    metadata = metadata.copy(update=dict(format=VideoFormat.H263))
 
     # Act and assert.
     with pytest.raises(video_metadata.InvalidVideoError):

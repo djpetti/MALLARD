@@ -10,9 +10,9 @@ import {
 import { RootState } from "../types";
 import {
   clearVideoUrl,
-  setVideoUrl,
   thunkClearFullSizedImages,
   thunkLoadImage,
+  thunkSetVideoUrl,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
@@ -30,7 +30,7 @@ jest.mock("../thumbnail-grid-slice", () => {
     thunkLoadImage: jest.fn(),
     addArtifact: jest.fn(),
     thunkClearFullSizedImages: jest.fn(),
-    setVideoUrl: jest.fn(),
+    thunkSetVideoUrl: jest.fn(),
     clearVideoUrl: jest.fn(),
     thumbnailGridSelectors: {
       // Use the actual implementation for this function, but spy on calls.
@@ -336,8 +336,8 @@ describe("large-artifact-display", () => {
         expect(thunkLoadImage).toBeCalledTimes(1);
         expect(thunkLoadImage).toBeCalledWith(testEvent.detail);
       } else {
-        expect(setVideoUrl).toBeCalledTimes(1);
-        expect(setVideoUrl).toBeCalledWith(testEvent.detail);
+        expect(thunkSetVideoUrl).toBeCalledTimes(1);
+        expect(thunkSetVideoUrl).toBeCalledWith(testEvent.detail);
       }
     }
   );

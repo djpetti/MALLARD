@@ -5,7 +5,7 @@ import store from "./store";
 import { ArtifactStatus } from "./types";
 import {
   clearVideoUrl,
-  setVideoUrl,
+  thunkSetVideoUrl,
   thumbnailGridSelectors,
   thunkClearFullSizedImages,
   thunkLoadImage,
@@ -346,7 +346,7 @@ export class ConnectedLargeArtifactDisplay extends connect(
       const artifactId = (event as CustomEvent<string>).detail;
       return this.type === ObjectType.IMAGE
         ? (thunkLoadImage(artifactId) as unknown as Action)
-        : setVideoUrl(artifactId);
+        : (thunkSetVideoUrl(artifactId) as unknown as Action);
     };
     handlers[ConnectedLargeArtifactDisplay.DISCONNECTED_EVENT_NAME] = (
       event: Event

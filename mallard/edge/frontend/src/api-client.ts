@@ -605,13 +605,15 @@ export async function batchUpdateMetadata(
  * @param {TypedObjectRef} artifactId The ID of the artifact.
  * @return {string} The artifact URL.
  */
-export function getArtifactUrl(artifactId: TypedObjectRef): string {
+export async function getArtifactUrl(
+  artifactId: TypedObjectRef
+): Promise<string> {
   const router = artifactId.type == ObjectType.IMAGE ? "images" : "videos";
   return urlJoin(
     API_BASE_URL,
     router,
     artifactId.id.bucket,
-    artifactId.id.name
+    `${artifactId.id.name}?${await getAuthQueryString()}`
   );
 }
 

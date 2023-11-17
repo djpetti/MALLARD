@@ -10,6 +10,7 @@ import streamSaver from "streamsaver";
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
+import { getArtifactUrl } from "../api-client";
 
 jest.mock("client-zip", () => ({
   downloadZip: jest.fn(),
@@ -37,6 +38,14 @@ global.URL.createObjectURL = mockCreateObjectUrl;
 const mockFileConstructor = jest.fn();
 global.File = mockFileConstructor;
 
+// Mock out api-client.
+jest.mock("../api-client", () => ({
+  getArtifactUrl: jest.fn(),
+}));
+const mockGetArtifactUrl = getArtifactUrl as jest.MockedFn<
+  typeof getArtifactUrl
+>;
+
 describe("downloads", () => {
   /** Set to true once downloadZip has finished executing. */
   let downloadZipFinished = false;
@@ -53,6 +62,11 @@ describe("downloads", () => {
     jest.clearAllMocks();
     // Clean up mocked FS Access API if we added it.
     global.showSaveFilePicker = originalShowSaveFilePicker;
+
+    // Make it look like we can get an artifact URL.
+    mockGetArtifactUrl.mockImplementation(async (id) => {
+      return `/artifact/${id.type}/${id.id.bucket}/${id.id.name}`;
+    });
 
     downloadZipFinished = false;
     // Set the downloadZip implementation to actually iterate through
@@ -207,7 +221,7 @@ describe("downloads", () => {
     expect(imageNames.size).toBe(3);
   });
 
-  it("should create a file containing the list of URLs and return the link", () => {
+  it("should create a file containing the list of URLs and return the link", async () => {
     // Arrange
     const imageIds = [
       fakeTypedObjectRef(),
@@ -220,7 +234,7 @@ describe("downloads", () => {
     mockCreateObjectUrl.mockReturnValue(fakeFileUrl);
 
     // Act
-    const gotFileUrl = makeArtifactUrlList(imageIds);
+    const gotFileUrl = await makeArtifactUrlList(imageIds);
 
     // Assert
     // Verify the returned value is a valid URL.

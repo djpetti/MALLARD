@@ -202,6 +202,30 @@ export const thunkAddArtifacts = createAsyncThunk(
 );
 
 /**
+ * Action creator that sets the download URL for an artifact.
+ */
+export const thunkSetVideoUrl = createAsyncThunk(
+  "thumbnailGrid/setVideoUrl",
+  async (id: string, { getState }): Promise<string> => {
+    const artifact = thumbnailGridSelectors.selectById(
+      getState() as RootState,
+      id
+    ) as ArtifactEntity;
+    return await getArtifactUrl(artifact.backendId);
+  },
+  {
+    condition(id: string, { getState }): boolean {
+      const artifact = thumbnailGridSelectors.selectById(
+        getState() as RootState,
+        id
+      ) as ArtifactEntity;
+      // Only run on videos.
+      return artifact.backendId.type === ObjectType.VIDEO;
+    },
+  }
+);
+
+/**
  * Action creator that starts a new request for thumbnails on the homepage.
  */
 export const thunkStartNewQuery = createAsyncThunk(
@@ -570,13 +594,12 @@ export const thunkDeleteSelected = createAsyncThunk(
 
 /**
  * Action creator that exports the selected image URLs.
- * @return {ThunkResult} Does not actually return anything, because it
- *  simply dispatches other actions.
  */
-export function thunkExportSelected(): ThunkResult<void> {
-  return (dispatch, getState) => {
+export const thunkExportSelected = createAsyncThunk(
+  "thumbnailGrid/exportSelected",
+  async (_, { dispatch, getState }): Promise<void> => {
     // Get the backend IDs for the images.
-    const state = getState();
+    const state = getState() as RootState;
     const selectedIds = getSelectedImageIds(state);
     const backendIds = selectedIds.map(
       (id) =>
@@ -585,14 +608,17 @@ export function thunkExportSelected(): ThunkResult<void> {
     );
 
     // Create the list of URLs.
-    const listUrl = makeArtifactUrlList(backendIds);
+    const listUrl = await makeArtifactUrlList(backendIds);
 
     // Set it in the state.
     dispatch(setExportedImagesUrl(listUrl));
     // Deselect all the images.
-    dispatch(thunkSelectAll(false));
-  };
-}
+    // TODO (danielp): Look into this typing issue further. It might be
+    //  a bug in redux-thunk.
+    type ActionType = ThunkAction<void, unknown, unknown, AnyAction>;
+    dispatch(thunkSelectAll(false) as ActionType);
+  }
+);
 
 /**
  * Action creator that revokes the URL for the exported image list.
@@ -955,19 +981,6 @@ export const thumbnailGridSlice = createSlice({
     setEditingDialogOpen(state, action) {
       state.editingDialogOpen = action.payload;
     },
-    // Sets the source URL for video artifacts.
-    setVideoUrl(state, action) {
-      const entity = state.entities[action.payload] as ArtifactEntity;
-      if (entity.backendId.type !== ObjectType.VIDEO) {
-        // If it's not a video, do nothing.
-        return;
-      }
-
-      thumbnailGridAdapter.updateOne(state, {
-        id: action.payload,
-        changes: { artifactUrl: getArtifactUrl(entity.backendId) },
-      });
-    },
     // Clear the source URL for video artifacts.
     clearVideoUrl(state, action) {
       const entity = state.entities[action.payload] as ArtifactEntity;
@@ -1009,6 +1022,14 @@ export const thumbnailGridSlice = createSlice({
           },
         }))
       );
+    });
+
+    // Sets the source URL for video artifacts.
+    builder.addCase(thunkSetVideoUrl.fulfilled, (state, action) => {
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: { artifactUrl: action.payload },
+      });
     });
 
     // We initiated a new query for home screen data.
@@ -1214,7 +1235,6 @@ export const {
   setExportedImagesUrl,
   setSectionExpanded,
   setEditingDialogOpen,
-  setVideoUrl,
   clearVideoUrl,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

@@ -23,7 +23,7 @@ export interface ImageWithMeta {
 async function fetchArtifact(artifactId: TypedObjectRef): Promise<Response> {
   // We can't use the API client, unfortunately, because we need raw
   // `Response` objects.
-  return await fetch(getArtifactUrl(artifactId));
+  return await fetch(await getArtifactUrl(artifactId));
 }
 
 /**
@@ -128,13 +128,18 @@ export async function downloadArtifactZip(
 /**
  * Creates a file containing a list of the URLs for the specified images,
  * and provides the user a link to it.
- * @param {ObjectRef[]} artifactIds The list of image IDs.
+ * @param {TypedObjectRef[]} artifactIds The list of image IDs.
  * @return {string} The link to the list of images. The user is responsible
  *  for calling `revokeObjectURL` when done with it.
  */
-export function makeArtifactUrlList(artifactIds: TypedObjectRef[]): string {
+export async function makeArtifactUrlList(
+  artifactIds: TypedObjectRef[]
+): Promise<string> {
   // Get the image URLs.
-  const imageUrls = artifactIds.map((id) => `${getArtifactUrl(id)} `);
+  const imageUrlPromises = artifactIds.map(
+    async (id) => `${await getArtifactUrl(id)} `
+  );
+  const imageUrls = await Promise.all(imageUrlPromises);
 
   // Create the list.
   const urlFile = new File(imageUrls, "image_urls.txt", { type: "text/plain" });

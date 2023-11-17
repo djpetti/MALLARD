@@ -856,22 +856,25 @@ describe("api-client", () => {
   each([
     ["image", ObjectType.IMAGE],
     ["video", ObjectType.VIDEO],
-  ]).it("can get the URL for a(n) %s", (_: string, objectType: ObjectType) => {
-    // Arrange.
-    const artifactId = fakeTypedObjectRef(objectType);
+  ]).it(
+    "can get the URL for a(n) %s",
+    async (_: string, objectType: ObjectType) => {
+      // Arrange.
+      const artifactId = fakeTypedObjectRef(objectType);
 
-    // Act.
-    const gotUrl = getArtifactUrl(artifactId);
+      // Act.
+      const gotUrl = await getArtifactUrl(artifactId);
 
-    // Assert.
-    if (objectType === ObjectType.IMAGE) {
-      expect(gotUrl).toContain("images");
-    } else {
-      expect(gotUrl).toContain("videos");
+      // Assert.
+      if (objectType === ObjectType.IMAGE) {
+        expect(gotUrl).toContain("images");
+      } else {
+        expect(gotUrl).toContain("videos");
+      }
+
+      expect(gotUrl).toContain(`${artifactId.id.bucket}/${artifactId.id.name}`);
     }
-
-    expect(gotUrl).toContain(`${artifactId.id.bucket}/${artifactId.id.name}`);
-  });
+  );
 
   each([
     ["image", ObjectType.IMAGE],

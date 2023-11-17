@@ -30,9 +30,9 @@ import thumbnailGridReducer, {
   thunkStartNewQuery,
   thunkTextSearch,
   thunkUpdateSelectedMetadata,
-  setVideoUrl,
   clearVideoUrl,
   thunkAddArtifacts,
+  thunkSetVideoUrl,
 } from "../thumbnail-grid-slice";
 import {
   ArtifactEntity,
@@ -204,6 +204,64 @@ describe("thumbnail-grid-slice action creators", () => {
         streamableUrl: streamableUrl,
       }))
     );
+  });
+
+  it("creates a setVideoUrl action", async () => {
+    // Arrange.
+    const url = faker.internet.url();
+
+    const state = fakeState();
+    const entity = fakeArtifactEntity();
+    entity.backendId.type = ObjectType.VIDEO;
+    const id = createArtifactEntityId(entity.backendId.id);
+    state.imageView.ids = [id];
+    state.imageView.entities[id] = entity;
+
+    // Make it look like it can get the artifact url.
+    mockGetArtifactUrl.mockResolvedValue(url);
+
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkSetVideoUrl(id)(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have gotten the URL.
+    expect(mockGetArtifactUrl).toBeCalledTimes(1);
+
+    // It should have dispatched the actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    const pendingAction = actions[0];
+    expect(pendingAction.type).toEqual(thunkSetVideoUrl.pending.type);
+
+    const fulfilledAction = actions[1];
+    expect(fulfilledAction.type).toEqual(thunkSetVideoUrl.fulfilled.type);
+    expect(fulfilledAction.meta.arg).toEqual(id);
+    expect(fulfilledAction.payload).toEqual(url);
+  });
+
+  it("does not create a setVideoUrl action for non-videos", async () => {
+    // Arrange.
+    const state = fakeState();
+    const entity = fakeArtifactEntity();
+    entity.backendId.type = ObjectType.IMAGE;
+    const id = createArtifactEntityId(entity.backendId.id);
+    state.imageView.ids = [id];
+    state.imageView.entities[id] = entity;
+
+    const store = mockStoreCreator(state);
+
+    // Act.
+    await thunkSetVideoUrl(id)(store.dispatch, store.getState, {});
+
+    // Assert.
+    // It should have done nothing.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(0);
+
+    expect(mockGetArtifactUrl).not.toBeCalled();
   });
 
   each([
@@ -871,14 +929,14 @@ describe("thumbnail-grid-slice action creators", () => {
       });
     });
 
-    it("can export selected images with thunkExportSelected", () => {
+    it("can export selected images with thunkExportSelected", async () => {
       // Arrange.
       const store = mockStoreCreator(state);
       const exportedUrl = faker.internet.url();
-      mockMakeArtifactUrlList.mockReturnValue(exportedUrl);
+      mockMakeArtifactUrlList.mockResolvedValue(exportedUrl);
 
       // Act.
-      thunkExportSelected()(
+      await thunkExportSelected()(
         store.dispatch,
         store.getState as () => RootState,
         {}
@@ -892,22 +950,32 @@ describe("thumbnail-grid-slice action creators", () => {
       );
 
       const actions = store.getActions();
-      expect(actions).toHaveLength(2);
+      expect(actions).toHaveLength(4);
+
+      // It should have dispatched a pending action, but this doesn't do
+      // anything.
+      const pendingAction = actions[0];
+      expect(pendingAction.type).toEqual(thunkExportSelected.pending.type);
 
       // It should have set the URL in the state.
-      const setExportedImagesUrlAction = actions[0];
+      const setExportedImagesUrlAction = actions[1];
       expect(setExportedImagesUrlAction.type).toEqual(
         setExportedImagesUrl.type
       );
       expect(setExportedImagesUrlAction.payload).toEqual(exportedUrl);
 
       // It should have de-selected all the images.
-      const thunkSelectAllAction = actions[1];
+      const thunkSelectAllAction = actions[2];
       expect(thunkSelectAllAction.type).toEqual(selectImages.type);
       expect(thunkSelectAllAction.payload).toEqual({
         imageIds: expect.anything(),
         select: false,
       });
+
+      // It should have dispatched a fulfilled action, but this doesn't do
+      // anything.
+      const fulfilledAction = actions[3];
+      expect(fulfilledAction.type).toEqual(thunkExportSelected.fulfilled.type);
     });
 
     it("can clear exported images URL with thunkClearExportedImages", () => {
@@ -1665,7 +1733,7 @@ describe("thumbnail-grid-slice reducers", () => {
     expect(newImageState.editingDialogOpen).toEqual(isOpen);
   });
 
-  it("handles a setVideoUrl action", () => {
+  it(`handles a ${thunkSetVideoUrl.fulfilled} action`, () => {
     // Arrange.
     // Set up the state with the video.
     const state: RootState = fakeState();
@@ -1676,18 +1744,16 @@ describe("thumbnail-grid-slice reducers", () => {
     state.imageView.entities[entityId] = entity;
 
     const url = faker.internet.url();
-    // Make it look like it can get the URL.
-    mockGetArtifactUrl.mockReturnValue(url);
 
     // Act.
-    const newImageState = thumbnailGridSlice.reducer(
-      state.imageView,
-      setVideoUrl(entityId)
-    );
+    const newImageState = thumbnailGridSlice.reducer(state.imageView, {
+      type: thunkSetVideoUrl.fulfilled.type,
+      meta: { arg: entityId },
+      payload: url,
+    });
 
     // Assert.
     expect(newImageState.entities[entityId]?.artifactUrl).toEqual(url);
-    expect(mockGetArtifactUrl).toBeCalledTimes(1);
   });
 
   it("handles a clearVideoUrl action", () => {
@@ -1710,38 +1776,6 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newImageState.entities[entityId]?.artifactUrl).toBeNull();
-  });
-
-  it("ignores VideoUrl actions if the entity is not a video", () => {
-    // Arrange.
-    const originalUrl = faker.internet.url();
-
-    // Set up the state with an artifact.
-    const state: RootState = fakeState();
-    const entity = fakeArtifactEntity();
-    entity.backendId.type = ObjectType.IMAGE;
-    entity.artifactUrl = originalUrl;
-    const entityId = createArtifactEntityId(entity.backendId.id);
-    state.imageView.ids = [entityId];
-    state.imageView.entities[entityId] = entity;
-
-    const newUrl = faker.internet.url();
-    // Make it look like it can get the URL.
-    mockGetArtifactUrl.mockReturnValue(newUrl);
-
-    // Act.
-    let newImageState = thumbnailGridSlice.reducer(
-      state.imageView,
-      setVideoUrl(entityId)
-    );
-    newImageState = thumbnailGridSlice.reducer(
-      newImageState,
-      clearVideoUrl(entityId)
-    );
-
-    // Assert.
-    // It should not actually have updated the URL.
-    expect(newImageState.entities[entityId]?.artifactUrl).toEqual(originalUrl);
   });
 
   each([

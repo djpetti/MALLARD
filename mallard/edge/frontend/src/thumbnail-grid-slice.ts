@@ -352,9 +352,24 @@ const thunkLoadThumbnailsChunk = createAsyncThunk(
     }
 
     // Start thumbnail loading.
-    const thumbnails = await Promise.all(promises);
+    const results = await Promise.allSettled(promises);
+    for (const result of results) {
+      if (result.status == "rejected") {
+        // If it failed to load, log an error but continue.
+        console.log(`Failed to load thumbnail: ${result.reason}`);
+      }
+    }
+
+    const fulfilledIds = filteredIds.filter(
+      (_, i) => results[i].status == "fulfilled"
+    );
+    const fulfilled = results.filter(
+      (result) => result.status == "fulfilled"
+    ) as PromiseFulfilledResult<Blob>[];
+    const thumbnails = fulfilled.map((result) => result.value);
+
     // Get the object URL for all thumbnails.
-    return filteredIds.map((id, i) => ({
+    return fulfilledIds.map((id, i) => ({
       imageId: id,
       imageUrl: URL.createObjectURL(thumbnails[i]),
     }));

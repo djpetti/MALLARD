@@ -8,6 +8,7 @@ import io
 from typing import AsyncIterable, Awaitable, Callable, Tuple
 
 import pytest
+from aioitertools import tee
 from faker import Faker
 from PIL import Image
 from pytest_mock import MockerFixture
@@ -80,6 +81,29 @@ async def test_ffprobe(valid_video: AsyncIterable[bytes]) -> None:
     # Assert.
     assert "format" in probe_results
     assert "streams" in probe_results
+
+
+@pytest.mark.asyncio
+async def test_ffprobe_stress(valid_video: AsyncIterable[bytes]) -> None:
+    """
+    Tests that the `ffprobe` function works when run many times concurrently.
+
+    Args:
+        valid_video: The video file to use for testing.
+
+    """
+    # Arrange.
+    valid_videos = tee(valid_video, 50)
+
+    # Act.
+    tasks = []
+    for video in valid_videos:
+        # Try probing the video.
+        probe_task = asyncio.create_task(ffmpeg.ffprobe(video))
+        tasks.append(probe_task)
+
+    # Assert
+    await asyncio.gather(*tasks)
 
 
 @pytest.mark.asyncio

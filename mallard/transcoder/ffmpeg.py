@@ -91,6 +91,42 @@ async def _read_from_queue_until_finished(
         )
 
 
+async def _process_io(
+    process: asyncio.subprocess.Process,
+    *,
+    io: Coroutine,
+    ignore_exit: bool = False,
+) -> Any:
+    """
+    Performs I/O on the streams from a process. At the same time, it checks
+    if the process has exited, and cancels the I/O operation automatically if
+    does.
+
+    Args:
+        process: The process to check.
+        io: The coroutine that performs the I/O.
+        ignore_exit: If False, it will raise a `BrokenPipeError` if the process
+            exits during the operation.
+
+    Returns:
+
+    """
+    wait_task = asyncio.create_task(process.wait())
+    io_task = asyncio.create_task(io)
+
+    done, pending = await asyncio.wait(
+        [wait_task, io_task], return_when=asyncio.FIRST_COMPLETED
+    )
+    for task in pending:
+        # Cancel whatever didn't finish.
+        task.cancel()
+
+    if io_task in done:
+        return io_task.result()
+    if not ignore_exit:
+        raise BrokenPipeError("Process has exited already.")
+
+
 async def _streaming_communicate(
     process: asyncio.subprocess.Process, *, input_source: AsyncIterable[bytes]
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
@@ -143,13 +179,15 @@ async def _streaming_communicate(
         async for chunk in input_source:
             process.stdin.write(chunk)
             try:
-                await process.stdin.drain()
+                await _process_io(process, io=process.stdin.drain())
             except (
                 BrokenPipeError,
                 ConnectionResetError,
             ):  # pragma: no coverage
                 # The process probably exited, so we should terminate nicely.
-                await process.stdin.wait_closed()
+                await _process_io(
+                    process, io=process.stdin.wait_closed(), ignore_exit=True
+                )
                 return
 
         # We have exhausted the input.
@@ -171,6 +209,9 @@ async def _streaming_communicate(
         if process.returncode is None:
             # If it's still running, repeat this step.
             _submit_background_task(_stream_output(reader, queue))
+        elif len(chunk) > 0:
+            # Ensure that the reader task exits in this case.
+            await queue.put(b"")
 
     async def _read_from_queue(
         queue: asyncio.Queue,
@@ -224,6 +265,7 @@ async def ffprobe(source: AsyncIterable[bytes]) -> Dict[str, Any]:
     """
     # Run FFProbe.
     ffprobe = find_exe("ffprobe")
+    logger.debug("Starting probe...")
     ffprobe_process = await asyncio.create_subprocess_exec(
         ffprobe, *FFPROBE_ARGS, **_DEFAULT_PIPES
     )

@@ -10,6 +10,7 @@ import aiohttp
 from fastapi import HTTPException, UploadFile
 from loguru import logger
 from tenacity import (
+    AsyncRetrying,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -35,11 +36,15 @@ Timeout for long operations. By default, there is no timeout, except to
 establish the initial connection (this should happen quickly, even if the
 transcoder service is under high load.)
 """
+PROBE_TIMEOUT = 15
+"""
+Timeout to use for video probes, in seconds.
+"""
 
 client_retry = retry(
     retry=retry_if_exception_type((asyncio.Timeout, TimeoutError)),
     wait=wait_random_exponential(multiplier=1, max=60),
-    after=lambda _: logger.warning("Retrying transcoder API call..."),
+    after=lambda *_: logger.warning("Retrying transcoder API call..."),
     stop=stop_after_attempt(10),
 )
 
@@ -86,8 +91,15 @@ async def _iter_exact_chunked(
     """
     while True:
         try:
-            chunk = await reader.readexactly(chunk_size)
-            yield chunk
+            async for attempt in AsyncRetrying(
+                retry=retry_if_exception_type(asyncio.Timeout),
+                wait=wait_random_exponential(multiplier=1, max=60),
+                after=lambda *_: logger.warning("Retrying block read..."),
+                stop=stop_after_attempt(10),
+            ):
+                with attempt:
+                    chunk = await reader.readexactly(chunk_size)
+                    yield chunk
         except IncompleteReadError as error:
             # We reached the end of the stream. Yield the partial chunk.
             yield error.partial
@@ -107,10 +119,12 @@ async def probe_video(video: UploadFile) -> Dict[str, Any]:
 
     """
     logger.debug("Probing video {}...", video.filename)
+    await video.seek(0)
 
     async with get_session().post(
         "/metadata/infer",
         data=_make_video_form_data(video, max_length=_PROBE_SIZE),
+        timeout=PROBE_TIMEOUT,
     ) as response:
         if response.status != 200:
             raise HTTPException(

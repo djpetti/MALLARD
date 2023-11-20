@@ -32,8 +32,8 @@ backends:
     <<: *sql_config
 
 security:
-  # Disable authentication.
-  enable_auth: false
+  # Enable authentication.
+  enable_auth: true
 
   # Origins to allow API requests from.
   api_origins:

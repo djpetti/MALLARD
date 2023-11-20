@@ -124,7 +124,7 @@ USER mallard
 COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
 
 # Deliberately limiting number of workers here because FFMpeg is multi-threaded.
-CMD gunicorn -w 1 -b 0.0.0.0:8000 \
+CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
      -k mallard.configurable_worker.ConfigurableWorker \
      mallard.transcoder.main:app
 

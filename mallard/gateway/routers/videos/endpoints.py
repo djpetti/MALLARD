@@ -144,7 +144,9 @@ async def create_uav_video(
     """
     # Create the image in the object store.
     object_id = ObjectRef(bucket=bucket, name=unique_name())
-    logger.info("Creating a new video {} in bucket {}.", unique_name, bucket)
+    logger.info(
+        "Creating a new video {} in bucket {}.", object_id.name, bucket
+    )
     object_task = asyncio.create_task(
         object_store.create_object(object_id, data=video_data)
     )
@@ -221,7 +223,7 @@ async def delete_videos(
     """
     logger.info("Deleting {} videos.", len(videos))
 
-    with check_key_errors():
+    with check_key_errors(ignore=True):
         async with asyncio.TaskGroup() as tasks:
             for video in videos:
                 tasks.create_task(metadata_store.delete(video))

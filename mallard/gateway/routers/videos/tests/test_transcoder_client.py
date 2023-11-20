@@ -146,7 +146,11 @@ async def test_probe_video(
 
     # Assert.
     config.mock_get_session.assert_called_once_with()
-    mock_post.assert_called_once_with("/metadata/infer", data=mock.ANY)
+    mock_post.assert_called_once_with(
+        "/metadata/infer",
+        data=mock.ANY,
+        timeout=transcoder_client.PROBE_TIMEOUT,
+    )
     config.mock_read_file_chunks.assert_called_once_with(
         config.mock_video, max_length=mock.ANY
     )

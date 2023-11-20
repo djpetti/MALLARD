@@ -20,10 +20,14 @@ from ..backends.objects.models import ObjectRef
 
 
 @contextmanager
-def check_key_errors() -> Iterable[None]:
+def check_key_errors(ignore: bool = False) -> Iterable[None]:
     """
     Checks for key errors in an `ExceptionGroup` raised by the code in the
     context manager, and produces the appropriate response if there are any.
+
+    Args:
+        ignore: If true, instead of triggering a 404 error, it will just log
+            an error about the missing artifacts.
 
     """
     try:
@@ -38,11 +42,12 @@ def check_key_errors() -> Iterable[None]:
             error_messages = [f"\t-{e}" for e in key_errors.exceptions]
             combined_error = "\n".join(error_messages)
             logger.error("Could not find artifacts: {}", combined_error)
-            raise HTTPException(
-                status_code=404,
-                detail=f"Some of the artifacts could not be "
-                f"found:\n{combined_error}",
-            )
+            if not ignore:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Some of the artifacts could not be "
+                    f"found:\n{combined_error}",
+                )
 
         if others is not None:
             # Otherwise, just raise it again.

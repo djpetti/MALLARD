@@ -389,9 +389,17 @@ class S3ObjectStore(ObjectStore):
         @singledispatch
         async def _do_upload(data_: AsyncIterable[bytes]) -> None:
             # For async iterables, we do a multi-part upload.
+            data_iter = aiter(data_)
+            # Wait to create the MultiPartUploadHelper until the first chunk
+            # is available in order to avoid sitting on a pool connection
+            # while we're just waiting for someone to send us data.
+            first_chunk = await anext(data_iter)
+            logger.debug("Got first chunk for {}.", object_id)
+
             async with _MultiPartUploadHelper.create(
                 client=self.__client, object_id=object_id
             ) as uploader:
+                uploader.add_data(first_chunk)
                 async for chunk in data_:
                     if uploader.num_pending >= self._MAX_CONCURRENT_UPLOADS:
                         # Wait for some uploads to finish.

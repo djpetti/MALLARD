@@ -228,7 +228,7 @@ async def delete_images(
     """
     logger.info("Deleting {} images.", len(images))
 
-    with check_key_errors():
+    with check_key_errors(ignore=True):
         async with asyncio.TaskGroup() as tasks:
             for image in images:
                 tasks.create_task(object_store.delete_object(image))

@@ -64,12 +64,12 @@ class FFProbeReader:
             The extracted date and time.
 
         """
-        capture_time_tag = self.__format["tags"].get("creation_time")
-        if capture_time_tag is None:
+        try:
+            capture_time_tag = self.__format["tags"]["creation_time"]
+            return datetime.fromisoformat(capture_time_tag)
+        except KeyError:
             logger.warning("Video capture time not found, using current time.")
             return datetime.now(timezone.utc)
-
-        return datetime.fromisoformat(capture_time_tag)
 
     @cached_property
     def format(self) -> VideoFormat:

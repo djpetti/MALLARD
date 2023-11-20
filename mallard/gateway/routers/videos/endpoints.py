@@ -2,8 +2,7 @@
 API endpoints for managing video data.
 """
 import asyncio
-import uuid
-from typing import Any, Awaitable, List, Set, Type, cast
+from typing import List, cast
 
 from fastapi import (
     APIRouter,
@@ -29,7 +28,12 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
-from ..common import check_key_errors, get_metadata, update_metadata
+from ..common import (
+    check_key_errors,
+    get_metadata,
+    ignore_errors,
+    update_metadata,
+)
 from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import (
     create_preview,
@@ -54,30 +58,6 @@ _VIDEO_FORMAT_TO_MIME_TYPES = {
 """
 Maps video formats to corresponding MIME types.
 """
-
-
-async def ignore_errors(
-    awaitable: Awaitable,
-    to_ignore: Set[Type[Exception]] = frozenset({KeyError}),
-) -> Any:
-    """
-    Wrapper for a task that ignores certain errors.
-
-    Args:
-        awaitable: The awaitable to run as a task.
-        to_ignore: The exceptions to ignore.
-
-    Returns:
-        The awaitable's return value.
-
-    """
-    try:
-        return await awaitable
-    except Exception as error:
-        if type(error) in to_ignore:
-            logger.warning("Ignoring exception {} from {}.", error, awaitable)
-        else:
-            raise error
 
 
 async def filled_uav_metadata(
@@ -223,14 +203,20 @@ async def delete_videos(
     """
     logger.info("Deleting {} videos.", len(videos))
 
-    with check_key_errors(ignore=True):
+    with check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for video in videos:
                 tasks.create_task(metadata_store.delete(video))
 
                 tasks.create_task(object_store.delete_object(video))
+                # Thumbnail creation can sometimes fail if the upload process
+                # is interrupted.
                 tasks.create_task(
-                    object_store.delete_object(derived_id(video, "thumbnail"))
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "thumbnail")
+                        )
+                    )
                 )
 
                 # These are created as background tasks, and could

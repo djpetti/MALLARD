@@ -29,7 +29,12 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import ImageFormat, UavImageMetadata
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
-from ..common import check_key_errors, get_metadata, update_metadata
+from ..common import (
+    check_key_errors,
+    get_metadata,
+    ignore_errors,
+    update_metadata,
+)
 from .image_metadata import InvalidImageError, fill_metadata
 from .schemas import CreateResponse, MetadataResponse
 
@@ -228,12 +233,18 @@ async def delete_images(
     """
     logger.info("Deleting {} images.", len(images))
 
-    with check_key_errors(ignore=True):
+    with check_key_errors():
         async with asyncio.TaskGroup() as tasks:
             for image in images:
                 tasks.create_task(object_store.delete_object(image))
+                # Thumbnail creation can sometimes fail if the upload process
+                # is interrupted.
                 tasks.create_task(
-                    object_store.delete_object(derived_id(image, "thumbnail"))
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(image, "thumbnail")
+                        )
+                    )
                 )
                 tasks.create_task(metadata_store.delete(image))
 

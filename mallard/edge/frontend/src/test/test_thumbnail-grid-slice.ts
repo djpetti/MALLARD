@@ -529,6 +529,57 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(fulfilledAction2.payload[0].imageUrl).toEqual(imageUrl);
   });
 
+  it("handles failures when loading thumbnails", async () => {
+    // Arrange.
+    // Make it look like the loadThumbnail request fails.
+    mockLoadThumbnail.mockRejectedValue(undefined);
+
+    // Initialize the fake store with valid state.
+    const unloadedImage1 = fakeArtifactEntity(false);
+    const unloadedImage1Id = createArtifactEntityId(
+      unloadedImage1.backendId.id
+    );
+    const state = fakeState();
+    state.imageView.ids = [unloadedImage1Id];
+    state.imageView.entities[unloadedImage1Id] = unloadedImage1;
+    const store = mockStoreCreator(state);
+
+    // Act.
+    const asyncThunkDispatch = jest.fn();
+    thunkLoadThumbnails([unloadedImage1Id], 2)(
+      asyncThunkDispatch,
+      store.getState as () => RootState,
+      {}
+    );
+
+    // Manually dispatch the sub-actions.
+    expect(asyncThunkDispatch).toBeCalledTimes(1);
+    const subActions = asyncThunkDispatch.mock.calls.map((c) => c[0]);
+    for (const subAction of subActions) {
+      await subAction(store.dispatch, store.getState, {});
+    }
+
+    // Assert.
+    // It should have tried to load the thumbnail.
+    expect(mockLoadThumbnail).toBeCalledTimes(1);
+
+    // It should have dispatched the lifecycle actions.
+    const actions = store.getActions();
+    expect(actions).toHaveLength(2);
+
+    const pendingAction1 = actions[0];
+    expect(pendingAction1.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/pending"
+    );
+
+    // This should do nothing because the loading failed.
+    const fulfilledAction1 = actions[1];
+    expect(fulfilledAction1.type).toEqual(
+      "thumbnailGrid/loadThumbnailsChunk/fulfilled"
+    );
+    expect(fulfilledAction1.payload).toHaveLength(0);
+  });
+
   it("does not reload a thumbnails when they're all already loaded", async () => {
     // Arrange.
     // Make it look like the thumbnail is already loaded.
@@ -1776,6 +1827,29 @@ describe("thumbnail-grid-slice reducers", () => {
 
     // Assert.
     expect(newImageState.entities[entityId]?.artifactUrl).toBeNull();
+  });
+
+  it("handles a clearVideoUrl action when the artifact is not a video", () => {
+    // Arrange.
+    const originalUrl = faker.internet.url();
+    // Set up the state with an image.
+    const state: RootState = fakeState();
+    const entity = fakeArtifactEntity();
+    entity.backendId.type = ObjectType.IMAGE;
+    entity.artifactUrl = originalUrl;
+    const entityId = createArtifactEntityId(entity.backendId.id);
+    state.imageView.ids = [entityId];
+    state.imageView.entities[entityId] = entity;
+
+    // Act.
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      clearVideoUrl(entityId)
+    );
+
+    // Assert.
+    // It should have changed nothing.
+    expect(newImageState.entities[entityId]?.artifactUrl).toEqual(originalUrl);
   });
 
   each([

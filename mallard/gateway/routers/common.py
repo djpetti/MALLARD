@@ -5,7 +5,7 @@ Utilities that are common to all routers.
 
 import asyncio
 from contextlib import contextmanager
-from typing import Iterable, List
+from typing import Any, Awaitable, Iterable, List, Set, Type
 
 from fastapi import HTTPException
 from loguru import logger
@@ -20,14 +20,10 @@ from ..backends.objects.models import ObjectRef
 
 
 @contextmanager
-def check_key_errors(ignore: bool = False) -> Iterable[None]:
+def check_key_errors() -> Iterable[None]:
     """
     Checks for key errors in an `ExceptionGroup` raised by the code in the
     context manager, and produces the appropriate response if there are any.
-
-    Args:
-        ignore: If true, instead of triggering a 404 error, it will just log
-            an error about the missing artifacts.
 
     """
     try:
@@ -42,16 +38,39 @@ def check_key_errors(ignore: bool = False) -> Iterable[None]:
             error_messages = [f"\t-{e}" for e in key_errors.exceptions]
             combined_error = "\n".join(error_messages)
             logger.error("Could not find artifacts: {}", combined_error)
-            if not ignore:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Some of the artifacts could not be "
-                    f"found:\n{combined_error}",
-                )
+            raise HTTPException(
+                status_code=404,
+                detail=f"Some of the artifacts could not be "
+                f"found:\n{combined_error}",
+            )
 
         if others is not None:
             # Otherwise, just raise it again.
             raise others
+
+
+async def ignore_errors(
+    awaitable: Awaitable,
+    to_ignore: Set[Type[Exception]] = frozenset({KeyError}),
+) -> Any:
+    """
+    Wrapper for a task that ignores certain errors.
+
+    Args:
+        awaitable: The awaitable to run as a task.
+        to_ignore: The exceptions to ignore.
+
+    Returns:
+        The awaitable's return value.
+
+    """
+    try:
+        return await awaitable
+    except Exception as error:
+        if type(error) in to_ignore:
+            logger.warning("Ignoring exception {} from {}.", error, awaitable)
+        else:
+            raise error
 
 
 async def get_metadata(

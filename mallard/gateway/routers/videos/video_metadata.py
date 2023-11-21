@@ -109,7 +109,13 @@ class FFProbeReader:
             The extracted number of frames.
 
         """
-        return int(self.__video_stream["nb_frames"])
+        try:
+            return int(self.__video_stream["nb_frames"])
+        except KeyError:
+            # FFmpeg doesn't always seem to get the number of frames from
+            # really short videos (e.g. 1-second videos).
+            logger.warning("No length from FFMpeg, assuming 1 second.")
+            return int(self.frame_rate)
 
 
 async def fill_metadata(

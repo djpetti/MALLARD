@@ -201,6 +201,22 @@ class TestFFProbeReader:
         # Act and assert.
         assert config.reader.num_frames == num_frames
 
+    def test_unknown_num_frames(self, config: ConfigForTests) -> None:
+        """
+        Tests that it assumes a very short video if the number of frames is
+        unknown.
+
+        Args:
+            config: The configuration to use for testing.
+
+        """
+        # Arrange.
+        # Add an invalid number of frames.
+        del config.ffprobe_results["streams"][1]["nb_frames"]
+
+        # Act and assert.
+        assert config.reader.num_frames == int(config.reader.frame_rate)
+
 
 @dataclass(frozen=True, config=ArbitraryTypesConfig)
 class FillMetadataConfig:

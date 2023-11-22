@@ -25,6 +25,34 @@ from .object_store import (
 )
 
 
+def _name_to_key(name: str) -> str:
+    """
+    Converts an object name to a suitable S3 key.
+
+    Args:
+        name: The object name.
+
+    Returns:
+        The key to use.
+
+    """
+    return name.replace("-", "/")
+
+
+def _key_to_name(key: str) -> str:
+    """
+    Converts an S3 key to an object name.
+
+    Args:
+        key: The key.
+
+    Returns:
+        The object name.
+
+    """
+    return key.replace("/", "-")
+
+
 class _MultiPartUploadHelper:
     """
     Helper class to deal with multi-part uploads.
@@ -99,7 +127,7 @@ class _MultiPartUploadHelper:
         logger.debug("Starting multi-part upload for {}.", object_id)
 
         response = await self.__client.create_multipart_upload(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
         )
         upload_id = response["UploadId"]
 
@@ -120,7 +148,7 @@ class _MultiPartUploadHelper:
             self.__client.upload_part(
                 Body=data,
                 Bucket=self.__object_id.bucket,
-                Key=self.__object_id.name,
+                Key=_name_to_key(self.__object_id.name),
                 UploadId=self.__upload_id,
                 PartNumber=self.__part_number,
             )
@@ -174,7 +202,7 @@ class _MultiPartUploadHelper:
         logger.debug("Finalizing upload of {}.", self.__object_id)
         await self.__client.complete_multipart_upload(
             Bucket=self.__object_id.bucket,
-            Key=self.__object_id.name,
+            Key=_name_to_key(self.__object_id.name),
             UploadId=self.__upload_id,
             MultipartUpload=dict(Parts=parts),
         )
@@ -198,7 +226,7 @@ class _MultiPartUploadHelper:
 
         await self.__client.abort_multipart_upload(
             Bucket=self.__object_id.bucket,
-            Key=self.__object_id.name,
+            Key=_name_to_key(self.__object_id.name),
             UploadId=self.__upload_id,
         )
 
@@ -369,7 +397,7 @@ class S3ObjectStore(ObjectStore):
 
             # Yield all the results so far.
             for result in response["Contents"]:
-                yield result["Key"]
+                yield _key_to_name(result["Key"])
 
             # Check for additional results.
             has_more_results = response["IsTruncated"]
@@ -410,7 +438,9 @@ class S3ObjectStore(ObjectStore):
         async def _(data_: bytes | BytesIO) -> None:
             # For in-memory data, we just do a normal upload.
             await self.__client.put_object(
-                Body=data_, Bucket=object_id.bucket, Key=object_id.name
+                Body=data_,
+                Bucket=object_id.bucket,
+                Key=_name_to_key(object_id.name),
             )
 
         @_do_upload.register
@@ -424,7 +454,7 @@ class S3ObjectStore(ObjectStore):
     async def object_exists(self, object_id: ObjectRef) -> bool:
         try:
             await self.__client.head_object(
-                Bucket=object_id.bucket, Key=object_id.name
+                Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
             )
             return True
 
@@ -442,13 +472,13 @@ class S3ObjectStore(ObjectStore):
         logger.info("Requesting deletion of object {}.", object_id)
 
         await self.__client.delete_object(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
         )
 
     async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
         try:
             data_object = await self.__client.get_object(
-                Bucket=object_id.bucket, Key=object_id.name
+                Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
             )
         except ClientError as error:
             if self.__extract_error_code(error) == "NoSuchKey":

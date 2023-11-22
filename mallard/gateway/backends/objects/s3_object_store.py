@@ -487,3 +487,25 @@ class S3ObjectStore(ObjectStore):
 
         body = data_object["Body"]
         return _SafeObjectIter(body)
+
+    async def copy_object(
+        self, source_id: ObjectRef, dest_id: ObjectRef
+    ) -> None:
+        """
+        Copies an object.
+
+        Args:
+            source_id: The ID of the source object.
+            dest_id: The ID of the destination object.
+
+        """
+        try:
+            await self.__client.copy_object(
+                Bucket=dest_id.bucket,
+                Key=dest_id.name,
+                CopySource=f"{source_id.bucket}/{source_id.name}",
+            )
+        except ClientError as error:
+            if self.__extract_error_code(error) == "NoSuchKey":
+                raise KeyError(f"Object '{source_id}' does not exist.")
+            raise ObjectOperationError(str(error))

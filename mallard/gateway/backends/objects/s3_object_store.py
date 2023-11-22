@@ -502,10 +502,29 @@ class S3ObjectStore(ObjectStore):
         try:
             await self.__client.copy_object(
                 Bucket=dest_id.bucket,
-                Key=dest_id.name,
+                Key=_name_to_key(dest_id.name),
                 CopySource=f"{source_id.bucket}/{source_id.name}",
             )
         except ClientError as error:
             if self.__extract_error_code(error) == "NoSuchKey":
                 raise KeyError(f"Object '{source_id}' does not exist.")
             raise ObjectOperationError(str(error))
+
+    async def copy_bucket(self, bucket: str) -> None:
+        """
+        Copies the contents of an entire bucket.
+
+        Args:
+            bucket: The bucket to copy.
+
+        """
+        async for name in self.list_bucket_contents(bucket):
+            if _name_to_key(name) == name:
+                # This already has the correct key.
+                continue
+
+            logger.debug("Copying {}/{}...", bucket, name)
+            await self.copy_object(
+                ObjectRef(bucket=bucket, name=name),
+                ObjectRef(bucket=bucket, name=name),
+            )

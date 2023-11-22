@@ -8,8 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from ..config import config
+from ..logger import config_logger
 from .authentication import flexible_token
 from .routers import images, root, videos
+
+config_logger("gateway")
 
 dependencies = []
 if not config["security"]["enable_auth"].get(bool):

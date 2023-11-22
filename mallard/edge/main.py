@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from ..logger import config_logger
 from .routers import root
 
 _PACKAGE_DIR = Path(__file__).parent
@@ -16,6 +17,8 @@ _PACKAGE_DIR = Path(__file__).parent
 The directory containing this package.
 """
 
+
+config_logger("edge")
 
 app = FastAPI(debug=True)
 app.include_router(root.router)

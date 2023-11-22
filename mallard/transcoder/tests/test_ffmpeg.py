@@ -53,6 +53,25 @@ def invalid_video() -> AsyncIterable[bytes]:
     yield _read_file_chunks()
 
 
+@pytest.fixture()
+def truncated_video() -> AsyncIterable[bytes]:
+    """
+    Creates the video file to test with that raises an error halfway through
+    reading.
+
+    Yields:
+        The bytes from the file, in chunks.
+
+    """
+
+    async def _read_file_chunks(file_: io.IOBase) -> AsyncIterable[bytes]:
+        yield file_.read(100 * 1024)
+        raise RuntimeError("This video is truncated.")
+
+    with BIG_BUCK_BUNNY_PATH.open("rb") as raw_file:
+        yield _read_file_chunks(raw_file)
+
+
 @pytest.fixture(autouse=True)
 def replace_concurrency_limited_runner(mocker: MockerFixture) -> None:
     """
@@ -230,6 +249,42 @@ async def test_create_derived_invalid_video(
     # Try probing the video.
     with pytest.raises(OSError):
         preview, stderr = await test_func(invalid_video)
+
+        # Assert.
+        # Reading the contents of the streams should eventually trigger an
+        # error.
+        async for _ in preview:
+            pass
+        async for _ in stderr:
+            pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "test_func",
+    [ffmpeg.create_preview, ffmpeg.create_streamable],
+    ids=["create_preview", "create_streamable"],
+)
+async def test_create_derived_truncated_video(
+    truncated_video: AsyncIterable[bytes],
+    test_func: Callable[
+        [AsyncIterable[bytes]],
+        Awaitable[Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]],
+    ],
+) -> None:
+    """
+    Tests that the `create_preview` and `create_streamable` functions
+    gracefully handle a truncated input.
+
+    Args:
+        truncated_video: The video file to use for testing.
+        test_func: The function under test
+
+    """
+    # Act.
+    # Try probing the video.
+    with pytest.raises(OSError):
+        preview, stderr = await test_func(truncated_video)
 
         # Assert.
         # Reading the contents of the streams should eventually trigger an

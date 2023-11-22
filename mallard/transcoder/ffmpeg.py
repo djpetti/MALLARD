@@ -123,7 +123,8 @@ async def _process_io(
 
     if io_task in done:
         return io_task.result()
-    if not ignore_exit:
+    if not ignore_exit:  # pragma: no coverage
+        # If the process exited, we should raise an exception.
         raise BrokenPipeError("Process has exited already.")
 
 
@@ -162,7 +163,12 @@ async def _streaming_communicate(
             task.exception(),
             BrokenPipeError,
         ):
+            # Kill the process so it doesn't hang.
+            process.terminate()
             # Report exceptions if we have them.
+            logger.opt(exception=task.exception()).error(
+                "Task {} failed:", task.get_name()
+            )
             raise task.exception()
         running_tasks.discard(task)
 

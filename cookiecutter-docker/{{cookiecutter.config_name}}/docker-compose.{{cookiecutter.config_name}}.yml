@@ -2,18 +2,18 @@ version: '3.8'
 
 # Volumes that bind to local directories.
 x-local_volumes: &local_volumes
-  {%- if cookiecutter.mode == "development" %}
   # In dev mode, it mounts the local FS in the containers
   # instead of copying the code over, so you can easily test
   # new code.
   volumes:
+  {%- if cookiecutter.mode == "development" %}
     # Code.
     - ./mallard:/home/mallard/mallard
     # Config.
     - ~/.config/mallard:/home/mallard/.config/mallard
-  {% else %}
-  {}
   {% endif %}
+    # Logs.
+    - ./logs:/logs
 
 # Portions of the backup services that are the same.volumes:
 x-backup_service_common: &backup_service_common

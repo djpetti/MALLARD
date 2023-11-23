@@ -397,7 +397,7 @@ class S3ObjectStore(ObjectStore):
 
             # Yield all the results so far.
             for result in response["Contents"]:
-                yield _key_to_name(result["Key"])
+                yield result["Key"]
 
             # Check for additional results.
             has_more_results = response["IsTruncated"]
@@ -528,3 +528,19 @@ class S3ObjectStore(ObjectStore):
                 ObjectRef(bucket=bucket, name=name),
                 ObjectRef(bucket=bucket, name=name),
             )
+
+    async def delete_old_objects_in_bucket(self, bucket: str) -> None:
+        """
+        Deletes the objects in a bucket using the old naming scheme.
+
+        Args:
+            bucket: The bucket.
+
+        """
+        async for name in self.list_bucket_contents(bucket):
+            if _name_to_key(name) == name:
+                # This is one of the new objects.
+                continue
+
+            logger.debug("Deleting old {}/{}...", bucket, name)
+            await self.__client.delete_object(Bucket=bucket, Key=name)

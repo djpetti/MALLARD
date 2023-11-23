@@ -193,7 +193,7 @@ async def fix_names(
     async def _rename() -> None:
         logger.info("Fixing objects in bucket {}...", bucket)
         await object_store.copy_bucket(bucket)
-        # await object_store.delete_old_objects_in_bucket(bucket)
+        await object_store.delete_old_objects_in_bucket(bucket)
         logger.info("Done fixing {}.", bucket)
 
     background_tasks.add_task(_rename)

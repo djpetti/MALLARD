@@ -521,6 +521,7 @@ class S3ObjectStore(ObjectStore):
         async for name in self.list_bucket_contents(bucket):
             if _name_to_key(name) == name:
                 # This already has the correct key.
+                logger.debug("Skipping {}.", name)
                 continue
 
             logger.debug("Copying {}/{}...", bucket, name)
@@ -540,6 +541,7 @@ class S3ObjectStore(ObjectStore):
         async for name in self.list_bucket_contents(bucket):
             if _name_to_key(name) == name:
                 # This is one of the new objects.
+                logger.debug("Skipping {}.", name)
                 continue
 
             logger.debug("Deleting old {}/{}...", bucket, name)

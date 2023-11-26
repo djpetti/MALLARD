@@ -23,6 +23,10 @@ backends:
       endpoint_url: http://object-store:9000
 
   # Configuration for the metadata store backend.
+  artifact_metadata_store:
+    type: mallard.gateway.backends.metadata.sql.SqlArtifactMetadataStore
+    <<: *sql_config
+
   image_metadata_store:
     type: mallard.gateway.backends.metadata.sql.SqlImageMetadataStore
     <<: *sql_config

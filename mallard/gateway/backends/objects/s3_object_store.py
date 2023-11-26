@@ -36,7 +36,15 @@ def _name_to_key(name: str) -> str:
         The key to use.
 
     """
-    return name.replace("-", "/")
+    uuid = name.split("-")[-1].split(".")[0]
+
+    # Split the UUID into folders.
+    name_parts = []
+    for i in range(0, len(uuid), 2):
+        name_parts.append(uuid[i : i + 2])
+    name_parts.append(name)
+
+    return "/".join(name_parts)
 
 
 def _key_to_name(key: str) -> str:
@@ -50,6 +58,15 @@ def _key_to_name(key: str) -> str:
         The object name.
 
     """
+    # The original ID should be the final part of the "path".
+    return key.split("/")[-1]
+
+
+def _is_new_style_key(key: str) -> bool:
+    return len(key.split("/")) > 4
+
+
+def _old_key_to_name(key: str) -> str:
     return key.replace("/", "-")
 
 
@@ -518,16 +535,16 @@ class S3ObjectStore(ObjectStore):
             bucket: The bucket to copy.
 
         """
-        async for name in self.list_bucket_contents(bucket):
-            if _name_to_key(name) == name:
+        async for key in self.list_bucket_contents(bucket):
+            if _is_new_style_key(key):
                 # This already has the correct key.
-                logger.debug("Skipping {}.", name)
+                logger.debug("Skipping {}.", key)
                 continue
 
-            logger.debug("Copying {}/{}...", bucket, name)
+            logger.debug("Copying {}/{}...", bucket, key)
             await self.copy_object(
-                ObjectRef(bucket=bucket, name=name),
-                ObjectRef(bucket=bucket, name=name),
+                ObjectRef(bucket=bucket, name=key),
+                ObjectRef(bucket=bucket, name=_old_key_to_name(key)),
             )
 
     async def delete_old_objects_in_bucket(self, bucket: str) -> None:
@@ -538,11 +555,11 @@ class S3ObjectStore(ObjectStore):
             bucket: The bucket.
 
         """
-        async for name in self.list_bucket_contents(bucket):
-            if _name_to_key(name) == name:
+        async for key in self.list_bucket_contents(bucket):
+            if _is_new_style_key(key):
                 # This is one of the new objects.
-                logger.debug("Skipping {}.", name)
+                logger.debug("Skipping {}.", key)
                 continue
 
-            logger.debug("Deleting old {}/{}...", bucket, name)
-            await self.__client.delete_object(Bucket=bucket, Key=name)
+            logger.debug("Deleting old {}/{}...", bucket, key)
+            await self.__client.delete_object(Bucket=bucket, Key=key)

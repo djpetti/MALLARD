@@ -184,21 +184,6 @@ async def create_uav_video(
     return CreateResponse(video_id=object_id)
 
 
-@router.post("/fix_names")
-async def fix_names(
-    bucket: str = Depends(use_bucket_videos),
-    object_store: ObjectStore = Depends(backends.object_store),
-    background_tasks: BackgroundTasks = BackgroundTasks,
-) -> None:
-    async def _rename() -> None:
-        logger.info("Fixing objects in bucket {}...", bucket)
-        await object_store.copy_bucket(bucket)
-        await object_store.delete_old_objects_in_bucket(bucket)
-        logger.info("Done fixing {}.", bucket)
-
-    background_tasks.add_task(_rename)
-
-
 @router.delete("/delete")
 async def delete_videos(
     videos: List[ObjectRef] = Body(...),

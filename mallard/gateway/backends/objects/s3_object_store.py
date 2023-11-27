@@ -62,14 +62,6 @@ def _key_to_name(key: str) -> str:
     return key.split("/")[-1]
 
 
-def _is_new_style_key(key: str) -> bool:
-    return len(key.split("/")) > 4
-
-
-def _old_key_to_name(key: str) -> str:
-    return key.replace("/", "-")
-
-
 class _MultiPartUploadHelper:
     """
     Helper class to deal with multi-part uploads.
@@ -414,7 +406,7 @@ class S3ObjectStore(ObjectStore):
 
             # Yield all the results so far.
             for result in response["Contents"]:
-                yield result["Key"]
+                yield _key_to_name(result["Key"])
 
             # Check for additional results.
             has_more_results = response["IsTruncated"]
@@ -504,62 +496,3 @@ class S3ObjectStore(ObjectStore):
 
         body = data_object["Body"]
         return _SafeObjectIter(body)
-
-    async def copy_object(
-        self, source_id: ObjectRef, dest_id: ObjectRef
-    ) -> None:
-        """
-        Copies an object.
-
-        Args:
-            source_id: The ID of the source object.
-            dest_id: The ID of the destination object.
-
-        """
-        try:
-            await self.__client.copy_object(
-                Bucket=dest_id.bucket,
-                Key=_name_to_key(dest_id.name),
-                CopySource=f"{source_id.bucket}/{source_id.name}",
-            )
-        except ClientError as error:
-            if self.__extract_error_code(error) == "NoSuchKey":
-                raise KeyError(f"Object '{source_id}' does not exist.")
-            raise ObjectOperationError(str(error))
-
-    async def copy_bucket(self, bucket: str) -> None:
-        """
-        Copies the contents of an entire bucket.
-
-        Args:
-            bucket: The bucket to copy.
-
-        """
-        async for key in self.list_bucket_contents(bucket):
-            if _is_new_style_key(key):
-                # This already has the correct key.
-                logger.debug("Skipping {}.", key)
-                continue
-
-            logger.debug("Copying {}/{}...", bucket, key)
-            await self.copy_object(
-                ObjectRef(bucket=bucket, name=key),
-                ObjectRef(bucket=bucket, name=_old_key_to_name(key)),
-            )
-
-    async def delete_old_objects_in_bucket(self, bucket: str) -> None:
-        """
-        Deletes the objects in a bucket using the old naming scheme.
-
-        Args:
-            bucket: The bucket.
-
-        """
-        async for key in self.list_bucket_contents(bucket):
-            if _is_new_style_key(key):
-                # This is one of the new objects.
-                logger.debug("Skipping {}.", key)
-                continue
-
-            logger.debug("Deleting old {}/{}...", bucket, key)
-            await self.__client.delete_object(Bucket=bucket, Key=key)

@@ -224,21 +224,6 @@ async def create_uav_image(
     return CreateResponse(image_id=object_id)
 
 
-@router.post("/fix_names")
-async def fix_names(
-    bucket: str = Depends(use_bucket_images),
-    object_store: ObjectStore = Depends(backends.object_store),
-    background_tasks: BackgroundTasks = BackgroundTasks,
-) -> None:
-    async def _rename() -> None:
-        logger.info("Fixing objects in bucket {}...", bucket)
-        await object_store.copy_bucket(bucket)
-        await object_store.delete_old_objects_in_bucket(bucket)
-        logger.info("Done fixing {}.", bucket)
-
-    background_tasks.add_task(_rename)
-
-
 @router.delete("/delete")
 async def delete_images(
     images: List[ObjectRef] = Body(...),

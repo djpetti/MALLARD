@@ -22,6 +22,23 @@ from mallard.gateway.backends.objects.object_store import (
 from mallard.type_helpers import ArbitraryTypesConfig
 
 
+class KeyComparator:
+    """
+    Convenience class for comparing S3 keys.
+    """
+
+    def __init__(self, name: str):
+        """
+        Args:
+            name: The object name that the key should be derived from.
+
+        """
+        self.__name = name
+
+    def __eq__(self, other: str) -> bool:
+        return other.endswith(self.__name)
+
+
 class TestS3ObjectStore:
     """
     Tests for the `S3ObjectStore` class.
@@ -367,7 +384,9 @@ class TestS3ObjectStore:
         # Assert.
         # It should have put the object on the backend.
         config.mock_client.put_object.assert_called_once_with(
-            Body=blob, Bucket=object_id.bucket, Key=object_id.name
+            Body=blob,
+            Bucket=object_id.bucket,
+            Key=KeyComparator(object_id.name),
         )
 
     @pytest.mark.asyncio
@@ -413,7 +432,7 @@ class TestS3ObjectStore:
         # Assert.
         # It should have started the multi-part upload.
         config.mock_client.create_multipart_upload.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
 
         # It should have uploaded some chunks.
@@ -421,13 +440,13 @@ class TestS3ObjectStore:
         for _, kwargs in config.mock_client.upload_part.call_args_list:
             # Check that the right constant arguments were provided.
             assert kwargs.get("Bucket") == object_id.bucket
-            assert kwargs.get("Key") == object_id.name
+            assert kwargs.get("Key").endswith(object_id.name)
             assert kwargs.get("UploadId") == upload_id
 
         # It should have finalized the upload.
         config.mock_client.complete_multipart_upload.assert_called_once_with(
             Bucket=object_id.bucket,
-            Key=object_id.name,
+            Key=KeyComparator(object_id.name),
             UploadId=upload_id,
             MultipartUpload=mock.ANY,
         )
@@ -461,7 +480,9 @@ class TestS3ObjectStore:
 
         # It should have aborted the upload.
         config.mock_client.abort_multipart_upload.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name, UploadId=mock.ANY
+            Bucket=object_id.bucket,
+            Key=KeyComparator(object_id.name),
+            UploadId=mock.ANY,
         )
 
     @pytest.mark.asyncio
@@ -508,7 +529,7 @@ class TestS3ObjectStore:
         assert got_exists
         # It should have checked on the backend.
         config.mock_client.head_object.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
 
     @pytest.mark.asyncio
@@ -538,7 +559,7 @@ class TestS3ObjectStore:
         assert not got_exists
         # It should have checked on the backend.
         config.mock_client.head_object.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
 
     @pytest.mark.asyncio
@@ -586,7 +607,7 @@ class TestS3ObjectStore:
         # Assert.
         # It should have deleted the object on the backend.
         config.mock_client.delete_object.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
 
     @pytest.mark.asyncio
@@ -640,7 +661,7 @@ class TestS3ObjectStore:
         # Assert.
         # It should have read the data from the backend.
         config.mock_client.get_object.assert_called_once_with(
-            Bucket=object_id.bucket, Key=object_id.name
+            Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
 
         # Make sure we got the right data.

@@ -14,9 +14,17 @@ from .routers import images, root, videos
 
 config_logger("gateway")
 
+
+async def _dummy_token(auth_token: str | None = None) -> None:
+    if auth_token is not None:
+        logger.warning("auth_token provided, but auth is disabled. Ignoring.")
+
+
 dependencies = []
 if not config["security"]["enable_auth"].get(bool):
     logger.warning("Authentication has been disabled through the config file.")
+    # Add a dummy dependency here, so that the API at least stays consistent.
+    dependencies.append(Depends(_dummy_token))
 else:
     dependencies.append(Depends(flexible_token))
 app = FastAPI(debug=True, dependencies=dependencies)

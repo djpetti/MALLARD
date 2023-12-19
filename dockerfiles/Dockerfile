@@ -79,9 +79,9 @@ RUN apt-get install -y curl
 WORKDIR /home/mallard/
 
 # Install Node.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ENV NVM_DIR=/root/.nvm
-RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 19.5.0
+RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 20.5.1
 
 # Install NPM dependencies.
 RUN cd mallard/edge/frontend && . ~/.nvm/nvm.sh && npm install

@@ -97,6 +97,11 @@ export class ArtifactDisplay extends ArtifactInfoBase {
   private clickHandler?: ClickHandler;
 
   /**
+   * Abort controller to use for removing the click handler.
+   */
+  private clickHandlerAbortController?: AbortController;
+
+  /**
    * Checks if any content is set for this component.
    * @return {boolean} True iff an actual image is set in this component.
    */
@@ -183,13 +188,21 @@ export class ArtifactDisplay extends ArtifactInfoBase {
     if (_changedProperties.has("onClickLink") && this.hasContent) {
       const clickHandler = (_: Event) =>
         PageManager.getInstance().loadPage(this.onClickLink as string);
+
+      // Remove the previous click handler, if any.
+      if (this.clickHandlerAbortController) {
+        this.clickHandlerAbortController.abort();
+        this.clickHandlerAbortController = undefined;
+        this.clickHandler = undefined;
+      }
+
       if (this.onClickLink) {
         // Add a click handler that takes us to this location.
         this.clickHandler = clickHandler;
-        this.addEventListener("click", clickHandler);
-      } else {
-        // Remove any existing handler.
-        this.removeEventListener("click", this.clickHandler as ClickHandler);
+        this.clickHandlerAbortController = new AbortController();
+        this.addEventListener("click", clickHandler, {
+          signal: this.clickHandlerAbortController.signal,
+        });
       }
     }
   }

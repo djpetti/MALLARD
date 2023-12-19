@@ -137,3 +137,4 @@ docker-compose*.yml
 # These are the default locations for saved data.
 /metadata/
 /objects/
+/logs/

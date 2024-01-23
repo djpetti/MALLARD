@@ -32,6 +32,7 @@ import {
 import { AutocompleteMenu } from "../autocomplete";
 import { EntityId } from "@reduxjs/toolkit";
 import { createArtifactEntityId } from "../thumbnail-grid-slice";
+import { FiefUserInfo } from "@fief/fief";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -401,4 +402,16 @@ export function fakeFile(mimeType: string = "image/jpeg"): File {
   return new File([faker.datatype.string()], faker.system.fileName(), {
     type: mimeType,
   });
+}
+
+/**
+ * @return {FiefUserInfo} A fake `FiefUserInfo` object that it created.
+ */
+export function fakeUserInfo(): FiefUserInfo {
+  return {
+    sub: faker.datatype.uuid(),
+    email: faker.internet.email(),
+    tenant_id: faker.lorem.word(),
+    fields: {},
+  };
 }

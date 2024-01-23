@@ -28,6 +28,7 @@ import { Menu } from "@material/mwc-menu";
 import "./metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { MetadataForm } from "./metadata-form";
+import "./user-menu";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -396,6 +397,7 @@ export class TopNavBar extends LitElement {
               </div>
             `
           : nothing}
+        <!--- Download button. -->
         ${this.artifactLink
           ? html`
               <mwc-icon-button
@@ -406,6 +408,8 @@ export class TopNavBar extends LitElement {
               ></mwc-icon-button>
             `
           : nothing}
+        <!-- User menu -->
+        <user-menu slot="actionItems"></user-menu>
 
         <!-- Deletion confirmation dialog. -->
         <mwc-dialog

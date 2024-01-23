@@ -65,7 +65,6 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
 
     .action-buttons {
       position: absolute;
-      z-index: 99;
       top: 0;
       right: 0;
       color: var(--theme-whitish);

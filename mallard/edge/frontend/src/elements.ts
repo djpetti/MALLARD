@@ -16,6 +16,7 @@ import { ConnectedArtifactDetails } from "./artifact-details";
 import { ConnectedMetadataCard } from "./metadata-card";
 import { ConnectedNotesCard } from "./notes-card";
 import { ArtifactDisplay } from "./artifact-display";
+import { UserMenu } from "./user-menu";
 
 type LitElementType = typeof LitElement;
 export interface ComponentType extends LitElementType {
@@ -40,6 +41,7 @@ const componentClasses: ComponentType[] = [
   ConnectedMetadataCard,
   ConnectedNotesCard,
   ArtifactDisplay,
+  UserMenu,
 ];
 
 /**

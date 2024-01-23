@@ -23,6 +23,7 @@ import {
   FiefAccessTokenExpired,
   FiefAccessTokenInvalid,
   FiefAccessTokenMissingScope,
+  FiefUserInfo,
 } from "@fief/fief";
 
 // These global variables are expected to be pre-set by an external script.
@@ -218,6 +219,37 @@ function separateByType(artifactIds: TypedObjectRef[]): {
     imageIds: artifactIds.filter((e) => e.type === ObjectType.IMAGE),
     videoIds: artifactIds.filter((e) => e.type === ObjectType.VIDEO),
   };
+}
+
+/**
+ * Gets the current user info.
+ * @return {FiefUserInfo | null} The user information, or null if a user
+ *  is not logged in.
+ */
+export function getUserInfo(): FiefUserInfo | null {
+  return (fiefAuth as browser.FiefAuth).getUserinfo();
+}
+
+/**
+ * Gets the profile URL for the user.
+ * @return {string} The profile URL.
+ */
+export function getUserProfileUrl(): string {
+  // Going here shows the profile.
+  return AUTH_BASE_URL;
+}
+
+/**
+ * Will force the user to logout, and return them to the same page.
+ */
+export function logout() {
+  if (!fiefAuth) {
+    // Authentication is disabled.
+    // istanbul ignore next
+    return;
+  }
+
+  fiefAuth.logout(window.location.href).then();
 }
 
 /**

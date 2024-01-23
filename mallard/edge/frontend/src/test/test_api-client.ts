@@ -8,10 +8,13 @@ import {
   getMetadata,
   getPreviewVideoUrl,
   getStreamableVideoUrl,
+  getUserInfo,
+  getUserProfileUrl,
   inferImageMetadata,
   inferVideoMetadata,
   loadImage,
   loadThumbnail,
+  logout,
   queryImages,
 } from "../api-client";
 import {
@@ -20,6 +23,7 @@ import {
   fakeOrdering,
   fakeTypedObjectRef,
   fakeVideoMetadata,
+  fakeUserInfo,
 } from "./element-test-utils";
 import {
   ObjectRef,
@@ -56,6 +60,9 @@ const mockLockRequest = jest.fn();
 Object.defineProperty(global.navigator, "locks", {
   value: { request: mockLockRequest },
 });
+
+// Base URL for Fief authentication.
+declare const AUTH_BASE_URL: string;
 
 describe("api-client", () => {
   beforeEach(() => {
@@ -95,6 +102,43 @@ describe("api-client", () => {
 
     toJSON: () => string;
   }
+
+  it("can get information about the current user", () => {
+    // Arrange.
+    const userInfo = fakeUserInfo();
+    mockFiefAuth.prototype.getUserinfo.mockReturnValue(userInfo);
+
+    // Act.
+    const gotUserInfo = getUserInfo();
+
+    // Assert.
+    expect(gotUserInfo).toEqual(userInfo);
+  });
+
+  it("can get the correct user profile URL", () => {
+    // Act and assert.
+    expect(getUserProfileUrl()).toEqual(AUTH_BASE_URL);
+  });
+
+  it("can log the current user out", () => {
+    // Arrange.
+    // This function will be used as the promise to run when logging out. In
+    // the actual implementation, it doesn't need to do anything, we just
+    // need to be sure that it runs.
+    const onLogout = jest.fn();
+    // Set up the logout function.
+    mockFiefAuth.prototype.logout.mockReturnValue(new Promise(onLogout));
+
+    // Act.
+    logout();
+
+    // Assert.
+    // It should have called the logout function with the current URL.
+    expect(mockFiefAuth.prototype.logout).toBeCalledTimes(1);
+    expect(mockFiefAuth.prototype.logout).toBeCalledWith(window.location.href);
+    // It should have resolved the promise.
+    expect(onLogout).toBeCalledTimes(1);
+  });
 
   each([
     ["token is missing", false],
@@ -186,6 +230,12 @@ describe("api-client", () => {
     expect(result.imageIds).toEqual(imageIds);
     expect(result.pageNum).toEqual(pageNum);
     expect(result.isLastPage).toEqual(isLastPage);
+  });
+
+  describe("authentication", () => {
+    it("can get information about the current user", () => {
+      // Arrange.
+    });
   });
 
   it("handles a failure when querying images", async () => {

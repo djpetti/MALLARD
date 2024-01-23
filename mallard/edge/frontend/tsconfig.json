@@ -29,7 +29,9 @@
           "search-box",
           "large-image-display",
           "metadata-card",
-          "notes-card"
+          "notes-card",
+          "user-menu",
+          "metadata-editing-form"
         ]
       }
     ]

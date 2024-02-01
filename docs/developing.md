@@ -12,10 +12,10 @@ running it.
 1. Run `poetry shell` to activate the Python virtual environment.
 1. The `deploy.py` script automates the process of building the frontend.
    Run `python deploy.py build` to do this now.
-1. Follow the instructions in the [README](../README.md) for generating,
+1. Follow the instructions in the [README](../README.md#deploying-locally) for generating,
    building, and running a `docker-compose` file. Make sure you select
    "development" as the `mode` option.
-1. Follow the instructions in the [README](../README.md) for initializing
+1. Follow the instructions in the [README](../README.md#initializing-the-database) for initializing
    the database.
 
 Congratulations! MALLARD should now be running on your local computer. It

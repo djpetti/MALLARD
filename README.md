@@ -1,3 +1,8 @@
+# Developing
+
+If you are interested in developing MALLARD, please see
+[these instructions](docs/developing.md).
+
 # Deploying Locally
 
 MALLARD can be deployed locally using Docker. The provided configuration
@@ -46,8 +51,8 @@ command with different `config_name`s.
 Once you have the compose file, you can run the following to build the
 images and start the MALLARD services:
 ```bash
-docker-compose -f docker-compose.default.yml build
-docker-compose -f docker-compose.default.yml up
+docker compose -f docker-compose.default.yml build
+docker compose -f docker-compose.default.yml up
 ```
 
 ## Initializing the Database

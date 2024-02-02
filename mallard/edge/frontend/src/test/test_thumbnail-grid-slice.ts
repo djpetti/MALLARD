@@ -33,6 +33,7 @@ import thumbnailGridReducer, {
   clearVideoUrl,
   thunkAddArtifacts,
   thunkSetVideoUrl,
+  setScrollLocation,
 } from "../thumbnail-grid-slice";
 import {
   ArtifactEntity,
@@ -1850,6 +1851,23 @@ describe("thumbnail-grid-slice reducers", () => {
     // Assert.
     // It should have changed nothing.
     expect(newImageState.entities[entityId]?.artifactUrl).toEqual(originalUrl);
+  });
+
+  it("handles a setScrollLocation action", () => {
+    // Arrange.
+    const state = fakeState();
+    state.imageView.lastScrollLocation = 0;
+
+    // Act.
+    // Set a new scroll location.
+    const newSrollLocation = faker.datatype.number();
+    const newImageState = thumbnailGridSlice.reducer(
+      state.imageView,
+      setScrollLocation(newSrollLocation)
+    );
+
+    // Assert.
+    expect(newImageState.lastScrollLocation).toEqual(newSrollLocation);
   });
 
   each([

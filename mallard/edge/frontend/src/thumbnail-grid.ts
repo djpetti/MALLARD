@@ -5,6 +5,7 @@ import store from "./store";
 import { ArtifactEntity, ImageQuery, RequestState, RootState } from "./types";
 import "./thumbnail-grid-section";
 import {
+  setScrollLocation,
   thumbnailGridSelectors,
   thunkContinueQuery,
   thunkStartNewQuery,
@@ -153,6 +154,15 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
 
   @query("#grid_content", true)
   private gridContent!: HTMLDivElement;
+
+  /**
+   * Keeps track of how far the user has scrolled on the page. Used to
+   * restore the scroll position after re-rendering.
+   */
+  public savedScrollHeight?: number;
+  /** If true, indicates that we have successfully restored the scroll
+   * position.*/
+  private restoredScrollPosition: boolean = false;
 
   /**
    * Total number of thumbnails displayed on the last update cycle.
@@ -333,6 +343,19 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       }
       this.lastNumThumbnailsDisplayed = numThumbnailsDisplayed;
     }
+
+    if (
+      !this.restoredScrollPosition &&
+      this.savedScrollHeight !== undefined &&
+      this.scrollHeight >= this.savedScrollHeight
+    ) {
+      // We are allowed to restore an old scroll position exactly once. We
+      // might need to do this when we first create the element if we are
+      // trying to replicate the state of a previous element before the user
+      // navigated away from the page.
+      this.scrollTop = this.savedScrollHeight;
+      this.restoredScrollPosition = true;
+    }
   }
 
   /**
@@ -431,6 +454,8 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
       queryPageNum: state.imageView.currentQueryOptions.pageNum,
       isQueryRunning: state.imageView.currentQuery.length > 0,
+
+      savedScrollHeight: state.imageView.lastScrollLocation,
     };
   }
 
@@ -457,6 +482,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
     };
+    handlers["click"] = (_: Event) => setScrollLocation(this.scrollTop);
     return handlers;
   }
 }

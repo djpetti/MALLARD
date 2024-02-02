@@ -79,6 +79,8 @@ export function fakeState(): RootState {
       collapsedSections: {},
 
       editingDialogOpen: false,
+
+      lastScrollLocation: 0,
     },
     uploads: {
       dialogOpen: false,

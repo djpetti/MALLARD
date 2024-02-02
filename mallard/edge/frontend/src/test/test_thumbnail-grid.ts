@@ -10,6 +10,7 @@ import { ThumbnailGridSection } from "../thumbnail-grid-section";
 import { RequestState, RootState } from "../types";
 import each from "jest-each";
 import {
+  setScrollLocation,
   thunkContinueQuery,
   thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
@@ -23,6 +24,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
+    setScrollLocation: jest.fn(),
     createArtifactEntityId: actualSlice.createArtifactEntityId,
     thumbnailGridSelectors: {
       selectIds: actualSlice.thumbnailGridSelectors.selectIds,
@@ -35,6 +37,9 @@ const mockThunkStartNewQuery = thunkStartNewQuery as jest.MockedFn<
 >;
 const mockThunkContinueQuery = thunkContinueQuery as jest.MockedFn<
   typeof thunkContinueQuery
+>;
+const mockSetScrollLocation = setScrollLocation as jest.MockedFn<
+  typeof setScrollLocation
 >;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -218,6 +223,64 @@ describe("thumbnail-grid", () => {
     const root = getShadowRoot(ConnectedThumbnailGrid.tagName);
     const emptyMessage = root.querySelector("#empty_message") as HTMLElement;
     expect(emptyMessage.classList).not.toContain("hidden");
+  });
+
+  describe("scroll position restore", () => {
+    it("does not restore the position when it has not been saved", async () => {
+      // Arrange.
+      // Set the initial scroll position.
+      const initialScrollPos = faker.datatype.number();
+      gridElement.scrollTop = initialScrollPos;
+
+      // Act.
+      await gridElement.updateComplete;
+
+      // Assert.
+      // It should not have changed anything.
+      expect(gridElement.scrollTop).toEqual(initialScrollPos);
+    });
+
+    each([
+      ["no content", 0],
+      ["content", 1000],
+    ]).it(
+      "handles scroll position restoration when it has %s",
+      async (_, contentHeight: number) => {
+        // Arrange.
+        gridElement.scrollTop = 0;
+        // Fake the initial content height.
+        Object.defineProperty(gridElement, "scrollHeight", {
+          value: contentHeight,
+        });
+
+        // Make it look like we have a saved scroll height.
+        const savedScrollHeight = faker.datatype.number({
+          max: 1000,
+        });
+        gridElement.savedScrollHeight = savedScrollHeight;
+
+        // Act.
+        // Change a property to trigger an update.
+        gridElement.hasMorePages = !gridElement.hasMorePages;
+        await gridElement.updateComplete;
+
+        // Assert.
+        if (savedScrollHeight <= contentHeight) {
+          // It should have restored the scroll position.
+          expect(gridElement.scrollTop).toEqual(savedScrollHeight);
+        } else {
+          // No content was loaded yet, so it should have done nothing.
+          expect(gridElement.scrollTop).toEqual(0);
+        }
+
+        // If we trigger another update, it should not restore it twice.
+        gridElement.scrollTop = 0;
+        gridElement.hasMorePages = !gridElement.hasMorePages;
+        await gridElement.updateComplete;
+
+        expect(gridElement.scrollTop).toEqual(0);
+      }
+    );
   });
 
   describe("infinite scrolling", () => {
@@ -717,6 +780,7 @@ describe("thumbnail-grid", () => {
       state.imageView.entities[imageId] = fakeArtifactEntity(true, false);
       state.imageView.currentQueryState = contentState;
       state.imageView.metadataLoadingState = metadataState;
+      state.imageView.lastScrollLocation = faker.datatype.number();
 
       // Act.
       const updates = gridElement.mapState(state);
@@ -738,6 +802,10 @@ describe("thumbnail-grid", () => {
       );
       expect(updates["hasMorePages"]).toEqual(
         state.imageView.currentQueryHasMorePages
+      );
+
+      expect(updates["savedScrollHeight"]).toEqual(
+        state.imageView.lastScrollLocation
       );
     }
   );
@@ -895,4 +963,22 @@ describe("thumbnail-grid", () => {
       }
     }
   );
+
+  it("maps the correct actions to the click event", () => {
+    // Arrange.
+    // Set a reasonable scroll distance.
+    gridElement.scrollTop = faker.datatype.number();
+
+    // Act.
+    const eventMap = gridElement.mapEvents();
+
+    // Assert.
+    // It should have a mapping for the proper events.
+    expect(eventMap).toHaveProperty("click");
+
+    // This should fire the appropriate action creator.
+    eventMap["click"](new Event("click"));
+
+    expect(mockSetScrollLocation).toBeCalledWith(gridElement.scrollTop);
+  });
 });

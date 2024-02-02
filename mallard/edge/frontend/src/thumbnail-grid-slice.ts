@@ -172,6 +172,7 @@ const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   exportedImagesUrl: null,
   collapsedSections: {},
   editingDialogOpen: false,
+  lastScrollLocation: 0,
 });
 
 /** Memoized selectors for the state. */
@@ -1009,6 +1010,10 @@ export const thumbnailGridSlice = createSlice({
         changes: { artifactUrl: null },
       });
     },
+    // Set the scroll location.
+    setScrollLocation(state, action) {
+      state.lastScrollLocation = action.payload;
+    },
   },
   extraReducers: (builder) => {
     // We are adding new artifacts to the state.
@@ -1251,5 +1256,6 @@ export const {
   setSectionExpanded,
   setEditingDialogOpen,
   clearVideoUrl,
+  setScrollLocation,
 } = thumbnailGridSlice.actions;
 export default thumbnailGridSlice.reducer;

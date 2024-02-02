@@ -235,6 +235,9 @@ export interface ImageViewState extends NormalizedState<ArtifactEntity> {
 
   /** Whether the metadata editing dialog is currently open. */
   editingDialogOpen: boolean;
+
+  /** Most recent location on the page that we have scrolled to. */
+  lastScrollLocation: number;
 }
 
 /**

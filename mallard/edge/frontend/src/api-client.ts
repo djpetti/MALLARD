@@ -227,6 +227,11 @@ function separateByType(artifactIds: TypedObjectRef[]): {
  *  is not logged in.
  */
 export function getUserInfo(): FiefUserInfo | null {
+  if (fiefAuth === undefined) {
+    // Authentication is disabled.
+    // istanbul ignore next
+    return null;
+  }
   return (fiefAuth as browser.FiefAuth).getUserinfo();
 }
 

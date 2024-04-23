@@ -8,6 +8,7 @@ import {
   setScrollLocation,
   thumbnailGridSelectors,
   thunkContinueQuery,
+  thunkSelectImages,
   thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
@@ -15,6 +16,7 @@ import "@material/mwc-circular-progress";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
 import { flatten, isEqual } from "lodash";
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
+import { ArtifactThumbnail } from "./artifact-thumbnail";
 
 /**
  * Encapsulates image IDs grouped with corresponding metadata.
@@ -29,6 +31,14 @@ export interface GroupedImages {
 }
 
 /**
+ * Encapsulates image IDs with selection status.
+ */
+interface ImageWithStatus {
+  id: string;
+  selected: boolean;
+}
+
+/**
  * Groups a series of images by their capture dates and sessions.
  * @param {string[]} imageIds The IDs of the images to group.
  * @param {RootState} state The Redux state that contains the image metadata.
@@ -40,10 +50,12 @@ function groupByDateAndSession(
   state: RootState
 ): GroupedImages[] {
   // Maps date strings to image IDs with that capture data.
-  const keysToImages = new Map<
-    string,
-    { date: string; session: string | undefined; images: string[] }
-  >();
+  interface ImageData {
+    date: string;
+    session: string | undefined;
+    images: { name: string; id: string }[];
+  }
+  const keysToImages = new Map<string, ImageData>();
 
   for (const imageId of imageIds) {
     const entity = thumbnailGridSelectors.selectById(
@@ -57,6 +69,7 @@ function groupByDateAndSession(
 
     const captureDate = entity.metadata.captureDate as string;
     const session = entity.metadata.sessionName;
+    const name = entity.metadata.name as string;
     const key = captureDate + session ?? "";
     if (!keysToImages.has(key)) {
       // Add the empty group.
@@ -66,19 +79,42 @@ function groupByDateAndSession(
         images: [],
       });
     }
-    (keysToImages.get(key)?.images as string[]).push(imageId);
+    (keysToImages.get(key) as ImageData).images.push({
+      id: imageId,
+      name: name,
+    });
   }
 
   // Convert to the final return type.
   const imageGroups: GroupedImages[] = [];
   for (const value of keysToImages.values()) {
+    // Sort by names within sessions.
+    value.images.sort((a, b) => a.name.localeCompare(b.name));
     imageGroups.push({
-      imageIds: value.images,
+      imageIds: value.images.map((i) => i.id),
       captureDate: new Date(value.date),
       session: value.session,
     });
   }
   return imageGroups;
+}
+
+/**
+ * Gets the image IDs in the displayed order.
+ * @param{GroupedImages[]} groupedArtifacts The grouped artifacts.
+ * @param{RootState} state The Redux state.
+ * @return{ImageWithStatus[]} The image IDs, with status data, in the same
+ *  order as they are displayed on the page.
+ */
+function getOrderedImageIds(
+  groupedArtifacts: GroupedImages[],
+  state: RootState
+): ImageWithStatus[] {
+  const flatIds = flatten(groupedArtifacts.map((g) => g.imageIds));
+  return flatIds.map((id) => ({
+    id: id,
+    selected: thumbnailGridSelectors.selectById(state, id)?.isSelected ?? false,
+  }));
 }
 
 /**
@@ -135,9 +171,14 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   })
   public groupedArtifacts: GroupedImages[] = [];
   /**
-   * Unique IDs of grouped artifacts.
+   * Maps unique IDs of artifacts to the order in which they are displayed
+   * on the page.
    */
-  protected groupedArtifactsFlatIds: string[] = [];
+  protected groupedArtifactsOrder = new Map<string, number>();
+  /** List of unique artifact IDs in the order that they are displayed on
+   * the page.
+   */
+  protected groupedArtifactsFlatIds: ImageWithStatus[] = [];
 
   /** Represents the status of the data loading process. */
   @property({ attribute: false })
@@ -425,6 +466,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
       return timeDiff;
     });
+    const artifactIds = getOrderedImageIds(grouped, state);
 
     // Determine the loading status.
     const contentState = state.imageView.currentQueryState;
@@ -449,7 +491,10 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
     return {
       loadingState: overallState,
       groupedArtifacts: grouped,
-      groupedArtifactsFlatIds: flatten(grouped.map((g) => g.imageIds)),
+      groupedArtifactsFlatIds: artifactIds,
+      groupedArtifactsOrder: new Map<string, number>(
+        artifactIds.map((image, i) => [image.id, i])
+      ),
       hasMorePages: state.imageView.currentQueryHasMorePages,
 
       queryPageNum: state.imageView.currentQueryOptions.pageNum,
@@ -457,6 +502,36 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
 
       savedScrollHeight: state.imageView.lastScrollLocation,
     };
+  }
+
+  /**
+   * Finds a region of selected thumbnails.
+   * @param{string} endId The frontend ID of the last selected thumbnail.
+   * @return{string[]} The IDs of the selected thumbnails in the region.
+   * @private
+   */
+  private findSelectableRegion(endId: string): string[] {
+    // Find where the last selected thumbnail is on the page.
+    const endIndex = this.groupedArtifactsOrder.get(endId) as number;
+
+    // Work backwards until we find a thumbnail that's selected.
+    let startIndex;
+    for (startIndex = endIndex; startIndex >= 0; startIndex--) {
+      if (this.groupedArtifactsFlatIds[startIndex].selected) {
+        break;
+      }
+    }
+    if (startIndex < 0) {
+      // No previous selected thumbnail was found. In this case,
+      // shift-clicking will just select a single thumbnail.
+      return [endId];
+    }
+
+    const toSelect: string[] = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+      toSelect.push(this.groupedArtifactsFlatIds[i].id);
+    }
+    return toSelect;
   }
 
   /**
@@ -481,6 +556,13 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
         // Continue the existing query.
         return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
       }
+    };
+    handlers[ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME] = (event: Event) => {
+      const artifactId = (event as CustomEvent<string>).detail;
+      return thunkSelectImages({
+        imageIds: this.findSelectableRegion(artifactId),
+        select: true,
+      }) as unknown as Action;
     };
     handlers["click"] = (_: Event) => setScrollLocation(this.scrollTop);
     return handlers;

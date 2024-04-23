@@ -136,6 +136,9 @@ export class ArtifactThumbnail extends ArtifactDisplay {
   /** Event indicating that the selection status has changed. */
   static readonly SELECTED_EVENT_NAME = `${ArtifactThumbnail.tagName}-selected`;
 
+  /** Event indicating that the item was selected while holding shift. */
+  static readonly SHIFT_SELECTED_EVENT_NAME = `${ArtifactThumbnail.tagName}-shift-selected`;
+
   /** Whether this thumbnail is selected. */
   @property({ type: Boolean })
   selected: boolean = false;
@@ -162,20 +165,32 @@ export class ArtifactThumbnail extends ArtifactDisplay {
    * @param {Event} event The click event.
    * @private
    */
-  private onSelect(event: Event): void {
+  private onSelect(event: MouseEvent): void {
     // Stop propagation so it doesn't interpret this as a click on the
     // thumbnail.
     event.stopPropagation();
 
     this.selected = !this.selected;
 
-    this.dispatchEvent(
-      new CustomEvent<boolean>(ArtifactThumbnail.SELECTED_EVENT_NAME, {
-        bubbles: true,
-        composed: false,
-        detail: this.selected,
-      })
-    );
+    if (this.selected && event.shiftKey) {
+      // We selected something while holding down shift. This should trigger
+      // special behavior.
+      this.dispatchEvent(
+        new CustomEvent<string>(ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME, {
+          bubbles: true,
+          composed: true,
+          detail: this.frontendId,
+        })
+      );
+    } else {
+      this.dispatchEvent(
+        new CustomEvent<boolean>(ArtifactThumbnail.SELECTED_EVENT_NAME, {
+          bubbles: true,
+          composed: false,
+          detail: this.selected,
+        })
+      );
+    }
   }
 
   /**

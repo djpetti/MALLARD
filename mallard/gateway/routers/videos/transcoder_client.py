@@ -4,9 +4,11 @@ autogenerate this, but OpenAPI is weird about async stuff.
 """
 import asyncio
 from asyncio import IncompleteReadError, TimeoutError
-from typing import Any, AsyncIterable, Dict
+from functools import wraps
+from typing import Any, AsyncIterable, Callable, Dict
 
 import aiohttp
+from aiohttp.client_exceptions import ClientPayloadError
 from fastapi import HTTPException, UploadFile
 from loguru import logger
 from tenacity import (
@@ -136,6 +138,72 @@ async def probe_video(video: UploadFile) -> Dict[str, Any]:
 
 
 @client_retry
+async def ensure_faststart(video: ObjectRef) -> None:
+    """
+    Ensures that the video supports faststart, which is necessary to
+    run the rest of the transcoding pipeline. Will modify the video
+    in-place if necessary.
+
+    Args:
+        video: The video file.
+
+    """
+    logger.debug("Ensuring faststart for video {}...", video)
+    async with get_session().post(
+        f"/ensure_faststart/{video.bucket}/{video.name}",
+        timeout=PROBE_TIMEOUT,
+    ) as response:
+        if response.status != 200:
+            raise HTTPException(
+                status_code=response.status,
+                detail=f"Faststart conversion failed: {response.reason}",
+            )
+
+
+TranscoderEndpoint = Callable[[ObjectRef, int], AsyncIterable[bytes]]
+"""
+Type alias for transcoder endpoint functions.
+"""
+
+
+def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
+    """
+    Decorator that checks for a common failure case that occurs when the
+    input video is unoptimized. If this case is detected, it will optimize
+    the video an then retry the original request.
+
+    Args:
+        to_wrap: The endpoint to wrap.
+
+    Returns:
+        The wrapped function.
+
+    """
+
+    @wraps(to_wrap)
+    async def _wrapped(
+        video: ObjectRef, chunk_size: int = 1024
+    ) -> AsyncIterable[bytes]:
+        try:
+            async for chunk in to_wrap(video, chunk_size):
+                yield chunk
+            return
+        except ClientPayloadError:
+            pass
+
+        logger.info("Initial request failed, retrying with optimized video...")
+        # Optimize it.
+        await ensure_faststart(video)
+
+        # Retry.
+        async for chunk in to_wrap(video, chunk_size):
+            yield chunk
+
+    return _wrapped
+
+
+@client_retry
+@_try_optimize_on_fail
 async def create_preview(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
@@ -167,6 +235,7 @@ async def create_preview(
 
 
 @client_retry
+@_try_optimize_on_fail
 async def create_streamable(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:
@@ -199,6 +268,7 @@ async def create_streamable(
 
 
 @client_retry
+@_try_optimize_on_fail
 async def create_thumbnail(
     video: ObjectRef, chunk_size: int = 1024
 ) -> AsyncIterable[bytes]:

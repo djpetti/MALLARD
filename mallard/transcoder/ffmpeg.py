@@ -8,6 +8,8 @@ to the disk.
 
 import asyncio
 import json
+import tempfile
+from pathlib import Path
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
 from loguru import logger
@@ -37,6 +39,10 @@ _MAX_QUEUE_SIZE = 2**20
 """
 Maximum size of the queue to use when reading output data.
 """
+_FILE_CHUNK_SIZE = 10 * 2**20
+"""
+Size of chunks to read when reading from a file.
+"""
 
 _DEFAULT_PIPES = dict(
     stdin=asyncio.subprocess.PIPE,
@@ -46,7 +52,6 @@ _DEFAULT_PIPES = dict(
 """
 Default configuration for stdin, stdout, and stderr for subprocesses.
 """
-
 
 _g_runner = ConcurrencyLimitedRunner(
     max_processes=config["transcoder"]["max_num_processes"].as_number()
@@ -87,7 +92,7 @@ async def _read_from_queue_until_finished(
         # If the process exited with an error, we should raise an
         # exception.
         raise OSError(
-            "Process exited with error code {}", process_wait_task.result()
+            f"Process exited with error code {process_wait_task.result()}."
         )
 
 
@@ -129,7 +134,9 @@ async def _process_io(
 
 
 async def _streaming_communicate(
-    process: asyncio.subprocess.Process, *, input_source: AsyncIterable[bytes]
+    process: asyncio.subprocess.Process,
+    *,
+    input_source: AsyncIterable[bytes] | None,
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     This function is sort of similar to `Process.communicate()`, but it
@@ -139,7 +146,8 @@ async def _streaming_communicate(
 
     Args:
         process: The process to run.
-        input_source: The source to get input from.
+        input_source: The source to get input from. If this is None, it will
+            not feed any input to the process.
 
     Returns:
         Iterables that can be used to read the stdout and stderr from the
@@ -242,8 +250,9 @@ async def _streaming_communicate(
 
     # We'll always be waiting for the process to exit.
     wait_task = asyncio.create_task(process.wait())
-    # At the same time, feed the input to the process.
-    _submit_background_task(_feed_input())
+    if input_source is not None:
+        # At the same time, feed the input to the process.
+        _submit_background_task(_feed_input())
     # Also read the output from the process.
     _submit_background_task(_stream_output(process.stdout, stdout_queue))
     _submit_background_task(_stream_output(process.stderr, stderr_queue))
@@ -255,6 +264,75 @@ async def _streaming_communicate(
         # output even if the command failed.
         _read_from_queue(stderr_queue, wait_task, ignore_errors=True),
     )
+
+
+async def ensure_streamable(
+    source: AsyncIterable[bytes],
+) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
+    """
+    Ensures that an input video is actually streamable. If it's not, it fixes
+    it, although this requires buffering it to the disk.
+
+    Args:
+        source: The source video.
+
+    Returns:
+        A streamable version of the source video and the FFMpeg error stream.
+
+    """
+
+    async def read_output_from_file(file_path: Path) -> AsyncIterable[bytes]:
+        file = file_path.open("rb")
+        while _chunk := file.read(_FILE_CHUNK_SIZE):
+            yield _chunk
+
+        # Delete the file when done.
+        logger.debug("Deleting temporary file {}", file_path)
+        file_path.unlink()
+
+    logger.info("Fixing non-streamable video input...")
+
+    with tempfile.NamedTemporaryFile() as input_file, tempfile.NamedTemporaryFile(
+        mode="rb", suffix=".mp4", delete=False
+    ) as output_file:
+        async for chunk in source:
+            input_file.write(chunk)
+        input_file.flush()
+        input_file.seek(0)
+
+        # Use FFMpeg to fix it.
+        ffmpeg = find_exe("ffmpeg")
+        ffmpeg_process = await asyncio.create_subprocess_exec(
+            ffmpeg,
+            "-i",
+            input_file.name,
+            "-y",  # Automatically overwrite existing output file.
+            "-c:v",
+            "copy",
+            "-movflags",
+            "faststart",
+            "-strict",
+            "2",
+            output_file.name,
+            **_DEFAULT_PIPES,
+        )
+
+        stdout, stderr = await _streaming_communicate(
+            ffmpeg_process, input_source=None
+        )
+        stderr = b"".join([c async for c in stderr])
+        logger.debug("ffmpeg stderr: {}", stderr)
+        stdout = "".join([c.decode("utf8") async for c in stdout])
+        logger.debug("ffmpeg stdout: {}", stdout)
+
+        async def _error_stream() -> AsyncIterable[bytes]:
+            yield stderr
+
+        # Read the output from the file.
+        return (
+            read_output_from_file(Path(output_file.name)),
+            _error_stream(),
+        )
 
 
 async def ffprobe(source: AsyncIterable[bytes]) -> Dict[str, Any]:

@@ -4,6 +4,7 @@ Tests for the `ffmpeg` module.
 
 
 import asyncio
+import enum
 import io
 from typing import AsyncIterable, Awaitable, Callable, Tuple
 
@@ -15,7 +16,7 @@ from pytest_mock import MockerFixture
 
 from mallard.transcoder import ffmpeg
 
-from .data import BIG_BUCK_BUNNY_PATH
+from .data import BIG_BUCK_BUNNY_PATH, NON_STREAMABLE_PATH
 
 
 @pytest.fixture()
@@ -33,6 +34,24 @@ def valid_video() -> AsyncIterable[bytes]:
             yield chunk
 
     with BIG_BUCK_BUNNY_PATH.open("rb") as raw_file:
+        yield _read_file_chunks(raw_file)
+
+
+@pytest.fixture()
+def non_streamable_video() -> AsyncIterable[bytes]:
+    """
+    Creates a non-streamable video file to test with.
+
+    Yields:
+        The bytes from the file, in chunks.
+
+    """
+
+    async def _read_file_chunks(file_: io.IOBase) -> AsyncIterable[bytes]:
+        while chunk := file_.read(100 * 1024):
+            yield chunk
+
+    with NON_STREAMABLE_PATH.open("rb") as raw_file:
         yield _read_file_chunks(raw_file)
 
 
@@ -82,6 +101,54 @@ def replace_concurrency_limited_runner(mocker: MockerFixture) -> None:
 
     # Replace the `run()` method with a pass-through.
     mock_runner.run.side_effect = asyncio.create_subprocess_exec
+
+
+class VideoType(enum.Enum):
+    STREAMABLE = "streamable"
+    NON_STREAMABLE = "non-streamable"
+
+
+@pytest.mark.parametrize(
+    "choose_video",
+    [VideoType.STREAMABLE, VideoType.NON_STREAMABLE],
+    ids=["streamable", "non-streamable"],
+)
+@pytest.mark.asyncio
+async def test_ensure_streamable(
+    non_streamable_video: AsyncIterable[bytes],
+    valid_video: AsyncIterable[bytes],
+    choose_video: VideoType,
+) -> None:
+    """
+    Tests that the `ensure_streamable` function can fix a video that is not
+    streamable.
+
+    Args:
+        non_streamable_video: The video file to use for testing.
+
+    """
+    # Arrange.
+    # Select the video to test with.
+    video_iter = non_streamable_video
+    if choose_video == VideoType.STREAMABLE:
+        video_iter = valid_video
+
+    # Get the raw video data to compare it with.
+    video_iter1, video_iter2 = tee(video_iter)
+    video_data = b"".join([c async for c in video_iter1])
+
+    # Act.
+    # Try streaming the video.
+    output_stream, error_stream = await ffmpeg.ensure_streamable(video_iter2)
+
+    # Assert.
+    # The error stream should have FFMpeg output.
+    stderr = b"".join([c async for c in error_stream])
+    assert len(stderr) > 0
+
+    # The output should have been changed.
+    stdout = b"".join([c async for c in output_stream])
+    assert stdout != video_data
 
 
 @pytest.mark.asyncio

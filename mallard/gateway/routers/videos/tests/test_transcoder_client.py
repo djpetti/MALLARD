@@ -4,12 +4,14 @@ Tests for the `transcoder_client` module.
 
 
 from asyncio import IncompleteReadError
+from itertools import cycle
 from unittest import mock
 
 import pytest
 from aiohttp import ClientResponse
+from aiohttp.client_exceptions import ClientPayloadError
 from faker import Faker
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
@@ -114,9 +116,9 @@ def binary_content(mock_response: MockFixture, faker: Faker) -> bytes:
     mock_response.content.readexactly = mock.AsyncMock()
     initial_chunks = [faker.binary(1024) for _ in range(3)]
     read_error = IncompleteReadError(b"", None)
-    mock_response.content.readexactly.side_effect = initial_chunks + [
-        read_error
-    ]
+    mock_response.content.readexactly.side_effect = cycle(
+        initial_chunks + [read_error]
+    )
 
     return b"".join(initial_chunks) + read_error.partial
 
@@ -409,3 +411,65 @@ async def test_create_thumbnail_bad_response(
             video_ref,
         ):
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        transcoder_client.create_preview,
+        transcoder_client.create_thumbnail,
+        transcoder_client.create_streamable,
+    ],
+    ids=["create_preview", "create_thumbnail", "create_streamable"],
+)
+async def test_optimize_on_fail(
+    config: ConfigForTests,
+    faker: Faker,
+    mock_response: ClientResponse,
+    binary_content: bytes,
+    endpoint: transcoder_client.TranscoderEndpoint,
+) -> None:
+    """
+    Tests that the endpoints that support it can automatically optimize the
+    video for streaming.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+        mock_response: The mocked response object.
+        binary_content: The binary content of the response object.
+
+    """
+    # Arrange.
+    mock_post = config.mock_get_session.return_value.post
+    video_ref = faker.object_ref()
+
+    # Make it look like the transcoder service fails initially on the first
+    # call to the endpoint.
+    mock_post.return_value.__aenter__.return_value = mock_response
+    mock_post.return_value.__aenter__.side_effect = (
+        ClientPayloadError,
+        mock.DEFAULT,
+        mock.DEFAULT,
+    )
+
+    # Act.
+    got_video = endpoint(
+        video_ref,
+    )
+
+    # Assert.
+    # It should have read the transcode results.
+    got_video_data = b"".join([c async for c in got_video])
+    assert got_video_data == binary_content
+
+    assert config.mock_get_session.call_count == 3
+    # In total, it should have made three calls to the transcoder.
+    assert mock_post.call_count == 3
+
+    # It should have tried to optimize the video.
+    mock_post.assert_any_call(
+        f"/ensure_faststart/{video_ref.bucket}/{video_ref.name}",
+        timeout=mock.ANY,
+    )

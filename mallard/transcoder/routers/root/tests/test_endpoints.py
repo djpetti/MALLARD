@@ -26,6 +26,7 @@ class ConfigForTests:
     Encapsulates standard configuration for most tests.
 
     Attributes:
+        mock_ensure_streamable: The mocked `ensure_streamable` function.
         mock_ffprobe: The mocked `ffprobe` function.
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
@@ -37,6 +38,7 @@ class ConfigForTests:
 
     """
 
+    mock_ensure_streamable: Mock
     mock_ffprobe: Mock
     mock_create_preview: Mock
     mock_create_thumbnail: Mock
@@ -57,6 +59,9 @@ def config(mocker: MockFixture) -> ConfigForTests:
 
     """
     return ConfigForTests(
+        mock_ensure_streamable=mocker.patch(
+            endpoints.__name__ + ".ensure_streamable"
+        ),
         mock_ffprobe=mocker.patch(endpoints.__name__ + ".ffprobe"),
         mock_create_preview=mocker.patch(
             endpoints.__name__ + ".create_preview"
@@ -212,6 +217,51 @@ async def test_infer_video_metadata_invalid(
         await endpoints.infer_video_metadata(fake_video)
 
         assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ensure_faststart(
+    config: ConfigForTests,
+    faker: Faker,
+    bytes_iter: AsyncIterable,
+    empty_iter: AsyncIterable,
+) -> None:
+    """
+    Tests that `ensure_faststart` returns the expected result.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+        bytes_iter: Iterable generating random bytes.
+        empty_iter: Iterable returning an empty bytes object.
+
+    """
+    # Arrange.
+    # Create some fake video data to pass off as the streamable video.
+    config.mock_ensure_streamable.return_value = (bytes_iter, empty_iter)
+
+    fake_video = faker.object_ref()
+
+    # Act.
+    await endpoints.ensure_faststart(
+        fake_video.bucket,
+        fake_video.name,
+        object_store=config.mock_object_store,
+    )
+
+    # Assert.
+    # It should have read the video from the object store.
+    config.mock_object_store.get_object.assert_called_once_with(fake_video)
+    video_data = config.mock_object_store.get_object.return_value
+
+    # It should have called `ensure_streamable` with the video.
+    config.mock_ensure_streamable.assert_called_once_with(video_data)
+
+    # It should have written it back to the object store.
+    config.mock_object_store.delete_object.assert_called_once_with(fake_video)
+    config.mock_object_store.create_object.assert_called_once_with(
+        fake_video, data=config.mock_ensure_streamable.return_value[0]
+    )
 
 
 @pytest.mark.asyncio

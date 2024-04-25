@@ -6,7 +6,8 @@ Schemas used by the endpoints in `root`.
 from typing import List
 
 from mallard.gateway.backends.objects.models import TypedObjectRef
-from mallard.gateway.schemas import ApiModel
+
+from ....schemas import ApiModel
 
 
 class QueryResponse(ApiModel):

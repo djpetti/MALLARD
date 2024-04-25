@@ -17,6 +17,7 @@ from ...ffmpeg import (
     create_preview,
     create_streamable,
     create_thumbnail,
+    ensure_streamable,
     ffprobe,
 )
 
@@ -27,7 +28,7 @@ def _streaming_response_with_errors(
     data_stream: AsyncIterable[bytes],
     *,
     error_stream: AsyncIterable[bytes],
-    content_type: str = None
+    content_type: str = None,
 ) -> StreamingResponse:
     """
     Creates a `StreamingResponse` and handles any errors that might occur
@@ -45,8 +46,10 @@ def _streaming_response_with_errors(
     """
 
     async def _read_and_handle_errors(stream: AsyncIterable[bytes]):
+        num_bytes_read = 0
         try:
             async for chunk in stream:
+                num_bytes_read += len(chunk)
                 yield chunk
             logger.debug(
                 "ffmpeg stderr: {}",
@@ -54,6 +57,9 @@ def _streaming_response_with_errors(
             )
 
         except OSError:
+            logger.error(
+                "ffmpeg failed after reading {} bytes.", num_bytes_read
+            )
             logger.error(
                 "ffmpeg stderr: {}",
                 "".join([c.decode("utf8") async for c in error_stream]),
@@ -66,6 +72,40 @@ def _streaming_response_with_errors(
     return StreamingResponse(
         _read_and_handle_errors(data_stream), media_type=content_type
     )
+
+
+@router.post("/ensure_faststart/{bucket}/{name}")
+async def ensure_faststart(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> None:
+    """
+    For some formats, such as MP4, we might not be able to parse them from a
+    stream. This will convert any problematic videos and write the converted
+    version back into the object store.
+
+    Since the conversion process does not actually change any transcoded data,
+    this call will delete the original version and substitute the fixed version
+    in-place.
+
+    Args:
+        bucket: The bucket that the video is in.
+        name: The name of the video.
+        object_store: The object store to retrieve the video from.
+
+    """
+    # Try converting this video.
+    video_ref = ObjectRef(bucket=bucket, name=name)
+    video = await object_store.get_object(video_ref)
+    converted_video, _ = await ensure_streamable(video)
+
+    # Otherwise, we need to replace the old version.
+    logger.info(
+        "Replacing video {} with version that supports faststart.", video_ref
+    )
+    await object_store.delete_object(video_ref)
+    await object_store.create_object(video_ref, data=converted_video)
 
 
 @router.post("/metadata/infer")
@@ -82,7 +122,8 @@ async def infer_video_metadata(video: UploadFile) -> Dict[str, Any]:
     """
     try:
         return await ffprobe(read_file_chunks(video))
-    except OSError:
+    except OSError as error:
+        logger.debug("Got error from FFProbe: {}", error)
         raise HTTPException(
             status_code=422,
             detail="Could not process the provided video. Is it valid?",

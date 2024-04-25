@@ -79,7 +79,32 @@ export class MetadataForm extends LitElement {
   private extractCaptureDate(): string {
     // If we don't have a date, use the current one.
     const date = new Date(this.metadata?.captureDate ?? Date());
-    return date.toISOString().split("T")[0];
+    const dateString = date.toISOString().split("T")[0];
+
+    if (this.metadata && !this.metadata.captureDate) {
+      // Make sure the internal metadata reflects this.
+      this.updateMetadata("captureDate", dateString);
+    }
+
+    return dateString;
+  }
+
+  /**
+   * Updates the internal metadata.
+   * @param {string} property The specific property to update within
+   *  the metadata.
+   * @param {any} value The value to set for the property.
+   * @private
+   */
+  private updateMetadata(property: keyof EditableMetadata, value?: any): void {
+    // Metadata should never be null if we're interacting with the form.
+    const metadata = { ...(this.metadata as EditableMetadata) };
+
+    // Either we set a pre-supplied value, or the value of the input element.
+    metadata[property] = value;
+
+    this.userModified = true;
+    this.metadata = metadata;
   }
 
   /**
@@ -91,20 +116,14 @@ export class MetadataForm extends LitElement {
    *  the value will be read from the event target's `value` property.
    * @private
    */
-  private updateMetadata(
+  private updateMetadataFromEvent(
     event: Event,
     property: keyof EditableMetadata,
     value?: any
   ): void {
-    // Metadata should never be null if we're interacting with the form.
-    const metadata = { ...(this.metadata as EditableMetadata) };
-
     const eventTarget = event.target as HTMLInputElement;
     // Either we set a pre-supplied value, or the value of the input element.
-    metadata[property] = value ?? eventTarget.value;
-
-    this.userModified = true;
-    this.metadata = metadata;
+    this.updateMetadata(property, value ?? eventTarget.value);
   }
 
   /**
@@ -124,7 +143,7 @@ export class MetadataForm extends LitElement {
     const eventTarget = event.target as HTMLInputElement;
     const numericalValue = +eventTarget.value;
 
-    this.updateMetadata(event, property, numericalValue);
+    this.updateMetadataFromEvent(event, property, numericalValue);
   }
 
   /**
@@ -148,7 +167,7 @@ export class MetadataForm extends LitElement {
           id="${id}"
           ?checked="${this.metadata?.platformType == type}"
           @change="${(event: Event) =>
-            this.updateMetadata(event, "platformType", type)}"
+            this.updateMetadataFromEvent(event, "platformType", type)}"
         >
         </mwc-radio>
       `;
@@ -211,7 +230,7 @@ export class MetadataForm extends LitElement {
                 id="session_name"
                 value="${this.metadata?.sessionName ?? ""}"
                 @change="${(event: Event) =>
-                  this.updateMetadata(event, "sessionName")}"
+                  this.updateMetadataFromEvent(event, "sessionName")}"
               ></mwc-textfield>
             </div>
           </div>
@@ -223,7 +242,7 @@ export class MetadataForm extends LitElement {
                 value="${this.extractCaptureDate()}"
                 type="date"
                 @change="${(event: Event) =>
-                  this.updateMetadata(event, "captureDate")}"
+                  this.updateMetadataFromEvent(event, "captureDate")}"
               ></mwc-textfield>
             </div>
             <div class="column_width1">
@@ -232,7 +251,7 @@ export class MetadataForm extends LitElement {
                 id="camera"
                 value="${this.metadata?.camera ?? ""}"
                 @change="${(event: Event) =>
-                  this.updateMetadata(event, "camera")}"
+                  this.updateMetadataFromEvent(event, "camera")}"
               ></mwc-textfield>
             </div>
           </div>
@@ -272,7 +291,7 @@ export class MetadataForm extends LitElement {
                 cols="3"
                 value="${this.metadata?.notes ?? ""}"
                 @change="${(event: Event) =>
-                  this.updateMetadata(event, "notes")}"
+                  this.updateMetadataFromEvent(event, "notes")}"
               >
               </mwc-textarea>
             </div>

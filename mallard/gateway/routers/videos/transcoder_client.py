@@ -4,7 +4,7 @@ autogenerate this, but OpenAPI is weird about async stuff.
 """
 import asyncio
 from asyncio import IncompleteReadError, TimeoutError
-from functools import wraps
+from functools import singledispatch, wraps
 from typing import Any, AsyncIterable, Callable, Dict
 
 import aiohttp
@@ -109,35 +109,6 @@ async def _iter_exact_chunked(
 
 
 @client_retry
-async def probe_video(video: UploadFile) -> Dict[str, Any]:
-    """
-    Probes the video file using ffprobe.
-
-    Args:
-        video: The video file.
-
-    Returns:
-        The ffprobe results.
-
-    """
-    logger.debug("Probing video {}...", video.filename)
-    await video.seek(0)
-
-    async with get_session().post(
-        "/metadata/infer",
-        data=_make_video_form_data(video, max_length=_PROBE_SIZE),
-        timeout=PROBE_TIMEOUT,
-    ) as response:
-        if response.status != 200:
-            raise HTTPException(
-                status_code=response.status,
-                detail=f"Metadata inference failed: {response.reason}",
-            )
-
-        return await response.json()
-
-
-@client_retry
 async def ensure_faststart(video: ObjectRef) -> None:
     """
     Ensures that the video supports faststart, which is necessary to
@@ -200,6 +171,80 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
             yield chunk
 
     return _wrapped
+
+
+@singledispatch
+async def _probe_video(video: UploadFile) -> Dict[str, Any]:
+    """
+    Probes the video file using ffprobe.
+
+    Args:
+        video: The video file.
+
+    Returns:
+        The ffprobe results.
+
+    """
+    logger.debug("Probing video {}...", video.filename)
+    await video.seek(0)
+
+    async with get_session().post(
+        "/metadata/infer",
+        data=_make_video_form_data(video, max_length=_PROBE_SIZE),
+        timeout=PROBE_TIMEOUT,
+    ) as response:
+        if response.status != 200:
+            raise HTTPException(
+                status_code=response.status,
+                detail=f"Metadata inference failed: {response.reason}",
+            )
+
+        return await response.json()
+
+
+@_probe_video.register
+async def _(video: ObjectRef) -> Dict[str, Any]:
+    """
+    Probes an existing video that is already in the object store.
+
+    Args:
+        video: The video file.
+
+    Returns:
+        The ffprobe results.
+
+    """
+    logger.debug("Probing existing video {}...", video)
+    async with get_session().post(
+        f"/metadata/infer/{video.bucket}/{video.name}",
+        timeout=PROBE_TIMEOUT,
+    ) as response:
+        if response.status != 200:
+            raise HTTPException(
+                status_code=response.status,
+                detail=f"Metadata inference failed: {response.reason}",
+            )
+
+        return await response.json()
+
+
+@client_retry
+async def probe_video(video: UploadFile | ObjectRef) -> Dict[str, Any]:
+    """
+    Probes the video file.
+
+    We need to do it this way because `tenacity` doesn't play nicely
+    with `singledispatch`:
+    https://github.com/jd/tenacity/issues/430
+
+    Args:
+        video: The video file.
+
+    Returns:
+        The ffprobe results.
+
+    """
+    return await _probe_video(video)
 
 
 @client_retry

@@ -220,6 +220,79 @@ async def test_infer_video_metadata_invalid(
 
 
 @pytest.mark.asyncio
+async def test_infer_existing_video_metadata(
+    config: ConfigForTests, faker: Faker
+) -> None:
+    """
+    Tests that `infer_existing_video_metadata` returns the expected result.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    # Create some fake metadata for it to infer.
+    fake_metadata = {
+        "streams": [
+            {
+                "width": faker.random_int(),
+                "height": faker.random_int(),
+                "duration": faker.pyfloat(),
+            }
+        ]
+    }
+    config.mock_ffprobe.return_value = fake_metadata
+
+    fake_video = faker.object_ref()
+
+    # Act.
+    result = await endpoints.infer_existing_video_metadata(
+        fake_video.bucket,
+        fake_video.name,
+        object_store=config.mock_object_store,
+    )
+
+    # Assert.
+    # It should have read the file data.
+    config.mock_object_store.get_object.assert_called_once_with(fake_video)
+    # It should have called `ffprobe` with the video.
+    config.mock_ffprobe.assert_called_once_with(
+        config.mock_object_store.get_object.return_value
+    )
+
+    assert result == fake_metadata
+
+
+@pytest.mark.asyncio
+async def test_infer_existing_video_metadata_invalid(
+    config: ConfigForTests, faker: Faker
+) -> None:
+    """
+    Tests that `infer_existing_video_metadata` raises an error when the video is invalid.
+
+    Args:
+        config: The configuration to use for testing.
+        faker: The fixture to use for generating fake data.
+
+    """
+    # Arrange.
+    config.mock_ffprobe.side_effect = OSError
+
+    fake_video = faker.object_ref()
+
+    # Act.
+    with pytest.raises(HTTPException) as exc_info:
+        await endpoints.infer_existing_video_metadata(
+            fake_video.bucket,
+            fake_video.name,
+            object_store=config.mock_object_store,
+        )
+
+        assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_ensure_faststart(
     config: ConfigForTests,
     faker: Faker,

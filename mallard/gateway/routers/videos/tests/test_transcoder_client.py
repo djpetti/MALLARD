@@ -124,8 +124,14 @@ def binary_content(mock_response: MockFixture, faker: Faker) -> bytes:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "existing_video", [False, True], ids=["new_video", "existing_video"]
+)
 async def test_probe_video(
-    config: ConfigForTests, mock_response: ClientResponse
+    config: ConfigForTests,
+    mock_response: ClientResponse,
+    faker: Faker,
+    existing_video: bool,
 ) -> None:
     """
     Tests that `probe_video` works.
@@ -133,6 +139,9 @@ async def test_probe_video(
     Args:
         config: The standard configuration to use for testing.
         mock_response: The mocked response object.
+        faker: The fixture to use for generating fake data.
+        existing_video: Whether to simulate probing an existing video in the
+            object store.
 
     """
     # Arrange.
@@ -141,39 +150,53 @@ async def test_probe_video(
     # Make it look like the transcoder service produced a valid response.
     mock_post.return_value.__aenter__.return_value = mock_response
 
+    fake_video = config.mock_video
+    if existing_video:
+        fake_video = faker.object_ref()
+
     # Act.
-    probe_results = await transcoder_client.probe_video(
-        config.mock_video,
-    )
+    probe_results = await transcoder_client.probe_video(fake_video)
 
     # Assert.
     config.mock_get_session.assert_called_once_with()
-    mock_post.assert_called_once_with(
-        "/metadata/infer",
+    endpoint = "/metadata/infer"
+    expected_kwargs = dict(
         data=mock.ANY,
         timeout=transcoder_client.PROBE_TIMEOUT,
     )
-    config.mock_read_file_chunks.assert_called_once_with(
-        config.mock_video, max_length=mock.ANY
-    )
+    if existing_video:
+        endpoint += f"/{fake_video.bucket}/{fake_video.name}"
+        expected_kwargs.pop("data")
+    mock_post.assert_called_once_with(endpoint, **expected_kwargs)
+    if not existing_video:
+        config.mock_read_file_chunks.assert_called_once_with(
+            config.mock_video, max_length=mock.ANY
+        )
 
     # It should have produced a correct form.
-    config.mock_form_data_class.assert_called_once_with()
-    mock_form_data = config.mock_form_data_class.return_value
-    mock_form_data.add_field.assert_called_once_with(
-        "video",
-        config.mock_read_file_chunks.return_value,
-        filename=config.mock_video.filename,
-        content_type=config.mock_video.content_type,
-    )
+    if not existing_video:
+        config.mock_form_data_class.assert_called_once_with()
+        mock_form_data = config.mock_form_data_class.return_value
+        mock_form_data.add_field.assert_called_once_with(
+            "video",
+            config.mock_read_file_chunks.return_value,
+            filename=config.mock_video.filename,
+            content_type=config.mock_video.content_type,
+        )
 
     # It should have read the probe results.
     assert probe_results == mock_response.json.return_value
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "existing_video", [False, True], ids=["new_video", "existing_video"]
+)
 async def test_probe_video_bad_response(
-    config: ConfigForTests, mocker: MockFixture
+    config: ConfigForTests,
+    mocker: MockFixture,
+    faker: Faker,
+    existing_video: bool,
 ) -> None:
     """
     Tests that `probe_video` handles a bad response from the transcoder service.
@@ -181,6 +204,9 @@ async def test_probe_video_bad_response(
     Args:
         config: The configuration to use for testing.
         mocker: The fixture to use for generating fake data.
+        faker: The fixture to use for generating fake data.
+        existing_video: Whether to simulate probing an existing video in the
+            object store.
 
     """
     # Arrange.
@@ -191,10 +217,14 @@ async def test_probe_video_bad_response(
     mock_response.status = 500
     mock_post.return_value.__aenter__.return_value = mock_response
 
+    fake_video = config.mock_video
+    if existing_video:
+        fake_video = faker.object_ref()
+
     # Act and assert.
     with pytest.raises(transcoder_client.HTTPException):
         await transcoder_client.probe_video(
-            config.mock_video,
+            fake_video,
         )
 
 

@@ -26,7 +26,7 @@ from ...backends.metadata import (
     MetadataStore,
 )
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
-from ...backends.objects import ObjectOperationError, ObjectStore
+from ...backends.objects import ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
 from ..common import (
     check_key_errors,
@@ -60,6 +60,46 @@ Maps video formats to corresponding MIME types.
 """
 
 
+async def _fill_metadata(
+    metadata: UavVideoMetadata,
+    video_file: UploadFile,
+    saved_video: ObjectRef | None = None,
+) -> UavVideoMetadata:
+    """
+    Fills UAV video metadata with proper error handling.
+
+    Args:
+        metadata: Any existing metadata we have.
+        video_file: The raw video data to infer from.
+        saved_video: The reference to the video in the object store,
+            if we have it.
+
+    Returns:
+        A copy of the metadata with missing fields filled.
+
+    Raises:
+        `HTTPException` if auto-filling the metadata failed.
+
+    """
+    try:
+        return await fill_metadata(
+            metadata, video=video_file, saved_video=saved_video
+        )
+    except InvalidVideoError as error:
+        logger.exception(error)
+        raise HTTPException(
+            status_code=415,
+            detail="The uploaded video has an invalid format, or does not "
+            "match the specified format.",
+        )
+    except MissingLengthError:
+        raise HTTPException(
+            status_code=411,
+            detail="You must provide a size for the uploaded video, either in "
+            "the metadata, or in the content-length header.",
+        )
+
+
 async def filled_uav_metadata(
     metadata: UavVideoMetadata = Depends(UavVideoMetadata.as_form),
     video_data: UploadFile = File(...),
@@ -79,26 +119,12 @@ async def filled_uav_metadata(
         `HTTPException` if auto-filling the metadata failed.
 
     """
-    try:
-        return await fill_metadata(metadata, video=video_data)
-    except InvalidVideoError as error:
-        logger.exception(error)
-        raise HTTPException(
-            status_code=415,
-            detail="The uploaded video has an invalid format, or does not "
-            "match the specified format.",
-        )
-    except MissingLengthError:
-        raise HTTPException(
-            status_code=411,
-            detail="You must provide a size for the uploaded video, either in "
-            "the metadata, or in the content-length header.",
-        )
+    return await _fill_metadata(metadata, video_data)
 
 
 @router.post("/create_uav", response_model=CreateResponse, status_code=201)
 async def create_uav_video(
-    metadata: UavVideoMetadata = Depends(filled_uav_metadata),
+    metadata: UavVideoMetadata = Depends(UavVideoMetadata.as_form),
     video_data: UploadFile = File(...),
     object_store: ObjectStore = Depends(backends.object_store),
     metadata_store: ArtifactMetadataStore = Depends(
@@ -127,26 +153,19 @@ async def create_uav_video(
     logger.info(
         "Creating a new video {} in bucket {}.", object_id.name, bucket
     )
-    object_task = asyncio.create_task(
-        object_store.create_object(object_id, data=video_data)
-    )
+    await object_store.create_object(object_id, data=video_data)
 
-    # Create the corresponding metadata.
-    metadata_task = asyncio.create_task(
-        metadata_store.add(object_id=object_id, metadata=metadata)
-    )
-
+    # Infer the metadata and save it.
     try:
-        await asyncio.gather(object_task, metadata_task)
-    except MetadataOperationError as error:
+        metadata = await _fill_metadata(
+            metadata, video_file=video_data, saved_video=object_id
+        )
+        await metadata_store.add(object_id=object_id, metadata=metadata)
+    except (MetadataOperationError, HTTPException) as error:
         # If one operation fails, it would be best to try and roll back the
         # other.
         logger.info("Rolling back object creation {} upon error.", object_id)
         await object_store.delete_object(object_id)
-        raise error
-    except ObjectOperationError as error:
-        logger.info("Rolling back metadata creation {} upon error.", object_id)
-        await metadata_store.delete(object_id)
         raise error
 
     # Create and save the preview.

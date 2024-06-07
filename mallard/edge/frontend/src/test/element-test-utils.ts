@@ -33,6 +33,7 @@ import { AutocompleteMenu } from "../autocomplete";
 import { EntityId } from "@reduxjs/toolkit";
 import { createArtifactEntityId } from "../thumbnail-grid-slice";
 import { FiefUserInfo } from "@fief/fief";
+import { ImageWithStatus } from "../thumbnail-grid";
 
 /**
  * Gets the root node in the shadow DOM for an element.
@@ -109,6 +110,7 @@ export function fakeState(): RootState {
  * @param {Date} captureDate Specify a specific capture date for this entity.
  * @param {string} sessionName Specify a specific session name for this entity.
  * @param {ObjectType} type Specify a specific type for this entity.
+ * @param {boolean} isSelected Specify whether to simulate that this entity is selected.
  * @return {ArtifactEntity} The entity that it created.
  */
 export function fakeArtifactEntity(
@@ -116,7 +118,8 @@ export function fakeArtifactEntity(
   imageLoaded?: boolean,
   captureDate?: Date,
   sessionName?: string,
-  type?: ObjectType
+  type?: ObjectType,
+  isSelected?: boolean
 ): ArtifactEntity {
   // Determine whether we should simulate a loaded image or not.
   if (thumbnailLoaded == undefined) {
@@ -171,7 +174,7 @@ export function fakeArtifactEntity(
     previewUrl: previewUrl,
     streamableUrl: streamableUrl,
     metadata: metadata,
-    isSelected: faker.datatype.boolean(),
+    isSelected: isSelected ?? faker.datatype.boolean(),
   };
 }
 
@@ -415,5 +418,16 @@ export function fakeUserInfo(): FiefUserInfo {
     email: faker.internet.email(),
     tenant_id: faker.lorem.word(),
     fields: {},
+  };
+}
+
+/**
+ * @return {ImageWithStatus} A fake `ImageWithStatus` object that it created.
+ * @param {boolean} selected Whether the image should be marked as selected or not.
+ */
+export function fakeImageWithStatus(selected?: boolean): ImageWithStatus {
+  return {
+    id: faker.datatype.uuid(),
+    selected: selected ?? faker.datatype.boolean(),
   };
 }

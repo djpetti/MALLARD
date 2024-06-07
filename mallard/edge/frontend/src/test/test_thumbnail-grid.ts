@@ -3,6 +3,7 @@ import {
   EntitiesAndIds,
   fakeArtifactEntities,
   fakeArtifactEntity,
+  fakeImageWithStatus,
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
@@ -12,11 +13,13 @@ import each from "jest-each";
 import {
   setScrollLocation,
   thunkContinueQuery,
+  thunkSelectImages,
   thunkStartNewQuery,
 } from "../thumbnail-grid-slice";
 import { faker } from "@faker-js/faker";
 import lodash from "lodash";
 import MockedClass = jest.MockedClass;
+import { ArtifactThumbnail } from "../artifact-thumbnail";
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
@@ -24,6 +27,7 @@ jest.mock("../thumbnail-grid-slice", () => {
   return {
     thunkStartNewQuery: jest.fn(),
     thunkContinueQuery: jest.fn(),
+    thunkSelectImages: jest.fn(),
     setScrollLocation: jest.fn(),
     createArtifactEntityId: actualSlice.createArtifactEntityId,
     thumbnailGridSelectors: {
@@ -40,6 +44,9 @@ const mockThunkContinueQuery = thunkContinueQuery as jest.MockedFn<
 >;
 const mockSetScrollLocation = setScrollLocation as jest.MockedFn<
   typeof setScrollLocation
+>;
+const mockThunkSelectImages = thunkSelectImages as jest.MockedFn<
+  typeof thunkSelectImages
 >;
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
@@ -772,12 +779,19 @@ describe("thumbnail-grid", () => {
     "updates the properties from the Redux state when requests are %s",
     (_: string, contentState: RequestState, metadataState: RequestState) => {
       // Arrange.
-      const imageId = faker.datatype.uuid();
+      const image = fakeImageWithStatus();
 
       // Create a fake state.
       const state: RootState = fakeState();
-      state.imageView.ids = [imageId];
-      state.imageView.entities[imageId] = fakeArtifactEntity(true, false);
+      state.imageView.ids = [image.id];
+      state.imageView.entities[image.id] = fakeArtifactEntity(
+        true,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        image.selected
+      );
       state.imageView.currentQueryState = contentState;
       state.imageView.metadataLoadingState = metadataState;
       state.imageView.lastScrollLocation = faker.datatype.number();
@@ -789,7 +803,7 @@ describe("thumbnail-grid", () => {
       // It should have gotten the correct updates.
       expect(updates).toHaveProperty("groupedArtifactsFlatIds");
       expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
-        new Set(state.imageView.ids)
+        new Set([image])
       );
       expect(updates["loadingState"]).toEqual(
         contentState == RequestState.SUCCEEDED &&
@@ -850,14 +864,15 @@ describe("thumbnail-grid", () => {
 
   it("groups by date correctly when updating from the Redux state", () => {
     // Arrange.
-    const imageId1 = faker.datatype.uuid();
-    const imageId2 = faker.datatype.uuid();
-    const imageId3 = faker.datatype.uuid();
-    const imageId4 = faker.datatype.uuid();
+    const image1 = fakeImageWithStatus();
+    const image2 = fakeImageWithStatus();
+    const image3 = fakeImageWithStatus();
+    const image4 = fakeImageWithStatus();
+    const allImages = [image1, image2, image3, image4];
 
     // Create a fake state.
     const state: RootState = fakeState();
-    state.imageView.ids = [imageId1, imageId2, imageId3, imageId4];
+    state.imageView.ids = allImages.map((i) => i.id);
 
     // Make it look like the capture date is the same for two of them.
     const captureDate1 = faker.date.past();
@@ -867,29 +882,37 @@ describe("thumbnail-grid", () => {
     const session1 = "a" + faker.lorem.words();
     const session2 = "b" + faker.lorem.words();
 
-    state.imageView.entities[imageId1] = fakeArtifactEntity(
+    state.imageView.entities[image1.id] = fakeArtifactEntity(
       true,
       undefined,
       captureDate1,
-      session1
+      session1,
+      undefined,
+      image1.selected
     );
-    state.imageView.entities[imageId2] = fakeArtifactEntity(
+    state.imageView.entities[image2.id] = fakeArtifactEntity(
       true,
       undefined,
       captureDate1,
-      session1
+      session1,
+      undefined,
+      image2.selected
     );
-    state.imageView.entities[imageId3] = fakeArtifactEntity(
+    state.imageView.entities[image3.id] = fakeArtifactEntity(
       true,
       undefined,
       captureDate2,
-      session1
+      session1,
+      undefined,
+      image3.selected
     );
-    state.imageView.entities[imageId4] = fakeArtifactEntity(
+    state.imageView.entities[image4.id] = fakeArtifactEntity(
       true,
       undefined,
       captureDate2,
-      session2
+      session2,
+      undefined,
+      image4.selected
     );
 
     // Act.
@@ -899,7 +922,7 @@ describe("thumbnail-grid", () => {
     // It should have gotten the correct updates.
     expect(updates).toHaveProperty("groupedArtifactsFlatIds");
     expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
-      new Set(state.imageView.ids)
+      new Set(allImages)
     );
 
     // It should have grouped things correctly.
@@ -909,13 +932,31 @@ describe("thumbnail-grid", () => {
 
     // They should be sorted in order by date, descending.
     expect(groups[0].captureDate).toEqual(captureDate1);
-    expect(groups[0].imageIds).toEqual([imageId1, imageId2]);
+    // It might re-order it based on entity names, which is why we convert to
+    // sets.
+    expect(new Set(groups[0].imageIds)).toEqual(
+      new Set([image1.id, image2.id])
+    );
 
     expect(groups[1].captureDate).toEqual(captureDate2);
-    expect(groups[1].imageIds).toEqual([imageId3]);
+    expect(groups[1].imageIds).toEqual([image3.id]);
 
     expect(groups[2].captureDate).toEqual(captureDate2);
-    expect(groups[2].imageIds).toEqual([imageId4]);
+    expect(groups[2].imageIds).toEqual([image4.id]);
+
+    // It should have recorded the order as well.
+    expect(updates).toHaveProperty("groupedArtifactsOrder");
+    const artifactOrder: Map<string, number> = updates["groupedArtifactsOrder"];
+    // The order should match with the groups.
+    expect(artifactOrder.get(image1.id)).toBeLessThan(
+      artifactOrder.get(image3.id) as number
+    );
+    expect(artifactOrder.get(image2.id)).toBeLessThan(
+      artifactOrder.get(image3.id) as number
+    );
+    expect(artifactOrder.get(image3.id)).toBeLessThan(
+      artifactOrder.get(image4.id) as number
+    );
   });
 
   each([
@@ -981,4 +1022,62 @@ describe("thumbnail-grid", () => {
 
     expect(mockSetScrollLocation).toBeCalledWith(gridElement.scrollTop);
   });
+
+  each([
+    ["selecting 1", [false, false, false], 0, [true, false, false]],
+    ["selecting 2", [true, false, false], 1, [true, true, false]],
+    ["selecting 3", [true, false, false], 2, [true, true, true]],
+    ["selecting the last", [false, false, false], 2, [false, false, true]],
+    ["selecting the last 2", [false, true, false], 2, [false, true, true]],
+  ]).it(
+    "maps the correct actions to the shift selected event when %s",
+    (
+      _,
+      initialSelection: boolean[],
+      selectIndex: number,
+      newSelection: boolean[]
+    ) => {
+      // Arrange.
+      // Set some displayed artifacts.
+      const images = [];
+      for (let i = 0; i < initialSelection.length; ++i) {
+        images.push(fakeImageWithStatus(initialSelection[i]));
+      }
+
+      gridElement.groupedArtifactsFlatIds = images;
+      gridElement.groupedArtifactsOrder = new Map(
+        images.map((image, index) => [image.id, index])
+      );
+
+      // Act.
+      const eventMap = gridElement.mapEvents();
+
+      // Assert.
+      // It should have a mapping for the proper events.
+      expect(eventMap).toHaveProperty(
+        ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME
+      );
+      // This should fire the appropriate action creator.
+      eventMap[ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME](
+        new CustomEvent<string>(ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME, {
+          detail: images[selectIndex].id,
+        })
+      );
+
+      // It should have called the action creator.
+      expect(mockThunkSelectImages).toBeCalledTimes(1);
+
+      // It should have selected the proper images.
+      const gotSelection = new Set(
+        mockThunkSelectImages.mock.calls[0][0].imageIds
+      );
+      for (let i = 0; i < newSelection.length; ++i) {
+        if (newSelection[i]) {
+          expect(gotSelection).toContain(images[i].id);
+        } else {
+          expect(gotSelection).not.toContain(images[i].id);
+        }
+      }
+    }
+  );
 });

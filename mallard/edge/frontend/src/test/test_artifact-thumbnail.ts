@@ -197,13 +197,22 @@ describe("artifact-thumbnail", () => {
   });
 
   each([
-    ["select the image", true, ObjectType.IMAGE],
-    ["de-select the image", false, ObjectType.IMAGE],
-    ["select the video", true, ObjectType.VIDEO],
-    ["de-select the video", false, ObjectType.VIDEO],
+    ["select the image", true, false, ObjectType.IMAGE],
+    ["de-select the image", false, false, ObjectType.IMAGE],
+    ["select the video", true, false, ObjectType.VIDEO],
+    ["de-select the video", false, false, ObjectType.VIDEO],
+    ["shift-select the image", true, true, ObjectType.IMAGE],
+    ["shift-de-select the image", false, true, ObjectType.IMAGE],
+    ["shift-select the video", true, true, ObjectType.VIDEO],
+    ["shift-de-select the video", false, true, ObjectType.VIDEO],
   ]).it(
     "allows the user to %s",
-    async (_, select: boolean, objectType: ObjectType) => {
+    async (
+      _,
+      select: boolean,
+      shiftSelect: boolean,
+      objectType: ObjectType
+    ) => {
       // Arrange.
       thumbnailElement.type = objectType;
       if (objectType === ObjectType.IMAGE) {
@@ -219,11 +228,16 @@ describe("artifact-thumbnail", () => {
       // The event handlers will be added on the first update.
       await thumbnailElement.updateComplete;
 
-      // Add a handler for the selected event.
+      // Add a handlers for the selected events.
       const selectEventHandler = jest.fn();
       thumbnailElement.addEventListener(
         ConnectedArtifactThumbnail.SELECTED_EVENT_NAME,
         selectEventHandler
+      );
+      const shiftSelectEventHandler = jest.fn();
+      thumbnailElement.addEventListener(
+        ConnectedArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME,
+        shiftSelectEventHandler
       );
 
       // Simulate a mouseover to show the select button.
@@ -236,7 +250,9 @@ describe("artifact-thumbnail", () => {
       const selectButton = root.querySelector("#select_button") as IconButton;
 
       // Simulate a click.
-      selectButton.dispatchEvent(new MouseEvent("click"));
+      selectButton.dispatchEvent(
+        new MouseEvent("click", { shiftKey: shiftSelect })
+      );
 
       await thumbnailElement.updateComplete;
 
@@ -259,7 +275,13 @@ describe("artifact-thumbnail", () => {
       }
 
       // It should have dispatched the selected event.
-      expect(selectEventHandler).toBeCalledTimes(1);
+      if (select && shiftSelect) {
+        expect(shiftSelectEventHandler).toBeCalledTimes(1);
+        expect(selectEventHandler).not.toBeCalled();
+      } else {
+        expect(selectEventHandler).toBeCalledTimes(1);
+        expect(shiftSelectEventHandler).not.toBeCalled();
+      }
     }
   );
 

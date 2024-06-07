@@ -33,7 +33,7 @@ export interface GroupedImages {
 /**
  * Encapsulates image IDs with selection status.
  */
-interface ImageWithStatus {
+export interface ImageWithStatus {
   id: string;
   selected: boolean;
 }
@@ -174,11 +174,11 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * Maps unique IDs of artifacts to the order in which they are displayed
    * on the page.
    */
-  protected groupedArtifactsOrder = new Map<string, number>();
+  public groupedArtifactsOrder = new Map<string, number>();
   /** List of unique artifact IDs in the order that they are displayed on
    * the page.
    */
-  protected groupedArtifactsFlatIds: ImageWithStatus[] = [];
+  public groupedArtifactsFlatIds: ImageWithStatus[] = [];
 
   /** Represents the status of the data loading process. */
   @property({ attribute: false })

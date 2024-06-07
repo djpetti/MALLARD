@@ -280,9 +280,14 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
     ),
     ids=("empty_metadata", "populated_metadata", "size_from_meta"),
 )
+@pytest.mark.parametrize(
+    "use_saved_video", [False, True], ids=["no_saved_video", "saved_video"]
+)
 async def test_fill_metadata(
     fill_meta_config: FillMetadataConfig,
     metadata: UavVideoMetadata,
+    faker: Faker,
+    use_saved_video: bool,
 ) -> None:
     """
     Tests that the `fill_metadata` function works.
@@ -290,6 +295,8 @@ async def test_fill_metadata(
     Args:
         fill_meta_config: The configuration to use for testing.
         metadata: The initial metadata to use for testing.
+        faker: The fixture to use for generating fake data.
+        use_saved_video: Whether to simulate with saved video data.
 
     """
     # Arrange.
@@ -297,12 +304,26 @@ async def test_fill_metadata(
         # In this case, simulate the absense of the content-length header.
         fill_meta_config.mock_upload_file.headers = {}
 
+    saved_video = None
+    if use_saved_video:
+        # Simulate saved video data.
+        saved_video = faker.object_ref()
+
     # Act.
     got_metadata = await video_metadata.fill_metadata(
-        metadata, video=fill_meta_config.mock_upload_file
+        metadata,
+        video=fill_meta_config.mock_upload_file,
+        saved_video=saved_video,
     )
 
     # Assert.
+    # It should have called the probe function.
+    fill_meta_config.mock_probe_video.assert_called_once_with(
+        fill_meta_config.mock_upload_file
+        if not use_saved_video
+        else saved_video
+    )
+
     # It should have reset the position in the video file after reading.
     fill_meta_config.mock_upload_file.seek.assert_called_once_with(0)
 

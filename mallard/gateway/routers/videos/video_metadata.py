@@ -14,6 +14,7 @@ from loguru import logger
 from ....ffmpeg_utils import find_video_stream
 from ...artifact_metadata import fill_metadata as artifact_fill_metadata
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
+from ...backends.objects.models import ObjectRef
 from .transcoder_client import probe_video
 
 
@@ -119,7 +120,10 @@ class FFProbeReader:
 
 
 async def fill_metadata(
-    metadata: UavVideoMetadata, *, video: UploadFile
+    metadata: UavVideoMetadata,
+    *,
+    video: UploadFile,
+    saved_video: ObjectRef | None = None,
 ) -> UavVideoMetadata:
     """
     Fills the video metadata.
@@ -127,6 +131,9 @@ async def fill_metadata(
     Args:
         metadata: The video metadata to fill in.
         video: The video file.
+        saved_video: If the video is already saved in the object store,
+            we can provide a reference to it. In some cases, we can infer
+            more information from the saved video.
 
     Returns:
         The filled video metadata.
@@ -136,8 +143,11 @@ async def fill_metadata(
 
     # Probe the video.
     probe_results = None
+    video_to_probe = video
+    if saved_video is not None:
+        video_to_probe = saved_video
     try:
-        probe_results = await probe_video(video)
+        probe_results = await probe_video(video_to_probe)
     except HTTPException:
         # In this case, the best thing to do is log the error but continue so
         # things don't *completely* break.

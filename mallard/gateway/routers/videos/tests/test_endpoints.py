@@ -35,6 +35,8 @@ class CreateUavParams:
         mock_background_tasks: The mocked `BackgroundTasks` object to use.
         bucket_id: The ID of the bucket to use for testing.
 
+        mock_fill_metadata: The mocked `fill_metadata` function.
+
     """
 
     mock_file: UploadFile
@@ -42,6 +44,8 @@ class CreateUavParams:
     mock_uuid: mock.Mock
     mock_background_tasks: BackgroundTasks
     bucket_id: str
+
+    mock_fill_metadata: mock.Mock
 
 
 @dataclass(frozen=True, config=ArbitraryTypesConfig)
@@ -93,12 +97,15 @@ def create_uav_params(
     # Create a fake bucket.
     bucket = faker.pystr()
 
+    mock_fill_metadata = mocker.patch(f"{endpoints.__name__}.fill_metadata")
+
     return CreateUavParams(
         mock_file=mock_file,
         mock_metadata=mock_metadata,
         mock_uuid=mock_uuid,
         mock_background_tasks=mock_background_tasks,
         bucket_id=bucket,
+        mock_fill_metadata=mock_fill_metadata,
     )
 
 
@@ -143,9 +150,16 @@ async def test_create_uav_video(
 
     """
     # Arrange.
+    # Make it look like it can fill the metadata.
+    create_uav_params.mock_fill_metadata.return_value = (
+        create_uav_params.mock_metadata
+    )
+
+    empty_metadata = UavVideoMetadata()
+
     # Act.
     response = await endpoints.create_uav_video(
-        metadata=create_uav_params.mock_metadata,
+        metadata=empty_metadata,
         video_data=create_uav_params.mock_file,
         object_store=config.mock_object_store,
         metadata_store=config.mock_metadata_store,
@@ -177,6 +191,13 @@ async def test_create_uav_video(
     )
     config.mock_metadata_store.add.assert_called_once_with(
         object_id=got_video_id, metadata=create_uav_params.mock_metadata
+    )
+
+    # It should have filled the metadata.
+    create_uav_params.mock_fill_metadata.assert_called_once_with(
+        empty_metadata,
+        video=create_uav_params.mock_file,
+        saved_video=got_video_id,
     )
 
     # It should have created the thumbnail.
@@ -219,8 +240,8 @@ async def test_create_uav_video(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "exception",
-    (ObjectOperationError, MetadataOperationError),
-    ids=("object_failure", "metadata_failure"),
+    (MetadataOperationError,),
+    ids=("metadata_failure",),
 )
 async def test_create_uav_video_write_failure(
     config: ConfigForTests,
@@ -238,7 +259,6 @@ async def test_create_uav_video_write_failure(
     """
     # Arrange.
     # Make it look like the operations failed.
-    config.mock_object_store.create_object.side_effect = exception
     config.mock_metadata_store.add.side_effect = exception
 
     # Act and assert.
@@ -252,11 +272,8 @@ async def test_create_uav_video_write_failure(
         )
 
     # Assert
-    # It should have deleted whichever one didn't fail.
-    if exception is ObjectOperationError:
-        config.mock_metadata_store.delete.assert_called_once()
-    else:
-        config.mock_object_store.delete_object.assert_called_once()
+    # It should have deleted the object.
+    config.mock_object_store.delete_object.assert_called_once()
 
 
 @pytest.mark.asyncio

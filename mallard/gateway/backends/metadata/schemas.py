@@ -12,8 +12,8 @@ from typing import Dict, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, root_validator, validator
 
+from ....schemas import ApiModel, GenericApiModel
 from ...fastapi_utils import as_form
-from ...schemas import ApiModel, GenericApiModel
 
 
 @as_form

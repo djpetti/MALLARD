@@ -9,7 +9,7 @@ import pytest
 from faker import Faker
 from pydantic import BaseModel
 
-from mallard.gateway import schemas
+from mallard import schemas
 
 
 class TestApiModel(schemas.ApiModel):

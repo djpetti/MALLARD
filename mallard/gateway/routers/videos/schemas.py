@@ -5,9 +5,9 @@ Schemas used by the endpoints in `videos`.
 
 from typing import List
 
+from ....schemas import ApiModel
 from ...backends.metadata.schemas import UavVideoMetadata
 from ...backends.objects.models import ObjectRef
-from ...schemas import ApiModel
 
 
 class CreateResponse(ApiModel):

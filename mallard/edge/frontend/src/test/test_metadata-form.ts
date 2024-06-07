@@ -173,6 +173,36 @@ describe("metadata-form", () => {
       expect(captureDate.getUTCDate()).toEqual(displayedDate.getUTCDate());
     });
 
+    it("handles a case with a missing capture date", async () => {
+      // Arrange.
+      // Set the capture date in the metadata.
+      const metadata = fakeEditableMetadata();
+      // Make it look like the date is missing.
+      metadata.captureDate = null;
+
+      // Act.
+      metadataForm.state = FormState.READY;
+      metadataForm.metadata = metadata;
+      await metadataForm.updateComplete;
+
+      // Assert.
+      // It should have set a current date value in the field.
+      const mainDiv = getMainDiv();
+      const dateField = mainDiv.querySelector(
+        "#capture_date"
+      ) as HTMLInputElement;
+      // Value of the date field should be the date in ISO format without the time component.
+      const displayedDate = new Date(Date.parse(dateField.value));
+      const currentDate = new Date();
+      expect(currentDate.getUTCFullYear()).toEqual(
+        displayedDate.getUTCFullYear()
+      );
+      expect(currentDate.getUTCMonth()).toEqual(displayedDate.getUTCMonth());
+
+      // It should have updated the internal metadata too.
+      expect(metadataForm.metadata.captureDate).toEqual(dateField.value);
+    });
+
     each([
       ["ground", PlatformType.GROUND],
       ["aerial", PlatformType.AERIAL],

@@ -139,6 +139,7 @@ def _generate_api_client() -> None:
 
         # Generate the API client.
         subprocess.run([npm_path.as_posix(), "run", "api"], check=True)
+        subprocess.run([npm_path.as_posix(), "install"], check=True)
         subprocess.run([npm_path.as_posix(), "ci"], check=True)
 
 

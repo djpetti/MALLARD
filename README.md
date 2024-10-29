@@ -41,6 +41,9 @@ You will be given the chance to specify the following options:
 - `backup`: If true, it will enable the containers necessary for backing up
   data. Enable if you are planning to use MALLARD's [built-in backup
   capabilities](#backing-up)
+- `tempdir`: Specifies a custom location for the temporary directory that
+  MALLARD will use. This can be useful if you have limited disk space,
+  because MALLARD will store large temporary files.
 
 A `docker-compose` file will be created in the repository root, named based
 on the value you set for `config_name`. For instance, if you set

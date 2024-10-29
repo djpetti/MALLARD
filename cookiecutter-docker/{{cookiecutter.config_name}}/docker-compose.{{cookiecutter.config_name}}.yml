@@ -14,6 +14,8 @@ x-local_volumes: &local_volumes
   {% endif %}
     # Logs.
     - ./logs:/logs
+    # Temporary directory
+    - {{cookiecutter.tempdir}}:/tmp
 
 # Portions of the backup services that are the same.volumes:
 x-backup_service_common: &backup_service_common
@@ -155,6 +157,7 @@ services:
       - "{{cookiecutter.host_port}}:8081"
     volumes:
       - ./config/local/nginx:/etc/nginx
+      - {{cookiecutter.tempdir}}:/tmp
       {%- if cookiecutter.proxy_config == "ssl" %}
       - ./config/local/nginx/conf.d/sites-available/mallard.conf:/local-sites-enabled/mallard.conf
       {% else %}

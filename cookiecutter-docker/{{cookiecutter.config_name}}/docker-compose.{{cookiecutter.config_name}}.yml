@@ -157,7 +157,7 @@ services:
       - "{{cookiecutter.host_port}}:8081"
     volumes:
       - ./config/local/nginx:/etc/nginx
-      - {{cookiecutter.tempdir}}:/tmp
+      - {{cookiecutter.tempdir}}/nginx:/var/cache/nginx
       {%- if cookiecutter.proxy_config == "ssl" %}
       - ./config/local/nginx/conf.d/sites-available/mallard.conf:/local-sites-enabled/mallard.conf
       {% else %}

@@ -15,7 +15,7 @@ RUN openssl req -x509 -nodes -days 365 -subj "/C=US/ST=FL/O=BSAIL/CN=uflbsail.ne
 ####
 # gateway_builder image is used for building the gateway service dependencies.
 ####
-FROM python:3.11.1-slim AS gateway_builder
+FROM python:3.13.2-slim AS gateway_builder
 
 # Install poetry.
 RUN apt-get update
@@ -36,7 +36,7 @@ RUN mkdir deps && python -m pip install --prefix=deps -r requirements.txt
 ####
 # service_base image is used as a common base for mallard services.
 ####
-FROM python:3.11.1-slim AS service_base
+FROM python:3.13.2-slim AS service_base
 
 # Run as a non-root user.
 RUN useradd -ms /bin/bash mallard
@@ -82,7 +82,7 @@ WORKDIR /home/mallard/
 # Install Node.
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ENV NVM_DIR=/root/.nvm
-RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 20.5.1
+RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 22.14.0
 
 # Install NPM dependencies.
 RUN cd mallard/edge/frontend && . ~/.nvm/nvm.sh && npm install

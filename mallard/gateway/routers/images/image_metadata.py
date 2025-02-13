@@ -4,16 +4,15 @@ Helper functions for extracting metadata from images.
 
 
 import enum
-import imghdr
+import filetype
 from datetime import datetime, timezone, tzinfo
 from functools import cached_property
-from typing import BinaryIO, Optional, TypeVar
+from typing import Optional
 
 import exifread
 from fastapi import UploadFile
 from loguru import logger
 
-from ...artifact_metadata import MissingLengthError
 from ...artifact_metadata import fill_metadata as artifact_fill_metadata
 from ...backends.metadata.schemas import (
     GeoPoint,
@@ -198,31 +197,6 @@ class ExifReader:
         return GeoPoint(latitude_deg=lat_decimal, longitude_deg=lon_decimal)
 
 
-_JPEG_MAGIC = b"\xff\xd8\xff"
-"""
-JPEG magic header bytes.
-"""
-
-
-def _test_jpeg(header: bytes, _: Optional[BinaryIO]) -> Optional[str]:
-    """
-    Additional test for JPEG images to work around this bug
-    (https://bugs.python.org/issue28591) in `imghdr`.
-
-    Args:
-        header: The 32-byte header data to check.
-
-    Returns:
-        The string "jpeg" if it is a JPEG, or None if it is not.
-
-    """
-    if header.startswith(_JPEG_MAGIC):
-        return "jpeg"
-
-
-imghdr.tests.append(_test_jpeg)
-
-
 async def _check_format(
     metadata: UavImageMetadata, *, image: UploadFile
 ) -> ImageFormat:
@@ -241,7 +215,7 @@ async def _check_format(
         user supplied an expected format that does not match the actual format.
 
     """
-    format_str = imghdr.what(image.file)
+    format_str = filetype.guess_extension(image.file)
     logger.debug("Got format for image {}: '{}'", image.filename, format_str)
 
     # Reset the image file after reading data.

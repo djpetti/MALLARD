@@ -8,7 +8,7 @@ from functools import singledispatch
 from io import BytesIO
 from typing import AsyncIterable, AsyncIterator, Optional, Union
 
-from aiobotocore import get_session
+from aiobotocore.session import get_session
 from aiobotocore.client import AioBaseClient
 from aiobotocore.response import StreamingBody
 from botocore.exceptions import ClientError

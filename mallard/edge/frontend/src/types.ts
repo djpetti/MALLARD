@@ -1,4 +1,4 @@
-import { Dictionary, EntityId } from "@reduxjs/toolkit";
+import { EntityId } from "@reduxjs/toolkit";
 import {
   ObjectType,
   Ordering,
@@ -109,11 +109,11 @@ export interface QueryOptions {
 /**
  * Generic interface for a normalized table.
  */
-interface NormalizedState<EntityType> {
+interface NormalizedState<IdType extends EntityId, EntityType> {
   /** The sorted IDs in the table. */
-  ids: EntityId[];
+  ids: IdType[];
   /** The actual table data, mapping IDs to EntityTypes. */
-  entities: Dictionary<EntityType>;
+  entities: Record<EntityId, EntityType>;
 }
 
 /**
@@ -194,7 +194,8 @@ interface DetailsState {
 /**
  * Represents the state of the home and details pages.
  */
-export interface ImageViewState extends NormalizedState<ArtifactEntity> {
+export interface ImageViewState
+  extends NormalizedState<string, ArtifactEntity> {
   /** Most recent query, possibly still in progress. */
   currentQuery: ImageQuery[];
   /** Options provided for the current query. */
@@ -231,7 +232,7 @@ export interface ImageViewState extends NormalizedState<ArtifactEntity> {
   /** Keys are the names of sections, mapped to "true" if that section is
    * collapsed.
    */
-  collapsedSections: Dictionary<boolean>;
+  collapsedSections: Record<string, boolean>;
 
   /** Whether the metadata editing dialog is currently open. */
   editingDialogOpen: boolean;
@@ -313,7 +314,8 @@ export interface FrontendFileEntity {
 /**
  * Represents the state of the upload flow.
  */
-export interface UploadState extends NormalizedState<FrontendFileEntity> {
+export interface UploadState
+  extends NormalizedState<string, FrontendFileEntity> {
   /** Tracks whether the upload dialog is currently open. */
   dialogOpen: boolean;
   /** True if the user is currently dragging a file. */

@@ -39,17 +39,19 @@ def fill_metadata(
     inferred_fields["size"] = artifact.headers.get("content-length")
     inferred_fields["name"] = artifact.filename
 
-    original_fields = metadata.dict()
-    field_meta = metadata.__fields__
-    update_fields = {}
-    for name, value in original_fields.items():
-        if name in inferred_fields and value == field_meta[name].default:
-            # If it's not specified originally, update it from an inferred
-            # value.
-            update_fields[name] = inferred_fields.get(name)
+    # Find fields in the input that have the default value.
+    default_field_names = set()
+    for name, field in metadata.model_fields.items():
+        value = getattr(metadata, name)
+        if value == field.default:
+            default_field_names.add(name)
 
+    # Replace these fields with inferred values if we have them.
+    update_fields = {}
+    for name in default_field_names & inferred_fields.keys():
+        update_fields[name] = inferred_fields[name]
     logger.debug("Updating metadata with fields {}.", update_fields)
-    filled_metadata = metadata.copy(update=update_fields)
+    filled_metadata = metadata.model_copy(update=update_fields)
 
     if filled_metadata.size is None:
         raise MissingLengthError("No size specified for image upload.")

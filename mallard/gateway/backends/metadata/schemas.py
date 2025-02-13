@@ -10,7 +10,7 @@ import enum
 from datetime import date
 from typing import Dict, Generic, Optional, TypeVar
 
-from pydantic import BaseModel, root_validator, validator
+from pydantic import model_validator, validator, ConfigDict
 
 from ....schemas import ApiModel, GenericApiModel
 from ...fastapi_utils import as_form
@@ -141,8 +141,7 @@ class Metadata(ApiModel):
 
     """
 
-    class Config(ApiModel.Config):
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     size: Optional[int] = None
     name: Optional[str] = None
@@ -203,7 +202,7 @@ class UavVideoMetadata(RasterMetadata):
 
     """
 
-    format: Optional[VideoFormat]
+    format: Optional[VideoFormat] = None
 
     frame_rate: Optional[float] = None
     num_frames: Optional[int] = None
@@ -324,28 +323,19 @@ class ImageQuery(ApiModel):
 
             return max_value
 
-        @root_validator()
-        def at_least_one_side_specified(
-            cls, values: Dict[str, RangeType]
-        ) -> RangeType:  # pragma: no cover
+        @model_validator(mode="after")
+        def at_least_one_side_specified(self) -> RangeType:  # pragma: no cover
             """
             Checks that at least one side of the range is specified.
-
-            Args:
-                values: The previously-validated fields.
 
             Returns:
                 The validated value.
 
             """
-            any_specified = False
-            for v in values.values():
-                any_specified = any_specified or (v is not None)
-
             assert (
-                any_specified
+                self.min_value is not None or self.max_value is not None
             ), "At least one side of the range must be specified."
-            return values
+            return self
 
     class BoundingBox(ApiModel):
         """

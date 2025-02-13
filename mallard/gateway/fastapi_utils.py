@@ -3,11 +3,32 @@ Miscellaneous helper functions for FastAPI.
 """
 import enum
 import inspect
-from typing import Any, Callable, Dict, Type
+from typing import Any, Callable, Dict, Type, cast
 
 from fastapi import Depends, Form
 from pydantic import BaseModel
-from pydantic.fields import ModelField
+from pydantic.fields import Field, FieldInfo
+
+
+def _safe_issubclass(value: Any, class_type: Type[Any]) -> bool:
+    """
+    A version of `issubclass` that doesn't throw an exception if we give it
+    an input that's not a class instance.
+
+    Args:
+        value: The value to check.
+        class_type: The base class type.
+
+    Returns:
+        True if `value` is a subclass of the `class_type`. It will also return
+        false if `value` is not a class instance at all.
+
+    """
+    try:
+        return issubclass(value, class_type)
+    except TypeError:
+        # Not a class instance
+        return False
 
 
 def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
@@ -47,12 +68,13 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
 
     """
 
-    def make_form_parameter(field_: ModelField) -> Any:
+    def make_form_parameter(name_: str, field_: FieldInfo) -> Any:
         """
         Converts a field from a `Pydantic` model to the appropriate `FastAPI`
         parameter type.
 
         Args:
+            name_: The name of the field.
             field_: The field to convert.
 
         Returns:
@@ -60,21 +82,24 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
             the result of `Depends` if it is.
 
         """
-        if issubclass(field_.type_, BaseModel):
+        if _safe_issubclass(field_.annotation, BaseModel):
             # This is a sub-model.
-            assert hasattr(field_.type_, "as_form"), (
-                f"Sub-model class for {field_.name} field must be decorated with"
+            assert hasattr(field_.annotation, "as_form"), (
+                f"Sub-model class for {name_} field must be decorated with"
                 f" `as_form` too."
             )
-            return Depends(field_.type_.as_form)
+            return Depends(field_.annotation.as_form)
         else:
             # This is just a normal field.
-            return Form(field_.default) if not field_.required else Form(...)
+            return (
+                Form(field_.default) if not field_.is_required() else Form(...)
+            )
 
     new_params = []
-    for field in cls.__fields__.values():
-        field_type = field.type_
-        if issubclass(field_type, enum.Enum):
+    for name, field in cls.model_fields.items():
+        field = cast(FieldInfo, field)
+        field_type = field.annotation
+        if _safe_issubclass(field_type, enum.Enum):
             # FastAPI, unfortunately, does not seem to handle enums in form
             # parameters very well. To work around this, we can just ensure
             # that the enum type inherits from str and use str values.
@@ -84,9 +109,9 @@ def as_form(cls: Type[BaseModel]) -> Type[BaseModel]:
             field_type = str
 
         param = inspect.Parameter(
-            field.alias,
+            name,
             inspect.Parameter.POSITIONAL_ONLY,
-            default=make_form_parameter(field),
+            default=make_form_parameter(name, field),
             annotation=field_type,
         )
         new_params.append(param)

@@ -388,14 +388,14 @@ class FillMetadataConfig:
 
     Attributes:
         mock_reader_class: The mocked `ExifReader` class.
-        mock_what: The mocked `imghdr.what` function.
+        mock_guess: The mocked `imghdr.what` function.
         mock_upload_file: The mocked `UploadFile` to use for testing.
 
         image_format: The image format that `imghdr.what` will be set to return.
     """
 
     mock_reader_class: mock.Mock
-    mock_what: mock.Mock
+    mock_guess: mock.Mock
     mock_upload_file: UploadFile
 
     image_format: ImageFormat
@@ -414,7 +414,7 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
     # Mock out the ExifReader class.
     mock_reader_class = mocker.patch(image_metadata.__name__ + ".ExifReader")
     # Mock out the imghdr functions.
-    mock_what = mocker.patch("imghdr.what")
+    mock_guess = mocker.patch("filetype.guess_extension")
 
     # Make the fake ExifReader provide some reasonable results.
     mock_reader = mock_reader_class.return_value
@@ -426,14 +426,14 @@ def fill_meta_config(mocker: MockFixture, faker: Faker) -> FillMetadataConfig:
 
     # Choose a reasonable image format.
     image_format = faker.random_element([f for f in ImageFormat])
-    mock_what.return_value = image_format.value
+    mock_guess.return_value = image_format.value
 
     # Create a fake UploadFile.
     mock_upload_file = faker.upload_file()
 
     return FillMetadataConfig(
         mock_reader_class=mock_reader_class,
-        mock_what=mock_what,
+        mock_guess=mock_guess,
         mock_upload_file=mock_upload_file,
         image_format=image_format,
     )
@@ -499,38 +499,6 @@ async def test_fill_metadata(
             got_metadata.size
             == fill_meta_config.mock_upload_file.headers["content-length"]
         )
-
-
-@pytest.mark.asyncio
-async def test_fill_metadata_naughty_jpeg(
-    local_tz: timezone, faker: Faker
-) -> None:
-    """
-    Tests that `fill_metadata` works when we give it a JPEG image that
-    `imghdr` does not support out-of-the-box.
-
-    Args:
-        local_tz: The local timezone to use.
-        faker: The fixture to use for generating fake data.
-
-    """
-    # Arrange.
-    # Create some fake JPEG-looking data.
-    jpeg_header = b"\xff\xd8\xff"
-    jpeg_contents = jpeg_header + faker.binary()
-    fake_jpeg = faker.upload_file(
-        category="image",
-        contents=jpeg_contents,
-    )
-
-    # Act.
-    got_metadata = await image_metadata.fill_metadata(
-        UavImageMetadata(), image=fake_jpeg, local_tz=local_tz
-    )
-
-    # Assert.
-    # It should have correctly determined the JPEG format.
-    assert got_metadata.format == ImageFormat.JPEG
 
 
 @pytest.mark.asyncio
@@ -602,10 +570,10 @@ async def test_fill_metadata_invalid_format(
     expected_format = fill_meta_config.image_format
     if format_error == FormatError.INDETERMINATE_FORMAT:
         # Make it look like the format could not be determined.
-        fill_meta_config.mock_what.return_value = None
+        fill_meta_config.mock_guess.return_value = None
     elif format_error == FormatError.UNKNOWN_FORMAT:
         # Make it look like the format is not valid.
-        fill_meta_config.mock_what.return_value = "invalid_format"
+        fill_meta_config.mock_guess.return_value = "invalid_format"
     elif format_error == FormatError.UNEXPECTED_FORMAT:
         # Make it look like this format was not what we expected.
         acceptable_values = {f for f in ImageFormat}

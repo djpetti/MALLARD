@@ -469,10 +469,10 @@ function findSurroundingText(
   const searchField = (fieldText?: string) =>
     findTextInField(searchString, fieldText ?? "", desiredLength) ?? matchText;
 
-  matchText = searchField(metadata.name);
+  matchText = searchField(metadata.name ?? undefined);
   matchText = searchField(metadata.notes);
-  matchText = searchField(metadata.camera);
-  matchText = searchField(metadata.sessionName);
+  matchText = searchField(metadata.camera ?? undefined);
+  matchText = searchField(metadata.sessionName ?? undefined);
 
   return matchText as string;
 }
@@ -564,7 +564,7 @@ export function updateMenu(searchString: string): AutocompleteMenu {
   }
   // Use the second-to-last token, since the very last one is just the
   // end token.
-  const lastToken = tokens.at(-2) as Token;
+  const lastToken = tokens[tokens.length - 2] as Token;
 
   for (const predicate of PREDICATE_ORDER) {
     if (predicate.couldMatchDirectives(lastToken)) {
@@ -604,7 +604,7 @@ export function completeToken(searchString: string, nextToken: string): string {
     // Empty string.
     return nextToken;
   }
-  const maybePartialToken = (tokens.at(-2) as Token).value;
+  const maybePartialToken = (tokens[tokens.length - 2] as Token).value;
 
   // Remove the ending token initially.
   tokens.pop();
@@ -642,7 +642,9 @@ export function completeSearch(
   }
 
   const searchStrings = predicates.map((p) => p.searchString);
-  const maybePartialSearchString = searchStrings.at(-1) as string;
+  const maybePartialSearchString = searchStrings[
+    searchStrings.length - 1
+  ] as string;
 
   // Check if the completion overlaps with the search string of this predicate.
   if (

@@ -5,7 +5,7 @@ Schema definitions common to all locations.
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic.generics import GenericModel
 
 
@@ -27,14 +27,12 @@ def _snake_to_camel_case(snake: str) -> str:
     return f"{first_word}{other_words}"
 
 
-class _ApiModelConfig:
-    """
-    Default config class for ApiModels.
-    """
-
-    alias_generator = _snake_to_camel_case
-    allow_population_by_field_name = True
-    allow_mutation = False
+API_MODEL_CONFIG = ConfigDict(
+    alias_generator=_snake_to_camel_case, populate_by_name=True, frozen=True
+)
+"""
+Default config class for ApiModels.
+"""
 
 
 class ApiModel(BaseModel):
@@ -43,14 +41,14 @@ class ApiModel(BaseModel):
     the API.
     """
 
-    Config = _ApiModelConfig
+    model_config = API_MODEL_CONFIG
 
     def json(self, *args: Any, by_alias: bool = True, **kwargs: Any) -> str:
         return super().json(*args, by_alias=by_alias, **kwargs)
 
 
 class GenericApiModel(GenericModel):
-    Config = _ApiModelConfig
+    model_config = API_MODEL_CONFIG
 
     def json(self, *args: Any, by_alias: bool = True, **kwargs: Any) -> str:
         return super().json(*args, by_alias=by_alias, **kwargs)

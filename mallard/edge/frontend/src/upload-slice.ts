@@ -13,7 +13,6 @@ import {
   createAsyncThunk,
   createEntityAdapter,
   createSlice,
-  EntityId,
 } from "@reduxjs/toolkit";
 import {
   batchUpdateMetadata,
@@ -356,7 +355,7 @@ export const thunkInferMetadata = createAsyncThunk(
  * @param {RootState} state The current state.
  */
 async function updateMetadataFromState(
-  fileIds: EntityId[],
+  fileIds: string[],
   state: RootState
 ): Promise<void> {
   // Get the backend IDs for all the files.
@@ -485,7 +484,7 @@ export const uploadSlice = createSlice({
     });
     // The user selected some new files that must be processed.
     builder.addCase(
-      addSelectedFiles.type,
+      addSelectedFiles,
       (state, action: AddSelectedFilesAction) => {
         // Add all the uploaded files.
         uploadAdapter.addMany(state, action.payload);

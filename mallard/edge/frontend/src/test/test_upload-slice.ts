@@ -1,5 +1,3 @@
-import configureStore, { MockStore, MockStoreCreator } from "redux-mock-store";
-import thunk from "redux-thunk";
 import {
   fakeEditableMetadata,
   fakeFile,
@@ -33,7 +31,7 @@ import {
   UploadState,
   UploadWorkflowStatus,
 } from "../types";
-import { AsyncThunk } from "@reduxjs/toolkit";
+import { AsyncThunk, Store } from "@reduxjs/toolkit";
 import each from "jest-each";
 import { thunkClearImageView } from "../thumbnail-grid-slice";
 import imageBlobReduce, {
@@ -50,6 +48,7 @@ import {
   inferVideoMetadata,
 } from "../api-client";
 import MockedFn = jest.MockedFn;
+import thunk from "redux-thunk";
 
 // Mock out the thumbnailGridSlice.
 jest.mock("../thumbnail-grid-slice", () => ({
@@ -92,15 +91,10 @@ const mockRevokeObjectUrl = jest.fn();
 global.URL.revokeObjectURL = mockRevokeObjectUrl;
 
 describe("upload-slice action creators", () => {
-  /** Factory function for a mocked Redux store. */
-  let mockStoreCreator: MockStoreCreator;
   /** Stores the mocked global instance of imageBlobReduce. */
   let mockImageBlobReduceInstance: jest.MockedObject<ImageBlobReduce>;
 
   beforeAll(() => {
-    // Initialize the mock store factory.
-    mockStoreCreator = configureStore([thunk]);
-
     // When we reset the mocks, it will destroy the record of any
     // global instances of mocked classes that we created, so save
     // them here.
@@ -127,7 +121,7 @@ describe("upload-slice action creators", () => {
     /** A fake set of uploaded files for testing. */
     let idsToFiles: Map<string, File>;
     /** A fake Redux store to use for testing. */
-    let store: MockStore;
+    let store: Store;
 
     beforeEach(() => {
       // Initialize a fake store with valid state.
@@ -140,7 +134,7 @@ describe("upload-slice action creators", () => {
 
       state.uploads.ids = [uploadFile.id];
       state.uploads.entities[uploadFile.id] = uploadFile;
-      store = mockStoreCreator(state);
+      store = configureStore();
     });
 
     /**

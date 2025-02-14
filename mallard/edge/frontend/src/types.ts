@@ -336,11 +336,3 @@ export interface UploadState
   /** Overall status of the upload process. */
   status: UploadWorkflowStatus;
 }
-
-/**
- * Represents the type of the root state structure.
- */
-export interface RootState {
-  imageView: ImageViewState;
-  uploads: UploadState;
-}

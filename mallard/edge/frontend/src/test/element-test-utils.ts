@@ -12,7 +12,6 @@ import {
   ImageQuery,
   MetadataInferenceStatus,
   RequestState,
-  RootState,
   Suggestions,
   UploadWorkflowStatus,
 } from "../types";
@@ -34,6 +33,7 @@ import { EntityId } from "@reduxjs/toolkit";
 import { createArtifactEntityId } from "../thumbnail-grid-slice";
 import { FiefUserInfo } from "@fief/fief";
 import { ImageWithStatus } from "../thumbnail-grid";
+import { RootState } from "../store";
 
 /**
  * Gets the root node in the shadow DOM for an element.

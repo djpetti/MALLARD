@@ -3,7 +3,6 @@ import {
   filterOnlyEditable,
   FrontendFileEntity,
   MetadataInferenceStatus,
-  RootState,
   UploadState,
   UploadWorkflowStatus,
 } from "./types";
@@ -32,6 +31,7 @@ import {
 import { thunkClearImageView } from "./thumbnail-grid-slice";
 import pica from "pica";
 import imageBlobReduce from "image-blob-reduce";
+import { RootState } from "./store";
 
 const uploadAdapter = createEntityAdapter<FrontendFileEntity>();
 const initialState: UploadState = uploadAdapter.getInitialState({

@@ -27,11 +27,10 @@ import {
   filterOnlyEditable,
   FrontendFileEntity,
   MetadataInferenceStatus,
-  RootState,
   UploadState,
   UploadWorkflowStatus,
 } from "../types";
-import { AsyncThunk, Store } from "@reduxjs/toolkit";
+import { Store } from "@reduxjs/toolkit";
 import each from "jest-each";
 import { thunkClearImageView } from "../thumbnail-grid-slice";
 import imageBlobReduce, {
@@ -39,7 +38,7 @@ import imageBlobReduce, {
   ImageBlobReduceStatic,
 } from "image-blob-reduce";
 import { faker } from "@faker-js/faker";
-import { ObjectType } from "mallard-api";
+import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 import {
   batchUpdateMetadata,
   createImage,
@@ -47,16 +46,8 @@ import {
   inferImageMetadata,
   inferVideoMetadata,
 } from "../api-client";
+import { RootState, setupStore } from "../store";
 import MockedFn = jest.MockedFn;
-import thunk from "redux-thunk";
-
-// Mock out the thumbnailGridSlice.
-jest.mock("../thumbnail-grid-slice", () => ({
-  thunkClearImageView: jest.fn(),
-}));
-const mockClearImageView = thunkClearImageView as jest.MockedFn<
-  typeof thunkClearImageView
->;
 
 // Mock out the gateway API.
 jest.mock("../api-client", () => ({
@@ -117,7 +108,9 @@ describe("upload-slice action creators", () => {
     /** A fake state to use for testing. */
     let state: RootState;
     /** A fake upload file to use for testing. */
-    let uploadFile: FrontendFileEntity;
+    let awaitingFile: FrontendFileEntity;
+    /** A fake uploaded file to use for testing. */
+    let doneFile: FrontendFileEntity;
     /** A fake set of uploaded files for testing. */
     let idsToFiles: Map<string, File>;
     /** A fake Redux store to use for testing. */
@@ -129,30 +122,22 @@ describe("upload-slice action creators", () => {
       state.uploads.dialogOpen = true;
 
       // The state should have a single pending file.
-      uploadFile = fakeFrontendFileEntity(undefined, objectType);
-      idsToFiles = new Map([[uploadFile.id, fakeFile()]]);
+      awaitingFile = fakeFrontendFileEntity(undefined, objectType);
+      awaitingFile.status = FileStatus.AWAITING_UPLOAD;
+      idsToFiles = new Map([[awaitingFile.id, fakeFile()]]);
+      state.uploads.uploadsInProgress = 1;
 
-      state.uploads.ids = [uploadFile.id];
-      state.uploads.entities[uploadFile.id] = uploadFile;
-      store = configureStore();
+      // Also, make it look like we have a done file.
+      doneFile = fakeFrontendFileEntity();
+      doneFile.status = FileStatus.COMPLETE;
+      state.uploads.uploadsCompleted = 1;
+
+      state.uploads.ids = [awaitingFile.id, doneFile.id];
+      state.uploads.entities[awaitingFile.id] = awaitingFile;
+      state.uploads.entities[doneFile.id] = doneFile;
+
+      store = setupStore(state);
     });
-
-    /**
-     * @brief Checks that an `AsyncThunk` has dispatched the lifecycle actions.
-     * @param {AsyncThunk} thunk The thunk to check.
-     */
-    function checkDispatchedActions(thunk: AsyncThunk<any, any, any>): void {
-      const actions = store.getActions();
-      expect(actions).toHaveLength(2);
-
-      // Check the pending action.
-      const pendingAction = actions[0];
-      expect(pendingAction.type).toEqual(`${thunk.typePrefix}/pending`);
-
-      // Check the fulfilled action.
-      const fulfilledAction = actions[1];
-      expect(fulfilledAction.type).toEqual(`${thunk.typePrefix}/fulfilled`);
-    }
 
     it("creates an uploadFile action", async () => {
       // Arrange.
@@ -167,20 +152,31 @@ describe("upload-slice action creators", () => {
       uploadFunction.mockResolvedValue(newFileId);
 
       // Act.
-      await thunkUploadFile({ fileId: uploadFile.id, idsToFiles: idsToFiles })(
-        store.dispatch,
-        store.getState,
-        {}
-      );
+      const uploadFilePromise = thunkUploadFile({
+        fileId: awaitingFile.id,
+        idsToFiles: idsToFiles,
+      })(store.dispatch, store.getState, {});
 
       // Assert.
-      // It should have dispatched the lifecycle actions.
-      checkDispatchedActions(thunkUploadFile);
+      // It should have modified the status of the pending file.
+      let newState: UploadState = store.getState().uploads;
+      expect(newState.entities[awaitingFile.id]?.status).toEqual(
+        FileStatus.UPLOADING
+      );
+      // It should not have changed the status of the complete file.
+      expect(newState.entities[doneFile.id]?.status).toEqual(
+        FileStatus.COMPLETE
+      );
 
+      // Act.
+      // Wait for the upload to finish.
+      await uploadFilePromise;
+
+      // Assert.
       // It should have uploaded the image.
-      const fakeFile = idsToFiles.get(uploadFile.id) as File;
+      const fakeFile = idsToFiles.get(awaitingFile.id) as File;
       expect(uploadFunction).toHaveBeenCalledTimes(1);
-      expect(uploadFunction).toBeCalledWith(
+      expect(uploadFunction).toHaveBeenCalledWith(
         fakeFile,
         {
           name: fakeFile.name,
@@ -197,41 +193,56 @@ describe("upload-slice action creators", () => {
       const progress = faker.datatype.number({ min: 0, max: 100 });
       progressCallback(progress);
 
-      expect(store.getActions()).toHaveLength(3);
-      const updateProgressAction = store.getActions()[2];
-      expect(updateProgressAction.type).toEqual(updateProgress.type);
-      expect(updateProgressAction.payload).toEqual({
-        id: uploadFile.id,
-        progress,
-      });
+      newState = store.getState().uploads;
+
+      // It should have modified the status of the pending file.
+      expect(newState.entities[awaitingFile.id]?.status).toEqual(
+        FileStatus.COMPLETE
+      );
+      // It should not have changed the status of the complete file.
+      expect(newState.entities[doneFile.id]?.status).toEqual(
+        FileStatus.COMPLETE
+      );
+
+      // It should have decremented the number of uploads in progress.
+      expect(newState.uploadsInProgress).toEqual(0);
+      // It should have incremented the number of completed uploads.
+      expect(newState.uploadsCompleted).toEqual(2);
     });
 
     it("creates an inferMetadata action", async () => {
       // Arrange.
       // Inference must not have been started yet for this to succeed.
       state.uploads.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
+      // Make it look like we have no metadata yet.
+      state.uploads.metadata = null;
+      store = setupStore(state);
 
       // Make it look like the inference request succeeds.
+      let metadata: UavVideoMetadata | UavImageMetadata = fakeImageMetadata();
       if (objectType === ObjectType.IMAGE) {
-        const metadata = fakeImageMetadata();
         mockInferImageMetadata.mockResolvedValue(metadata);
       } else if (objectType === ObjectType.VIDEO) {
-        const metadata = fakeVideoMetadata();
+        metadata = fakeVideoMetadata();
         mockInferVideoMetadata.mockResolvedValue(metadata);
       }
 
       // Act.
-      await thunkInferMetadata({
-        fileId: uploadFile.id,
+      const inferMetadataPromise = thunkInferMetadata({
+        fileId: awaitingFile.id,
         idsToFiles: idsToFiles,
       })(store.dispatch, store.getState, {});
 
-      // Assert.
-      // It should have dispatched the lifecycle actions.
-      checkDispatchedActions(thunkInferMetadata);
+      // It should have updated the metadata inference status.
+      let newState: UploadState = store.getState().uploads;
+      expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.LOADING);
 
+      // Act.
+      await inferMetadataPromise;
+
+      // Assert.
       // It should have inferred the metadata.
-      const fakeFile = idsToFiles.get(uploadFile.id);
+      const fakeFile = idsToFiles.get(awaitingFile.id);
       if (objectType === ObjectType.IMAGE) {
         expect(mockInferImageMetadata).toHaveBeenCalledWith(
           fakeFile,
@@ -243,27 +254,47 @@ describe("upload-slice action creators", () => {
           expect.anything()
         );
       }
+
+      newState = store.getState().uploads;
+      expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.COMPLETE);
+      expect(newState.metadata).toEqual(filterOnlyEditable(metadata));
     });
 
     it("does not dispatch inferMetadata if inference is in-progress", async () => {
       // Arrange.
       // Make it look like inference has started already.
       state.uploads.metadataStatus = MetadataInferenceStatus.LOADING;
+      store = setupStore(state);
 
       // Act.
       await thunkInferMetadata({
-        fileId: uploadFile.id,
+        fileId: awaitingFile.id,
         idsToFiles: idsToFiles,
       })(store.dispatch, store.getState, {});
 
       // Assert.
-      // It should not have dispatched any actions.
-      expect(store.getActions()).toHaveLength(0);
+      // It should have done nothing.
+      const newState = store.getState();
+      expect(newState).toEqual(state);
     });
 
     it("creates a preProcessFiles action", async () => {
       // Arrange.
-      const fileIds = state.uploads.ids as string[];
+      // Add some pending files to the state.
+      const file1 = fakeFrontendFileEntity(FileStatus.PENDING, objectType);
+      const file2 = fakeFrontendFileEntity(FileStatus.PENDING, objectType);
+      const state = fakeState();
+      const fileIds = [file1.id, file2.id];
+      state.uploads.ids = fileIds;
+      state.uploads.entities[file1.id] = file1;
+      state.uploads.entities[file2.id] = file2;
+      store = setupStore(state);
+
+      // Create fake files.
+      idsToFiles = new Map([
+        [file1.id, fakeFile()],
+        [file2.id, fakeFile()],
+      ]);
 
       // Make it look like it produces a valid thumbnail blob.
       const mockToBlob = mockImageBlobReduceInstance.toBlob;
@@ -275,36 +306,57 @@ describe("upload-slice action creators", () => {
       mockCreateObjectUrl.mockReturnValue(thumbnailUrl);
 
       // Act.
-      await thunkPreProcessFiles({ fileIds, idsToFiles })(
+      const preProcessPromise = thunkPreProcessFiles({ fileIds, idsToFiles })(
         store.dispatch,
         store.getState,
         {}
       );
 
       // Assert.
-      // It should have dispatched the lifecycle actions.
-      checkDispatchedActions(thunkPreProcessFiles);
+      // It should have updated the status of both files to pre-processing.
+      let newState: UploadState = store.getState().uploads;
+      expect(newState.entities[file1.id]?.status).toEqual(
+        FileStatus.PRE_PROCESSING
+      );
+      expect(newState.entities[file2.id]?.status).toEqual(
+        FileStatus.PRE_PROCESSING
+      );
 
+      // Act.
+      await preProcessPromise;
+
+      // Assert.
       if (objectType === ObjectType.IMAGE) {
         // It should have created thumbnails for the images.
-        expect(mockToBlob).toHaveBeenCalledTimes(1);
-        const fakeFileData = idsToFiles.get(uploadFile.id) as File;
-        expect(mockToBlob).toHaveBeenCalledWith(
-          fakeFileData,
-          expect.anything()
-        );
+        expect(mockToBlob).toHaveBeenCalledTimes(2);
+        for (const fileId of fileIds) {
+          const fakeFileData = idsToFiles.get(fileId) as File;
+          expect(mockToBlob).toHaveBeenCalledWith(
+            fakeFileData,
+            expect.anything()
+          );
+        }
 
-        expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+        expect(URL.createObjectURL).toHaveBeenCalledTimes(2);
         expect(URL.createObjectURL).toHaveBeenCalledWith(thumbnailBlob);
       }
 
-      // It should have returned the correct results.
-      expect(store.getActions()[1].payload).toEqual([
-        {
-          id: uploadFile.id,
-          dataUrl: objectType === ObjectType.IMAGE ? thumbnailUrl : null,
-        },
-      ]);
+      // Check that the file status was set correctly.
+      newState = store.getState().uploads;
+      expect(newState.entities[file1.id]?.status).toEqual(
+        FileStatus.AWAITING_UPLOAD
+      );
+      expect(newState.entities[file2.id]?.status).toEqual(
+        FileStatus.AWAITING_UPLOAD
+      );
+      if (objectType == ObjectType.IMAGE) {
+        // We only have thumbnails for images right now.
+        expect(newState.entities[file1.id]?.thumbnailUrl).toEqual(thumbnailUrl);
+        expect(newState.entities[file2.id]?.thumbnailUrl).toEqual(thumbnailUrl);
+      } else {
+        expect(newState.entities[file1.id]?.thumbnailUrl).toBeNull();
+        expect(newState.entities[file2.id]?.thumbnailUrl).toBeNull();
+      }
     });
 
     each([
@@ -328,12 +380,12 @@ describe("upload-slice action creators", () => {
         state.uploads.metadataChanged = hasNewMetadata;
         state.uploads.metadata = metadata;
 
-        const store = mockStoreCreator(state);
+        const store = setupStore(state);
 
         // Use a dummy action here to simulate how this thunk works.
-        mockClearImageView.mockReturnValue((dispatch) => {
-          dispatch({ type: "thunkClearImageView", payload: undefined });
-        });
+        // mockClearImageView.mockReturnValue((dispatch) => {
+        //   dispatch({ type: "thunkClearImageView", payload: undefined });
+        // });
 
         // Act.
         await thunkFinishUpload()(
@@ -363,15 +415,6 @@ describe("upload-slice action creators", () => {
         expect(mockRevokeObjectUrl).toHaveBeenCalledWith(
           uploadFile.thumbnailUrl
         );
-
-        // It should have dispatched the action.
-        const actions = store.getActions();
-        expect(actions).toHaveLength(4);
-        // It should dispatch the pending action before anything.
-        expect(actions[0].type).toEqual(thunkFinishUpload.pending.type);
-        expect(actions[1].type).toEqual(dialogClosed.type);
-        expect(actions[2].type).toEqual("thunkClearImageView");
-        expect(actions[3].type).toEqual(thunkFinishUpload.fulfilled.type);
       }
     );
   });
@@ -508,104 +551,6 @@ describe("upload-slice reducers", () => {
     );
   });
 
-  it("handles an uploadFile/pending action", () => {
-    // Arrange.
-    const state: UploadState = fakeState().uploads;
-    // Make it look like we have a pending file.
-    const awaitingFile = fakeFrontendFileEntity();
-    awaitingFile.status = FileStatus.AWAITING_UPLOAD;
-    const doneFile = fakeFrontendFileEntity();
-    doneFile.status = FileStatus.COMPLETE;
-    state.ids = [awaitingFile.id, doneFile.id];
-    state.entities[awaitingFile.id] = awaitingFile;
-    state.entities[doneFile.id] = doneFile;
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkUploadFile.typePrefix + "/pending",
-      meta: { arg: { fileId: awaitingFile.id } },
-    });
-
-    // Assert.
-    // It should have modified the status of the pending file.
-    expect(newState.entities[awaitingFile.id]?.status).toEqual(
-      FileStatus.UPLOADING
-    );
-    // It should not have changed the status of the complete file.
-    expect(newState.entities[doneFile.id]?.status).toEqual(FileStatus.COMPLETE);
-  });
-
-  it("handles an uploadFile/fulfilled action", () => {
-    // Arrange.
-    const state: UploadState = fakeState().uploads;
-    // Make it look like we have a processing file.
-    const processingFile = fakeFrontendFileEntity();
-    processingFile.status = FileStatus.UPLOADING;
-    const doneFile = fakeFrontendFileEntity();
-    doneFile.status = FileStatus.COMPLETE;
-    state.ids = [processingFile.id, doneFile.id];
-    state.entities[processingFile.id] = processingFile;
-    state.entities[doneFile.id] = doneFile;
-
-    state.uploadsInProgress = 1;
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkUploadFile.typePrefix + "/fulfilled",
-      meta: { arg: { fileId: processingFile.id } },
-    });
-
-    // Assert.
-    // It should have modified the status of the pending file.
-    expect(newState.entities[processingFile.id]?.status).toEqual(
-      FileStatus.COMPLETE
-    );
-    // It should not have changed the status of the complete file.
-    expect(newState.entities[doneFile.id]?.status).toEqual(FileStatus.COMPLETE);
-
-    // It should have decremented the number of uploads in progress.
-    expect(newState.uploadsInProgress).toEqual(0);
-    // It should have incremented the number of completed uploads.
-    expect(newState.uploadsCompleted).toEqual(1);
-  });
-
-  it("handles an inferMetadata/pending action", () => {
-    // Arrange.
-    const state: UploadState = fakeState().uploads;
-    // Make it look like we have not started metadata inference.
-    state.metadataStatus = MetadataInferenceStatus.NOT_STARTED;
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkInferMetadata.typePrefix + "/pending",
-    });
-
-    // Assert.
-    // It should have updated the metadata inference status.
-    expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.LOADING);
-  });
-
-  it("handles an inferMetadata/fulfilled action", () => {
-    // Arrange.
-    const state: UploadState = fakeState().uploads;
-    // Make it look like we have started metadata inference.
-    state.metadataStatus = MetadataInferenceStatus.LOADING;
-    // Make it look like we have no metadata yet.
-    state.metadata = null;
-
-    const metadata = fakeImageMetadata();
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkInferMetadata.typePrefix + "/fulfilled",
-      payload: metadata,
-    });
-
-    // Assert.
-    expect(newState.metadataStatus).toEqual(MetadataInferenceStatus.COMPLETE);
-    expect(newState.metadata).toEqual(filterOnlyEditable(metadata));
-  });
-
   it("handles an addSelectedFiles action", () => {
     // Arrange.
     // Create some files to process.
@@ -634,71 +579,6 @@ describe("upload-slice reducers", () => {
     // It should have marked the uploads as in-progress.
     expect(newState.uploadsInProgress).toEqual(2);
     expect(newState.status).toEqual(UploadWorkflowStatus.UPLOADING);
-  });
-
-  it("handles a preProcessFiles/pending action", () => {
-    // Arrange.
-    const file1 = fakeFrontendFileEntity();
-    file1.status = FileStatus.PENDING;
-    const file2 = fakeFrontendFileEntity();
-    file2.status = FileStatus.PENDING;
-    const state: UploadState = fakeState().uploads;
-    const fileIds = [file1.id, file2.id];
-    state.ids = fileIds;
-    state.entities[file1.id] = file1;
-    state.entities[file2.id] = file2;
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkPreProcessFiles.pending.type,
-      meta: { arg: { fileIds } },
-    });
-
-    // Assert.
-    // It should have updated the status of both files to pre-processing.
-    expect(newState.entities[file1.id]?.status).toEqual(
-      FileStatus.PRE_PROCESSING
-    );
-    expect(newState.entities[file2.id]?.status).toEqual(
-      FileStatus.PRE_PROCESSING
-    );
-  });
-
-  it("handles a preProcessFiles/fulfilled action", () => {
-    // Arrange.
-    const file1 = fakeFrontendFileEntity();
-    file1.status = FileStatus.PRE_PROCESSING;
-    const file2 = fakeFrontendFileEntity();
-    file2.status = FileStatus.PRE_PROCESSING;
-    const state: UploadState = fakeState().uploads;
-    state.ids = [file1.id, file2.id];
-    state.entities[file1.id] = file1;
-    state.entities[file2.id] = file2;
-
-    const processedFiles = [
-      { id: file1.id, dataUrl: faker.internet.url() },
-      { id: file2.id, dataUrl: faker.internet.url() },
-    ];
-
-    // Act.
-    const newState = uploadReducer(state, {
-      type: thunkPreProcessFiles.fulfilled.type,
-      payload: processedFiles,
-    });
-
-    // Assert.
-    expect(newState.entities[file1.id]?.status).toEqual(
-      FileStatus.AWAITING_UPLOAD
-    );
-    expect(newState.entities[file1.id]?.thumbnailUrl).toEqual(
-      processedFiles[0].dataUrl
-    );
-    expect(newState.entities[file2.id]?.status).toEqual(
-      FileStatus.AWAITING_UPLOAD
-    );
-    expect(newState.entities[file2.id]?.thumbnailUrl).toEqual(
-      processedFiles[1].dataUrl
-    );
   });
 
   it(`handles a ${thunkFinishUpload.pending.type} action`, () => {

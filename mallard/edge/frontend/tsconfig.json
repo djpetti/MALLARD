@@ -3,7 +3,7 @@
   "compilerOptions": {
     "target": "es2018",
     "module": "es2015",
-    "lib": ["es2017", "dom", "dom.iterable"],
+    "lib": ["es2020", "dom", "dom.iterable"],
     "rootDir": "./src",
     "outDir": "./build",
     "typeRoots": ["node_modules/@types", "ambient-types"],

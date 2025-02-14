@@ -13,7 +13,6 @@ import {
   ImageViewState,
   QueryOptions,
   RequestState,
-  RootState,
 } from "./types";
 import {
   batchUpdateMetadata,
@@ -45,6 +44,7 @@ import {
 } from "./autocomplete";
 import { downloadArtifactZip, makeArtifactUrlList } from "./downloads";
 import { chunk } from "lodash";
+import { RootState } from "./store";
 
 // WORKAROUND for immer.js esm
 // (see https://github.com/immerjs/immer/issues/557)
@@ -145,8 +145,9 @@ function createDefaultEntity(artifact: AddArtifactsReturn): ArtifactEntity {
   };
 }
 
-const thumbnailGridAdapter = createEntityAdapter<ArtifactEntity>({
-  selectId: (entity) => createArtifactEntityId(entity.backendId.id),
+const thumbnailGridAdapter = createEntityAdapter({
+  selectId: (entity: ArtifactEntity) =>
+    createArtifactEntityId(entity.backendId.id),
 });
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQuery: [],
@@ -507,7 +508,7 @@ export const thunkLoadMetadata = createAsyncThunk(
  * @param {RootState} state The current state.
  * @return {EntityId[]} The frontend IDs of the selected images.
  */
-function getSelectedImageIds(state: RootState): EntityId[] {
+function getSelectedImageIds(state: RootState): string[] {
   return thumbnailGridSelectors
     .selectIds(state)
     .filter((id) => thumbnailGridSelectors.selectById(state, id)?.isSelected);
@@ -700,13 +701,13 @@ export function thunkTextSearch(searchString: string): ThunkResult<void> {
 /**
  * Thunk for clearing loaded full-sized images. It will
  * handle releasing the memory.
- * @param {(EntityId | undefined)[]} imageIds The entity IDs of the images to
+ * @param {(string | undefined)[]} imageIds The entity IDs of the images to
  *  clear.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
  */
 export function thunkClearFullSizedImages(
-  imageIds: (EntityId | undefined)[]
+  imageIds: (string | undefined)[]
 ): ThunkResult<void> {
   return (dispatch, getState) => {
     const state: RootState = getState();
@@ -737,13 +738,13 @@ export function thunkClearFullSizedImages(
 /**
  * Thunk for clearing loaded thumbnail images. It will handle releasing the
  * memory.
- * @param {(EntityId | undefined)[]} imageIds The entity IDs of the image to
+ * @param {(string | undefined)[]} imageIds The entity IDs of the image to
  *  clear.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
  */
 export function thunkClearThumbnails(
-  imageIds: (EntityId | undefined)[]
+  imageIds: (string | undefined)[]
 ): ThunkResult<void> {
   return (dispatch, getState) => {
     const state: RootState = getState();
@@ -774,11 +775,11 @@ export function thunkClearThumbnails(
 /**
  * Removes any loaded images or thumbnails for these entities,
  * significantly reducing memory usage.
- * @param {EntityId[]} imageIds The IDs of the entities to remove.
+ * @param {string[]} imageIds The IDs of the entities to remove.
  * @return {ThunkResult} Does not actually return anything, because it
  * simply dispatches other actions.
  */
-export function thunkClearEntities(imageIds: EntityId[]): ThunkResult<void> {
+export function thunkClearEntities(imageIds: string[]): ThunkResult<void> {
   return (dispatch) => {
     // Free the associated memory.
     dispatch(thunkClearFullSizedImages(imageIds));
@@ -820,7 +821,7 @@ export function thunkSelectAll(select: boolean): ThunkResult<void> {
 
 /**
  * Thunk for selecting/deselecting multiple images.
- * @param {EntityId[]} imageIds The image IDs to select or deselect.
+ * @param {string[]} imageIds The image IDs to select or deselect.
  * @param {boolean} select True to select, false to deselect.
  * @return {ThunkResult} Does not actually return anything, because it
  *  simply dispatches other actions.
@@ -829,7 +830,7 @@ export function thunkSelectImages({
   imageIds,
   select,
 }: {
-  imageIds: EntityId[];
+  imageIds: string[];
   select: boolean;
 }): ThunkResult<void> {
   return (dispatch, getState) => {
@@ -1107,7 +1108,7 @@ export const thumbnailGridSlice = createSlice({
       thumbnailGridAdapter.updateMany(
         state,
         updatedIds.map((id) => ({
-          id: id,
+          id: id as string,
           changes: { metadata: metadata },
         }))
       );

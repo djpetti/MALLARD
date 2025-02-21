@@ -6,14 +6,13 @@ import {
   fakeVideoMetadata,
   getShadowRoot,
 } from "./element-test-utils";
-import { RootState } from "../types";
 import { IconButton } from "@material/mwc-icon-button";
 import {
   createArtifactEntityId,
   thunkSelectImages,
 } from "../thumbnail-grid-slice";
 import each from "jest-each";
-import store from "../store";
+import store, { RootState } from "../store";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
 

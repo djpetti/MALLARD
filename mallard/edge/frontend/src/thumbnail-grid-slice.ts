@@ -1099,19 +1099,10 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We completed bulk metadata editing.
-    builder.addCase(thunkUpdateSelectedMetadata.fulfilled, (state, action) => {
+    builder.addCase(thunkUpdateSelectedMetadata.fulfilled, (state) => {
       state.metadataEditingState = RequestState.SUCCEEDED;
-
-      // Also update the frontend state with new metadata.
-      const updatedIds = action.payload;
-      const metadata = action.meta.arg;
-      thumbnailGridAdapter.updateMany(
-        state,
-        updatedIds.map((id) => ({
-          id: id as string,
-          changes: { metadata: metadata },
-        }))
-      );
+      // No need to update the metadata, since the image view state will be
+      // cleared and reloaded from the server.
     });
 
     // We initiated a new autocomplete query.
@@ -1141,7 +1132,11 @@ export const thumbnailGridSlice = createSlice({
 
     // We initiated thumbnail loading.
     builder.addCase(thunkLoadThumbnailsChunk.pending, (state, action) => {
-      const updates = action.meta.arg.map((id) => ({
+      // Filter only IDs that actually need to be loaded.
+      const loadIds = action.meta.arg.filter(
+        (id) => state.entities[id].thumbnailStatus == ArtifactStatus.NOT_LOADED
+      );
+      const updates = loadIds.map((id) => ({
         id: id,
         changes: {
           thumbnailStatus: ArtifactStatus.LOADING,

@@ -3,10 +3,10 @@ import Avatar from "avatar-initials";
 import { query, state } from "lit/decorators.js";
 import { getUserInfo, getUserProfileUrl, logout } from "./api-client";
 import { md5 } from "js-md5";
-import { toRgb } from "colors-helper-tools/dist/src/utils";
 import "@material/mwc-menu";
 import "@material/mwc-icon";
 import { Menu } from "@material/mwc-menu";
+import { toRgb } from "colors-helper-tools";
 
 /**
  * Shows an icon with the avatar of the current user, and displays a menu

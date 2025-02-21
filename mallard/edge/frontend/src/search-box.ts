@@ -7,8 +7,8 @@ import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon-button";
 import "@material/mwc-dialog";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { RequestState, RootState } from "./types";
+import store, { RootState } from "./store";
+import { RequestState } from "./types";
 import { Action } from "redux";
 import {
   setSearchString,

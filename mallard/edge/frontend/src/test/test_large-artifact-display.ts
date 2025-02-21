@@ -7,7 +7,6 @@ import {
   fakeState,
   getShadowRoot,
 } from "./element-test-utils";
-import { RootState } from "../types";
 import {
   clearVideoUrl,
   thunkClearFullSizedImages,
@@ -17,6 +16,7 @@ import {
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
+import { RootState } from "../store";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

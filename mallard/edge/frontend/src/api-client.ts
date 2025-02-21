@@ -15,7 +15,7 @@ import {
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
-import { AxiosRequestConfig, AxiosRequestHeaders } from "axios";
+import { AxiosRequestConfig, AxiosProgressEvent } from "axios";
 import {
   Fief,
   browser,
@@ -137,7 +137,7 @@ async function getAuthToken(): Promise<string | undefined> {
  * Gets the correct headers to use for authentication.
  * @return {AxiosRequestHeaders} The authentication headers.
  */
-async function getAuthHeaders(): Promise<AxiosRequestHeaders> {
+async function getAuthHeaders(): Promise<{ Authorization: string } | {}> {
   const accessToken = await getAuthToken();
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
@@ -406,8 +406,10 @@ export async function createImage(
 
   const config: AxiosRequestConfig = { headers: authHeaders };
   if (onProgress !== undefined) {
-    config.onUploadProgress = (progressEvent: ProgressEvent) => {
-      onProgress((progressEvent.loaded / progressEvent.total) * 100);
+    config.onUploadProgress = (progressEvent: AxiosProgressEvent) => {
+      onProgress(
+        (progressEvent.loaded / (progressEvent.total as number)) * 100
+      );
     };
   }
 
@@ -453,8 +455,10 @@ export async function createVideo(
     headers: authHeaders,
   };
   if (onProgress !== undefined) {
-    config.onUploadProgress = (progressEvent: ProgressEvent) => {
-      onProgress((progressEvent.loaded / progressEvent.total) * 100);
+    config.onUploadProgress = (progressEvent: AxiosProgressEvent) => {
+      onProgress(
+        (progressEvent.loaded / (progressEvent.total as number)) * 100
+      );
     };
   }
 

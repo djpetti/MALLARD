@@ -17,10 +17,10 @@ import {
   EditableMetadata,
   filterOnlyEditable,
   MetadataInferenceStatus,
-  RootState,
 } from "../types";
 import { Action } from "redux";
 import { faker } from "@faker-js/faker";
+import { RootState } from "../store";
 
 // Using older require syntax here so we get the correct mock type.
 const uploadSlice = require("../upload-slice");

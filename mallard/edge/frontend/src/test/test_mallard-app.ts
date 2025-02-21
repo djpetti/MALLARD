@@ -3,12 +3,13 @@ import { Dialog } from "@material/mwc-dialog";
 import each from "jest-each";
 import { Fab } from "@material/mwc-fab";
 import { Button } from "@material/mwc-button";
-import { RootState, UploadWorkflowStatus } from "../types";
+import { UploadWorkflowStatus } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
 import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
 import { ThumbnailGrid } from "../thumbnail-grid";
+import { RootState } from "../store";
 
 jest.mock("@captaincodeman/redux-connect-element", () => ({
   // Turn connect() into a pass-through.

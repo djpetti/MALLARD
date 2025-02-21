@@ -4,8 +4,7 @@ import "@material/mwc-icon-button";
 import "@material/mwc-icon-button-toggle";
 import "./artifact-thumbnail";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { RootState } from "./types";
+import store, { RootState } from "./store";
 import {
   setSectionExpanded,
   thumbnailGridSelectors,

@@ -8,7 +8,7 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import { ThumbnailGridSection } from "../thumbnail-grid-section";
-import { RequestState, RootState } from "../types";
+import { RequestState } from "../types";
 import each from "jest-each";
 import {
   setScrollLocation,
@@ -20,6 +20,7 @@ import { faker } from "@faker-js/faker";
 import lodash from "lodash";
 import MockedClass = jest.MockedClass;
 import { ArtifactThumbnail } from "../artifact-thumbnail";
+import { RootState } from "../store";
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");

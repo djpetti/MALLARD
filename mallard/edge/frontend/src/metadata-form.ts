@@ -4,7 +4,6 @@ import {
   EditableMetadata,
   filterOnlyEditable,
   MetadataInferenceStatus,
-  RootState,
 } from "./types";
 import "@material/mwc-circular-progress";
 import "@material/mwc-formfield";
@@ -12,7 +11,7 @@ import "@material/mwc-radio";
 import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
+import store, { RootState } from "./store";
 import { PlatformType } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";

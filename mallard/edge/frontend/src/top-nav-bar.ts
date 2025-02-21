@@ -9,8 +9,8 @@ import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
 import "@material/mwc-menu";
 import "./search-box";
-import store from "./store";
-import { RequestState, RootState } from "./types";
+import store, { RootState } from "./store";
+import { RequestState } from "./types";
 import { Action } from "redux";
 import {
   setEditingDialogOpen,

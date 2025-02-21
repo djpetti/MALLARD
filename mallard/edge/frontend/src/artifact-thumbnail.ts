@@ -1,8 +1,8 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { state, property } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { ArtifactEntity, RootState, ArtifactStatus } from "./types";
+import store, { RootState } from "./store";
+import { ArtifactEntity, ArtifactStatus } from "./types";
 import {
   thumbnailGridSelectors,
   thunkSelectImages,
@@ -29,7 +29,7 @@ function formatVideoDuration(metadata: UavVideoMetadata): string {
     // If we don't know, don't display anything.
     return "";
   }
-  const duration = metadata.numFrames / metadata.frameRate;
+  const duration = (metadata.numFrames ?? 0) / (metadata.frameRate ?? 1);
 
   const hours = Math.floor(duration / 3600);
   const minutes = Math.floor((duration % 3600) / 60);

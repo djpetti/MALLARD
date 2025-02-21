@@ -6,7 +6,7 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import { FileListDisplay } from "../file-list-display";
-import { FileStatus, FrontendFileEntity, RootState } from "../types";
+import { FileStatus, FrontendFileEntity } from "../types";
 import each from "jest-each";
 import { Action } from "redux";
 import {
@@ -18,6 +18,7 @@ import {
   thunkUploadFile,
 } from "../upload-slice";
 import { faker } from "@faker-js/faker";
+import { RootState } from "../store";
 
 jest.mock("../upload-slice", () => {
   const actualSlice = jest.requireActual("../upload-slice");

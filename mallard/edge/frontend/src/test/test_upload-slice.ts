@@ -32,7 +32,6 @@ import {
 } from "../types";
 import { Store } from "@reduxjs/toolkit";
 import each from "jest-each";
-import { thunkClearImageView } from "../thumbnail-grid-slice";
 import imageBlobReduce, {
   ImageBlobReduce,
   ImageBlobReduceStatic,
@@ -381,11 +380,6 @@ describe("upload-slice action creators", () => {
         state.uploads.metadata = metadata;
 
         const store = setupStore(state);
-
-        // Use a dummy action here to simulate how this thunk works.
-        // mockClearImageView.mockReturnValue((dispatch) => {
-        //   dispatch({ type: "thunkClearImageView", payload: undefined });
-        // });
 
         // Act.
         await thunkFinishUpload()(

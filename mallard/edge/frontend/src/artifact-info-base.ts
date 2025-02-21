@@ -1,12 +1,13 @@
 import { LitElement, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
-import { ArtifactStatus, RootState } from "./types";
+import { ArtifactStatus } from "./types";
 import {
   thumbnailGridSelectors,
   thunkLoadMetadata,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import { ObjectType } from "mallard-api";
+import { RootState } from "./store";
 
 /**
  * Base class for elements that derive information from a single artifact.

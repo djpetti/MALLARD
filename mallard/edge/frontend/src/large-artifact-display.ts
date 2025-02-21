@@ -155,10 +155,10 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
    * @private
    */
   private setVideoReloadInterval() {
+    // istanbul ignore next
     if (this.videoReloadInterval !== undefined) {
       // It's already set up. It never actually takes this path during
       // normal operation.
-      // istanbul ignore next
       return;
     }
 

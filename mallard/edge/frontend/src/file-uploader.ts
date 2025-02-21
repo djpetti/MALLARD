@@ -4,8 +4,8 @@ import "@material/mwc-fab";
 import { property, query, state } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { FileStatus, FrontendFileEntity, RootState } from "./types";
+import store, { RootState } from "./store";
+import { FileStatus, FrontendFileEntity } from "./types";
 import {
   addSelectedFiles,
   fileDropZoneEntered,

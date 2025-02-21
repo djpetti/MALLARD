@@ -29,7 +29,6 @@ import {
   VideoFormat,
 } from "mallard-api";
 import { AutocompleteMenu } from "../autocomplete";
-import { EntityId } from "@reduxjs/toolkit";
 import { createArtifactEntityId } from "../thumbnail-grid-slice";
 import { FiefUserInfo } from "@fief/fief";
 import { ImageWithStatus } from "../thumbnail-grid";
@@ -182,8 +181,8 @@ export function fakeArtifactEntity(
  * Contains image entities, and corresponding frontend IDs.
  */
 export interface EntitiesAndIds {
-  ids: EntityId[];
-  entities: { [id: EntityId]: ArtifactEntity };
+  ids: string[];
+  entities: { [id: string]: ArtifactEntity };
 }
 
 /**

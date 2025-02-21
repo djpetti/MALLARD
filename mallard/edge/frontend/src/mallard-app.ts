@@ -7,10 +7,10 @@ import "@material/mwc-fab";
 import "@material/mwc-dialog";
 import "@material/mwc-button";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
+import store, { RootState } from "./store";
 import { Action } from "redux";
 import { dialogOpened, thunkFinishUpload } from "./upload-slice";
-import { RootState, UploadWorkflowStatus } from "./types";
+import { UploadWorkflowStatus } from "./types";
 import { ThumbnailGrid } from "./thumbnail-grid";
 
 /**

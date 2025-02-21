@@ -5,8 +5,7 @@ import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { RootState } from "./types";
+import store, { RootState } from "./store";
 import { Action } from "redux";
 
 /**

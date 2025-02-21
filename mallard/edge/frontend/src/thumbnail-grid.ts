@@ -1,8 +1,8 @@
 import { css, html, PropertyValues } from "lit";
 import { property, query, queryAll, state } from "lit/decorators.js";
 import { connect } from "@captaincodeman/redux-connect-element";
-import store from "./store";
-import { ArtifactEntity, ImageQuery, RequestState, RootState } from "./types";
+import store, { RootState } from "./store";
+import { ArtifactEntity, ImageQuery, RequestState } from "./types";
 import "./thumbnail-grid-section";
 import {
   setScrollLocation,
@@ -75,7 +75,7 @@ function groupByDateAndSession(
       // Add the empty group.
       keysToImages.set(key, {
         date: captureDate,
-        session: session,
+        session: session ?? undefined,
         images: [],
       });
     }

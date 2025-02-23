@@ -8,8 +8,8 @@ import scss from "rollup-plugin-scss";
 import copy from "rollup-plugin-copy";
 import externalGlobals from "rollup-plugin-external-globals";
 
-let allPlugins =
-    [sourcemaps(), commonjs(), nodePolyfills(), resolve(), json(),
+const allPlugins =
+    [sourcemaps(), commonjs(), nodePolyfills(), resolve({browser: true}), json(),
         externalGlobals({"@fief/fief": "fief"}),
         scss({fileName: "mallard-edge.css"}),
         copy({

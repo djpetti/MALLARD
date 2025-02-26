@@ -50,9 +50,9 @@ const mockThunkSelectImages = thunkSelectImages as jest.MockedFn<
   typeof thunkSelectImages
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -473,7 +473,7 @@ describe("thumbnail-grid", () => {
         state.imageView.currentQueryHasMorePages = true;
 
         // Set the state correctly.
-        Object.assign(gridElement, gridElement.mapState(state));
+        Object.assign(gridElement, gridElement.stateChanged(state));
         await gridElement.updateComplete;
 
         // Make it look like the user has scrolled down.
@@ -798,15 +798,14 @@ describe("thumbnail-grid", () => {
       state.imageView.lastScrollLocation = faker.datatype.number();
 
       // Act.
-      const updates = gridElement.mapState(state);
+      gridElement.stateChanged(state);
 
       // Assert.
       // It should have gotten the correct updates.
-      expect(updates).toHaveProperty("groupedArtifactsFlatIds");
-      expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
+      expect(new Set(gridElement.groupedArtifactsFlatIds)).toEqual(
         new Set([image])
       );
-      expect(updates["loadingState"]).toEqual(
+      expect(gridElement.loadingState).toEqual(
         contentState == RequestState.SUCCEEDED &&
           metadataState == RequestState.SUCCEEDED
           ? RequestState.SUCCEEDED
@@ -815,11 +814,11 @@ describe("thumbnail-grid", () => {
           ? RequestState.IDLE
           : RequestState.LOADING
       );
-      expect(updates["hasMorePages"]).toEqual(
+      expect(gridElement.hasMorePages).toEqual(
         state.imageView.currentQueryHasMorePages
       );
 
-      expect(updates["savedScrollHeight"]).toEqual(
+      expect(gridElement.savedScrollHeight).toEqual(
         state.imageView.lastScrollLocation
       );
     }
@@ -837,12 +836,11 @@ describe("thumbnail-grid", () => {
     state.imageView.entities[imageId] = entity;
 
     // Act.
-    const updates = gridElement.mapState(state);
+    gridElement.stateChanged(state);
 
     // Assert.
     // There should be no grouped images, because our input lacks metadata.
-    expect(updates).toHaveProperty("groupedArtifacts");
-    expect(updates["groupedArtifacts"]).toEqual([]);
+    expect(gridElement.groupedArtifacts).toEqual([]);
   });
 
   it("marks loading as finished when there are no data", () => {
@@ -856,11 +854,11 @@ describe("thumbnail-grid", () => {
     state.imageView.metadataLoadingState = RequestState.IDLE;
 
     // Act.
-    const updates = gridElement.mapState(state);
+    gridElement.stateChanged(state);
 
     // Assert.
     // It should have gotten the correct updates.
-    expect(updates["loadingState"]).toEqual(RequestState.SUCCEEDED);
+    expect(gridElement.loadingState).toEqual(RequestState.SUCCEEDED);
   });
 
   it("groups by date correctly when updating from the Redux state", () => {
@@ -917,18 +915,16 @@ describe("thumbnail-grid", () => {
     );
 
     // Act.
-    const updates = gridElement.mapState(state);
+    gridElement.stateChanged(state);
 
     // Assert.
     // It should have gotten the correct updates.
-    expect(updates).toHaveProperty("groupedArtifactsFlatIds");
-    expect(new Set(updates["groupedArtifactsFlatIds"])).toEqual(
+    expect(new Set(gridElement.groupedArtifactsFlatIds)).toEqual(
       new Set(allImages)
     );
 
     // It should have grouped things correctly.
-    expect(updates).toHaveProperty("groupedArtifacts");
-    const groups = updates["groupedArtifacts"];
+    const groups = gridElement.groupedArtifacts;
     expect(groups).toHaveLength(3);
 
     // They should be sorted in order by date, descending.
@@ -946,8 +942,7 @@ describe("thumbnail-grid", () => {
     expect(groups[2].imageIds).toEqual([image4.id]);
 
     // It should have recorded the order as well.
-    expect(updates).toHaveProperty("groupedArtifactsOrder");
-    const artifactOrder: Map<string, number> = updates["groupedArtifactsOrder"];
+    const artifactOrder = gridElement.groupedArtifactsOrder;
     // The order should match with the groups.
     expect(artifactOrder.get(image1.id)).toBeLessThan(
       artifactOrder.get(image3.id) as number

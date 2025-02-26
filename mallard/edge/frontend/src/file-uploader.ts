@@ -3,7 +3,6 @@ import "@material/mwc-icon";
 import "@material/mwc-fab";
 import { property, query, state } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { FileStatus, FrontendFileEntity } from "./types";
 import {
@@ -17,6 +16,7 @@ import {
 } from "./upload-slice";
 import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
+import { connectRedux } from "./connected-element";
 
 /**
  * An element that allows the user to select and upload files.
@@ -487,22 +487,19 @@ export class FileUploader extends LitElement {
 /**
  * Extension of `FileUploader` that connects to Redux.
  */
-export class ConnectedFileUploader extends connect(store, FileUploader) {
+export class ConnectedFileUploader extends connectRedux(store, FileUploader) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
-    const allFiles: FrontendFileEntity[] = uploadSelectors.selectAll(state);
-    return {
-      uploadingFiles: allFiles,
-      numFilesUploaded: state.uploads.uploadsCompleted,
-    };
+  override stateChanged(state: RootState): void {
+    this.uploadingFiles = uploadSelectors.selectAll(state);
+    this.numFilesUploaded = state.uploads.uploadsCompleted;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     handlers[ConnectedFileUploader.DROP_ZONE_DRAGGING_EVENT_NAME] = (

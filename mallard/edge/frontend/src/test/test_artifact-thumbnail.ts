@@ -31,9 +31,9 @@ const mockSelectImages = thunkSelectImages as jest.MockedFn<
   typeof thunkSelectImages
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => {
   return {
@@ -359,16 +359,6 @@ describe("artifact-thumbnail", () => {
   });
 
   describe("mapState", () => {
-    /**
-     * Updates it will produce when the state is invalid.
-     */
-    const DEFAULT_UPDATES = {
-      sourceUrl: undefined,
-      selected: false,
-      onClickLink: undefined,
-      previewUrl: undefined,
-    };
-
     it("updates from the Redux state when the frontend ID changes", async () => {
       // Arrange.
       // Make it look like we have a somewhat interesting state.
@@ -405,35 +395,33 @@ describe("artifact-thumbnail", () => {
       state.imageView.entities[imageId] = imageEntity;
 
       // Act.
-      const updates = thumbnailElement.mapState(state);
+      thumbnailElement.stateChanged(state);
 
       // Assert.
       // It should have updated the image URL.
-      expect(updates).toHaveProperty("sourceUrl");
-      expect(updates["sourceUrl"]).toEqual(
+      expect(thumbnailElement.sourceUrl).toEqual(
         state.imageView.entities[imageId]?.thumbnailUrl
       );
 
       // It should have set the selection status.
-      expect(updates).toHaveProperty("selected");
-      expect(updates["selected"]).toEqual(imageEntity.isSelected);
+      expect(thumbnailElement.selected).toEqual(imageEntity.isSelected);
 
       // It should have set a link to the image details.
-      expect(updates).toHaveProperty("onClickLink");
-      expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.bucket);
-      expect(updates["onClickLink"]).toContain(imageEntity.backendId.id.name);
+      expect(thumbnailElement.onClickLink).toContain(
+        imageEntity.backendId.id.bucket
+      );
+      expect(thumbnailElement.onClickLink).toContain(
+        imageEntity.backendId.id.name
+      );
 
       // It should have set the preview URL.
-      expect(updates).toHaveProperty("previewUrl");
-      expect(updates["previewUrl"]).toEqual(
+      expect(thumbnailElement.previewUrl).toEqual(
         imageEntity.previewUrl ?? undefined
       );
 
       // It should have the metadata parameters.
-      expect(updates).toHaveProperty("metadata");
-      expect(updates["metadata"]).toEqual(imageEntity.metadata);
-      expect(updates).toHaveProperty("type");
-      expect(updates["type"]).toEqual(imageEntity.backendId.type);
+      expect(thumbnailElement.metadata).toEqual(imageEntity.metadata);
+      expect(thumbnailElement.type).toEqual(imageEntity.backendId.type);
     });
 
     it("ignores Redux updates when no image ID is set", () => {
@@ -441,10 +429,13 @@ describe("artifact-thumbnail", () => {
       thumbnailElement.frontendId = undefined;
 
       // Act.
-      const updates = thumbnailElement.mapState(fakeState());
+      thumbnailElement.stateChanged(fakeState());
 
       // Assert.
-      expect(updates).toEqual(DEFAULT_UPDATES);
+      expect(thumbnailElement.sourceUrl).toBeUndefined();
+      expect(thumbnailElement.selected).toEqual(false);
+      expect(thumbnailElement.onClickLink).toBeUndefined();
+      expect(thumbnailElement.previewUrl).toBeUndefined();
     });
 
     it("ignores Redux updates when the image ID is invalid", () => {
@@ -458,10 +449,13 @@ describe("artifact-thumbnail", () => {
       state.imageView.ids = [];
 
       // Act.
-      const updates = thumbnailElement.mapState(state);
+      thumbnailElement.stateChanged(state);
 
       // Assert.
-      expect(updates).toEqual(DEFAULT_UPDATES);
+      expect(thumbnailElement.sourceUrl).toBeUndefined();
+      expect(thumbnailElement.selected).toEqual(false);
+      expect(thumbnailElement.onClickLink).toBeUndefined();
+      expect(thumbnailElement.previewUrl).toBeUndefined();
     });
 
     it("ignores Redux updates when the image has not been loaded", () => {
@@ -476,10 +470,13 @@ describe("artifact-thumbnail", () => {
       state.imageView.entities[imageId] = fakeArtifactEntity(false);
 
       // Act.
-      const updates = thumbnailElement.mapState(state);
+      thumbnailElement.stateChanged(state);
 
       // Assert.
-      expect(updates).toEqual(DEFAULT_UPDATES);
+      expect(thumbnailElement.sourceUrl).toBeUndefined();
+      expect(thumbnailElement.selected).toEqual(false);
+      expect(thumbnailElement.onClickLink).toBeUndefined();
+      expect(thumbnailElement.previewUrl).toBeUndefined();
     });
   });
 });

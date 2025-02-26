@@ -51,9 +51,9 @@ const mockInferMetadata = thunkInferMetadata as jest.MockedFn<
   typeof thunkInferMetadata
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -385,13 +385,12 @@ describe("file-uploader", () => {
     state.uploads.entities[uploadFile2.id] = uploadFile2;
 
     // Act.
-    const updates = fileUploader.mapState(state);
+    fileUploader.stateChanged(state);
 
     // Assert.
     // It should have gotten the correct updates.
-    expect(updates).toHaveProperty("uploadingFiles");
-    expect(updates.uploadingFiles).toContain(uploadFile1);
-    expect(updates.uploadingFiles).toContain(uploadFile2);
+    expect(fileUploader.uploadingFiles).toContain(uploadFile1);
+    expect(fileUploader.uploadingFiles).toContain(uploadFile2);
   });
 
   describe("maps the correct actions to events", () => {

@@ -34,9 +34,9 @@ const mockThunkLoadMetadata = thunkLoadMetadata as jest.MockedFn<
   typeof thunkLoadMetadata
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -47,7 +47,7 @@ jest.mock("../store", () => ({
  * Interface for components that have been connected to Redux.
  */
 interface ConnectedComponentType extends ComponentType {
-  mapState: (state: any) => { [p: string]: any };
+  stateChanged: (state: any) => void;
   mapEvents: () => { [p: string]: (event: Event) => Action };
 }
 
@@ -112,10 +112,10 @@ each([
         const state = fakeState();
 
         // Act.
-        const gotUpdates = element.mapState(state);
+        element.stateChanged(state);
 
         // Assert.
-        expect(gotUpdates).toEqual({});
+        expect(element.frontendId).toBeUndefined();
       });
 
       each([
@@ -130,7 +130,8 @@ each([
         (_, metadataStatus: ArtifactStatus, imageEntity?: ArtifactEntity) => {
           // Arrange.
           // Set a fake frontend ID.
-          element.frontendId = faker.datatype.uuid();
+          const frontendId = faker.datatype.uuid();
+          element.frontendId = frontendId;
 
           const state = fakeState();
           // Add the entity if necessary.
@@ -144,11 +145,11 @@ each([
           }
 
           // Act.
-          const gotUpdates = element.mapState(state);
+          element.stateChanged(state);
 
           // Assert.
           // It should not have updated.
-          expect(gotUpdates).toEqual({});
+          expect(element.frontendId).toEqual(frontendId);
         }
       );
 
@@ -156,7 +157,8 @@ each([
         // Arrange.
         const state = fakeState();
         const imageEntity = fakeArtifactEntity();
-        imageEntity.metadata = fakeImageMetadata();
+        const metadata = fakeImageMetadata();
+        imageEntity.metadata = metadata;
         imageEntity.metadataStatus = ArtifactStatus.LOADED;
         const imageId = createArtifactEntityId(imageEntity.backendId.id);
         state.imageView.ids = [imageId];
@@ -166,11 +168,10 @@ each([
         element.frontendId = imageId;
 
         // Act.
-        const gotUpdates = element.mapState(state);
+        element.stateChanged(state);
 
         // Assert.
-        expect(gotUpdates).toHaveProperty("metadata");
-        expect(gotUpdates.metadata).toEqual(imageEntity.metadata);
+        expect(element.metadata).toEqual(metadata);
       });
     });
 

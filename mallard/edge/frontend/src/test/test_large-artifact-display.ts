@@ -18,9 +18,9 @@ import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
 import { RootState } from "../store";
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
@@ -252,7 +252,7 @@ describe("large-artifact-display", () => {
       state.imageView.entities[frontendId] = entity;
 
       // Act.
-      const updates = displayElement.mapState(state);
+      displayElement.stateChanged(state);
 
       // Assert.
       if (
@@ -261,22 +261,20 @@ describe("large-artifact-display", () => {
       ) {
         // It should have ignored the update for images, and if there is no
         // frontend ID.
-        expect(updates).toEqual({});
+        expect(displayElement.sourceUrl).toBeUndefined();
+        expect(displayElement.metadata).toBeUndefined();
+        expect(displayElement.type).toBeUndefined();
       } else if (artifactType === ObjectType.IMAGE && imageLoaded) {
         // It should set the correct data for a loaded image.
-        expect(updates).toEqual({
-          sourceUrl: entity.artifactUrl,
-          metadata: entity.metadata,
-          type: artifactType,
-        });
+        expect(displayElement.sourceUrl).toEqual(entity.artifactUrl);
+        expect(displayElement.metadata).toEqual(entity.metadata);
+        expect(displayElement.type).toEqual(artifactType);
       } else {
         // It should not check loading status for videos, because videos are
         // streamed instead of preloaded.
-        expect(updates).toEqual({
-          sourceUrl: entity.streamableUrl,
-          metadata: entity.metadata,
-          type: artifactType,
-        });
+        expect(displayElement.sourceUrl).toEqual(entity.streamableUrl);
+        expect(displayElement.metadata).toEqual(entity.metadata);
+        expect(displayElement.type).toEqual(artifactType);
       }
     }
   );
@@ -295,15 +293,13 @@ describe("large-artifact-display", () => {
     state.imageView.entities[imageId] = entity;
 
     // Act.
-    const updates = displayElement.mapState(state);
+    displayElement.stateChanged(state);
 
     // Assert.
     // It should have set the source URL.
-    expect(updates).toEqual({
-      sourceUrl: entity.artifactUrl,
-      metadata: entity.metadata,
-      type: entity.backendId.type,
-    });
+    expect(displayElement.sourceUrl).toEqual(entity.artifactUrl);
+    expect(displayElement.metadata).toEqual(entity.metadata);
+    expect(displayElement.type).toEqual(entity.backendId.type);
   });
 
   each([

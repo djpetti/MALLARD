@@ -1,6 +1,5 @@
 import { ArtifactDisplay } from "./artifact-display";
 import { css, html, PropertyValues, TemplateResult } from "lit";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { ArtifactStatus } from "./types";
 import {
@@ -15,6 +14,7 @@ import { ObjectType } from "mallard-api";
 import { state } from "lit/decorators.js";
 import "@material/mwc-icon";
 import "@material/mwc-linear-progress";
+import { connectRedux } from "./connected-element";
 
 /**
  * An element for displaying a full-sized image.
@@ -267,7 +267,7 @@ export interface ConnectionChangedEvent extends Event {
 /**
  * Extension of `LargeImageDisplay` that connects to Redux.
  */
-export class ConnectedLargeArtifactDisplay extends connect(
+export class ConnectedLargeArtifactDisplay extends connectRedux(
   store,
   LargeArtifactDisplay
 ) {
@@ -301,11 +301,11 @@ export class ConnectedLargeArtifactDisplay extends connect(
   /**
    * @inheritDoc
    */
-  mapState(state: any): { [p: string]: any } {
+  override stateChanged(state: any): void {
     const frontendId = this.frontendId;
     if (!this.frontendId) {
       // We don't have any image specified, so we can't do anything.
-      return {};
+      return;
     }
 
     const entity = thumbnailGridSelectors.selectById(
@@ -318,23 +318,21 @@ export class ConnectedLargeArtifactDisplay extends connect(
         entity.imageStatus !== ArtifactStatus.LOADED)
     ) {
       // Image loading has not completed yet.
-      return {};
+      return;
     }
 
-    return {
-      // Use the streamable URL if this is a video.
-      sourceUrl:
-        entity.backendId.type === ObjectType.VIDEO
-          ? entity.streamableUrl
-          : entity.artifactUrl,
-      ...this.metadataUpdatesFromState(state),
-    };
+    this.metadataUpdatesFromState(state);
+    // Use the streamable URL if this is a video.
+    this.sourceUrl =
+      (entity.backendId.type === ObjectType.VIDEO
+        ? entity.streamableUrl
+        : entity.artifactUrl) ?? undefined;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail

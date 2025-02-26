@@ -1,6 +1,5 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { state, property } from "lit/decorators.js";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { ArtifactEntity, ArtifactStatus } from "./types";
 import {
@@ -12,6 +11,7 @@ import { ArtifactDisplay } from "./artifact-display";
 import "@material/mwc-icon-button";
 import "@material/mwc-icon";
 import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
+import { connectRedux } from "./connected-element";
 
 /** Custom event indicating that the selection status has changed. */
 type SelectedEvent = CustomEvent<boolean>;
@@ -283,7 +283,7 @@ export class ArtifactThumbnail extends ArtifactDisplay {
 /**
  * Extension of `ArtifactThumbnail` that connects to Redux.
  */
-export class ConnectedArtifactThumbnail extends connect(
+export class ConnectedArtifactThumbnail extends connectRedux(
   store,
   ArtifactThumbnail
 ) {
@@ -308,23 +308,23 @@ export class ConnectedArtifactThumbnail extends connect(
     // properties from the state, even if the state hasn't changed.
     if (_changedProperties.has("frontendId")) {
       const state = store.getState();
-      Object.assign(this, this.mapState(state));
+      Object.assign(this, this.stateChanged(state));
     }
   }
 
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
-    const defaultState = {
-      sourceUrl: undefined,
-      selected: false,
-      onClickLink: undefined,
-      previewUrl: undefined,
-    };
+  override stateChanged(state: RootState): void {
+    // Set defaults.
+    this.sourceUrl = undefined;
+    this.selected = false;
+    this.onClickLink = undefined;
+    this.previewUrl = undefined;
+
     if (!this.frontendId) {
       // No specific thumbnail has been set.
-      return defaultState;
+      return;
     }
 
     const imageEntity = thumbnailGridSelectors.selectById(
@@ -333,26 +333,24 @@ export class ConnectedArtifactThumbnail extends connect(
     );
     if (imageEntity === undefined) {
       // The frontendId that was set is apparently invalid.
-      return defaultState;
+      return;
     }
     if (imageEntity.thumbnailStatus != ArtifactStatus.LOADED) {
       // The thumbnail image has not been loaded yet.
-      return defaultState;
+      return;
     }
 
-    return {
-      sourceUrl: imageEntity.thumbnailUrl ?? undefined,
-      selected: imageEntity.isSelected,
-      onClickLink: ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity),
-      previewUrl: imageEntity.previewUrl ?? undefined,
-      ...this.metadataUpdatesFromState(state),
-    };
+    this.metadataUpdatesFromState(state);
+    this.sourceUrl = imageEntity.thumbnailUrl ?? undefined;
+    this.selected = imageEntity.isSelected;
+    this.onClickLink = ConnectedArtifactThumbnail.makeDetailsUrl(imageEntity);
+    this.previewUrl = imageEntity.previewUrl ?? undefined;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail

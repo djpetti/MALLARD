@@ -16,9 +16,9 @@ const mockThunkShowDetails = thunkShowDetails as jest.MockedFn<
   typeof thunkShowDetails
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -143,12 +143,13 @@ describe("artifact-details", () => {
     state.imageView.details.frontendId = faker.datatype.uuid();
 
     // Act.
-    const gotUpdates = detailsElement.mapState(state);
+    detailsElement.stateChanged(state);
 
     // Assert.
     // It should have updated the frontend ID.
-    expect(gotUpdates).toHaveProperty("frontendId");
-    expect(gotUpdates.frontendId).toEqual(state.imageView.details.frontendId);
+    expect(detailsElement.frontendId).toEqual(
+      state.imageView.details.frontendId
+    );
   });
 
   it(`dispatches the correct action when the ${TestArtifactDetails.IMAGE_CHANGED_EVENT_NAME} is fired`, () => {

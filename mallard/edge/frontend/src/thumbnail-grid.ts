@@ -1,6 +1,5 @@
 import { css, html, PropertyValues } from "lit";
 import { property, query, queryAll, state } from "lit/decorators.js";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { ArtifactEntity, ImageQuery, RequestState } from "./types";
 import "./thumbnail-grid-section";
@@ -17,6 +16,7 @@ import { InfiniteScrollingElement } from "./infinite-scrolling-element";
 import { flatten, isEqual } from "lodash";
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
 import { ArtifactThumbnail } from "./artifact-thumbnail";
+import { connectRedux } from "./connected-element";
 
 /**
  * Encapsulates image IDs grouped with corresponding metadata.
@@ -424,7 +424,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
 /**
  * Extension of `ThumbnailGrid` that connects to Redux.
  */
-export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
+export class ConnectedThumbnailGrid extends connectRedux(store, ThumbnailGrid) {
   /**
    * Initial query to use for fetching images when the page first loads.
    * This will apply no filters and get everything.
@@ -445,7 +445,7 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
+  override stateChanged(state: RootState): void {
     // In this case, we know that all IDs are strings.
     const allIds: string[] = thumbnailGridSelectors.selectIds(
       state
@@ -488,20 +488,18 @@ export class ConnectedThumbnailGrid extends connect(store, ThumbnailGrid) {
       overallState = RequestState.SUCCEEDED;
     }
 
-    return {
-      loadingState: overallState,
-      groupedArtifacts: grouped,
-      groupedArtifactsFlatIds: artifactIds,
-      groupedArtifactsOrder: new Map<string, number>(
-        artifactIds.map((image, i) => [image.id, i])
-      ),
-      hasMorePages: state.imageView.currentQueryHasMorePages,
+    this.loadingState = overallState;
+    this.groupedArtifacts = grouped;
+    this.groupedArtifactsFlatIds = artifactIds;
+    this.groupedArtifactsOrder = new Map<string, number>(
+      artifactIds.map((image, i) => [image.id, i])
+    );
+    this.hasMorePages = state.imageView.currentQueryHasMorePages;
 
-      queryPageNum: state.imageView.currentQueryOptions.pageNum,
-      isQueryRunning: state.imageView.currentQuery.length > 0,
+    this.queryPageNum = state.imageView.currentQueryOptions.pageNum ?? 1;
+    this.isQueryRunning = state.imageView.currentQuery.length > 0;
 
-      savedScrollHeight: state.imageView.lastScrollLocation,
-    };
+    this.savedScrollHeight = state.imageView.lastScrollLocation;
   }
 
   /**

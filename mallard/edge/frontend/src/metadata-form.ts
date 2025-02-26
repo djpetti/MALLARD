@@ -10,12 +10,12 @@ import "@material/mwc-formfield";
 import "@material/mwc-radio";
 import "@material/mwc-textarea";
 import "@material/mwc-textfield";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { PlatformType } from "mallard-api";
 import { Action } from "redux";
 import { setMetadata } from "./upload-slice";
 import { thumbnailGridSelectors } from "./thumbnail-grid-slice";
+import { connectRedux, EventMapType } from "./connected-element";
 
 /** Keeps track of what state the form is in. */
 export enum FormState {
@@ -66,7 +66,7 @@ export class MetadataForm extends LitElement {
   state: FormState = FormState.INACTIVE;
 
   /** Whether the user has modified the metadata in any way. */
-  protected userModified: boolean = false;
+  userModified: boolean = false;
 
   /**
    * Safely extracts the capture date from the local metadata, in a format
@@ -323,11 +323,11 @@ export class MetadataForm extends LitElement {
 /**
  * Extension of `MetadataForm` that connects to Redux.
  */
-export class ConnectedMetadataForm extends connect(store, MetadataForm) {
+export class ConnectedMetadataForm extends connectRedux(store, MetadataForm) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
+  override stateChanged(state: RootState): void {
     // Map to loading status to whether we're showing the form.
     const toFormState = new Map<MetadataInferenceStatus, FormState>([
       [MetadataInferenceStatus.NOT_STARTED, FormState.INACTIVE],
@@ -336,22 +336,16 @@ export class ConnectedMetadataForm extends connect(store, MetadataForm) {
     ]);
 
     // Update the displayed metadata, if the user hasn't changed it.
-    const showMetadata = this.userModified
-      ? this.metadata
-      : state.uploads.metadata;
-
-    return {
-      metadata: showMetadata,
-      state: toFormState.get(state.uploads.metadataStatus),
-      // Don't track user updates if the dialog is closed.
-      userModified: state.uploads.dialogOpen ? this.userModified : false,
-    };
+    this.metadata = this.userModified ? this.metadata : state.uploads.metadata;
+    this.state = toFormState.get(state.uploads.metadataStatus) as FormState;
+    // Don't track user updates if the dialog is closed.
+    this.userModified = state.uploads.dialogOpen ? this.userModified : false;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     handlers[MetadataForm.FORM_CHANGED_EVENT_NAME] = (event: Event) =>
@@ -365,13 +359,16 @@ export class ConnectedMetadataForm extends connect(store, MetadataForm) {
  * Extension of `MetadataForm` that connects to Redux and is designed to
  * support editing for selected artifacts.
  */
-export class ConnectedMetadataEditingForm extends connect(store, MetadataForm) {
+export class ConnectedMetadataEditingForm extends connectRedux(
+  store,
+  MetadataForm
+) {
   static readonly tagName: string = "metadata-editing-form";
 
   /**
    * @inheritDoc
    */
-  mapState(state: any): { [p: string]: any } {
+  override stateChanged(state: any): void {
     // Update the displayed metadata based on the selected items.
     const ids = thumbnailGridSelectors.selectIds(state);
     let showMetadata = this.metadata;
@@ -389,14 +386,19 @@ export class ConnectedMetadataEditingForm extends connect(store, MetadataForm) {
       }
     }
 
-    return {
-      metadata: showMetadata,
-      // When editing, we always show the form.
-      state: FormState.READY,
-      // Don't track user updates if the dialog is closed.
-      userModified: state.imageView.editingDialogOpen
-        ? this.userModified
-        : false,
-    };
+    this.metadata = showMetadata;
+    // When editing, we always show the form.
+    this.state = FormState.READY;
+    // Don't track user updates if the dialog is closed.
+    this.userModified = state.imageView.editingDialogOpen
+      ? this.userModified
+      : false;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  override mapEvents(): EventMapType {
+    return {};
   }
 }

@@ -6,7 +6,7 @@ import {
   thunkLoadMetadata,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import { ObjectType } from "mallard-api";
+import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 import { RootState } from "./store";
 
 /**
@@ -29,6 +29,12 @@ export class ArtifactInfoBase extends LitElement {
    */
   @property({ type: String })
   type?: ObjectType;
+
+  /**
+   * The metadata associated with this object.
+   */
+  @property({ type: Object, attribute: false })
+  metadata?: UavImageMetadata | UavVideoMetadata;
 
   /**
    * Whether we want to load this image right now.
@@ -56,15 +62,14 @@ export class ArtifactInfoBase extends LitElement {
   }
 
   /**
-   * Generates updates from the Redux state for the image metadata.
+   * Updates the element from the Redux state for the image metadata.
    * @param {RootState} state The state to update from.
-   * @return {Object} The relevant updates.
    * @protected
    */
-  protected metadataUpdatesFromState(state: RootState): { [p: string]: any } {
+  protected metadataUpdatesFromState(state: RootState): void {
     if (!this.frontendId) {
       // We don't have any image specified, so we can't do anything.
-      return {};
+      return;
     }
 
     // Get the metadata for the image.
@@ -75,10 +80,11 @@ export class ArtifactInfoBase extends LitElement {
         entity.metadataStatus != ArtifactStatus.LOADED)
     ) {
       // Image loading has not been started yet.
-      return {};
+      return;
     }
 
-    return { metadata: entity.metadata, type: entity.backendId.type };
+    this.metadata = entity.metadata ?? undefined;
+    this.type = entity.backendId.type;
   }
 
   /**

@@ -6,7 +6,6 @@ import "@material/mwc-list/mwc-list.js";
 import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon-button";
 import "@material/mwc-dialog";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -27,6 +26,7 @@ import { Dialog } from "@material/mwc-dialog";
 import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
 import { trim } from "lodash";
 import { PlatformType } from "mallard-api";
+import { connectRedux } from "./connected-element";
 
 /**
  * Condition specified when searching by dates.
@@ -454,23 +454,22 @@ type SearchStartedEvent = CustomEvent<string>;
 /**
  * Extension of `SearchBox` that connects to Redux.
  */
-export class ConnectedSearchBox extends connect(store, SearchBox) {
+export class ConnectedSearchBox extends connectRedux(store, SearchBox) {
   /** How many completion suggestions to show in the menu. */
   static NUM_SUGGESTIONS: number = 5;
 
   /**
    * @inheritDoc
    */
-  override mapState(state: RootState): { [p: string]: any } {
+  override stateChanged(state: RootState): void {
     const searchState = state.imageView.search;
-    return {
-      autocompleteSuggestions:
-        searchState.autocompleteSuggestions.textCompletions,
-      autocompleteMenu: searchState.autocompleteSuggestions.menu,
-      showProgress: searchState.queryState == RequestState.LOADING,
-      searchString: searchState.searchString,
-      showClear: searchState.searchString.length > 0,
-    };
+
+    this.autocompleteSuggestions =
+      searchState.autocompleteSuggestions.textCompletions;
+    this.autocompleteMenu = searchState.autocompleteSuggestions.menu;
+    this.showProgress = searchState.queryState == RequestState.LOADING;
+    this.searchString = searchState.searchString;
+    this.showClear = searchState.searchString.length > 0;
   }
 
   /**

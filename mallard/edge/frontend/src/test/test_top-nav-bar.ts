@@ -68,13 +68,13 @@ const mockSetEditingDialogOpen = setEditingDialogOpen as jest.MockedFn<
   typeof setEditingDialogOpen
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
-  configureStore: jest.fn(),
+  setupStore: jest.fn(),
 }));
 
 describe("top-nav-bar", () => {
@@ -715,20 +715,19 @@ describe("top-nav-bar", () => {
         // Create a fake state.
         const state = fakeState();
         const imageView = state.imageView;
-        imageView.numItemsSelected = faker.datatype.number();
+        const numItemsSelected = faker.datatype.number();
+        imageView.numItemsSelected = numItemsSelected;
         imageView.imageDeletionState = deletionState;
 
         // Act.
-        const updates = navBarElement.mapState(state);
+        navBarElement.stateChanged(state);
 
         // Assert.
         // It should have updated the selection state.
-        expect(updates).toHaveProperty("numItemsSelected");
-        expect(updates.numItemsSelected).toEqual(imageView.numItemsSelected);
+        expect(navBarElement.numItemsSelected).toEqual(numItemsSelected);
 
         // It should have updated the deletion state.
-        expect(updates).toHaveProperty("showDeletionProgress");
-        expect(updates.showDeletionProgress).toEqual(
+        expect(navBarElement.showDeletionProgress).toEqual(
           deletionState == RequestState.LOADING
         );
       }
@@ -749,15 +748,13 @@ describe("top-nav-bar", () => {
       imageView.details.frontendId = detailsId as string;
 
       // Act.
-      const updates = navBarElement.mapState(state);
+      navBarElement.stateChanged(state);
 
       // Assert.
       // It should have set the artifact link and name.
       const detailsEntity = imageView.entities[detailsId];
-      expect(updates).toHaveProperty("artifactLink");
-      expect(updates["artifactLink"]).toEqual(detailsEntity?.artifactUrl);
-      expect(updates).toHaveProperty("artifactName");
-      expect(updates["artifactName"]).toEqual(detailsEntity?.metadata?.name);
+      expect(navBarElement.artifactLink).toEqual(detailsEntity?.artifactUrl);
+      expect(navBarElement.artifactName).toEqual(detailsEntity?.metadata?.name);
     });
   });
 

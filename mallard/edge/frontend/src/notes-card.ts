@@ -4,9 +4,9 @@ import { UavImageMetadata } from "mallard-api";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { ArtifactInfoBase } from "./artifact-info-base";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { Action } from "redux";
+import { connectRedux } from "./connected-element";
 
 /**
  * Card that shows detailed notes for an image.
@@ -52,12 +52,6 @@ export class NotesCard extends ArtifactInfoBase {
   `;
 
   /**
-   * Metadata structure to display information from.
-   */
-  @property({ type: Object, attribute: false })
-  metadata?: UavImageMetadata;
-
-  /**
    * @inheritDoc
    */
   protected override render(): unknown {
@@ -92,12 +86,12 @@ export class NotesCard extends ArtifactInfoBase {
 /**
  * Extension of `NotesCard` that connects to Redux.
  */
-export class ConnectedNotesCard extends connect(store, NotesCard) {
+export class ConnectedNotesCard extends connectRedux(store, NotesCard) {
   /**
    * @inheritDoc
    */
-  mapState(state: any): { [p: string]: any } {
-    return this.metadataUpdatesFromState(state as RootState);
+  override stateChanged(state: any): void {
+    this.metadataUpdatesFromState(state as RootState);
   }
 
   /**

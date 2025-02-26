@@ -18,9 +18,9 @@ import { faker } from "@faker-js/faker";
 import { IconButtonToggle } from "@material/mwc-icon-button-toggle";
 import MockedClass = jest.MockedClass;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -525,12 +525,11 @@ describe("thumbnail-grid-section", () => {
       state.imageView.entities[image2Id] = image2;
 
       // Act.
-      const gotUpdates = gridSectionElement.mapState(state);
+      gridSectionElement.stateChanged(state);
 
       // Assert.
       // It should have updated the selection status appropriately.
-      expect(gotUpdates).toHaveProperty("selected");
-      expect(gotUpdates.selected).toEqual(selectAll);
+      expect(gridSectionElement.selected).toEqual(selectAll);
     }
   );
 
@@ -549,11 +548,11 @@ describe("thumbnail-grid-section", () => {
       }
 
       // Act.
-      const gotUpdates = gridSectionElement.mapState(state);
+      gridSectionElement.stateChanged(state);
 
       // Assert.
       // It should have updated the expanded property appropriately.
-      expect(gotUpdates["expanded"]).toEqual(expanded);
+      expect(gridSectionElement.expanded).toEqual(expanded);
     }
   );
 

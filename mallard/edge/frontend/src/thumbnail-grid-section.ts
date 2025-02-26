@@ -3,7 +3,6 @@ import { property, query } from "lit/decorators.js";
 import "@material/mwc-icon-button";
 import "@material/mwc-icon-button-toggle";
 import "./artifact-thumbnail";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import {
   setSectionExpanded,
@@ -15,6 +14,7 @@ import {
 import { Action } from "redux";
 import { VisibilityCheckingContainer } from "./visibility-checking-container";
 import { ArtifactThumbnail } from "./artifact-thumbnail";
+import { connectRedux } from "./connected-element";
 
 /** Custom event indicating that the selection status has changed. */
 type SelectedEvent = CustomEvent<boolean>;
@@ -276,14 +276,14 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
 /**
  * Extension of `ThumbnailGridSection` that connects to Redux.
  */
-export class ConnectedThumbnailGridSection extends connect(
+export class ConnectedThumbnailGridSection extends connectRedux(
   store,
   ThumbnailGridSection
 ) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
+  override stateChanged(state: RootState): void {
     // Check to see if all of our images are selected.
     let allSelected = true;
     for (const imageId of this.displayedArtifacts) {
@@ -297,13 +297,14 @@ export class ConnectedThumbnailGridSection extends connect(
     const collapsed =
       state.imageView.collapsedSections[this.sectionHeader] === true;
 
-    return { selected: allSelected, expanded: !collapsed };
+    this.selected = allSelected;
+    this.expanded = !collapsed;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that thunkLoadThumbnail

@@ -11,9 +11,9 @@ import { faker } from "@faker-js/faker";
 import { ThumbnailGrid } from "../thumbnail-grid";
 import { RootState } from "../store";
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../upload-slice", () => ({
   dialogOpened: jest.fn(),
@@ -209,14 +209,13 @@ describe("mallard-app", () => {
     state.uploads.status = uploadStatus;
 
     // Act.
-    const updates = app.mapState(state);
+    app.stateChanged(state);
 
     // Assert.
     // It should have updated the modal state.
-    expect(updates).toHaveProperty("uploadModalOpen");
-    expect(updates["uploadModalOpen"]).toEqual(dialogOpen);
-    expect(updates["uploadsInProgress"]).toEqual(uploadsInProgress > 0);
-    expect(updates["finalizingUploads"]).toEqual(
+    expect(app.uploadModalOpen).toEqual(dialogOpen);
+    expect(app.uploadsInProgress).toEqual(uploadsInProgress > 0);
+    expect(app.finalizingUploads).toEqual(
       uploadStatus === UploadWorkflowStatus.FINALIZING
     );
   });

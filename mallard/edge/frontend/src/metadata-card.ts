@@ -5,10 +5,10 @@ import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { Action } from "redux";
 import { ArtifactInfoBase } from "./artifact-info-base";
+import { connectRedux } from "./connected-element";
 
 /**
  * Card that shows basic metadata for an image.
@@ -103,18 +103,18 @@ export class MetadataCard extends ArtifactInfoBase {
 /**
  * Extension of `MetadataCard` that connects to Redux.
  */
-export class ConnectedMetadataCard extends connect(store, MetadataCard) {
+export class ConnectedMetadataCard extends connectRedux(store, MetadataCard) {
   /**
    * @inheritDoc
    */
-  mapState(state: any): { [p: string]: any } {
-    return this.metadataUpdatesFromState(state as RootState);
+  override stateChanged(state: any): void {
+    this.metadataUpdatesFromState(state as RootState);
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     return this.metadataLoadEventHandlers();
   }
 }

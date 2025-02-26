@@ -6,12 +6,12 @@ import "./metadata-form";
 import "@material/mwc-fab";
 import "@material/mwc-dialog";
 import "@material/mwc-button";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store, { RootState } from "./store";
 import { Action } from "redux";
 import { dialogOpened, thunkFinishUpload } from "./upload-slice";
 import { UploadWorkflowStatus } from "./types";
 import { ThumbnailGrid } from "./thumbnail-grid";
+import { connectRedux } from "./connected-element";
 
 /**
  * This is the root element that controls the behavior of the main page of
@@ -170,17 +170,15 @@ export class MallardApp extends LitElement {
 /**
  * Extension of `Application` that connects to Redux.
  */
-export class ConnectedMallardApp extends connect(store, MallardApp) {
+export class ConnectedMallardApp extends connectRedux(store, MallardApp) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
-    return {
-      uploadModalOpen: state.uploads.dialogOpen,
-      uploadsInProgress: state.uploads.uploadsInProgress > 0,
-      finalizingUploads:
-        state.uploads.status === UploadWorkflowStatus.FINALIZING,
-    };
+  override stateChanged(state: RootState): void {
+    this.uploadModalOpen = state.uploads.dialogOpen;
+    this.uploadsInProgress = state.uploads.uploadsInProgress > 0;
+    this.finalizingUploads =
+      state.uploads.status === UploadWorkflowStatus.FINALIZING;
   }
 
   /**

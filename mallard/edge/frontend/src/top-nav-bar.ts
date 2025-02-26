@@ -1,6 +1,5 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query } from "lit/decorators.js";
-import { connect } from "@captaincodeman/redux-connect-element";
 import "@material/mwc-button";
 import "@material/mwc-circular-progress";
 import "@material/mwc-dialog";
@@ -29,6 +28,7 @@ import "./metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { MetadataForm } from "./metadata-form";
 import "./user-menu";
+import { connectRedux } from "./connected-element";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -543,11 +543,11 @@ export class TopNavBar extends LitElement {
 /**
  * Extension of `TopNavBar` that connects to Redux.
  */
-export class ConnectedTopNavBar extends connect(store, TopNavBar) {
+export class ConnectedTopNavBar extends connectRedux(store, TopNavBar) {
   /**
    * @inheritDoc
    */
-  mapState(state: RootState): { [p: string]: any } {
+  override stateChanged(state: RootState): void {
     let artifactLink = null;
     let artifactName = null;
     if (state.imageView.details.frontendId) {
@@ -560,23 +560,21 @@ export class ConnectedTopNavBar extends connect(store, TopNavBar) {
       artifactName = entity?.metadata?.name;
     }
 
-    return {
-      numItemsSelected: state.imageView.numItemsSelected,
-      showDeletionProgress:
-        state.imageView.imageDeletionState == RequestState.LOADING,
-      showEditingDialog: state.imageView.editingDialogOpen,
-      showEditingProgress:
-        state.imageView.metadataEditingState == RequestState.LOADING,
-      exportedUrlFileLink: state.imageView.exportedImagesUrl,
-      artifactLink: artifactLink,
-      artifactName: artifactName,
-    };
+    this.numItemsSelected = state.imageView.numItemsSelected;
+    this.showDeletionProgress =
+      state.imageView.imageDeletionState == RequestState.LOADING;
+    this.showEditingDialog = state.imageView.editingDialogOpen;
+    this.showEditingProgress =
+      state.imageView.metadataEditingState == RequestState.LOADING;
+    this.exportedUrlFileLink = state.imageView.exportedImagesUrl;
+    this.artifactLink = artifactLink;
+    this.artifactName = artifactName ?? null;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that

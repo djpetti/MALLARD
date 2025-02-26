@@ -5,11 +5,11 @@ import "@material/mwc-list";
 import "./large-artifact-display";
 import "./metadata-card";
 import "./notes-card";
-import { connect } from "@captaincodeman/redux-connect-element";
 import store from "./store";
 import { Action } from "redux";
 import { ObjectType, TypedObjectRef } from "mallard-api";
 import { thunkShowDetails } from "./thumbnail-grid-slice";
+import { connectRedux } from "./connected-element";
 
 /**
  * This is the main element for the details page.
@@ -122,10 +122,9 @@ export class ArtifactDetails extends LitElement {
 
   /**
    * The frontend ID of the image we are displaying details for.
-   * @protected
    */
-  @state()
-  protected frontendId?: string = undefined;
+  @property({ type: String })
+  public frontendId?: string;
 
   /**
    * @inheritDoc
@@ -189,18 +188,21 @@ export class ArtifactDetails extends LitElement {
 /**
  * Extension of `ArtifactDetails` that connects to Redux.
  */
-export class ConnectedArtifactDetails extends connect(store, ArtifactDetails) {
+export class ConnectedArtifactDetails extends connectRedux(
+  store,
+  ArtifactDetails
+) {
   /**
    * @inheritDoc
    */
-  mapState(state: any): { [p: string]: any } {
-    return { frontendId: state.imageView.details.frontendId ?? undefined };
+  override stateChanged(state: any): void {
+    this.frontendId = state.imageView.details.frontendId ?? undefined;
   }
 
   /**
    * @inheritDoc
    */
-  mapEvents(): { [p: string]: (event: Event) => Action } {
+  override mapEvents(): { [p: string]: (event: Event) => Action } {
     const handlers: { [p: string]: (event: Event) => Action } = {};
 
     // The fancy casting here is a hack to deal with the fact that

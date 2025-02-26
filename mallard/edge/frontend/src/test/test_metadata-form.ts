@@ -26,9 +26,9 @@ import { RootState } from "../store";
 const uploadSlice = require("../upload-slice");
 const mockSetMetadata = uploadSlice.setMetadata;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../upload-slice", () => ({
   setMetadata: jest.fn(),
@@ -374,25 +374,25 @@ describe("metadata-form", () => {
         state.uploads.dialogOpen = dialogOpen;
 
         // Act.
-        const updates = metadataForm.mapState(state);
+        metadataForm.stateChanged(state);
 
         // Assert.
         if (userModified) {
           // In this case, the metadata should not have been updated.
-          expect(updates.metadata).toEqual(oldMetadata);
+          expect(metadataForm.metadata).toEqual(oldMetadata);
         } else {
           // The metadata should have been set from the state.
-          expect(updates.metadata).toEqual(state.uploads.metadata);
+          expect(metadataForm.metadata).toEqual(state.uploads.metadata);
         }
 
         // The element state should have been set.
-        expect(updates.state).toEqual(state.uploads.metadataStatus);
+        expect(metadataForm.state).toEqual(state.uploads.metadataStatus);
 
         if (dialogOpen) {
-          expect(updates.userModified).toEqual(userModified);
+          expect(metadataForm.userModified).toEqual(userModified);
         } else {
           // It should not track user updates when the dialog is closed.
-          expect(updates.userModified).toEqual(false);
+          expect(metadataForm.userModified).toEqual(false);
         }
       }
     );
@@ -502,28 +502,28 @@ describe("metadata-form", () => {
         state.imageView.editingDialogOpen = dialogOpen;
 
         // Act.
-        const updates = metadataForm.mapState(state);
+        metadataForm.stateChanged(state);
 
         // Assert.
         if (userModified) {
           // In this case, the metadata should not have been updated.
-          expect(updates.metadata).toEqual(oldMetadata);
+          expect(metadataForm.metadata).toEqual(oldMetadata);
         } else {
           // The metadata should have been set from the selected images.
           const setEntity = state.imageView.entities[seletedIds[0]];
-          expect(updates.metadata).toEqual(
+          expect(metadataForm.metadata).toEqual(
             setEntity?.metadata ? filterOnlyEditable(setEntity.metadata) : null
           );
         }
 
         // The element state should always be ready.
-        expect(updates.state).toEqual(FormState.READY);
+        expect(metadataForm.state).toEqual(FormState.READY);
 
         if (dialogOpen) {
-          expect(updates.userModified).toEqual(userModified);
+          expect(metadataForm.userModified).toEqual(userModified);
         } else {
           // It should not track user updates when the dialog is closed.
-          expect(updates.userModified).toEqual(false);
+          expect(metadataForm.userModified).toEqual(false);
         }
       }
     );

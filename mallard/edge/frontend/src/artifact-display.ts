@@ -2,7 +2,7 @@ import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/mwc-circular-progress";
 import "@material/mwc-icon";
-import { ObjectRef, ObjectType } from "mallard-api";
+import { ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
 
@@ -206,12 +206,4 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       }
     }
   }
-}
-
-/**
- * The various ways that we can identify an image.
- */
-export interface ImageIdentifier {
-  frontendId?: string;
-  backendId?: ObjectRef;
 }

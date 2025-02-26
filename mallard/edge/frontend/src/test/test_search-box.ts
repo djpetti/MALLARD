@@ -38,9 +38,9 @@ const mockThunkTextSearch = thunkTextSearch as jest.MockedFn<
   typeof thunkTextSearch
 >;
 
-jest.mock("@captaincodeman/redux-connect-element", () => ({
+jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
-  connect: jest.fn((_, elementClass) => elementClass),
+  connectRedux: jest.fn((_, elementClass) => elementClass),
 }));
 jest.mock("../store", () => ({
   // Mock this to avoid an annoying spurious console error from Redux.
@@ -519,28 +519,24 @@ describe("search-box", () => {
       searchState.searchString = searchString;
 
       // Act.
-      const updates = searchBoxElement.mapState(state);
+      searchBoxElement.stateChanged(state);
 
       // Assert.
       // It should have gotten the correct updates.
-      expect(updates).toHaveProperty("autocompleteSuggestions");
-      expect(updates["autocompleteSuggestions"]).toEqual(
+      expect(searchBoxElement.autocompleteSuggestions).toEqual(
         searchState.autocompleteSuggestions.textCompletions
       );
-      expect(updates["autocompleteMenu"]).toEqual(
+      expect(searchBoxElement.autocompleteMenu).toEqual(
         searchState.autocompleteSuggestions.menu
       );
 
-      expect(updates).toHaveProperty("showProgress");
-      expect(updates["showProgress"]).toEqual(
+      expect(searchBoxElement.showProgress).toEqual(
         queryState == RequestState.LOADING
       );
 
-      expect(updates).toHaveProperty("searchString");
-      expect(updates["searchString"]).toEqual(searchString);
+      expect(searchBoxElement.searchString).toEqual(searchString);
 
-      expect(updates).toHaveProperty("showClear");
-      expect(updates["showClear"]).toEqual(searchString.length > 0);
+      expect(searchBoxElement.showClear).toEqual(searchString.length > 0);
     }
   );
 

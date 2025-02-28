@@ -22,8 +22,8 @@ import {
   completeToken,
 } from "./autocomplete";
 import "app-datepicker";
+import { AppDatePicker } from "app-datepicker";
 import { Dialog } from "@material/mwc-dialog";
-import { DatePicker } from "app-datepicker/dist/date-picker/date-picker";
 import { trim } from "lodash";
 import { PlatformType } from "mallard-api";
 import { connectRedux } from "./connected-element";
@@ -161,7 +161,7 @@ export class SearchBox extends LitElement {
   private datePickerDialog!: Dialog;
 
   @query("#date_picker", true)
-  private datePicker!: DatePicker;
+  private datePicker!: AppDatePicker;
 
   /** Keeps track of which date condition the user selected. */
   private selectedDateCondition: DateCondition = DateCondition.ON;
@@ -385,6 +385,9 @@ export class SearchBox extends LitElement {
         </mwc-textfield>
         <!-- Dialog for picking dates. -->
         <mwc-dialog id="date_picker_dialog" heading="Select Date">
+          <!-- lit-analyzer complains about this because it seemingly can't
+               handle an element registered via a variable name. This warning
+               can be ignored. -->
           <app-date-picker min="1970-01-01" id="date_picker"></app-date-picker>
           <mwc-button
             slot="primaryAction"

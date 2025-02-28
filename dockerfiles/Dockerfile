@@ -80,7 +80,7 @@ RUN apt-get install -y curl
 WORKDIR /home/mallard/
 
 # Install Node.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 ENV NVM_DIR=/root/.nvm
 RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 22.14.0
 

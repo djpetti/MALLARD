@@ -1,5 +1,5 @@
 import { css, html, LitElement, PropertyValues } from "lit";
-import { property, state } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import "@material/mwc-icon/mwc-icon.js";
 import "@material/mwc-list";
 import "./large-artifact-display";

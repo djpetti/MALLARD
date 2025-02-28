@@ -1,6 +1,4 @@
 import { css, html } from "lit";
-import { property } from "lit/decorators.js";
-import { UavImageMetadata } from "mallard-api";
 import "@material/mwc-icon";
 import "@material/mwc-circular-progress";
 import { ArtifactInfoBase } from "./artifact-info-base";

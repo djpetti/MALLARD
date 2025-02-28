@@ -5,6 +5,7 @@ import { getUserInfo, getUserProfileUrl, logout } from "./api-client";
 import { md5 } from "js-md5";
 import "@material/mwc-menu";
 import "@material/mwc-icon";
+import "@material/mwc-list/mwc-list-item";
 import { Menu } from "@material/mwc-menu";
 import { toRgb } from "colors-helper-tools";
 

@@ -12,14 +12,14 @@ async def get_test(
 ```
 """
 
-
 import importlib
 import re
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack
 from functools import cache
 from typing import AsyncIterator, Type, TypeVar
 
-from confuse import ConfigTypeError, ConfigView
+from asyncstdlib.functools import cache as async_cache
+from confuse import ConfigTypeError
 from loguru import logger
 
 from ...config import config
@@ -35,6 +35,12 @@ of an import statement.
 
 
 DepType = TypeVar("DepType", bound=Injectable)
+
+
+_g_exit_stack = AsyncExitStack()
+"""
+This is used internally to manage dependencies.
+"""
 
 
 @cache
@@ -68,20 +74,22 @@ def _import_class(class_path: str) -> Type:
     module = importlib.import_module(module_path)
     if not hasattr(module, class_name):
         raise ConfigTypeError(
-            f"Class {class_name} does not exist in " f"module {module_path}."
+            f"Class {class_name} does not exist in module {module_path}."
         )
     return getattr(module, class_name)
 
 
-@asynccontextmanager
+@async_cache
 async def _load_dependency(
-    view: ConfigView, *, check_type: Type[DepType]
+    dependency_name: str, *, check_type: Type[DepType]
 ) -> AsyncIterator[DepType]:
     """
     Loads a dependency based on the specification in a `ConfigView`.
 
     Args:
-        view: The view containing the dependency specification.
+        dependency_name: The name of the dependency to load. Should be a string
+            separated by dots, as if you were importing a module. This will
+            be used to read from the config view.
         check_type: A superclass that the loaded dependency should
             conform to.
 
@@ -92,7 +100,12 @@ async def _load_dependency(
         The instance of the dependency that it loaded.
 
     """
+    view_sequence = dependency_name.split(".")
+    view = config
+    for view_name in view_sequence:
+        view = view[view_name]
     type_name = view["type"].as_str()
+
     logger.info("Loading dependency '{}'...", type_name)
     type_class = _import_class(view["type"].as_str())
 
@@ -105,8 +118,9 @@ async def _load_dependency(
         )
 
     # Initialize the new instance.
-    async with type_class.from_config(view["config"]) as dependency:
-        yield dependency
+    return await _g_exit_stack.enter_async_context(
+        type_class.from_config(view["config"])
+    )
 
 
 async def object_store() -> AsyncIterator[ObjectStore]:
@@ -115,10 +129,9 @@ async def object_store() -> AsyncIterator[ObjectStore]:
         The `ObjectStore` subclass to use.
 
     """
-    async with _load_dependency(
-        config["backends"]["object_store"], check_type=ObjectStore
-    ) as store:
-        yield store
+    return await _load_dependency(
+        "backends.object_store", check_type=ObjectStore
+    )
 
 
 async def artifact_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
@@ -127,11 +140,10 @@ async def artifact_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
         The `MetadataStore` subclass to use.
 
     """
-    async with _load_dependency(
-        config["backends"]["artifact_metadata_store"],
+    return await _load_dependency(
+        "backends.artifact_metadata_store",
         check_type=ArtifactMetadataStore,
-    ) as store:
-        yield store
+    )
 
 
 async def image_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
@@ -140,11 +152,10 @@ async def image_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
         The `MetadataStore` subclass to use.
 
     """
-    async with _load_dependency(
-        config["backends"]["image_metadata_store"],
+    return await _load_dependency(
+        "backends.image_metadata_store",
         check_type=ArtifactMetadataStore,
-    ) as store:
-        yield store
+    )
 
 
 async def video_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
@@ -153,8 +164,7 @@ async def video_metadata_store() -> AsyncIterator[ArtifactMetadataStore]:
         The `MetadataStore` subclass to use.
 
     """
-    async with _load_dependency(
-        config["backends"]["video_metadata_store"],
+    return await _load_dependency(
+        "backends.video_metadata_store",
         check_type=ArtifactMetadataStore,
-    ) as store:
-        yield store
+    )

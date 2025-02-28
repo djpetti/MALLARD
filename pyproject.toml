@@ -36,6 +36,7 @@ httptools = "^0.6.4"
 filetype = "^1.2.0"
 cffi = "^1.17.1"
 makefun = "^1.15.6"
+asyncstdlib = "^3.13.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.12.0"

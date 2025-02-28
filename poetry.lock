@@ -285,6 +285,23 @@ files = [
 python-dateutil = ">=2.7.0"
 
 [[package]]
+name = "asyncstdlib"
+version = "3.13.0"
+description = "The missing async toolbox"
+optional = false
+python-versions = "~=3.8"
+groups = ["main"]
+files = [
+    {file = "asyncstdlib-3.13.0-py3-none-any.whl", hash = "sha256:60e097c19e815f3c419a77426cf6c3653aebcb766544d631d5ce6128d0851ae8"},
+    {file = "asyncstdlib-3.13.0.tar.gz", hash = "sha256:f2a6ffb44f118233bb99bef50861d6f64c432decbdcc4c2cb93b3fff40d1b533"},
+]
+
+[package.extras]
+doc = ["sphinx", "sphinxcontrib-trio"]
+test = ["black ; implementation_name == \"cpython\"", "coverage", "flake8", "flake8-2020", "flake8-bugbear", "mypy ; implementation_name == \"cpython\"", "pytest", "pytest-cov"]
+typetest = ["mypy ; implementation_name == \"cpython\"", "pyright", "typing-extensions"]
+
+[[package]]
 name = "atomicwrites"
 version = "1.4.1"
 description = "Atomic file writes."
@@ -2980,4 +2997,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.13"
-content-hash = "1c6f3a30ac02d0f88dd13b2f390e8127bb8732ae1b0a1ed440ef48379b11455c"
+content-hash = "c024639c3b769ba04d86c875b0fdc4e83f2473bee339f7b5ca9aee46063881f2"

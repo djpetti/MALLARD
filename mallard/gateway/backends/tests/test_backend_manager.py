@@ -2,9 +2,8 @@
 Tests for the `backend_manager` module.
 """
 
-
 import unittest.mock as mock
-from typing import AsyncIterator, Callable
+from typing import Awaitable, Callable
 
 import pytest
 from confuse import ConfigTypeError
@@ -54,6 +53,10 @@ def config(mocker: MockFixture) -> ConfigForTests:
         The configuration that it generated.
 
     """
+    # Clear caches before each run.
+    backend_manager._import_class.cache_clear()
+    backend_manager._load_dependency.cache_clear()
+
     # Mock the dependencies.
     mock_import_module = mocker.patch("importlib.import_module")
     mock_config = mocker.patch.object(
@@ -73,9 +76,7 @@ def config(mocker: MockFixture) -> ConfigForTests:
         mock_metadata_view = mock_config["backends"][
             f"{store_name}_metadata_store"
         ]
-        mock_metadata_view[
-            "type"
-        ].as_str.return_value = (
+        mock_metadata_view["type"].as_str.return_value = (
             f"test_store.Test{store_name.title()}MetadataStore"
         )
 
@@ -111,20 +112,17 @@ def config(mocker: MockFixture) -> ConfigForTests:
 
 
 @pytest.mark.asyncio
-async def test_object_store(
-    config: ConfigForTests, mocker: MockFixture
-) -> None:
+async def test_object_store(config: ConfigForTests) -> None:
     """
     Tests that we can properly load the object store.
 
     Args:
         config: The configuration to use for testing.
-        mocker: The fixture to use for mocking.
 
     """
     # Arrange.
     # Act.
-    object_store = await anext(backend_manager.object_store())
+    object_store = await backend_manager.object_store()
 
     # Assert.
     # It should have used the fake ObjectStore class.
@@ -151,7 +149,7 @@ async def test_object_store(
 )
 async def test_metadata_store(
     config: ConfigForTests,
-    loader: Callable[[], AsyncIterator[ArtifactMetadataStore]],
+    loader: Callable[[], Awaitable[ArtifactMetadataStore]],
     store_name: str,
 ) -> None:
     """
@@ -165,7 +163,7 @@ async def test_metadata_store(
     """
     # Arrange.
     # Act.
-    metadata_store = await anext(loader())
+    metadata_store = await loader()
 
     # Assert.
     # It should have used the fake MetadataStore class.
@@ -199,7 +197,7 @@ async def test_load_invalid_type_spec(config: ConfigForTests) -> None:
 
     # Act and assert.
     with pytest.raises(ConfigTypeError, match="config is not valid"):
-        await anext(backend_manager.object_store())
+        await backend_manager.object_store()
 
 
 @pytest.mark.asyncio
@@ -225,7 +223,7 @@ async def test_load_missing_class(
 
     # Act and assert.
     with pytest.raises(ConfigTypeError, match="does not exist"):
-        await anext(backend_manager.object_store())
+        await backend_manager.object_store()
 
 
 @pytest.mark.asyncio
@@ -260,4 +258,4 @@ async def test_load_failed_type_check(
 
     # Act and assert.
     with pytest.raises(ConfigTypeError, match="Expected a subclass"):
-        await anext(backend_manager.object_store())
+        await backend_manager.object_store()

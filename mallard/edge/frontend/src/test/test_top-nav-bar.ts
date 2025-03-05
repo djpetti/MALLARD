@@ -19,13 +19,13 @@ import {
   thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
-import { Button } from "@material/mwc-button";
 import { RequestState } from "../types";
 import { Menu } from "@material/mwc-menu";
 import { ListItem } from "@material/mwc-list/mwc-list-item";
 import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
+import { Button } from "@material/web/button/internal/button";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -130,7 +130,7 @@ describe("top-nav-bar", () => {
 
     // Both buttons should be visible and enabled.
     const buttons = deleteConfirmDialog?.querySelectorAll(
-      "mwc-button"
+      "md-text-button, md-filled-button"
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
@@ -159,7 +159,7 @@ describe("top-nav-bar", () => {
 
     // Only the cancel button should be visible and disabled.
     const buttons = deleteConfirmDialog?.querySelectorAll(
-      "mwc-button"
+      "md-text-button, md-filled-button"
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);
@@ -220,7 +220,7 @@ describe("top-nav-bar", () => {
 
     // Only the cancel button should be visible and disabled.
     const buttons = editMetadataDialog?.querySelectorAll(
-      "mwc-button"
+      "md-text-button, md-filled-button"
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);

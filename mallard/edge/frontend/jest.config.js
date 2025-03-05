@@ -13,6 +13,7 @@ module.exports = {
     "src/**/{!(index|elements|element-test-utils|store|auth-callback),}.ts",
   ],
   setupFiles: ["<rootDir>/src/test/jest-set-up.js"],
+  setupFilesAfterEnv: ["<rootDir>/src/test/jest-set-up-after-env.js"],
   globals: {
     // These are normally set in HTML by the web server. For testing,
     // it needs to be set manually.

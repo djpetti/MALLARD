@@ -1,6 +1,6 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query } from "lit/decorators.js";
-import "@material/mwc-button";
+import "@material/web/all";
 import "@material/mwc-circular-progress";
 import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
@@ -22,13 +22,13 @@ import {
   thunkUpdateSelectedMetadata,
 } from "./thumbnail-grid-slice";
 import { Dialog } from "@material/mwc-dialog";
-import { Button } from "@material/mwc-button";
 import { Menu } from "@material/mwc-menu";
 import "./metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { MetadataForm } from "./metadata-form";
 import "./user-menu";
 import { connectRedux } from "./connected-element";
+import { Button } from "@material/web/button/internal/button";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -431,18 +431,18 @@ export class TopNavBar extends LitElement {
                   ></mwc-circular-progress>
                 </div>
               `
-            : html` <mwc-button
+            : html` <md-filled-button
                 slot="primaryAction"
                 id="delete_confirm_button"
                 icon="delete"
                 @click="${this.onDeleteClick}"
-                >Delete</mwc-button
+                >Delete</md-filled-button
               >`}
-          <mwc-button
+          <md-text-button
             slot="secondaryAction"
             dialogAction="cancel"
             ?disabled="${this.showDeletionProgress}"
-            >Cancel</mwc-button
+            >Cancel</md-text-button
           >
         </mwc-dialog>
 
@@ -466,19 +466,19 @@ export class TopNavBar extends LitElement {
                       ></mwc-circular-progress>
                     </div>
                   `
-                : html` <mwc-button
+                : html` <md-filled-button
                     slot="primaryAction"
                     id="edit_confirm_button"
                     icon="edit"
                     @click="${this.onEditingDone}"
-                    >Confirm</mwc-button
+                    >Confirm</md-filled-button
                   >`}
-              <mwc-button
+              <md-text-button
                 id="edit_cancel_button"
                 slot="secondaryAction"
                 @click="${this.onEditingCancelled}"
                 ?disabled="${this.showEditingProgress}"
-                >Cancel</mwc-button
+                >Cancel</md-text-button
               >
             </mwc-dialog>`
           : nothing}

@@ -157,11 +157,11 @@ describe("search-box", () => {
     ) as HTMLElement;
 
     // It should have rendered the menu.
-    const buttons = autocompleteDiv.querySelectorAll("mwc-button");
+    const buttons = autocompleteDiv.querySelectorAll("md-filled-tonal-button");
     expect(buttons).toHaveLength(3);
-    expect(buttons[0].label).toEqual("before");
-    expect(buttons[1].label).toEqual("date");
-    expect(buttons[2].label).toEqual("after");
+    expect(buttons[0].innerHTML).toEqual("before");
+    expect(buttons[1].innerHTML).toEqual("date");
+    expect(buttons[2].innerHTML).toEqual("after");
   });
 
   it("renders the platform autocomplete menu", async () => {
@@ -179,10 +179,10 @@ describe("search-box", () => {
     ) as HTMLElement;
 
     // It should have rendered the menu.
-    const buttons = autocompleteDiv.querySelectorAll("mwc-button");
+    const buttons = autocompleteDiv.querySelectorAll("md-filled-tonal-button");
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].label).toEqual("ground");
-    expect(buttons[1].label).toEqual("aerial");
+    expect(buttons[0].innerHTML).toEqual("ground");
+    expect(buttons[1].innerHTML).toEqual("aerial");
   });
 
   it("updates the value in the search box when the property changes", async () => {
@@ -403,8 +403,9 @@ describe("search-box", () => {
       const autocompleteDiv = root.querySelector(
         ".autocomplete-background"
       ) as HTMLElement;
-      const button =
-        autocompleteDiv.querySelectorAll("mwc-button")[buttonIndex];
+      const button = autocompleteDiv.querySelectorAll("md-filled-tonal-button")[
+        buttonIndex
+      ];
 
       // Add a listener for the event signaling that the search string has
       // changed.
@@ -424,7 +425,7 @@ describe("search-box", () => {
         "#date_picker_dialog"
       ) as Dialog;
       const dialogCloseButton =
-        datePickerDialog.querySelectorAll("mwc-button")[0];
+        datePickerDialog.querySelectorAll("md-filled-button")[0];
 
       // Make it look like completing the token works.
       const searchBox = root.querySelector("#search") as TextField;
@@ -436,8 +437,10 @@ describe("search-box", () => {
       // Act.
       // Simulate a click on the button.
       button.dispatchEvent(new MouseEvent("click", {}));
+      await searchBoxElement.updateComplete;
       // Simulate a click on the dialog OK button.
       dialogCloseButton.dispatchEvent(new MouseEvent("click", {}));
+      await searchBoxElement.updateComplete;
 
       // Assert.
       // It should have fired the event.
@@ -468,8 +471,9 @@ describe("search-box", () => {
       const autocompleteDiv = root.querySelector(
         ".autocomplete-background"
       ) as HTMLElement;
-      const button =
-        autocompleteDiv.querySelectorAll("mwc-button")[buttonIndex];
+      const button = autocompleteDiv.querySelectorAll("md-filled-tonal-button")[
+        buttonIndex
+      ];
 
       // Add a listener for the event signaling that the search string has
       // changed.

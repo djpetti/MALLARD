@@ -5,7 +5,7 @@ import "./file-uploader";
 import "./metadata-form";
 import "@material/mwc-fab";
 import "@material/mwc-dialog";
-import "@material/mwc-button";
+import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
 import { dialogOpened, thunkFinishUpload } from "./upload-slice";
@@ -124,7 +124,7 @@ export class MallardApp extends LitElement {
                 ></mwc-circular-progress>
               </div>
             `
-          : html` <mwc-button
+          : html` <md-text-button
               id="done_button"
               slot="primaryAction"
               ?disabled="${this.uploadsInProgress}"
@@ -138,7 +138,7 @@ export class MallardApp extends LitElement {
               }}"
             >
               Done
-            </mwc-button>`}
+            </md-text-button>`}
       </mwc-dialog>
     `;
   }

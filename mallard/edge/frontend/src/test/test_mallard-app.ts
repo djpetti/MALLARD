@@ -2,7 +2,6 @@ import { ConnectedMallardApp } from "../mallard-app";
 import { Dialog } from "@material/mwc-dialog";
 import each from "jest-each";
 import { Fab } from "@material/mwc-fab";
-import { Button } from "@material/mwc-button";
 import { UploadWorkflowStatus } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
@@ -10,6 +9,7 @@ import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
 import { ThumbnailGrid } from "../thumbnail-grid";
 import { RootState } from "../store";
+import { MdTextButton } from "@material/web/all";
 
 jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
@@ -139,7 +139,7 @@ describe("mallard-app", () => {
     // Arrange.
     // Get the add button.
     const shadowRoot = getShadowRoot(app.tagName);
-    const doneButton = shadowRoot.querySelector("#done_button") as Button;
+    const doneButton = shadowRoot.querySelector("#done_button") as MdTextButton;
 
     // Create a fake event handler.
     const eventHandler = jest.fn();
@@ -166,7 +166,7 @@ describe("mallard-app", () => {
     // Assert.
     // It should disable the close button on the modal.
     const root = getShadowRoot(app.tagName);
-    const doneButton = root.querySelector("#done_button") as Button;
+    const doneButton = root.querySelector("#done_button") as MdTextButton;
     expect(doneButton.disabled).toEqual(true);
   });
 

@@ -1,5 +1,5 @@
 // Allow use of MWC elements.
-import "@material/mwc-button";
+import "@material/web/all";
 import "@material/mwc-dialog";
 import "@material/mwc-icon";
 import "@material/mwc-icon-button";
@@ -12,7 +12,6 @@ import "@material/mwc-textfield";
 import "@material/mwc-radio";
 import "@material/mwc-formfield";
 import "@material/mwc-linear-progress";
-import "./thumbnail-grid";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";
 

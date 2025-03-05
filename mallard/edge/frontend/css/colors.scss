@@ -3,16 +3,22 @@
     --theme-primary: hsl(157, 96%, 36%);
     --theme-secondary-1: hsl(181, 77%, 38%);
     --theme-secondary-2: hsl(133, 80%, 31%);
-    --theme-secondary-1-light: hsl(203, 92%, 56%);
-    --theme-secondary-2-light: hsl(107, 100%, 52%);
+    --theme-secondary-1-light: hsl(203, 40%, 76%);
+    --theme-secondary-2-light: hsl(107, 40%, 72%);
 
-    --theme-blackish: hsl(157, 96%, 15%);
+    --theme-blackish: hsl(157, 96%, 5%);
     --theme-whitish: hsl(107, 50%, 98%);
     --theme-background: var(--theme-whitish);
     --theme-gray: hsl(107, 10%, 70%);
     --theme-dark-gray: hsl(107, 10%, 30%);
     --theme-light-gray: hsl(107, 10%, 90%);
     --theme-lighter-gray: hsl(107, 10%, 95%);
+
+    --md-sys-color-primary: var(--theme-primary);
+    --md-sys-color-secondary: var(--theme-secondary-1);
+    --md-sys-color-tertiary: var(--theme-secondary-2);
+    --md-sys-color-secondary-container: var(--theme-secondary-2-light);
+    --md-sys-color-on-secondary-container: var(--theme-blackish);
 }
 
 mwc-fab {
@@ -28,7 +34,7 @@ mwc-dialog {
     --mdc-dialog-heading-ink-color: var(--theme-blackish);
 }
 
-mwc-button {
+md {
     --mdc-theme-primary: var(--theme-primary)
 }
 

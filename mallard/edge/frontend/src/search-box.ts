@@ -14,8 +14,8 @@ import {
   thunkDoAutocomplete,
   thunkTextSearch,
 } from "./thumbnail-grid-slice";
+import "@material/web/all";
 import "@material/mwc-circular-progress";
-import "@material/mwc-button";
 import {
   AutocompleteMenu,
   completeSearch,
@@ -315,40 +315,30 @@ export class SearchBox extends LitElement {
 
       case AutocompleteMenu.DATE:
         return html`<mwc-list-item class="center">
-          <mwc-button
-            dense
-            unelevated
-            label="before"
+          <md-filled-tonal-button
             @click="${() => this.onDateConditionClick(DateCondition.BEFORE)}"
-          ></mwc-button>
-          <mwc-button
-            dense
-            unelevated
-            label="date"
+            >before</md-filled-tonal-button
+          >
+          <md-filled-tonal-button
             @click="${() => this.onDateConditionClick(DateCondition.ON)}"
-          ></mwc-button>
-          <mwc-button
-            dense
-            unelevated
-            label="after"
+            >date</md-filled-tonal-button
+          >
+          <md-filled-tonal-button
             @click="${() => this.onDateConditionClick(DateCondition.AFTER)}"
-          ></mwc-button>
+            >after</md-filled-tonal-button
+          >
         </mwc-list-item>`;
 
       case AutocompleteMenu.PLATFORM:
         return html`<mwc-list-item class="center">
-          <mwc-button
-            dense
-            unelevated
-            label="ground"
+          <md-filled-tonal-button
             @click="${() => this.onPlatformConditionClick(PlatformType.GROUND)}"
-          ></mwc-button>
-          <mwc-button
-            dense
-            unelevated
-            label="aerial"
+            >ground</md-filled-tonal-button
+          >
+          <md-filled-tonal-button
             @click="${() => this.onPlatformConditionClick(PlatformType.AERIAL)}"
-          ></mwc-button>
+            >aerial</md-filled-tonal-button
+          >
         </mwc-list-item>`;
     }
   }
@@ -389,14 +379,14 @@ export class SearchBox extends LitElement {
                handle an element registered via a variable name. This warning
                can be ignored. -->
           <app-date-picker min="1970-01-01" id="date_picker"></app-date-picker>
-          <mwc-button
+          <md-filled-button
             slot="primaryAction"
             dialogAction="ok"
             @click="${this.onDateSelected}"
-            >OK</mwc-button
+            >OK</md-filled-button
           >
-          <mwc-button slot="secondaryAction" dialogAction="cancel"
-            >Cancel</mwc-button
+          <md-text-button slot="secondaryAction" dialogAction="cancel"
+            >Cancel</md-text-button
           >
         </mwc-dialog>
         ${this.showClear

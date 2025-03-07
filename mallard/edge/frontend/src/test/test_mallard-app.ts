@@ -1,5 +1,4 @@
 import { ConnectedMallardApp } from "../mallard-app";
-import { Dialog } from "@material/mwc-dialog";
 import each from "jest-each";
 import { Fab } from "@material/mwc-fab";
 import { UploadWorkflowStatus } from "../types";
@@ -9,7 +8,7 @@ import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
 import { ThumbnailGrid } from "../thumbnail-grid";
 import { RootState } from "../store";
-import { MdTextButton } from "@material/web/all";
+import { MdDialog, MdTextButton } from "@material/web/all";
 
 jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
@@ -75,7 +74,7 @@ describe("mallard-app", () => {
 
       // Assert.
       const shadowRoot = getShadowRoot(app.tagName);
-      const uploadModal = shadowRoot.querySelector("#upload_modal") as Dialog;
+      const uploadModal = shadowRoot.querySelector("#upload_modal") as MdDialog;
       // The modal should be in the correct state.
       expect(uploadModal.open).toBe(modalOpen);
     }
@@ -169,6 +168,35 @@ describe("mallard-app", () => {
     const doneButton = root.querySelector("#done_button") as MdTextButton;
     expect(doneButton.disabled).toEqual(true);
   });
+
+  each([
+    { uploadModalOpen: true, shouldIgnoreCloseEvent: true },
+    { uploadModalOpen: false, shouldIgnoreCloseEvent: false },
+  ]).it(
+    "handles close events based on the state of the upload modal",
+    async ({ uploadModalOpen, shouldIgnoreCloseEvent }) => {
+      // Arrange.
+      // Set the modal state.
+      app.uploadModalOpen = uploadModalOpen;
+      await app.updateComplete;
+
+      // Act.
+      // Simulate a close event.
+      const shadowRoot = getShadowRoot(app.tagName);
+      const uploadModal = shadowRoot.querySelector("#upload_modal") as MdDialog;
+      uploadModal.dispatchEvent(new Event("close"));
+
+      // Assert.
+      // Check the modal state based on the expected result.
+      if (shouldIgnoreCloseEvent) {
+        expect(uploadModal.open).toBe(true);
+        expect(app.uploadModalOpen).toBe(true);
+      } else {
+        expect(uploadModal.open).toBe(false);
+        expect(app.uploadModalOpen).toBe(false);
+      }
+    }
+  );
 
   it("shows a spinner while finalizing the upload", async () => {
     // Arrange.

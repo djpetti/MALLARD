@@ -2,7 +2,7 @@
 :root {
     --theme-primary: hsl(157, 96%, 36%);
     --theme-secondary-1: hsl(181, 77%, 38%);
-    --theme-secondary-2: hsl(133, 80%, 41%);
+    --theme-secondary-2: hsl(133, 80%, 31%);
     --theme-secondary-1-light: hsl(203, 40%, 76%);
     --theme-secondary-2-light: hsl(107, 40%, 72%);
 
@@ -19,6 +19,10 @@
     --md-sys-color-tertiary: var(--theme-secondary-2);
     --md-sys-color-secondary-container: var(--theme-secondary-2-light);
     --md-sys-color-on-secondary-container: var(--theme-blackish);
+    --md-sys-color-surface-container-high: var(--theme-whitish);
+    --md-sys-color-surface-container: var(--theme-lighter-gray);
+    --md-sys-color-on-surface: var(--theme-blackish);
+    --md-sys-color-on-surface-variant: var(--theme-dark-gray);
 }
 
 mwc-fab {
@@ -28,10 +32,6 @@ mwc-fab {
 
 mwc-radio {
     --mdc-theme-secondary: var(--theme-primary);
-}
-
-mwc-dialog {
-    --mdc-dialog-heading-ink-color: var(--theme-blackish);
 }
 
 md {

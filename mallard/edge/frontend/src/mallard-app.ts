@@ -4,7 +4,6 @@ import "./thumbnail-grid";
 import "./file-uploader";
 import "./metadata-form";
 import "@material/mwc-fab";
-import "@material/mwc-dialog";
 import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
@@ -42,7 +41,8 @@ export class MallardApp extends LitElement {
 
     #upload_modal {
       /** Provide for two-column layout. */
-      --mdc-dialog-max-width: 2000px;
+      max-width: 2000px;
+      max-height: 100%;
     }
 
     #upload_row {
@@ -87,6 +87,17 @@ export class MallardApp extends LitElement {
   private thumbnailGrid!: ThumbnailGrid;
 
   /**
+   * Prevents the dialog from closing unless the element state reflects this.
+   * @param {Event} event The close event.
+   * @private
+   */
+  private onDialogCloseEvent(event: Event): void {
+    if (this.uploadModalOpen) {
+      event.preventDefault();
+    }
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render() {
@@ -103,14 +114,13 @@ export class MallardApp extends LitElement {
       ></mwc-fab>
 
       <!-- Upload modal (initially closed) -->
-      <mwc-dialog
+      <md-dialog
         id="upload_modal"
-        heading="Upload Data"
-        scrimClickAction=""
-        escapeKeyAction=""
         ?open="${this.uploadModalOpen}"
+        @close="${this.onDialogCloseEvent}"
       >
-        <div class="row" id="upload_row">
+        <div slot="headline">Upload Data</div>
+        <div slot="content" class="row" id="upload_row">
           <div id="upload_column" class="column_width1">
             <file-uploader></file-uploader>
           </div>
@@ -119,28 +129,29 @@ export class MallardApp extends LitElement {
           </div>
         </div>
 
-        ${this.finalizingUploads
-          ? html`
-              <div slot="primaryAction" class="no-overflow">
-                <md-circular-progress indeterminate></md-circular-progress>
-              </div>
-            `
-          : html` <md-text-button
-              id="done_button"
-              slot="primaryAction"
-              ?disabled="${this.uploadsInProgress}"
-              @click="${() => {
-                this.dispatchEvent(
-                  new CustomEvent(MallardApp.DONE_BUTTON_EVENT_NAME, {
-                    bubbles: true,
-                    composed: false,
-                  })
-                );
-              }}"
-            >
-              Done
-            </md-text-button>`}
-      </mwc-dialog>
+        <div slot="actions">
+          ${this.finalizingUploads
+            ? html`
+                <div class="no-overflow">
+                  <md-circular-progress indeterminate></md-circular-progress>
+                </div>
+              `
+            : html` <md-text-button
+                id="done_button"
+                ?disabled="${this.uploadsInProgress}"
+                @click="${() => {
+                  this.dispatchEvent(
+                    new CustomEvent(MallardApp.DONE_BUTTON_EVENT_NAME, {
+                      bubbles: true,
+                      composed: false,
+                    })
+                  );
+                }}"
+              >
+                Done
+              </md-text-button>`}
+        </div>
+      </md-dialog>
     `;
   }
 

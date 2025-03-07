@@ -5,7 +5,7 @@ import {
   filterOnlyEditable,
   MetadataInferenceStatus,
 } from "./types";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import "@material/mwc-formfield";
 import "@material/mwc-radio";
 import "@material/mwc-textarea";
@@ -40,7 +40,8 @@ export class MetadataForm extends LitElement {
     }
 
     #loading_indicator {
-      --mdc-theme-primary: var(--theme-gray);
+      --md-circular-progress-active-indicator-color: var(--theme-gray);
+      --md-circular-progress-size: 104px;
     }
 
     #form {
@@ -213,12 +214,12 @@ export class MetadataForm extends LitElement {
       <link rel="stylesheet" href="/static/mallard-edge.css" />
       <div id="main" class="${elementVisibility}">
         <!-- Loading indicator. -->
-        <mwc-circular-progress
+        <md-circular-progress
           id="loading_indicator"
           indeterminate
           density="14"
           class="${loadingVisibility} center"
-        ></mwc-circular-progress>
+        ></md-circular-progress>
 
         <!-- Main form. -->
         <div id="form" class="${formVisibility}">

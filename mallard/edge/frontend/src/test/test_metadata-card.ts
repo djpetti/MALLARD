@@ -39,7 +39,7 @@ describe("MetadataCard", () => {
 
       // Assert
       const root = getShadowRoot(ConnectedMetadataCard.tagName);
-      const loadingIndicator = root.querySelector("mwc-circular-progress");
+      const loadingIndicator = root.querySelector("md-circular-progress");
       expect(loadingIndicator).not.toBeNull();
     });
 

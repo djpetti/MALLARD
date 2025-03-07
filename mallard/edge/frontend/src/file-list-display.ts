@@ -3,7 +3,7 @@ import { property } from "lit/decorators.js";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item";
 import "@material/mwc-icon";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import { FileStatus, FrontendFileEntity } from "./types";
 import "./artifact-display";
 
@@ -24,6 +24,10 @@ export class FileListDisplay extends LitElement {
 
     span.inactive {
       color: var(--theme-gray);
+    }
+
+    :host {
+      --md-circular-progress-size: 24px;
     }
   `;
 
@@ -106,11 +110,10 @@ export class FileListDisplay extends LitElement {
     let childClass = "";
     switch (file.status) {
       case FileStatus.UPLOADING: {
-        statusIcon = html`<mwc-circular-progress
+        statusIcon = html`<md-circular-progress
           slot="meta"
-          progress="${file.uploadProgress / 100}"
-          density="-6"
-        ></mwc-circular-progress>`;
+          value="${file.uploadProgress / 100}"
+        ></md-circular-progress>`;
         break;
       }
       case FileStatus.COMPLETE: {

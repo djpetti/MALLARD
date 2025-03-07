@@ -80,7 +80,7 @@ each([
 
       // Check whether the loading animation is properly displayed.
       const loadingSpinners = containerDiv.getElementsByTagName(
-        "mwc-circular-progress"
+        "md-circular-progress"
       );
       expect(loadingSpinners).toHaveLength(1);
       if (showLoadingAnimation) {

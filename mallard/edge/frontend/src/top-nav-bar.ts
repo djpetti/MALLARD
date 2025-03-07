@@ -1,7 +1,6 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/web/all";
-import "@material/mwc-circular-progress";
 import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
@@ -83,6 +82,10 @@ export class TopNavBar extends LitElement {
       /* Put the search box on top of the navigation bar. */
       top: 0;
       z-index: 10;
+    }
+
+    :host {
+      --md-circular-progress-size: 24px;
     }
   `;
 
@@ -425,10 +428,7 @@ export class TopNavBar extends LitElement {
           ${this.showDeletionProgress
             ? html`
                 <div slot="primaryAction" class="no-overflow">
-                  <mwc-circular-progress
-                    indeterminate
-                    density="-4"
-                  ></mwc-circular-progress>
+                  <md-circular-progress indeterminate></md-circular-progress>
                 </div>
               `
             : html` <md-filled-button
@@ -460,10 +460,9 @@ export class TopNavBar extends LitElement {
               ${this.showEditingProgress
                 ? html`
                     <div slot="primaryAction" class="no-overflow">
-                      <mwc-circular-progress
+                      <md-circular-progress
                         indeterminate
-                        density="-4"
-                      ></mwc-circular-progress>
+                      ></md-circular-progress>
                     </div>
                   `
                 : html` <md-filled-button

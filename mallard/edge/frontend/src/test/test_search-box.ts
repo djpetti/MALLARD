@@ -134,10 +134,10 @@ describe("search-box", () => {
 
       if (isLoading) {
         // It should be showing the loading indicator.
-        expect(root.querySelector("mwc-circular-progress")).not.toBeNull();
+        expect(root.querySelector("md-circular-progress")).not.toBeNull();
       } else {
         // It should not be showing the loading indicator.
-        expect(root.querySelector("mwc-circular-progress")).toBeNull();
+        expect(root.querySelector("md-circular-progress")).toBeNull();
       }
     }
   );

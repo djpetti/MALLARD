@@ -20,6 +20,10 @@ import { connectRedux } from "./connected-element";
 export class MallardApp extends LitElement {
   static tagName: string = "mallard-app";
   static styles = css`
+    :host {
+      --md-circular-progress-size: 32px;
+    }
+
     .no-overflow {
       overflow: hidden;
     }
@@ -118,10 +122,7 @@ export class MallardApp extends LitElement {
         ${this.finalizingUploads
           ? html`
               <div slot="primaryAction" class="no-overflow">
-                <mwc-circular-progress
-                  indeterminate
-                  density="-4"
-                ></mwc-circular-progress>
+                <md-circular-progress indeterminate></md-circular-progress>
               </div>
             `
           : html` <md-text-button

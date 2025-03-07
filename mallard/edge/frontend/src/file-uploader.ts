@@ -27,6 +27,7 @@ export class FileUploader extends LitElement {
   static styles = css`
     :host {
       height: 100%;
+      --md-circular-progress-size: 28px;
     }
 
     .hidden {
@@ -325,10 +326,9 @@ export class FileUploader extends LitElement {
         <!-- Bottom pill showing upload progress. -->
         <div class="mdc-card pill ${pillVisibilityClass}" id="pill">
             <div class="pill-content flex-center">
-              <mwc-circular-progress
-                progress="${this.numFilesUploaded / this.uploadingFiles.length}"
-                density="-5"
-              ></mwc-circular-progress>
+              <md-circular-progress
+                value="${this.numFilesUploaded / this.uploadingFiles.length}"
+              ></md-circular-progress>
               <p id="upload_progress_text">
                 ${numRemainingUploads} files to upload
               </p>

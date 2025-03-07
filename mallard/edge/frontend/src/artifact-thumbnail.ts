@@ -125,7 +125,7 @@ export class ArtifactThumbnail extends ArtifactDisplay {
     }
 
     .button-selected {
-      color: var(--theme-secondary-1-light);
+      color: var(--theme-secondary-1);
     }
 
     ${ArtifactDisplay.styles}

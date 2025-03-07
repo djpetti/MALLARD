@@ -187,7 +187,7 @@ describe("mallard-app", () => {
     expect(doneButton).toBeNull();
 
     // It should be showing a spinner instead.
-    const spinner = root.querySelector("mwc-circular-progress");
+    const spinner = root.querySelector("md-circular-progress");
     expect(spinner).not.toBeNull();
   });
 

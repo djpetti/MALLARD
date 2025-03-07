@@ -15,7 +15,6 @@ import {
   thunkTextSearch,
 } from "./thumbnail-grid-slice";
 import "@material/web/all";
-import "@material/mwc-circular-progress";
 import {
   AutocompleteMenu,
   completeSearch,
@@ -409,10 +408,10 @@ export class SearchBox extends LitElement {
               </mwc-list>`
             : nothing}
           ${this.showProgress
-            ? html`<mwc-circular-progress
+            ? html`<md-circular-progress
                 class="center"
                 indeterminate
-              ></mwc-circular-progress>`
+              ></md-circular-progress>`
             : nothing}
         </div>
       </div>

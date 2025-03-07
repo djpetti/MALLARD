@@ -1,6 +1,6 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import "@material/mwc-icon";
 import { ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
@@ -168,10 +168,10 @@ export class ArtifactDisplay extends ArtifactInfoBase {
           ? html`<mwc-icon class="placeholder_icon">movie</mwc-icon>`
           : nothing}
         <!-- Loading animation -->
-        <mwc-circular-progress
+        <md-circular-progress
           indeterminate
           class="${loaderClass}"
-        ></mwc-circular-progress>
+        ></md-circular-progress>
 
         <!-- Image/video -->
         ${this.hasContent ? this.renderArtifact() : nothing}

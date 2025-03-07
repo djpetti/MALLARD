@@ -57,7 +57,7 @@ describe("ConnectedNotesCard", () => {
 
     // Assert: The component should render a loading indicator.
     const progressIndicator = notesCardElement.shadowRoot!.querySelector(
-      "mwc-circular-progress"
+      "md-circular-progress"
     );
     expect(progressIndicator).not.toBeNull();
   });

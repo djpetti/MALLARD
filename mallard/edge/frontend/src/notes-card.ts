@@ -1,6 +1,6 @@
 import { css, html } from "lit";
 import "@material/mwc-icon";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import store, { RootState } from "./store";
 import { Action } from "redux";
@@ -64,10 +64,10 @@ export class NotesCard extends ArtifactInfoBase {
         <div class="card-content">
           ${this.metadata === undefined
             ? html` <!-- Show the loading indicator. -->
-                <mwc-circular-progress
+                <md-circular-progress
                   class="vertical-center"
                   indeterminate
-                ></mwc-circular-progress>`
+                ></md-circular-progress>`
             : html` <div class="flex-container">
                   <mwc-icon id="note_icon" class="card-title-element"
                     >note_alt</mwc-icon

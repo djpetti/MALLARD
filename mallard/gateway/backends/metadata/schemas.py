@@ -5,12 +5,11 @@ Since different types of data might require different types of metadata,
 this representation allows things to remain flexible.
 """
 
-
 import enum
 from datetime import date
 from typing import Dict, Generic, Optional, TypeVar
 
-from pydantic import model_validator, validator, ConfigDict
+from pydantic import ConfigDict, model_validator, validator
 
 from ....schemas import ApiModel, GenericApiModel
 from ...fastapi_utils import as_form
@@ -97,7 +96,7 @@ class ImageFormat(str, enum.Enum):
 
     GIF = "gif"
     TIFF = "tiff"
-    JPEG = "jpeg"
+    JPEG = "jpg"
     BMP = "bmp"
     PNG = "png"
 

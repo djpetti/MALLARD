@@ -4,7 +4,7 @@ import { PlatformType, UavImageMetadata } from "mallard-api";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
 import { ArtifactInfoBase } from "./artifact-info-base";
@@ -56,10 +56,10 @@ export class MetadataCard extends ArtifactInfoBase {
           ${
             !this.metadata
               ? html` <!-- Show the loading indicator -->
-                  <mwc-circular-progress
+                  <md-circular-progress
                     class="vertical-center"
                     indeterminate
-                  ></mwc-circular-progress>`
+                  ></md-circular-progress>`
               : html` <h2 class="card-title-element">${this.metadata.name}</h2>
                   <mwc-list>
                     <mwc-list-item twoline graphic="avatar" noninteractive="">

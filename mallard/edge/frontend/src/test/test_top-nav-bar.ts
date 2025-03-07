@@ -169,7 +169,7 @@ describe("top-nav-bar", () => {
     expect(deleteConfirmDialog.escapeKeyAction).toEqual("");
 
     // The delete button should have been replaced by a loading indicator.
-    const loader = root.querySelector("mwc-circular-progress");
+    const loader = root.querySelector("md-circular-progress");
     expect(loader).not.toBeNull();
   });
 
@@ -230,7 +230,7 @@ describe("top-nav-bar", () => {
     expect(editMetadataDialog.escapeKeyAction).toEqual("");
 
     // The confirm button should have been replaced by a loading indicator.
-    const loader = root.querySelector("mwc-circular-progress");
+    const loader = root.querySelector("md-circular-progress");
     expect(loader).not.toBeNull();
   });
 

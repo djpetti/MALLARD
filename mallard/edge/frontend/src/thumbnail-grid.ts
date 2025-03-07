@@ -11,7 +11,7 @@ import {
   thunkStartNewQuery,
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
-import "@material/mwc-circular-progress";
+import "@material/web/all";
 import { InfiniteScrollingElement } from "./infinite-scrolling-element";
 import { flatten, isEqual } from "lodash";
 import { ThumbnailGridSection } from "./thumbnail-grid-section";
@@ -137,6 +137,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       width: 50%;
       text-align: center;
       font-size: xxx-large;
+    }
+
+    #loading_indicator {
+      --md-circular-progress-size: 104px;
     }
 
     .top_offset {
@@ -353,12 +357,12 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       </div>
 
       <!-- Show a loading indicator if needed. -->
-      <mwc-circular-progress
-        id="loading_indicator"
-        indeterminate
-        density="14"
-        class="${loadingVisibility} center top_offset"
-      ></mwc-circular-progress>
+      <div class="${loadingVisibility} center top_offset">
+        <md-circular-progress
+          id="loading_indicator"
+          indeterminate
+        ></md-circular-progress>
+      </div>
     `;
   }
 

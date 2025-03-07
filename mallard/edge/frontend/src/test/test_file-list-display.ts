@@ -67,7 +67,7 @@ describe("file-list-display", () => {
       if (name) {
         namesToProgress.set(
           name,
-          listItem.querySelector("mwc-circular-progress")?.progress
+          listItem.querySelector("md-circular-progress")?.value
         );
       }
     }

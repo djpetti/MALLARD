@@ -2,7 +2,6 @@
 API endpoints for the video transcoding microservice.
 """
 
-
 from typing import Annotated, Any, AsyncIterable, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
@@ -25,7 +24,7 @@ from ...ffmpeg import (
 router = APIRouter(tags=["transcoder"])
 
 
-def _streaming_response_with_errors(
+async def _streaming_response_with_errors(
     data_stream: AsyncIterable[bytes],
     *,
     error_stream: AsyncIterable[bytes],
@@ -45,10 +44,17 @@ def _streaming_response_with_errors(
         The `StreamingResponse`.
 
     """
+    ffmpeg_error = HTTPException(
+        status_code=422,
+        detail="Could not process the provided video. Is it valid?",
+    )
 
-    async def _read_and_handle_errors(stream: AsyncIterable[bytes]):
+    async def _read_and_handle_errors(
+        first_chunk_: bytes, stream: AsyncIterable[bytes]
+    ):
         num_bytes_read = 0
         try:
+            yield first_chunk_
             async for chunk in stream:
                 num_bytes_read += len(chunk)
                 yield chunk
@@ -65,13 +71,21 @@ def _streaming_response_with_errors(
                 "ffmpeg stderr: {}",
                 "".join([c.decode("utf8") async for c in error_stream]),
             )
-            raise HTTPException(
-                status_code=422,
-                detail="Could not process the provided video. Is it valid?",
-            )
+            raise ffmpeg_error
+
+    # Test one chunk to ensure we have some output.
+    try:
+        first_chunk = await anext(aiter(data_stream))
+    except StopAsyncIteration:
+        # There are some failure cases where FFMpeg will not exit
+        # with a non-zero code but with nonetheless not produce any
+        # valid output.
+        logger.error("ffmpeg did not produce any output data.")
+        raise ffmpeg_error
 
     return StreamingResponse(
-        _read_and_handle_errors(data_stream), media_type=content_type
+        _read_and_handle_errors(first_chunk, data_stream),
+        media_type=content_type,
     )
 
 
@@ -188,6 +202,7 @@ async def create_video_preview(
         The preview that was created.
 
     """
+    logger.info("Creating preview for video {}/{}", bucket, name)
     # Pre-reserve the processing slot before we connect to the object store.
     token = await reserve_processing_slot()
 
@@ -196,7 +211,7 @@ async def create_video_preview(
     preview_stream, error_stream = await create_preview(
         video, preview_width=preview_width, reservation_token=token
     )
-    return _streaming_response_with_errors(
+    return await _streaming_response_with_errors(
         preview_stream, error_stream=error_stream, content_type="video/vp9"
     )
 
@@ -222,6 +237,7 @@ async def create_streaming_video(
         The preview that was created.
 
     """
+    logger.info("Creating streaming version for video {}/{}", bucket, name)
     # Pre-reserve the processing slot before we connect to the object store.
     token = await reserve_processing_slot()
 
@@ -230,7 +246,7 @@ async def create_streaming_video(
     output_stream, error_stream = await create_streamable(
         video, max_width=max_width, reservation_token=token
     )
-    return _streaming_response_with_errors(
+    return await _streaming_response_with_errors(
         output_stream, error_stream=error_stream, content_type="video/vp9"
     )
 
@@ -255,11 +271,12 @@ async def create_video_thumbnail(
         The thumbnail that was created.
 
     """
+    logger.info("Creating thumbnail for video {}/{}", bucket, name)
     video = await object_store.get_object(ObjectRef(bucket=bucket, name=name))
 
     thumbnail_stream, error_stream = await create_thumbnail(
         video, thumbnail_width=thumbnail_width
     )
-    return _streaming_response_with_errors(
+    return await _streaming_response_with_errors(
         thumbnail_stream, error_stream=error_stream, content_type="image/jpeg"
     )

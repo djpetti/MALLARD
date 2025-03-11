@@ -2,7 +2,6 @@
 Tests for the `endpoints` module.
 """
 
-
 import io
 from typing import AsyncIterable
 from unittest.mock import ANY, Mock
@@ -127,9 +126,12 @@ async def bytes_iter(faker: Faker) -> AsyncIterable[bytes]:
 
 
 @pytest.fixture
-async def fail_iter() -> AsyncIterable[bytes]:
+async def fail_iter(faker: Faker) -> AsyncIterable[bytes]:
     """
     Provides an async iterable that eventually raises an OSError.
+
+    Args:
+        faker: The fixture to use for generating fake data.
 
     Yields:
         Random binary chunks.
@@ -137,7 +139,7 @@ async def fail_iter() -> AsyncIterable[bytes]:
     """
 
     async def _iter():
-        yield b""
+        yield faker.binary(length=20)
         raise OSError
 
     # Have to wrap this in an internal function to keep pytest from treating
@@ -155,12 +157,16 @@ async def empty_iter() -> AsyncIterable[bytes]:
 
     """
 
-    async def _iter():
-        yield b""
+    class EmptyAsyncIterable:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
 
     # Have to wrap this in an internal function to keep pytest from treating
     # it as a test with teardown actions.
-    return _iter()
+    return EmptyAsyncIterable()
 
 
 @pytest.mark.asyncio
@@ -402,11 +408,13 @@ async def test_create_video_preview(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fail_empty", [False, True], ids=("error", "empty"))
 async def test_create_video_preview_invalid(
     config: ConfigForTests,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
     faker: Faker,
+    fail_empty: bool,
 ) -> None:
     """
     Tests that `create_video_preview` raises an error when the video is invalid.
@@ -416,27 +424,32 @@ async def test_create_video_preview_invalid(
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
         faker: The fixture to use for generating fake data.
+        fail_empty: Whether to simulate a failure where FFMpeg doesn't
+            produce any output.
 
     """
     # Arrange.
-    config.mock_create_preview.return_value = fail_iter, empty_iter
+    data_iter = fail_iter
+    if fail_empty:
+        data_iter = empty_iter
+    config.mock_create_preview.return_value = data_iter, empty_iter
     fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_video_preview(
-        fake_video.bucket,
-        fake_video.name,
-        object_store=config.mock_object_store,
-    )
-
-    # Assert.
     with pytest.raises(HTTPException) as exc_info:
+        await endpoints.create_video_preview(
+            fake_video.bucket,
+            fake_video.name,
+            object_store=config.mock_object_store,
+        )
+
+        # Assert.
         # Force it to actually read the response data.
         data_stream = config.mock_streaming_response_class.call_args[0][0]
         async for _ in data_stream:
             pass
 
-        assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -498,11 +511,13 @@ async def test_create_streaming_video(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fail_empty", [False, True], ids=("error", "empty"))
 async def test_create_streaming_video_invalid(
     config: ConfigForTests,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
     faker: Faker,
+    fail_empty: bool,
 ) -> None:
     """
     Tests that `create_streaming_video` raises an error when the video is
@@ -513,21 +528,26 @@ async def test_create_streaming_video_invalid(
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
         faker: The fixture to use for generating fake data.
+        fail_empty: Whether to simulate a failure where FFMpeg doesn't
+            produce any output.
 
     """
     # Arrange.
-    config.mock_create_streamable.return_value = fail_iter, empty_iter
+    data_iter = fail_iter
+    if fail_empty:
+        data_iter = empty_iter
+    config.mock_create_streamable.return_value = data_iter, empty_iter
     fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_streaming_video(
-        fake_video.bucket,
-        fake_video.name,
-        object_store=config.mock_object_store,
-    )
-
-    # Assert.
     with pytest.raises(HTTPException) as exc_info:
+        await endpoints.create_streaming_video(
+            fake_video.bucket,
+            fake_video.name,
+            object_store=config.mock_object_store,
+        )
+
+        # Assert.
         # Force it to actually read the response data.
         data_stream = config.mock_streaming_response_class.call_args[0][0]
         async for _ in data_stream:
@@ -595,11 +615,13 @@ async def test_create_video_thumbnail(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fail_empty", [False, True], ids=("error", "empty"))
 async def test_create_video_thumbnail_invalid(
     config: ConfigForTests,
     faker: Faker,
     empty_iter: AsyncIterable[bytes],
     fail_iter: AsyncIterable[bytes],
+    fail_empty: bool,
 ) -> None:
     """
     Tests that `infer_video_metadata` raises an error when the video is invalid.
@@ -609,21 +631,26 @@ async def test_create_video_thumbnail_invalid(
         faker: The fixture to use for generating fake data.
         empty_iter: Iterable returning an empty bytes object.
         fail_iter: Iterable that eventually raises an OSError.
+        fail_empty: Whether to simulate a failure where FFMpeg doesn't
+            produce any output.
 
     """
     # Arrange.
-    config.mock_create_thumbnail.return_value = fail_iter, empty_iter
+    data_iter = fail_iter
+    if fail_empty:
+        data_iter = empty_iter
+    config.mock_create_thumbnail.return_value = data_iter, empty_iter
     fake_video = faker.object_ref()
 
     # Act.
-    await endpoints.create_video_thumbnail(
-        fake_video.bucket,
-        fake_video.name,
-        object_store=config.mock_object_store,
-    )
-
-    # Assert.
     with pytest.raises(HTTPException) as exc_info:
+        await endpoints.create_video_thumbnail(
+            fake_video.bucket,
+            fake_video.name,
+            object_store=config.mock_object_store,
+        )
+
+        # Assert.
         # Force it to actually read the response data.
         data_stream = config.mock_streaming_response_class.call_args[0][0]
         async for _ in data_stream:

@@ -2,6 +2,7 @@
 This is a client for the transcoder service. We *should* be able to
 autogenerate this, but OpenAPI is weird about async stuff.
 """
+
 import asyncio
 from asyncio import IncompleteReadError, TimeoutError
 from functools import singledispatch, wraps
@@ -163,7 +164,7 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
             async for chunk in to_wrap(video, chunk_size):
                 yield chunk
             return
-        except ClientPayloadError:
+        except (ClientPayloadError, HTTPException):
             pass
 
         logger.info("Initial request failed, retrying with optimized video...")

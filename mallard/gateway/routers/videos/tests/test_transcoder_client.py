@@ -2,7 +2,6 @@
 Tests for the `transcoder_client` module.
 """
 
-
 from asyncio import IncompleteReadError
 from itertools import cycle
 from unittest import mock
@@ -458,7 +457,7 @@ async def test_optimize_on_fail(
     faker: Faker,
     mock_response: ClientResponse,
     binary_content: bytes,
-    endpoint: transcoder_client.TranscoderEndpoint,
+    endpoint: transcoder_client.TranscoderStreamingEndpoint,
 ) -> None:
     """
     Tests that the endpoints that support it can automatically optimize the

@@ -87,7 +87,7 @@ def config(mocker: MockFixture) -> ConfigForTests:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_video(faker: Faker) -> UploadFile:
     """
     Provides a fake video file for testing.
@@ -103,7 +103,7 @@ def fake_video(faker: Faker) -> UploadFile:
 
 
 @pytest.fixture
-async def bytes_iter(faker: Faker) -> AsyncIterable[bytes]:
+def bytes_iter(faker: Faker) -> AsyncIterable[bytes]:
     """
     Provides an async iterable of fake bytes for testing.
 
@@ -126,7 +126,7 @@ async def bytes_iter(faker: Faker) -> AsyncIterable[bytes]:
 
 
 @pytest.fixture
-async def fail_iter(faker: Faker) -> AsyncIterable[bytes]:
+def fail_iter(faker: Faker) -> AsyncIterable[bytes]:
     """
     Provides an async iterable that eventually raises an OSError.
 
@@ -148,7 +148,7 @@ async def fail_iter(faker: Faker) -> AsyncIterable[bytes]:
 
 
 @pytest.fixture
-async def empty_iter() -> AsyncIterable[bytes]:
+def empty_iter() -> AsyncIterable[bytes]:
     """
     Provides an async iterable that yields a single empty bytes object.
 

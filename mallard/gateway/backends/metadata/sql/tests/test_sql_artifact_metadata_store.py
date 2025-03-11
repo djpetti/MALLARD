@@ -2,13 +2,13 @@
 Tests for the `sql_raster_metadata_store` module.
 """
 
-
 import unittest.mock as mock
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type
 
 import pytest
+import pytest_asyncio
 from faker import Faker
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
@@ -190,7 +190,7 @@ class TestSqlArtifactMetadataStore:
             class_specific=class_specific_config,
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture()
     async def sqlite_session(self, tmp_path: Path) -> AsyncSession:
         """
         Creates a new SQL session backed by a SQLite DB.

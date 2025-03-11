@@ -2,7 +2,6 @@
 Tests for the `irods_metadata_helpers` module.
 """
 
-
 from datetime import date, datetime
 from typing import Any
 
@@ -39,10 +38,10 @@ def test_irods_conversion_round_trip(test_value: Any) -> None:
 
     # Assert.
     # It should actually be a valid string.
-    assert type(irods_string) == str
+    assert type(irods_string) is str
 
     # It should not have been mutated.
-    if type(test_value) == float:
+    if type(test_value) is float:
         # For floats, use approximate comparison.
         assert pytest.approx(got_value) == test_value
     else:

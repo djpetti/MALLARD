@@ -17,9 +17,9 @@ import {
   completeToken,
 } from "../autocomplete";
 import { AppDatePicker } from "app-datepicker";
-import { Dialog } from "@material/mwc-dialog";
 import { TextField } from "@material/mwc-textfield";
 import { faker } from "@faker-js/faker";
+import { MdDialog } from "@material/web/all";
 
 jest.mock("../thumbnail-grid-slice", () => {
   return {
@@ -423,7 +423,7 @@ describe("search-box", () => {
       // Find the date picker dialog button.
       const datePickerDialog = root.querySelector(
         "#date_picker_dialog"
-      ) as Dialog;
+      ) as MdDialog;
       const dialogCloseButton =
         datePickerDialog.querySelectorAll("md-filled-button")[0];
 

@@ -1,7 +1,6 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
-import { property, query } from "lit/decorators.js";
+import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
-import "@material/mwc-dialog";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
@@ -20,7 +19,6 @@ import {
   thunkSelectAll,
   thunkUpdateSelectedMetadata,
 } from "./thumbnail-grid-slice";
-import { Dialog } from "@material/mwc-dialog";
 import { Menu } from "@material/mwc-menu";
 import "./metadata-form";
 import { UavImageMetadata } from "mallard-api";
@@ -28,6 +26,7 @@ import { MetadataForm } from "./metadata-form";
 import "./user-menu";
 import { connectRedux } from "./connected-element";
 import { Button } from "@material/web/button/internal/button";
+import { MdDialog } from "@material/web/all";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -186,16 +185,22 @@ export class TopNavBar extends LitElement {
   artifactName: string | null = null;
 
   /**
+   * Whether we are showing the deletion dialog.
+   */
+  @state()
+  private showDeletionDialog: boolean = false;
+
+  /**
    * The deletion confirmation modal.
    */
   @query("#confirm_delete_dialog", true)
-  private confirmDeleteDialog!: Dialog;
+  private confirmDeleteDialog!: MdDialog;
 
   /**
    * The metadata editing modal.
    */
   @query("#edit_metadata_dialog", true)
-  private editMetadataDialog!: Dialog;
+  private editMetadataDialog!: MdDialog;
 
   @query("#metadata_form")
   private metadataForm?: MetadataForm;
@@ -250,6 +255,7 @@ export class TopNavBar extends LitElement {
         composed: false,
       })
     );
+    this.showDeletionDialog = false;
   }
 
   /**
@@ -322,6 +328,21 @@ export class TopNavBar extends LitElement {
   }
 
   /**
+   * Prevents a dialog from closing when an operation is in-progress.
+   * @param {Event} event The close event.
+   * @private
+   */
+  private onDialogCloseEvent(event: Event): void {
+    if (this.showDeletionProgress || this.showEditingProgress) {
+      event.preventDefault();
+    }
+
+    // Make sure the internal state reflects the dialogs being closed.
+    this.showDeletionDialog = false;
+    this.onEditingCancelled();
+  }
+
+  /**
    * @inheritDoc
    */
   protected override render(): unknown {
@@ -376,7 +397,7 @@ export class TopNavBar extends LitElement {
                 icon="delete_outline"
                 slot="actionItems"
                 id="delete_button"
-                @click="${() => this.confirmDeleteDialog.show()}"
+                @click="${() => (this.showDeletionDialog = true)}"
               >
               </mwc-icon-button>
               <mwc-icon-button
@@ -415,71 +436,77 @@ export class TopNavBar extends LitElement {
         <user-menu slot="actionItems"></user-menu>
 
         <!-- Deletion confirmation dialog. -->
-        <mwc-dialog
-          heading="Confirm Deletion"
+        <md-dialog
           id="confirm_delete_dialog"
-          scrimClickAction="${this.showDeletionProgress ? "" : "close"}"
-          escapeKeyAction="${this.showDeletionProgress ? "" : "close"}"
-          ?open="${this.showDeletionProgress}"
+          ?open="${this.showDeletionDialog || this.showDeletionProgress}"
+          @close="${this.onDialogCloseEvent}"
         >
-          <div>
+          <div slot="heading">Confirm Deletion</div>
+          <div slot="content">
             Are you sure you want to delete ${this.numItemsSelected} item(s)?
           </div>
-          ${this.showDeletionProgress
-            ? html`
-                <div slot="primaryAction" class="no-overflow">
-                  <md-circular-progress indeterminate></md-circular-progress>
-                </div>
-              `
-            : html` <md-filled-button
-                slot="primaryAction"
-                id="delete_confirm_button"
-                icon="delete"
-                @click="${this.onDeleteClick}"
-                >Delete</md-filled-button
-              >`}
-          <md-text-button
-            slot="secondaryAction"
-            dialogAction="cancel"
-            ?disabled="${this.showDeletionProgress}"
-            >Cancel</md-text-button
-          >
-        </mwc-dialog>
+          <div slot="actions">
+            ${this.showDeletionProgress
+              ? html`
+                  <div slot="primaryAction" class="no-overflow">
+                    <md-circular-progress indeterminate></md-circular-progress>
+                  </div>
+                `
+              : html` <md-filled-button
+                  slot="primaryAction"
+                  id="delete_confirm_button"
+                  icon="delete"
+                  @click="${this.onDeleteClick}"
+                  >Delete</md-filled-button
+                >`}
+            <md-text-button
+              slot="secondaryAction"
+              dialogAction="cancel"
+              ?disabled="${this.showDeletionProgress}"
+              >Cancel</md-text-button
+            >
+          </div>
+        </md-dialog>
 
         <!-- Metadata editing dialog -->
         ${this.showEditingDialog
-          ? html`<mwc-dialog
-              heading="Edit Metadata"
+          ? html`<md-dialog
               id="edit_metadata_dialog"
-              scrimClickAction="${this.showEditingProgress ? "" : "close"}"
-              escapeKeyAction="${this.showEditingProgress ? "" : "close"}"
+              @close="${this.onDialogCloseEvent}"
               open
             >
-              Edit the saved metadata for the selected images:
-              <metadata-editing-form id="metadata_form"></metadata-editing-form>
-              ${this.showEditingProgress
-                ? html`
-                    <div slot="primaryAction" class="no-overflow">
-                      <md-circular-progress
-                        indeterminate
-                      ></md-circular-progress>
-                    </div>
-                  `
-                : html` <md-filled-button
-                    slot="primaryAction"
-                    id="edit_confirm_button"
-                    icon="edit"
-                    @click="${this.onEditingDone}"
-                    >Confirm</md-filled-button
-                  >`}
-              <md-text-button
-                id="edit_cancel_button"
-                slot="secondaryAction"
-                @click="${this.onEditingCancelled}"
-                ?disabled="${this.showEditingProgress}"
-                >Cancel</md-text-button
-              >
-            </mwc-dialog>`
+              <div slot="heading">Edit Metadata</div>
+              <div slot="content">
+                Edit the saved metadata for the selected images:
+                <metadata-editing-form
+                  id="metadata_form"
+                ></metadata-editing-form>
+              </div>
+              <div slot="content">
+                ${this.showEditingProgress
+                  ? html`
+                      <div slot="primaryAction" class="no-overflow">
+                        <md-circular-progress
+                          indeterminate
+                        ></md-circular-progress>
+                      </div>
+                    `
+                  : html` <md-filled-button
+                      slot="primaryAction"
+                      id="edit_confirm_button"
+                      icon="edit"
+                      @click="${this.onEditingDone}"
+                      >Confirm</md-filled-button
+                    >`}
+                <md-text-button
+                  id="edit_cancel_button"
+                  slot="secondaryAction"
+                  @click="${this.onEditingCancelled}"
+                  ?disabled="${this.showEditingProgress}"
+                  >Cancel</md-text-button
+                >
+              </div>
+            </md-dialog>`
           : nothing}
 
         <!-- Hidden links for downloading files. -->

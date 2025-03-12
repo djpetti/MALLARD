@@ -18,7 +18,6 @@ import {
   thunkSelectAll,
   thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
-import { Dialog } from "@material/mwc-dialog";
 import { RequestState } from "../types";
 import { Menu } from "@material/mwc-menu";
 import { ListItem } from "@material/mwc-list/mwc-list-item";
@@ -26,6 +25,7 @@ import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
+import { MdDialog } from "@material/web/all";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -123,7 +123,7 @@ describe("top-nav-bar", () => {
     // It should have rendered the deletion dialog, but not opened it.
     const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
     expect(deleteConfirmDialog).not.toBeNull();
-    expect((deleteConfirmDialog as Dialog).open).toEqual(false);
+    expect((deleteConfirmDialog as MdDialog).open).toEqual(false);
 
     // It should not have rendered the editing dialog.
     expect(root.querySelector("#edit_metadata_dialog")).toBeNull();
@@ -154,7 +154,7 @@ describe("top-nav-bar", () => {
     // It should have rendered the dialog.
     const deleteConfirmDialog = root.querySelector(
       "#confirm_delete_dialog"
-    ) as Dialog;
+    ) as MdDialog;
     expect(deleteConfirmDialog).not.toBeNull();
 
     // Only the cancel button should be visible and disabled.
@@ -163,10 +163,6 @@ describe("top-nav-bar", () => {
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);
-
-    // It should not let you exit by clicking outside the dialog.
-    expect(deleteConfirmDialog.scrimClickAction).toEqual("");
-    expect(deleteConfirmDialog.escapeKeyAction).toEqual("");
 
     // The delete button should have been replaced by a loading indicator.
     const loader = root.querySelector("md-circular-progress");
@@ -191,7 +187,7 @@ describe("top-nav-bar", () => {
     expect(editMetadataDialog).not.toBeNull();
 
     // The dialog should be open.
-    expect((editMetadataDialog as Dialog).open).toEqual(true);
+    expect((editMetadataDialog as MdDialog).open).toEqual(true);
 
     // The dialog should contain the metadata editing form.
     const metadataForm = root.querySelector("#metadata_form");
@@ -215,7 +211,7 @@ describe("top-nav-bar", () => {
     // It should have rendered the dialog.
     const editMetadataDialog = root.querySelector(
       "#edit_metadata_dialog"
-    ) as Dialog;
+    ) as MdDialog;
     expect(editMetadataDialog).not.toBeNull();
 
     // Only the cancel button should be visible and disabled.
@@ -224,10 +220,6 @@ describe("top-nav-bar", () => {
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(1);
     expect(buttons[0].disabled).toEqual(true);
-
-    // It should not let you exit by clicking outside the dialog.
-    expect(editMetadataDialog.scrimClickAction).toEqual("");
-    expect(editMetadataDialog.escapeKeyAction).toEqual("");
 
     // The confirm button should have been replaced by a loading indicator.
     const loader = root.querySelector("md-circular-progress");
@@ -414,7 +406,7 @@ describe("top-nav-bar", () => {
     // It should have opened the confirmation dialog.
     const dialog = root.querySelector("#confirm_delete_dialog");
     expect(dialog).not.toBeNull();
-    expect((dialog as Dialog).open).toEqual(true);
+    expect((dialog as MdDialog).open).toEqual(true);
   });
 
   it("dispatches an event when the user confirms the deletion", async () => {
@@ -659,7 +651,7 @@ describe("top-nav-bar", () => {
 
     // Open the dialog.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const dialog = root.querySelector("#confirm_delete_dialog") as Dialog;
+    const dialog = root.querySelector("#confirm_delete_dialog") as MdDialog;
     dialog.show();
 
     await navBarElement.updateComplete;
@@ -674,6 +666,71 @@ describe("top-nav-bar", () => {
     // It should have closed the dialog.
     expect(dialog.open).toEqual(false);
   });
+
+  each([
+    {
+      showDeletionProgress: true,
+      showEditingProgress: true,
+      shouldIgnoreCloseEvent: true,
+    },
+    {
+      showDeletionProgress: false,
+      showEditingProgress: false,
+      shouldIgnoreCloseEvent: false,
+    },
+    {
+      showDeletionProgress: true,
+      showEditingProgress: false,
+      shouldIgnoreCloseEvent: true,
+    },
+    {
+      showDeletionProgress: false,
+      showEditingProgress: true,
+      shouldIgnoreCloseEvent: true,
+    },
+  ]).it(
+    "handles close events based on the state of deletion and editing progress",
+    async ({
+      showDeletionProgress,
+      showEditingProgress,
+      shouldIgnoreCloseEvent,
+    }) => {
+      // Arrange.
+      navBarElement.showDeletionProgress = showDeletionProgress;
+      navBarElement.showEditingProgress = showEditingProgress;
+      await navBarElement.updateComplete;
+
+      // Act.
+      // Simulate a close event.
+      const shadowRoot = getShadowRoot(navBarElement.tagName);
+      const deletionDialog = shadowRoot.querySelector(
+        "#deletion_dialog"
+      ) as MdDialog;
+      const editingDialog = shadowRoot.querySelector(
+        "#editing_dialog"
+      ) as MdDialog;
+      if (deletionDialog) {
+        deletionDialog.dispatchEvent(new Event("close"));
+      }
+      if (editingDialog) {
+        editingDialog.dispatchEvent(new Event("close"));
+      }
+
+      // Assert.
+      // Check the dialog state based on the expected result.
+      if (shouldIgnoreCloseEvent) {
+        expect(deletionDialog ? deletionDialog.open : true).toBe(
+          showDeletionProgress
+        );
+        expect(editingDialog ? editingDialog.open : true).toBe(
+          showEditingProgress
+        );
+      } else {
+        expect(deletionDialog ? deletionDialog.open : false).toBe(false);
+        expect(editingDialog ? editingDialog.open : false).toBe(false);
+      }
+    }
+  );
 
   it("starts the download when the exported URLs are ready", async () => {
     // Arrange.

@@ -5,7 +5,6 @@ import { TextField } from "@material/mwc-textfield";
 import "@material/mwc-list/mwc-list.js";
 import "@material/mwc-list/mwc-list-item.js";
 import "@material/mwc-icon-button";
-import "@material/mwc-dialog";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -22,10 +21,10 @@ import {
 } from "./autocomplete";
 import "app-datepicker";
 import { AppDatePicker } from "app-datepicker";
-import { Dialog } from "@material/mwc-dialog";
 import { trim } from "lodash";
 import { PlatformType } from "mallard-api";
 import { connectRedux } from "./connected-element";
+import { MdDialog } from "@material/web/all";
 
 /**
  * Condition specified when searching by dates.
@@ -157,7 +156,7 @@ export class SearchBox extends LitElement {
   private searchBox!: TextField;
 
   @query("#date_picker_dialog", true)
-  private datePickerDialog!: Dialog;
+  private datePickerDialog!: MdDialog;
 
   @query("#date_picker", true)
   private datePicker!: AppDatePicker;
@@ -373,21 +372,28 @@ export class SearchBox extends LitElement {
         >
         </mwc-textfield>
         <!-- Dialog for picking dates. -->
-        <mwc-dialog id="date_picker_dialog" heading="Select Date">
+        <md-dialog id="date_picker_dialog">
+          <div slot="headline">Select Date</div>
           <!-- lit-analyzer complains about this because it seemingly can't
                handle an element registered via a variable name. This warning
                can be ignored. -->
-          <app-date-picker min="1970-01-01" id="date_picker"></app-date-picker>
-          <md-filled-button
-            slot="primaryAction"
-            dialogAction="ok"
-            @click="${this.onDateSelected}"
-            >OK</md-filled-button
-          >
-          <md-text-button slot="secondaryAction" dialogAction="cancel"
-            >Cancel</md-text-button
-          >
-        </mwc-dialog>
+          <app-date-picker
+            min="1970-01-01"
+            id="date_picker"
+            slot="content"
+          ></app-date-picker>
+          <div slot="actions">
+            <md-filled-button
+              slot="primaryAction"
+              dialogAction="ok"
+              @click="${this.onDateSelected}"
+              >OK</md-filled-button
+            >
+            <md-text-button slot="secondaryAction" dialogAction="cancel"
+              >Cancel</md-text-button
+            >
+          </div>
+        </md-dialog>
         ${this.showClear
           ? html`<mwc-icon-button
               icon="close"

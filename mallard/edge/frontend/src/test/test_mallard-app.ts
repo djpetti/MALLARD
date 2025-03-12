@@ -1,6 +1,5 @@
 import { ConnectedMallardApp } from "../mallard-app";
 import each from "jest-each";
-import { Fab } from "@material/mwc-fab";
 import { UploadWorkflowStatus } from "../types";
 import { Action } from "redux";
 import { fakeState, getShadowRoot } from "./element-test-utils";
@@ -8,7 +7,7 @@ import { dialogOpened, thunkFinishUpload } from "../upload-slice";
 import { faker } from "@faker-js/faker";
 import { ThumbnailGrid } from "../thumbnail-grid";
 import { RootState } from "../store";
-import { MdDialog, MdTextButton } from "@material/web/all";
+import { MdDialog, MdFab, MdTextButton } from "@material/web/all";
 
 jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
@@ -123,7 +122,7 @@ describe("mallard-app", () => {
     // Arrange.
     // Get the add button.
     const shadowRoot = getShadowRoot(app.tagName);
-    const addButton = shadowRoot.querySelector("#add_data") as Fab;
+    const addButton = shadowRoot.querySelector("#add_data") as MdFab;
 
     // Act.
     // Simulate a button click.

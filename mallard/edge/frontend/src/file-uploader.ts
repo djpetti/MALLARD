@@ -1,6 +1,5 @@
 import { css, html, LitElement, PropertyValues } from "lit";
 import "@material/mwc-icon";
-import "@material/mwc-fab";
 import { property, query, state } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
 import store, { RootState } from "./store";
@@ -313,11 +312,12 @@ export class FileUploader extends LitElement {
           </div>
         </div>
 
-        <mwc-fab
-          icon="add"
+        <md-fab
           id="browse"
           @click="${(_: Event) => this.fileInput.click()}"
-        ></mwc-fab>
+        >
+          <mwc-icon slot="icon">add</mwc-icons>
+        </md-fab>
       </div>
 
       <div class="file_list bottom_layer">

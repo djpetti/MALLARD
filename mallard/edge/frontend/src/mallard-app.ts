@@ -3,7 +3,6 @@ import { property, query } from "lit/decorators.js";
 import "./thumbnail-grid";
 import "./file-uploader";
 import "./metadata-form";
-import "@material/mwc-fab";
 import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
@@ -105,13 +104,14 @@ export class MallardApp extends LitElement {
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <thumbnail-grid id="thumbnails"></thumbnail-grid>
-      <mwc-fab
-        icon="add"
+      <md-fab
         id="add_data"
         @click="${() => {
           this.uploadModalOpen = true;
         }}"
-      ></mwc-fab>
+      >
+        <mwc-icon slot="icon">add</mwc-icon>
+      </md-fab>
 
       <!-- Upload modal (initially closed) -->
       <md-dialog

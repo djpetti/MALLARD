@@ -3,7 +3,6 @@ import "@material/web/all";
 import "@material/mwc-icon";
 import "@material/mwc-icon-button";
 import "@material/mwc-top-app-bar-fixed";
-import "@material/mwc-fab";
 import "@material/mwc-list";
 import "@material/mwc-textarea";
 import "@material/mwc-textfield";

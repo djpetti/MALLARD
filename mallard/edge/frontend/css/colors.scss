@@ -25,9 +25,10 @@
     --md-sys-color-on-surface-variant: var(--theme-dark-gray);
 }
 
-mwc-fab {
-    --mdc-theme-secondary: var(--theme-blackish);
-    --mdc-theme-on-secondary: var(--theme-whitish);
+md-fab {
+    --md-fab-container-color: var(--theme-blackish);
+    --md-fab-lowered-container-color: var(--theme-dark-gray);
+    --md-fab-icon-color: var(--theme-whitish);
 }
 
 mwc-radio {

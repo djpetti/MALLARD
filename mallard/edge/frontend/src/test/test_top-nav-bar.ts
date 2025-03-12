@@ -125,12 +125,14 @@ describe("top-nav-bar", () => {
     expect(deleteConfirmDialog).not.toBeNull();
     expect((deleteConfirmDialog as MdDialog).open).toEqual(false);
 
-    // It should not have rendered the editing dialog.
-    expect(root.querySelector("#edit_metadata_dialog")).toBeNull();
+    // It should have rendered the editing dialog, but not opened it.
+    const editDialog = root.querySelector("#edit_metadata_dialog");
+    expect(editDialog).not.toBeNull();
+    expect((editDialog as MdDialog).open).toEqual(false);
 
     // Both buttons should be visible and enabled.
     const buttons = deleteConfirmDialog?.querySelectorAll(
-      "md-text-button, md-filled-button"
+      "md-text-button, md-filled-tonal-button"
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
@@ -704,30 +706,22 @@ describe("top-nav-bar", () => {
       // Simulate a close event.
       const shadowRoot = getShadowRoot(navBarElement.tagName);
       const deletionDialog = shadowRoot.querySelector(
-        "#deletion_dialog"
+        "#confirm_delete_dialog"
       ) as MdDialog;
       const editingDialog = shadowRoot.querySelector(
-        "#editing_dialog"
+        "#edit_metadata_dialog"
       ) as MdDialog;
-      if (deletionDialog) {
-        deletionDialog.dispatchEvent(new Event("close"));
-      }
-      if (editingDialog) {
-        editingDialog.dispatchEvent(new Event("close"));
-      }
+      deletionDialog.dispatchEvent(new Event("close"));
+      editingDialog.dispatchEvent(new Event("close"));
 
       // Assert.
       // Check the dialog state based on the expected result.
       if (shouldIgnoreCloseEvent) {
-        expect(deletionDialog ? deletionDialog.open : true).toBe(
-          showDeletionProgress
-        );
-        expect(editingDialog ? editingDialog.open : true).toBe(
-          showEditingProgress
-        );
+        expect(deletionDialog.open).toBe(showDeletionProgress);
+        expect(editingDialog.open).toBe(showEditingProgress);
       } else {
-        expect(deletionDialog ? deletionDialog.open : false).toBe(false);
-        expect(editingDialog ? editingDialog.open : false).toBe(false);
+        expect(deletionDialog.open).toBe(false);
+        expect(editingDialog.open).toBe(false);
       }
     }
   );

@@ -377,19 +377,20 @@ export class SearchBox extends LitElement {
           <!-- lit-analyzer complains about this because it seemingly can't
                handle an element registered via a variable name. This warning
                can be ignored. -->
-          <app-date-picker
-            min="1970-01-01"
-            id="date_picker"
-            slot="content"
-          ></app-date-picker>
+          <form slot="content" id="date_select" method="dialog">
+            <app-date-picker
+              min="1970-01-01"
+              id="date_picker"
+            ></app-date-picker>
+          </form>
           <div slot="actions">
             <md-filled-button
-              slot="primaryAction"
-              dialogAction="ok"
+              value="ok"
+              form="date_select"
               @click="${this.onDateSelected}"
               >OK</md-filled-button
             >
-            <md-text-button slot="secondaryAction" dialogAction="cancel"
+            <md-text-button value="cancel" form="date_select"
               >Cancel</md-text-button
             >
           </div>

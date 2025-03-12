@@ -527,5 +527,13 @@ describe("metadata-form", () => {
         }
       }
     );
+
+    it("does not respond to events", () => {
+      // Act.
+      const eventMap = metadataForm.mapEvents();
+
+      // Assert.
+      expect(eventMap).toEqual({});
+    });
   });
 });

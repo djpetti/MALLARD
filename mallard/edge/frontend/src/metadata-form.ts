@@ -6,8 +6,6 @@ import {
   MetadataInferenceStatus,
 } from "./types";
 import "@material/web/all";
-import "@material/mwc-formfield";
-import "@material/mwc-radio";
 import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import store, { RootState } from "./store";
@@ -50,6 +48,23 @@ export class MetadataForm extends LitElement {
 
     #platform_fields {
       margin-top: 1.5em;
+    }
+
+    #platform_type_row {
+      min-height: 120px;
+    }
+
+    :host {
+      --md-radio-icon-size: 24px;
+    }
+
+    .radio_field {
+      min-height: max(30%, 36px);
+      font-size: 16px;
+    }
+
+    label {
+      padding-left: 10px;
     }
   `;
 
@@ -162,14 +177,20 @@ export class MetadataForm extends LitElement {
       id: string
     ): TemplateResult => {
       return html`
-        <mwc-radio
-          name="platform_type"
-          id="${id}"
-          ?checked="${this.metadata?.platformType == type}"
-          @change="${(event: Event) =>
-            this.updateMetadataFromEvent(event, "platformType", type)}"
-        >
-        </mwc-radio>
+        <span class="radio_field">
+          <md-radio
+            name="platform_type"
+            id="${id}"
+            value="${type}"
+            ?checked="${this.metadata?.platformType == type}"
+            @change="${(event: Event) =>
+              this.updateMetadataFromEvent(event, "platformType", type)}"
+          >
+          </md-radio>
+          <label for="${id}"
+            >${type.charAt(0).toUpperCase() + type.slice(1)}</label
+          >
+        </span>
       `;
     };
 
@@ -256,22 +277,18 @@ export class MetadataForm extends LitElement {
             </div>
           </div>
 
-          <div class="row">
+          <div class="row" id="platform_type_row">
             <!-- Platform type selection. -->
             <div class="column_width1">
               <p>Imaging platform type:</p>
-              <mwc-formfield label="Ground">
-                ${makePlatformTypeRadio(
-                  PlatformType.GROUND,
-                  "platform_radio_ground"
-                )}
-              </mwc-formfield>
-              <mwc-formfield label="Aerial">
-                ${makePlatformTypeRadio(
-                  PlatformType.AERIAL,
-                  "platform_radio_uav"
-                )}
-              </mwc-formfield>
+              ${makePlatformTypeRadio(
+                PlatformType.GROUND,
+                "platform_radio_ground"
+              )}
+              ${makePlatformTypeRadio(
+                PlatformType.AERIAL,
+                "platform_radio_uav"
+              )}
             </div>
             <div class="column_width1">
               <!-- This column is metadata that's specific to the platform type. -->

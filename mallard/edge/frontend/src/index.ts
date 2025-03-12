@@ -6,8 +6,6 @@ import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-list";
 import "@material/mwc-textarea";
 import "@material/mwc-textfield";
-import "@material/mwc-radio";
-import "@material/mwc-formfield";
 import "@material/mwc-linear-progress";
 import { registerComponents } from "./elements";
 import "../css/mallard.scss";

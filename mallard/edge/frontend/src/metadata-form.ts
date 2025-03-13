@@ -1,12 +1,11 @@
 import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
-import { property } from "lit/decorators.js";
+import { property, query } from "lit/decorators.js";
 import {
   EditableMetadata,
   filterOnlyEditable,
   MetadataInferenceStatus,
 } from "./types";
 import "@material/web/all";
-import "@material/mwc-textarea";
 import "@material/mwc-textfield";
 import store, { RootState } from "./store";
 import { PlatformType } from "mallard-api";
@@ -66,6 +65,10 @@ export class MetadataForm extends LitElement {
     label {
       padding-left: 10px;
     }
+
+    md-filled-text-field {
+      resize: vertical;
+    }
   `;
 
   /** Name for the custom event signalling that the user has modified the form. */
@@ -80,6 +83,9 @@ export class MetadataForm extends LitElement {
   /** Current state of this element. */
   @property({ attribute: false })
   state: FormState = FormState.INACTIVE;
+
+  @query("#capture_date")
+  capture_date?: HTMLInputElement;
 
   /** Whether the user has modified the metadata in any way. */
   userModified: boolean = false;
@@ -302,15 +308,16 @@ export class MetadataForm extends LitElement {
 
           <div class="row">
             <div class="column_width1">
-              <mwc-textarea
+              <md-filled-text-field
                 label="Notes"
                 id="notes"
-                cols="3"
+                rows="3"
+                type="textarea"
                 value="${this.metadata?.notes ?? ""}"
                 @change="${(event: Event) =>
                   this.updateMetadataFromEvent(event, "notes")}"
               >
-              </mwc-textarea>
+              </md-filled-text-field>
             </div>
           </div>
         </div>

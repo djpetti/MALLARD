@@ -27,6 +27,7 @@ global.HTMLElement.prototype.attachInternals = () => ({
 });
 global.HTMLElement.prototype.animate = () => ({
   finished: { catch: jest.fn() },
+  addEventListener: jest.fn(),
 });
 
 // Workaround for https://github.com/jsdom/jsdom/issues/2527

@@ -130,7 +130,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
     }
 
     #empty_message {
-      color: var(--theme-gray);
+      color: var(--md-sys-color-on-surface-variant);
       font-family: "Roboto", sans-serif;
       font-weight: 100;
       margin: auto;

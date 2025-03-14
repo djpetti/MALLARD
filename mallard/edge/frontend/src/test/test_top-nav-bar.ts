@@ -8,7 +8,6 @@ import {
 } from "./element-test-utils";
 import each from "jest-each";
 import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
-import { IconButton } from "@material/mwc-icon-button";
 import {
   setEditingDialogOpen,
   thunkBulkDownloadSelected,
@@ -25,7 +24,7 @@ import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
-import { MdDialog } from "@material/web/all";
+import { MdDialog, MdIconButton } from "@material/web/all";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -294,7 +293,7 @@ describe("top-nav-bar", () => {
     // It should also show a button to cancel the selection.
     const cancelButton = topBar?.querySelector(
       "#cancel_selection"
-    ) as IconButton;
+    ) as MdIconButton;
     expect(cancelButton).not.toBeNull();
 
     // It should not show the search box in this mode.
@@ -325,7 +324,7 @@ describe("top-nav-bar", () => {
     const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
     const downloadButton = topBar.querySelector(
       "#download_button"
-    ) as IconButton;
+    ) as MdIconButton;
 
     downloadButton.dispatchEvent(new MouseEvent("click"));
 
@@ -354,7 +353,7 @@ describe("top-nav-bar", () => {
     // Simulate a click on the button.
     const downloadButton = root.querySelector(
       "#original_download_button"
-    ) as IconButton;
+    ) as MdIconButton;
     downloadButton.dispatchEvent(new MouseEvent("click"));
 
     // Assert.
@@ -379,7 +378,7 @@ describe("top-nav-bar", () => {
     // Simulate a click on the edit button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
     const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
-    const editButton = topBar.querySelector("#edit_button") as IconButton;
+    const editButton = topBar.querySelector("#edit_button") as MdIconButton;
 
     editButton.dispatchEvent(new MouseEvent("click"));
 
@@ -398,7 +397,7 @@ describe("top-nav-bar", () => {
     // Simulate a click on the delete button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
     const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
-    const deleteButton = topBar.querySelector("#delete_button") as IconButton;
+    const deleteButton = topBar.querySelector("#delete_button") as MdIconButton;
 
     deleteButton.dispatchEvent(new MouseEvent("click"));
 
@@ -523,7 +522,7 @@ describe("top-nav-bar", () => {
     const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
     const moreActionsButton = topBar.querySelector(
       "#more_actions_button"
-    ) as IconButton;
+    ) as MdIconButton;
 
     moreActionsButton.dispatchEvent(new MouseEvent("click"));
 
@@ -589,7 +588,7 @@ describe("top-nav-bar", () => {
     const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
     const cancelButton = topBar.querySelector(
       "#cancel_selection"
-    ) as IconButton;
+    ) as MdIconButton;
 
     cancelButton.dispatchEvent(new MouseEvent("click"));
 

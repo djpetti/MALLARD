@@ -56,7 +56,7 @@ export class MallardApp extends LitElement {
       margin-left: 24px;
       margin-right: -24px;
       box-shadow: inset 1px 1px 5px 1px rgba(0, 0, 0, 0.2);
-      background-color: var(--theme-lighter-gray);
+      background-color: var(--md-sys-color-surface-container-lowest);
     }
   `;
 
@@ -110,7 +110,7 @@ export class MallardApp extends LitElement {
           this.uploadModalOpen = true;
         }}"
       >
-        <mwc-icon slot="icon">add</mwc-icon>
+        <md-icon slot="icon">add</md-icon>
       </md-fab>
 
       <!-- Upload modal (initially closed) -->

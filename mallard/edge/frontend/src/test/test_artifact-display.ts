@@ -3,7 +3,7 @@ import each from "jest-each";
 import { ArtifactDisplay } from "../artifact-display";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
-import { Icon } from "@material/mwc-icon";
+import { MdIcon } from "@material/web/all";
 
 // Using older require syntax here so that we get the correct mock type.
 const pageManager = require("../page-manager");
@@ -92,7 +92,7 @@ each([
       // Check whether the video placeholder is properly displayed.
       const placeholderIcon = containerDiv.querySelector(
         ".placeholder_icon"
-      ) as Icon;
+      ) as MdIcon;
       if (objectType === ObjectType.VIDEO && !showLoadingAnimation) {
         expect(placeholderIcon).not.toBeNull();
       } else {

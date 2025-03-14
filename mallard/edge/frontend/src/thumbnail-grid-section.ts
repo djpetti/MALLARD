@@ -1,7 +1,5 @@
 import { css, html, nothing } from "lit";
 import { property, query } from "lit/decorators.js";
-import "@material/mwc-icon-button";
-import "@material/mwc-icon-button-toggle";
 import "./artifact-thumbnail";
 import store, { RootState } from "./store";
 import {
@@ -51,8 +49,8 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
     }
 
     #section_divider {
-      background-color: var(--theme-primary);
-      color: var(--theme-whitish);
+      background-color: var(--md-sys-color-secondary);
+      color: var(--md-sys-color-on-secondary);
       padding: 1rem;
       width: 100%;
       border: none;
@@ -66,7 +64,15 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
       position: absolute;
       top: 0;
       right: 0;
-      color: var(--theme-whitish);
+    }
+
+    md-icon {
+      color: var(--md-sys-color-on-secondary);
+    }
+
+    md-icon.selected {
+      color: var(--md-sys-color-on-secondary);
+      font-variation-settings: "FILL" 1;
     }
   `;
 
@@ -232,30 +238,31 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
    * @inheritDoc
    */
   protected render() {
-    // Icon to use for the select button.
-    const selectIcon = this.selected
-      ? "check_circle"
-      : "radio_button_unchecked";
-
     return html`
       ${this.displayedArtifacts.length > 0
         ? html` <div id="section_divider">
             ${this.sectionHeader}
             <span class="action-buttons">
               <!-- Selection button -->
-              <mwc-icon-button
+              <md-icon-button
+                toggle
+                ?selected="${this.selected}"
                 id="select_button"
-                icon="${selectIcon}"
                 @click="${this.onSelect}"
-              ></mwc-icon-button>
+              >
+                <md-icon>radio_button_unchecked</md-icon>
+                <md-icon slot="selected" class="selected">check_circle</md-icon>
+              </md-icon-button>
               <!-- Expand/collapse button -->
-              <mwc-icon-button-toggle
-                ?on="${this.expanded}"
+              <md-icon-button
+                toggle
+                ?selected="${this.expanded}"
                 id="collapse_button"
-                onIcon="expand_more"
-                offIcon="expand_less"
                 @click="${this.onExpandOrCollapse}"
-              ></mwc-icon-button-toggle>
+              >
+                <md-icon>expand_less</md-icon>
+                <md-icon class="selected" slot="selected">expand_more</md-icon>
+              </md-icon-button>
             </span>
           </div>`
         : nothing}

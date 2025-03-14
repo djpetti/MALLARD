@@ -6,7 +6,6 @@ import {
   fakeVideoMetadata,
   getShadowRoot,
 } from "./element-test-utils";
-import { IconButton } from "@material/mwc-icon-button";
 import {
   createArtifactEntityId,
   thunkSelectImages,
@@ -15,6 +14,7 @@ import each from "jest-each";
 import store, { RootState } from "../store";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
+import { MdIconButton } from "@material/web/all";
 
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
@@ -159,7 +159,7 @@ describe("artifact-thumbnail", () => {
       // Assert.
       // It should be showing the selected button.
       const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
-      const selectButton = root.querySelector("#select_button") as IconButton;
+      const selectButton = root.querySelector("#select_button") as MdIconButton;
       expect(selectButton).not.toBeNull();
 
       const media = root.querySelector("#media");
@@ -246,7 +246,7 @@ describe("artifact-thumbnail", () => {
       // Act.
       // Find the select button.
       const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
-      const selectButton = root.querySelector("#select_button") as IconButton;
+      const selectButton = root.querySelector("#select_button") as MdIconButton;
 
       // Simulate a click.
       selectButton.dispatchEvent(
@@ -259,9 +259,7 @@ describe("artifact-thumbnail", () => {
       // The state should be updated.
       expect(thumbnailElement.selected).toEqual(select);
       // It should be displaying correctly.
-      expect(selectButton.icon).toEqual(
-        select ? "check_circle" : "radio_button_unchecked"
-      );
+      expect(selectButton.selected).toEqual(select);
 
       const videoMarker = root.querySelector(
         ".video_marker"
@@ -313,7 +311,7 @@ describe("artifact-thumbnail", () => {
     // Assert.
     // It should still be showing the select button.
     const root = getShadowRoot(ConnectedArtifactThumbnail.tagName);
-    const selectButton = root.querySelector("#select_button") as IconButton;
+    const selectButton = root.querySelector("#select_button") as MdIconButton;
     expect(selectButton).not.toBeNull();
   });
 

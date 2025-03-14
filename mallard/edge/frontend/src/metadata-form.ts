@@ -37,7 +37,9 @@ export class MetadataForm extends LitElement {
     }
 
     #loading_indicator {
-      --md-circular-progress-active-indicator-color: var(--theme-gray);
+      --md-circular-progress-active-indicator-color: var(
+        --md-sys-color-on-surface-variant
+      );
       --md-circular-progress-size: 104px;
     }
 

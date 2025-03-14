@@ -2,7 +2,6 @@ import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
 import "@material/mwc-top-app-bar-fixed";
-import "@material/mwc-icon-button";
 import "@material/mwc-textfield";
 import "@material/mwc-menu";
 import "./search-box";
@@ -47,14 +46,14 @@ export class TopNavBar extends LitElement {
     }
 
     .normal {
-      --mdc-theme-primary: var(--theme-secondary-2);
+      --mdc-theme-primary: var(--md-sys-color-primary);
     }
 
     .selection-mode {
       /* Change the color slightly in selection mode to provide a cue to the
       user.
        */
-      --mdc-theme-primary: var(--theme-secondary-1);
+      --mdc-theme-primary: var(--md-sys-color-tertiary);
     }
 
     .vertical-centered {
@@ -70,7 +69,7 @@ export class TopNavBar extends LitElement {
     }
 
     #app_bar {
-      --mdc-theme-on-primary: var(--theme-whitish);
+      --mdc-theme-on-primary: var(--md-sys-color-on-primary);
       overflow-x: hidden;
     }
 
@@ -89,6 +88,10 @@ export class TopNavBar extends LitElement {
 
     :host {
       --md-circular-progress-size: 24px;
+    }
+
+    md-icon {
+      color: var(--md-sys-color-on-tertiary);
     }
   `;
 
@@ -353,11 +356,12 @@ export class TopNavBar extends LitElement {
     // If we have items selected, show a message about that instead of the
     // normal title.
     const title = inSelectionMode
-      ? html`<mwc-icon-button
-            icon="close"
+      ? html`<md-icon-button
             id="cancel_selection"
             @click="${this.onCancelSelectionClick}"
-          ></mwc-icon-button>
+          >
+            <md-icon>close</md-icon>
+          </md-icon-button>
           ${this.numItemsSelected} Selected`
       : html`${this.title}`;
     const titleClass = inSelectionMode ? "" : "logo";
@@ -367,13 +371,14 @@ export class TopNavBar extends LitElement {
 
       <mwc-top-app-bar-fixed id="app_bar" class="${topBarClass}">
         <!-- Back button -->
-        <mwc-icon-button
+        <md-icon-button
           class="${backButtonClass}"
-          icon="arrow_back"
           slot="navigationIcon"
           id="back_button"
           @click="${() => history.back()}"
-        ></mwc-icon-button>
+        >
+          <md-icon>arrow_back</md-icon>
+        </md-icon-button>
         <!-- Title -->
         <span slot="title" class="vertical-centered ${titleClass}" id="title">
           ${title}
@@ -386,32 +391,34 @@ export class TopNavBar extends LitElement {
         <!-- Action items. -->
         ${inSelectionMode
           ? html`
-              <mwc-icon-button
-                icon="download"
+              <md-icon-button
                 slot="actionItems"
                 id="download_button"
                 @click="${this.onDownloadClick}"
-              ></mwc-icon-button>
-              <mwc-icon-button
-                icon="delete_outline"
+              >
+                <md-icon>download</md-icon>
+              </md-icon-button>
+              <md-icon-button
                 slot="actionItems"
                 id="delete_button"
                 @click="${() => (this.showDeletionDialog = true)}"
               >
-              </mwc-icon-button>
-              <mwc-icon-button
-                icon="edit"
+                <md-icon>delete</md-icon>
+              </md-icon-button>
+              <md-icon-button
                 slot="actionItems"
                 id="edit_button"
                 @click="${this.onEditButtonClicked}"
               >
-              </mwc-icon-button>
+                <md-icon>edit</md-icon>
+              </md-icon-button>
               <div class="relative" slot="actionItems">
-                <mwc-icon-button
-                  icon="more_vert"
+                <md-icon-button
                   id="more_actions_button"
                   @click="${() => this.moreActionsMenu?.show()}"
-                ></mwc-icon-button>
+                >
+                  <md-icon>more_vert</md-icon>
+                </md-icon-button>
                 <mwc-menu id="more_actions_menu">
                   <mwc-list-item @click="${this.onUrlExportClick}"
                     >Export URLs</mwc-list-item
@@ -423,12 +430,13 @@ export class TopNavBar extends LitElement {
         <!--- Download button. -->
         ${this.artifactLink
           ? html`
-              <mwc-icon-button
-                icon="download"
+              <md-icon-button
                 slot="actionItems"
                 id="original_download_button"
                 @click="${() => this.artifactDownloadLink?.click()}"
-              ></mwc-icon-button>
+              >
+                <md-icon>download</md-icon>
+              </md-icon-button>
             `
           : nothing}
         <!-- User menu -->
@@ -458,7 +466,7 @@ export class TopNavBar extends LitElement {
                     id="delete_confirm_button"
                     @click="${this.onDeleteClick}"
                     >Delete
-                    <mwc-icon slot="icon">delete_outline</mwc-icon>
+                    <md-icon slot="icon">delete</md-icon>
                   </md-filled-tonal-button>
                 `}
             <md-text-button

@@ -12,8 +12,8 @@ import {
 import { Action } from "redux";
 import { ObjectType } from "mallard-api";
 import { state } from "lit/decorators.js";
-import "@material/mwc-icon";
 import "@material/mwc-linear-progress";
+import "@material/web/all";
 import { connectRedux } from "./connected-element";
 
 /**
@@ -35,7 +35,7 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     }
 
     .transcode_message_background {
-      background-color: var(--theme-dark-gray);
+      background-color: var(--md-sys-color-on-surface-variant);
       width: 100%;
       height: 100%;
 
@@ -55,14 +55,14 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
       font-family: Roboto;
       font-size: 40pt;
       font-weight: bold;
-      color: var(--theme-whitish);
+      color: var(--md-sys-color-background);
     }
 
     p {
       font-family: Roboto;
       font-size: 12pt;
       font-weight: lighter;
-      color: var(--theme-whitish);
+      color: var(--md-sys-color-background);
     }
 
     .grid_full_row {
@@ -80,7 +80,7 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     }
 
     #download_icon {
-      color: var(--theme-whitish);
+      color: var(--md-sys-color-background);
     }
 
     .placeholder {
@@ -204,7 +204,7 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
             indeterminate
           ></mwc-linear-progress>
           <p class="grid_justify_right">In the meantime, you can press</p>
-          <mwc-icon id="download_icon">download</mwc-icon>
+          <md-icon id="download_icon">download</md-icon>
           <p class="grid_justify_left">to download the original file.</p>
         </div>
       </div>

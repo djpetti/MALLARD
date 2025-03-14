@@ -1,7 +1,6 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/web/all";
-import "@material/mwc-icon";
 import { ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
@@ -21,7 +20,7 @@ export class ArtifactDisplay extends ArtifactInfoBase {
     }
 
     .placeholder {
-      background-color: var(--theme-gray);
+      background-color: var(--md-sys-color-surface-dim);
       width: 100%;
       height: 100%;
 
@@ -32,7 +31,7 @@ export class ArtifactDisplay extends ArtifactInfoBase {
     }
 
     .placeholder_icon {
-      color: var(--theme-whitish);
+      color: var(--md-sys-color-background);
       --mdc-icon-size: 48px;
     }
 
@@ -165,7 +164,7 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       <div id="media_container" class="${placeholderClass} centered">
         <!-- Placeholder icon to differentiate videos. -->
         ${showVideoPlaceholder
-          ? html`<mwc-icon class="placeholder_icon">movie</mwc-icon>`
+          ? html`<md-icon class="placeholder_icon">movie</md-icon>`
           : nothing}
         <!-- Loading animation -->
         <md-circular-progress

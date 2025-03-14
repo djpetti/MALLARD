@@ -4,7 +4,6 @@ import "@material/mwc-textfield";
 import { TextField } from "@material/mwc-textfield";
 import "@material/mwc-list/mwc-list.js";
 import "@material/mwc-list/mwc-list-item.js";
-import "@material/mwc-icon-button";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -79,7 +78,7 @@ export class SearchBox extends LitElement {
 
     .autocomplete-content {
       position: absolute;
-      border: 1px solid var(--theme-light-gray);
+      border: 1px solid var(--md-sys-color-outline);
       border-bottom: none;
       border-top: none;
       z-index: 99;
@@ -90,22 +89,22 @@ export class SearchBox extends LitElement {
     }
 
     .autocomplete-background {
-      background-color: var(--theme-whitish);
+      background-color: var(--md-sys-color-surface-container-high);
       width: 20vw;
       min-width: 250px;
     }
 
     .autocomplete-active {
       /*when navigating through the items using the arrow keys:*/
-      background-color: var(--theme-secondary-2) !important;
-      color: var(--theme-whitish);
+      background-color: var(--md-sys-color-secondary) !important;
+      color: var(--md-sys-color-on-secondary);
     }
 
     app-date-picker {
       /* Use matching colors for the date picker. */
-      --app-primary: var(--theme-primary);
-      --app-selected-hover: var(--theme-primary);
-      --app-hover: var(--theme-primary);
+      --app-primary: var(--md-sys-color-primary);
+      --app-selected-hover: var(--md-sys-color-primary);
+      --app-hover: var(--md-sys-color-primary);
     }
   `;
 
@@ -361,16 +360,16 @@ export class SearchBox extends LitElement {
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <div class="autocomplete">
-        <mwc-textfield
+        <md-filled-text-field
           id="search"
           class="rounded"
           label="Search"
-          icon="search"
           value="${this.searchString}"
           @input="${this.onTextChange}"
           @keypress="${this.onKeyPress}"
         >
-        </mwc-textfield>
+          <md-icon slot="leading-icon">search</md-icon>
+        </md-filled-text-field>
         <!-- Dialog for picking dates. -->
         <md-dialog id="date_picker_dialog">
           <div slot="headline">Select Date</div>
@@ -396,11 +395,9 @@ export class SearchBox extends LitElement {
           </div>
         </md-dialog>
         ${this.showClear
-          ? html`<mwc-icon-button
-              icon="close"
-              id="clear_button"
-              @click="${this.clear}"
-            ></mwc-icon-button>`
+          ? html`<md-icon-button id="clear_button" @click="${this.clear}">
+              <md-icon>close</md-icon>
+            </md-icon-button>`
           : nothing}
 
         <div class="autocomplete-background">

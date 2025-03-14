@@ -1,5 +1,4 @@
 import { css, html } from "lit";
-import "@material/mwc-icon";
 import "@material/web/all";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import store, { RootState } from "./store";
@@ -69,8 +68,8 @@ export class NotesCard extends ArtifactInfoBase {
                   indeterminate
                 ></md-circular-progress>`
             : html` <div class="flex-container">
-                  <mwc-icon id="note_icon" class="card-title-element"
-                    >note_alt</mwc-icon
+                  <md-icon id="note_icon" class="card-title-element"
+                    >note_alt</md-icon
                   >
                   <h2 class="card-title-element">Notes</h2>
                 </div>

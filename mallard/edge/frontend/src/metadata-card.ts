@@ -3,7 +3,6 @@ import { property } from "lit/decorators.js";
 import { PlatformType, UavImageMetadata } from "mallard-api";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item.js";
-import "@material/mwc-icon";
 import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
@@ -65,28 +64,28 @@ export class MetadataCard extends ArtifactInfoBase {
                     <mwc-list-item twoline graphic="avatar" noninteractive="">
                       <span>${this.metadata.sessionName ?? ""}</span>
                       <span slot="secondary">Session</span>
-                      <mwc-icon slot="graphic">collections</mwc-icon>
+                      <md-icon slot="graphic">collections</md-icon>
                     </mwc-list-item>
                     <mwc-list-item twoline graphic="avatar" noninteractive="">
                       <span>${this.metadata.captureDate ?? ""}</span>
                       <span slot="secondary">Capture Date</span>
-                      <mwc-icon slot="graphic">event</mwc-icon>
+                      <md-icon slot="graphic">event</md-icon>
                     </mwc-list-item>
                     <mwc-list-item twoline graphic="avatar" noninteractive="">
                       <span>${this.metadata.camera ?? ""}</span>
                       <span slot="secondary">Camera</span>
-                      <mwc-icon slot="graphic">camera_alt</mwc-icon>
+                      <md-icon slot="graphic">camera_alt</md-icon>
                     </mwc-list-item>
                     ${this.metadata.platformType == PlatformType.AERIAL
                       ? html`<mwc-list-item twoline graphic="avatar" noninteractive="">
                       <span>${this.metadata.altitudeMeters ?? 0} meters</span>
                       <span slot="secondary">Flight Altitude</span>
-                      <mwc-icon slot="graphic">height</mwc-icon>
+                      <md-icon slot="graphic">height</md-icon>
                     </mwc-list-item>
                     <mwc-list-item twoline graphic="avatar" noninteractive="">
                       <span>${this.metadata.gsdCmPx ?? 0} px/cm</span>
                       <span slot="secondary">Ground Sample Distance</span>
-                      <mwc-icon slot="graphic">satellite</mwc-icon>
+                      <md-icon slot="graphic">satellite</md-icon>
                     </mwc-list-item>
                   </mwc-list>`
                       : nothing}</mwc-list

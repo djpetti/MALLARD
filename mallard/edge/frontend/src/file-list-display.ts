@@ -2,7 +2,6 @@ import { LitElement, html, TemplateResult, css } from "lit";
 import { property } from "lit/decorators.js";
 import "@material/mwc-list";
 import "@material/mwc-list/mwc-list-item";
-import "@material/mwc-icon";
 import "@material/web/all";
 import { FileStatus, FrontendFileEntity } from "./types";
 import "./artifact-display";
@@ -23,7 +22,7 @@ export class FileListDisplay extends LitElement {
     }
 
     span.inactive {
-      color: var(--theme-gray);
+      color: var(--md-sys-color-surface-dim);
     }
 
     :host {
@@ -117,11 +116,11 @@ export class FileListDisplay extends LitElement {
         break;
       }
       case FileStatus.COMPLETE: {
-        statusIcon = html`<mwc-icon slot="meta">check_circle</mwc-icon>`;
+        statusIcon = html`<md-icon slot="meta">check_circle</md-icon>`;
         break;
       }
       default: {
-        statusIcon = html`<mwc-icon slot="meta">pending</mwc-icon>`;
+        statusIcon = html`<md-icon slot="meta">pending</md-icon>`;
         // Make sure children are styled to draw less attention.
         childClass = "inactive";
         break;

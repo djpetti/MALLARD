@@ -1,5 +1,4 @@
 import { css, html, LitElement, PropertyValues } from "lit";
-import "@material/mwc-icon";
 import { property, query, state } from "lit/decorators.js";
 import { FileListDisplay } from "./file-list-display";
 import store, { RootState } from "./store";
@@ -16,6 +15,7 @@ import {
 import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
 import { connectRedux } from "./connected-element";
+import "@material/web/all";
 
 /**
  * An element that allows the user to select and upload files.
@@ -38,7 +38,7 @@ export class FileUploader extends LitElement {
     .bottom_layer {
       position: relative;
       z-index: 5;
-      background-color: var(--theme-light-gray);
+      background-color: var(--md-sys-color-surface-container-lowest);
       overflow: auto;
     }
 
@@ -46,6 +46,7 @@ export class FileUploader extends LitElement {
     .top_layer {
       position: fixed;
       z-index: 10;
+      background-color: var(--md-sys-color-surface-container);
     }
 
     .drop_zone {
@@ -99,14 +100,14 @@ export class FileUploader extends LitElement {
 
     /* Styles UI when no file is being dragged. */
     .no_drag {
-      border-color: var(--theme-gray);
-      color: var(--theme-gray);
+      border-color: var(--md-sys-color-on-surface-variant);
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     /** Styles UI when a file is being dragged. */
     .active_drag {
-      border-color: var(--theme-primary);
-      color: var(--theme-primary);
+      border-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-primary);
     }
 
     .pill {
@@ -302,9 +303,9 @@ export class FileUploader extends LitElement {
               this.isDragging = false;
             }}"
           >
-            <mwc-icon id="upload_icon" class="${dropZoneClass}"
+            <md-icon id="upload_icon" class="${dropZoneClass}"
               >upload_file
-            </mwc-icon>
+            </md-icon>
             <div class="break"></div>
             <p id="upload_help" class="${dropZoneClass}">
               Drag files here to upload.
@@ -316,7 +317,7 @@ export class FileUploader extends LitElement {
           id="browse"
           @click="${(_: Event) => this.fileInput.click()}"
         >
-          <mwc-icon slot="icon">add</mwc-icons>
+          <md-icon slot="icon">add</md-icon>
         </md-fab>
       </div>
 

@@ -8,8 +8,6 @@ import {
 } from "./thumbnail-grid-slice";
 import { Action } from "redux";
 import { ArtifactDisplay } from "./artifact-display";
-import "@material/mwc-icon-button";
-import "@material/mwc-icon";
 import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 import { connectRedux } from "./connected-element";
 
@@ -89,8 +87,8 @@ export class ArtifactThumbnail extends ArtifactDisplay {
     #select_button {
       position: absolute;
       z-index: 6;
-      top: -10px;
-      right: -10px;
+      top: -5px;
+      right: -5px;
       animation-name: fade;
       animation-duration: 0.25s;
     }
@@ -121,11 +119,12 @@ export class ArtifactThumbnail extends ArtifactDisplay {
     }
 
     .button-unselected {
-      color: var(--theme-whitish);
+      color: var(--md-sys-color-on-primary);
     }
 
     .button-selected {
-      color: var(--theme-secondary-1);
+      color: var(--md-sys-color-tertiary);
+      font-variation-settings: "FILL" 1;
     }
 
     ${ArtifactDisplay.styles}
@@ -219,26 +218,26 @@ export class ArtifactThumbnail extends ArtifactDisplay {
    * @inheritDoc
    */
   protected override render() {
-    // Icon to use for the select button.
-    const selectIcon = this.selected
-      ? "check_circle"
-      : "radio_button_unchecked";
-    const selectClass = this.selected ? "button-selected" : "button-unselected";
     // Whether to show extra padding.
     const paddingClass = this.selected ? "padded" : "";
 
     const baseHtml = super.render();
-    return html` <div class="parent-size">
+    return html`<div class="parent-size">
       <div class="${paddingClass} parent-size">${baseHtml}</div>
       <!-- Selection button -->
       ${(this.isHovering || this.selected) && this.hasContent
-        ? html`<mwc-icon-button
+        ? html`<md-icon-button
+            toggle
+            ?selected="${this.selected}"
             id="select_button"
-            icon="${selectIcon}"
             slot="actionItems"
-            class="${selectClass}"
             @click="${this.onSelect}"
-          ></mwc-icon-button>`
+          >
+            <md-icon class="button-unselected">radio_button_unchecked</md-icon>
+            <md-icon slot="selected" class="button-selected"
+              >check_circle</md-icon
+            >
+          </md-icon-button>`
         : nothing}
       <!-- Video indicator -->
       ${this.type === ObjectType.VIDEO
@@ -246,7 +245,7 @@ export class ArtifactThumbnail extends ArtifactDisplay {
             class="video_marker ${this.selected || this.isHovering
               ? "marker_hidden"
               : ""}"
-            ><mwc-icon id="video_icon">play_circle_outline</mwc-icon
+            ><md-icon id="video_icon">play_circle</md-icon
             >${formatVideoDuration(this.metadata as UavVideoMetadata)}</span
           >`
         : nothing}

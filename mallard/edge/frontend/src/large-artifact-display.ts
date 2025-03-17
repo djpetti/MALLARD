@@ -12,7 +12,6 @@ import {
 import { Action } from "redux";
 import { ObjectType } from "mallard-api";
 import { state } from "lit/decorators.js";
-import "@material/mwc-linear-progress";
 import "@material/web/all";
 import { connectRedux } from "./connected-element";
 
@@ -198,11 +197,11 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
       <div class="transcode_message_background">
         <div class="grid_container">
           <h1 class="grid_full_row">This video is being transcoded...</h1>
-          <mwc-linear-progress
+          <md-linear-progress
             style="width: 100%"
             class="grid_full_row"
             indeterminate
-          ></mwc-linear-progress>
+          ></md-linear-progress>
           <p class="grid_justify_right">In the meantime, you can press</p>
           <md-icon id="download_icon">download</md-icon>
           <p class="grid_justify_left">to download the original file.</p>

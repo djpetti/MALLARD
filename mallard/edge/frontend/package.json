@@ -68,7 +68,6 @@
   "dependencies": {
     "@fief/fief": "^0.14.1",
     "@material/card": "^14.0.0",
-    "@material/mwc-linear-progress": "^0.27.0",
     "@material/mwc-list": "^0.27.0",
     "@material/mwc-menu": "^0.27.0",
     "@material/mwc-textfield": "^0.27.0",

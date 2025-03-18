@@ -6,7 +6,6 @@ import {
   MetadataInferenceStatus,
 } from "./types";
 import "@material/web/all";
-import "@material/mwc-textfield";
 import store, { RootState } from "./store";
 import { PlatformType } from "mallard-api";
 import { Action } from "redux";
@@ -70,6 +69,10 @@ export class MetadataForm extends LitElement {
 
     md-filled-text-field {
       resize: vertical;
+    }
+
+    md-outlined-text-field {
+      padding: 10px;
     }
   `;
 
@@ -207,7 +210,7 @@ export class MetadataForm extends LitElement {
     const airSpecificFields = html`
       <div class="row">
         <div class="column_width2">
-          <mwc-textfield
+          <md-outlined-text-field
             label="Altitude"
             id="altitude"
             type="number"
@@ -217,13 +220,13 @@ export class MetadataForm extends LitElement {
             value="${this.metadata?.altitudeMeters ?? ""}"
             @change="${(event: Event) =>
               this.updateMetadataNumber(event, "altitudeMeters")}"
-          ></mwc-textfield>
+          ></md-outlined-text-field>
         </div>
         <div class="column_width1"><p>mAGL</p></div>
       </div>
       <div class="row">
         <div class="column_width2">
-          <mwc-textfield
+          <md-outlined-text-field
             label="GSD"
             id="gsd"
             type="number"
@@ -233,7 +236,7 @@ export class MetadataForm extends LitElement {
             value="${this.metadata?.gsdCmPx ?? ""}"
             @change="${(event: Event) =>
               this.updateMetadataNumber(event, "gsdCmPx")}"
-          ></mwc-textfield>
+          ></md-outlined-text-field>
         </div>
         <div class="column_width1"><p>cm/px</p></div>
       </div>
@@ -254,34 +257,34 @@ export class MetadataForm extends LitElement {
         <div id="form" class="${formVisibility}">
           <div class="row">
             <div class="column_width1">
-              <mwc-textfield
+              <md-outlined-text-field
                 label="Session Name"
                 id="session_name"
                 value="${this.metadata?.sessionName ?? ""}"
                 @change="${(event: Event) =>
                   this.updateMetadataFromEvent(event, "sessionName")}"
-              ></mwc-textfield>
+              ></md-outlined-text-field>
             </div>
           </div>
           <div class="row">
             <div class="column_width1">
-              <mwc-textfield
+              <md-outlined-text-field
                 label="Capture Date"
                 id="capture_date"
                 value="${this.extractCaptureDate()}"
                 type="date"
                 @change="${(event: Event) =>
                   this.updateMetadataFromEvent(event, "captureDate")}"
-              ></mwc-textfield>
+              ></md-outlined-text-field>
             </div>
             <div class="column_width1">
-              <mwc-textfield
+              <md-outlined-text-field
                 label="Camera"
                 id="camera"
                 value="${this.metadata?.camera ?? ""}"
                 @change="${(event: Event) =>
                   this.updateMetadataFromEvent(event, "camera")}"
-              ></mwc-textfield>
+              ></md-outlined-text-field>
             </div>
           </div>
 

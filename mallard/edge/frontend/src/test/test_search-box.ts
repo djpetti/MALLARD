@@ -17,9 +17,8 @@ import {
   completeToken,
 } from "../autocomplete";
 import { AppDatePicker } from "app-datepicker";
-import { TextField } from "@material/mwc-textfield";
 import { faker } from "@faker-js/faker";
-import { MdDialog } from "@material/web/all";
+import { MdDialog, MdFilledTextField } from "@material/web/all";
 
 jest.mock("../thumbnail-grid-slice", () => {
   return {
@@ -308,7 +307,7 @@ describe("search-box", () => {
 
       // Set an existing search string.
       const root = getShadowRoot(ConnectedSearchBox.tagName);
-      const searchBox = root.querySelector("#search") as TextField;
+      const searchBox = root.querySelector("#search") as MdFilledTextField;
       const initialSearchString = faker.lorem.words();
       searchBox.value = initialSearchString;
 
@@ -428,7 +427,7 @@ describe("search-box", () => {
         datePickerDialog.querySelectorAll("md-filled-button")[0];
 
       // Make it look like completing the token works.
-      const searchBox = root.querySelector("#search") as TextField;
+      const searchBox = root.querySelector("#search") as MdFilledTextField;
       const initialSearchString = faker.lorem.words();
       const completedSearchString = faker.lorem.words();
       searchBox.value = initialSearchString;
@@ -484,7 +483,7 @@ describe("search-box", () => {
       );
 
       // Make it look like completing the token works.
-      const searchBox = root.querySelector("#search") as TextField;
+      const searchBox = root.querySelector("#search") as MdFilledTextField;
       const initialSearchString = faker.lorem.words();
       const completedSearchString = faker.lorem.words();
       searchBox.value = initialSearchString;

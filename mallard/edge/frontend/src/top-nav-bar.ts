@@ -2,7 +2,6 @@ import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
 import "@material/mwc-top-app-bar-fixed";
-import "@material/mwc-textfield";
 import "./search-box";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";

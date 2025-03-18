@@ -1,7 +1,5 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
-import "@material/mwc-textfield";
-import { TextField } from "@material/mwc-textfield";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -21,7 +19,7 @@ import { AppDatePicker } from "app-datepicker";
 import { trim } from "lodash";
 import { PlatformType } from "mallard-api";
 import { connectRedux } from "./connected-element";
-import { MdDialog } from "@material/web/all";
+import { MdDialog, MdFilledTextField } from "@material/web/all";
 
 /**
  * Condition specified when searching by dates.
@@ -149,7 +147,7 @@ export class SearchBox extends LitElement {
   showClear: boolean = false;
 
   @query("#search", true)
-  private searchBox!: TextField;
+  private searchBox!: MdFilledTextField;
 
   @query("#date_picker_dialog", true)
   private datePickerDialog!: MdDialog;

@@ -2,8 +2,6 @@ import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/mwc-textfield";
 import { TextField } from "@material/mwc-textfield";
-import "@material/mwc-list/mwc-list.js";
-import "@material/mwc-list/mwc-list-item.js";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -89,15 +87,14 @@ export class SearchBox extends LitElement {
     }
 
     .autocomplete-background {
-      background-color: var(--md-sys-color-surface-container-high);
       width: 20vw;
       min-width: 250px;
     }
 
-    .autocomplete-active {
+    md-list-item:hover {
       /*when navigating through the items using the arrow keys:*/
       background-color: var(--md-sys-color-secondary) !important;
-      color: var(--md-sys-color-on-secondary);
+      --md-list-item-label-text-color: var(--md-sys-color-on-secondary);
     }
 
     app-date-picker {
@@ -311,7 +308,7 @@ export class SearchBox extends LitElement {
         return nothing;
 
       case AutocompleteMenu.DATE:
-        return html`<mwc-list-item class="center">
+        return html`<md-list-item class="center">
           <md-filled-tonal-button
             @click="${() => this.onDateConditionClick(DateCondition.BEFORE)}"
             >before</md-filled-tonal-button
@@ -324,10 +321,10 @@ export class SearchBox extends LitElement {
             @click="${() => this.onDateConditionClick(DateCondition.AFTER)}"
             >after</md-filled-tonal-button
           >
-        </mwc-list-item>`;
+        </md-list-item>`;
 
       case AutocompleteMenu.PLATFORM:
-        return html`<mwc-list-item class="center">
+        return html`<md-list-item class="center">
           <md-filled-tonal-button
             @click="${() => this.onPlatformConditionClick(PlatformType.GROUND)}"
             >ground</md-filled-tonal-button
@@ -336,7 +333,7 @@ export class SearchBox extends LitElement {
             @click="${() => this.onPlatformConditionClick(PlatformType.AERIAL)}"
             >aerial</md-filled-tonal-button
           >
-        </mwc-list-item>`;
+        </md-list-item>`;
     }
   }
 
@@ -402,14 +399,16 @@ export class SearchBox extends LitElement {
 
         <div class="autocomplete-background">
           ${this.showAutocomplete
-            ? html`<mwc-list>
+            ? html`<md-list>
                 ${this.renderAutocompleteMenu()}
                 ${this.autocompleteSuggestions.map(
                   (s) => html`
-                <mwc-list-item @click="${this.onSuggestionClicked}">${s}</p></mwc-list-item>
-            `
+                    <md-list-item @click="${this.onSuggestionClicked}"
+                      >${s}</md-list-item
+                    >
+                  `
                 )}
-              </mwc-list>`
+              </md-list>`
             : nothing}
           ${this.showProgress
             ? html`<md-circular-progress

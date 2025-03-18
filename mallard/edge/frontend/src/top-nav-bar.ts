@@ -90,7 +90,7 @@ export class TopNavBar extends LitElement {
       --md-circular-progress-size: 24px;
     }
 
-    md-icon {
+    .top-bar-icon {
       color: var(--md-sys-color-on-tertiary);
     }
   `;
@@ -360,7 +360,7 @@ export class TopNavBar extends LitElement {
             id="cancel_selection"
             @click="${this.onCancelSelectionClick}"
           >
-            <md-icon>close</md-icon>
+            <md-icon class="top-bar-icon">close</md-icon>
           </md-icon-button>
           ${this.numItemsSelected} Selected`
       : html`${this.title}`;
@@ -377,7 +377,7 @@ export class TopNavBar extends LitElement {
           id="back_button"
           @click="${() => history.back()}"
         >
-          <md-icon>arrow_back</md-icon>
+          <md-icon class="top-bar-icon">arrow_back</md-icon>
         </md-icon-button>
         <!-- Title -->
         <span slot="title" class="vertical-centered ${titleClass}" id="title">
@@ -396,32 +396,32 @@ export class TopNavBar extends LitElement {
                 id="download_button"
                 @click="${this.onDownloadClick}"
               >
-                <md-icon>download</md-icon>
+                <md-icon class="top-bar-icon">download</md-icon>
               </md-icon-button>
               <md-icon-button
                 slot="actionItems"
                 id="delete_button"
                 @click="${() => (this.showDeletionDialog = true)}"
               >
-                <md-icon>delete</md-icon>
+                <md-icon class="top-bar-icon">delete</md-icon>
               </md-icon-button>
               <md-icon-button
                 slot="actionItems"
                 id="edit_button"
                 @click="${this.onEditButtonClicked}"
               >
-                <md-icon>edit</md-icon>
+                <md-icon class="top-bar-icon">edit</md-icon>
               </md-icon-button>
               <div class="relative" slot="actionItems">
                 <md-icon-button
                   id="more_actions_button"
                   @click="${() => this.moreActionsMenu?.show()}"
                 >
-                  <md-icon>more_vert</md-icon>
+                  <md-icon class="top-bar-icon">more_vert</md-icon>
                 </md-icon-button>
                 <mwc-menu id="more_actions_menu">
-                  <mwc-list-item @click="${this.onUrlExportClick}"
-                    >Export URLs</mwc-list-item
+                  <md-list-item @click="${this.onUrlExportClick}"
+                    >Export URLs</md-list-item
                   >
                 </mwc-menu>
               </div>
@@ -435,7 +435,7 @@ export class TopNavBar extends LitElement {
                 id="original_download_button"
                 @click="${() => this.artifactDownloadLink?.click()}"
               >
-                <md-icon>download</md-icon>
+                <md-icon class="top-bar-icon">download</md-icon>
               </md-icon-button>
             `
           : nothing}
@@ -460,14 +460,14 @@ export class TopNavBar extends LitElement {
                   </div>
                 `
               : html`
-                  <md-filled-tonal-button
+                  <md-filled-button
                     value="delete"
                     form="delete_dialog_form"
                     id="delete_confirm_button"
                     @click="${this.onDeleteClick}"
                     >Delete
                     <md-icon slot="icon">delete</md-icon>
-                  </md-filled-tonal-button>
+                  </md-filled-button>
                 `}
             <md-text-button
               dialogAction="cancel"

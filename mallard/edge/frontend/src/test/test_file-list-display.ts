@@ -51,8 +51,8 @@ describe("file-list-display", () => {
     // Assert.
     const shadowRoot = getShadowRoot(fileList.tagName);
     const listItems = shadowRoot
-      .querySelector("mwc-list")
-      ?.querySelectorAll("mwc-list-item");
+      .querySelector("md-list")
+      ?.querySelectorAll("md-list-item");
 
     // We should have one list item for each file. It will also insert a divider
     // after each one.

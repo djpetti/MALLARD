@@ -217,7 +217,7 @@ export const thunkPreProcessFiles = createAsyncThunk(
         const file = idsToFiles.get(entity.id) as File;
         // Create the thumbnail.
         const resizedImage = await gBlobReduce.toBlob(file, {
-          max: 128,
+          max: 64,
         });
         return URL.createObjectURL(resizedImage);
       } else {

@@ -19,12 +19,11 @@ import {
 } from "../thumbnail-grid-slice";
 import { RequestState } from "../types";
 import { Menu } from "@material/mwc-menu";
-import { ListItem } from "@material/mwc-list/mwc-list-item";
 import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
-import { MdDialog, MdIconButton } from "@material/web/all";
+import { MdDialog, MdIconButton, MdListItem } from "@material/web/all";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -556,8 +555,8 @@ describe("top-nav-bar", () => {
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
     const overflowMenu = root.querySelector("#more_actions_menu") as Menu;
     const exportOption = overflowMenu.querySelectorAll(
-      "mwc-list-item"
-    )[0] as ListItem;
+      "md-list-item"
+    )[0] as MdListItem;
     expect(exportOption).not.toBeNull();
 
     exportOption.dispatchEvent(new MouseEvent("click"));

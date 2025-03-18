@@ -5,7 +5,7 @@ import { UserMenu } from "../user-menu";
 import { fakeUserInfo, getShadowRoot } from "./element-test-utils";
 import Avatar from "avatar-initials";
 import { Menu } from "@material/mwc-menu";
-import { ListItem } from "@material/mwc-list/mwc-list-item";
+import { MdListItem } from "@material/web/all";
 
 jest.mock("../api-client");
 const mockGetUserInfo = getUserInfo as jest.MockedFn<typeof getUserInfo>;
@@ -133,7 +133,7 @@ describe("user-menu", () => {
     // Simulate a click on the menu item.
     const root = getShadowRoot(UserMenu.tagName);
     const menu = root.querySelector("#user_menu") as Menu;
-    const menuItem = menu.children[0] as ListItem;
+    const menuItem = menu.children[0] as MdListItem;
     menuItem.click();
 
     // Assert.
@@ -149,7 +149,7 @@ describe("user-menu", () => {
     // Simulate a click on the menu item.
     const root = getShadowRoot(UserMenu.tagName);
     const menu = root.querySelector("#user_menu") as Menu;
-    const menuItem = menu.children[1] as ListItem;
+    const menuItem = menu.children[1] as MdListItem;
     menuItem.click();
 
     // Assert.

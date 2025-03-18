@@ -1,8 +1,6 @@
 import { css, html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { PlatformType, UavImageMetadata } from "mallard-api";
-import "@material/mwc-list";
-import "@material/mwc-list/mwc-list-item.js";
 import "@material/web/all";
 import store, { RootState } from "./store";
 import { Action } from "redux";
@@ -29,6 +27,10 @@ export class MetadataCard extends ArtifactInfoBase {
     .card-title-element {
       margin-top: 20px;
       margin-bottom: 20px;
+    }
+
+    md-list {
+      --md-list-container-color: var(--md-sys-color-surface-bright);
     }
 
     h2 {
@@ -60,35 +62,43 @@ export class MetadataCard extends ArtifactInfoBase {
                     indeterminate
                   ></md-circular-progress>`
               : html` <h2 class="card-title-element">${this.metadata.name}</h2>
-                  <mwc-list>
-                    <mwc-list-item twoline graphic="avatar" noninteractive="">
-                      <span>${this.metadata.sessionName ?? ""}</span>
-                      <span slot="secondary">Session</span>
-                      <md-icon slot="graphic">collections</md-icon>
-                    </mwc-list-item>
-                    <mwc-list-item twoline graphic="avatar" noninteractive="">
-                      <span>${this.metadata.captureDate ?? ""}</span>
-                      <span slot="secondary">Capture Date</span>
-                      <md-icon slot="graphic">event</md-icon>
-                    </mwc-list-item>
-                    <mwc-list-item twoline graphic="avatar" noninteractive="">
-                      <span>${this.metadata.camera ?? ""}</span>
-                      <span slot="secondary">Camera</span>
-                      <md-icon slot="graphic">camera_alt</md-icon>
-                    </mwc-list-item>
+                  <md-list>
+                    <md-list-item>
+                      <span slot="headline"
+                        >${this.metadata.sessionName ?? ""}</span
+                      >
+                      <span slot="supporting-text">Session</span>
+                      <md-icon slot="start">collections</md-icon>
+                    </md-list-item>
+                    <md-list-item>
+                      <span slot="headline"
+                        >${this.metadata.captureDate ?? ""}</span
+                      >
+                      <span slot="supporting-text">Capture Date</span>
+                      <md-icon slot="start">event</md-icon>
+                    </md-list-item>
+                    <md-list-item>
+                      <span slot="headline">${this.metadata.camera ?? ""}</span>
+                      <span slot="supporting-text">Camera</span>
+                      <md-icon slot="start">camera_alt</md-icon>
+                    </md-list-item>
                     ${this.metadata.platformType == PlatformType.AERIAL
-                      ? html`<mwc-list-item twoline graphic="avatar" noninteractive="">
-                      <span>${this.metadata.altitudeMeters ?? 0} meters</span>
-                      <span slot="secondary">Flight Altitude</span>
-                      <md-icon slot="graphic">height</md-icon>
-                    </mwc-list-item>
-                    <mwc-list-item twoline graphic="avatar" noninteractive="">
-                      <span>${this.metadata.gsdCmPx ?? 0} px/cm</span>
-                      <span slot="secondary">Ground Sample Distance</span>
-                      <md-icon slot="graphic">satellite</md-icon>
-                    </mwc-list-item>
-                  </mwc-list>`
-                      : nothing}</mwc-list
+                      ? html`<md-list-item>
+                      <span slot="headline">${
+                        this.metadata.altitudeMeters ?? 0
+                      } meters</span>
+                      <span slot="supporting-text">Flight Altitude</span>
+                      <md-icon slot="start">height</md-icon>
+                    </md-list-item>
+                    <md-list-item>
+                      <span slot="headline">${
+                        this.metadata.gsdCmPx ?? 0
+                      } px/cm</span>
+                      <span slot="supporting-text">Ground Sample Distance</span>
+                      <md-icon slot="start">satellite</md-icon>
+                    </md-list-item>
+                  </md-list>`
+                      : nothing}</md-list
                   >`
           }
         </div>

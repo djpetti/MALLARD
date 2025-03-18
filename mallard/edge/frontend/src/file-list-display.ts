@@ -1,7 +1,5 @@
 import { LitElement, html, TemplateResult, css } from "lit";
 import { property } from "lit/decorators.js";
-import "@material/mwc-list";
-import "@material/mwc-list/mwc-list-item";
 import "@material/web/all";
 import { FileStatus, FrontendFileEntity } from "./types";
 import "./artifact-display";
@@ -110,17 +108,17 @@ export class FileListDisplay extends LitElement {
     switch (file.status) {
       case FileStatus.UPLOADING: {
         statusIcon = html`<md-circular-progress
-          slot="meta"
+          slot="end"
           value="${file.uploadProgress / 100}"
         ></md-circular-progress>`;
         break;
       }
       case FileStatus.COMPLETE: {
-        statusIcon = html`<md-icon slot="meta">check_circle</md-icon>`;
+        statusIcon = html`<md-icon slot="end">check_circle</md-icon>`;
         break;
       }
       default: {
-        statusIcon = html`<md-icon slot="meta">pending</md-icon>`;
+        statusIcon = html`<md-icon slot="end">pending</md-icon>`;
         // Make sure children are styled to draw less attention.
         childClass = "inactive";
         break;
@@ -128,17 +126,17 @@ export class FileListDisplay extends LitElement {
     }
 
     return html`
-      <mwc-list-item graphic="medium" hasMeta noninteractive>
+      <md-list-item graphic="medium" hasMeta noninteractive>
         <span class="${childClass}">${file.name}</span>
         <artifact-display
           .sourceUrl=${file.thumbnailUrl ?? undefined}
           .type=${file.type}
-          slot="graphic"
+          slot="start"
           class="${childClass}"
         ></artifact-display>
         ${statusIcon}
-      </mwc-list-item>
-      <li divider padded role="separator"></li>
+      </md-list-item>
+      <md-divider></md-divider>
     `;
   }
 
@@ -150,7 +148,7 @@ export class FileListDisplay extends LitElement {
     const sortedFiles = FileListDisplay.sortFiles(this.files);
 
     return html`
-      <mwc-list> ${sortedFiles.map(FileListDisplay.renderItem)} </mwc-list>
+      <md-list> ${sortedFiles.map(FileListDisplay.renderItem)} </md-list>
     `;
   }
 }

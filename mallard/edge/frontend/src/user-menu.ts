@@ -4,7 +4,6 @@ import { query, state } from "lit/decorators.js";
 import { getUserInfo, getUserProfileUrl, logout } from "./api-client";
 import { md5 } from "js-md5";
 import "@material/mwc-menu";
-import "@material/mwc-list/mwc-list-item";
 import "@material/web/all";
 import { Menu } from "@material/mwc-menu";
 import { toRgb } from "colors-helper-tools";
@@ -80,19 +79,18 @@ export class UserMenu extends LitElement {
 
         <!-- Dropdown menu -->
         <mwc-menu id="user_menu">
-          <mwc-list-item
-            graphic="icon"
+          <md-list-item
             @click="${() => {
               window.location.href = getUserProfileUrl();
             }}"
           >
-            <md-icon slot="graphic">manage_accounts</md-icon>
+            <md-icon slot="start">manage_accounts</md-icon>
             <span>Account Settings</span>
-          </mwc-list-item>
-          <mwc-list-item graphic="icon" @click="${logout}">
-            <md-icon slot="graphic">logout</md-icon>
+          </md-list-item>
+          <md-list-item @click="${logout}">
+            <md-icon slot="start">logout</md-icon>
             <span>Sign Out</span>
-          </mwc-list-item>
+          </md-list-item>
         </mwc-menu>
       </div>
     `;

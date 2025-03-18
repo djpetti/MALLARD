@@ -118,7 +118,7 @@ describe("search-box", () => {
 
       if (suggestions.length > 0) {
         // It should be showing autocomplete suggestions.
-        const suggestionElement = root.querySelector("mwc-list") as HTMLElement;
+        const suggestionElement = root.querySelector("md-list") as HTMLElement;
         expect(suggestionElement).not.toBeNull();
 
         // It should be showing the correct ones.
@@ -129,7 +129,7 @@ describe("search-box", () => {
         }
       } else {
         // It should not be showing the autocomplete dropdown.
-        expect(root.querySelector("mwc-list")).toBeNull();
+        expect(root.querySelector("md-list")).toBeNull();
       }
 
       if (isLoading) {
@@ -259,7 +259,7 @@ describe("search-box", () => {
     expect(event.detail).toEqual(textField.value);
 
     // It should not be showing the autocomplete dropdown.
-    expect(root.querySelector("mwc-list")).toBeNull();
+    expect(root.querySelector("md-list")).toBeNull();
   });
 
   it("does not start a search if the user presses other keys", () => {
@@ -331,10 +331,10 @@ describe("search-box", () => {
       // Act.
       // Simulate a click on the suggestion.
       const suggestionListElement = root.querySelector(
-        "mwc-list"
+        "md-list"
       ) as HTMLElement;
       const listElements =
-        suggestionListElement.querySelectorAll("mwc-list-item");
+        suggestionListElement.querySelectorAll("md-list-item");
 
       expect(listElements).toHaveLength(2);
       const firstElement = listElements[0];

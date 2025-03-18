@@ -4,8 +4,7 @@ import { faker } from "@faker-js/faker";
 import { UserMenu } from "../user-menu";
 import { fakeUserInfo, getShadowRoot } from "./element-test-utils";
 import Avatar from "avatar-initials";
-import { Menu } from "@material/mwc-menu";
-import { MdListItem } from "@material/web/all";
+import { MdListItem, MdMenu } from "@material/web/all";
 
 jest.mock("../api-client");
 const mockGetUserInfo = getUserInfo as jest.MockedFn<typeof getUserInfo>;
@@ -94,7 +93,7 @@ describe("user-menu", () => {
     expect(root.querySelector("#avatar")).not.toBeNull();
 
     // It should have added a menu too, but that should be closed.
-    const menu = root.querySelector("#user_menu") as Menu | null;
+    const menu = root.querySelector("#user_menu") as MdMenu | null;
     expect(menu).not.toBeNull();
     expect(menu?.open).toBeFalsy();
 
@@ -122,7 +121,7 @@ describe("user-menu", () => {
 
     // Assert.
     // It should have opened the menu.
-    const menu = root.querySelector("#user_menu") as Menu;
+    const menu = root.querySelector("#user_menu") as MdMenu;
     expect(menu.open).toBeTruthy();
   });
 
@@ -132,7 +131,7 @@ describe("user-menu", () => {
 
     // Simulate a click on the menu item.
     const root = getShadowRoot(UserMenu.tagName);
-    const menu = root.querySelector("#user_menu") as Menu;
+    const menu = root.querySelector("#user_menu") as MdMenu;
     const menuItem = menu.children[0] as MdListItem;
     menuItem.click();
 
@@ -148,7 +147,7 @@ describe("user-menu", () => {
 
     // Simulate a click on the menu item.
     const root = getShadowRoot(UserMenu.tagName);
-    const menu = root.querySelector("#user_menu") as Menu;
+    const menu = root.querySelector("#user_menu") as MdMenu;
     const menuItem = menu.children[1] as MdListItem;
     menuItem.click();
 

@@ -18,12 +18,17 @@ import {
   thunkUpdateSelectedMetadata,
 } from "../thumbnail-grid-slice";
 import { RequestState } from "../types";
-import { Menu } from "@material/mwc-menu";
 import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
-import { MdDialog, MdIconButton, MdListItem } from "@material/web/all";
+import {
+  MdDialog,
+  MdIconButton,
+  MdListItem,
+  MdMenu,
+  MdMenuItem,
+} from "@material/web/all";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -130,7 +135,7 @@ describe("top-nav-bar", () => {
 
     // Both buttons should be visible and enabled.
     const buttons = deleteConfirmDialog?.querySelectorAll(
-      "md-text-button, md-filled-tonal-button"
+      "md-text-button, md-filled-button"
     ) as NodeListOf<Button>;
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
@@ -301,7 +306,7 @@ describe("top-nav-bar", () => {
     // It should have rendered the overflow menu, but not opened it.
     const menu = root.querySelector("#more_actions_menu");
     expect(menu).not.toBeNull();
-    expect((menu as Menu).open).toEqual(false);
+    expect((menu as MdMenu).open).toEqual(false);
   });
 
   it("dispatches an event when the download button is clicked", async () => {
@@ -529,12 +534,12 @@ describe("top-nav-bar", () => {
 
     // Assert.
     // It should have opened the overflow menu.
-    const menu = root.querySelector("#more_actions_menu") as Menu;
+    const menu = root.querySelector("#more_actions_menu") as MdMenu;
     expect(menu).not.toBeNull();
     expect(menu.open).toEqual(true);
 
     // It should have anchored the menu to the button.
-    expect(menu.anchor).toEqual(moreActionsButton);
+    expect(menu.anchorElement).toEqual(moreActionsButton);
   });
 
   it("dispatches an event when the user exports a list of URLs", async () => {
@@ -553,10 +558,10 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the delete button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const overflowMenu = root.querySelector("#more_actions_menu") as Menu;
+    const overflowMenu = root.querySelector("#more_actions_menu") as MdMenu;
     const exportOption = overflowMenu.querySelectorAll(
-      "md-list-item"
-    )[0] as MdListItem;
+      "md-menu-item"
+    )[0] as MdMenuItem;
     expect(exportOption).not.toBeNull();
 
     exportOption.dispatchEvent(new MouseEvent("click"));

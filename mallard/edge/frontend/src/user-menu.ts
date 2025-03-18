@@ -3,10 +3,9 @@ import Avatar from "avatar-initials";
 import { query, state } from "lit/decorators.js";
 import { getUserInfo, getUserProfileUrl, logout } from "./api-client";
 import { md5 } from "js-md5";
-import "@material/mwc-menu";
 import "@material/web/all";
-import { Menu } from "@material/mwc-menu";
 import { toRgb } from "colors-helper-tools";
+import { MdMenu } from "@material/web/all";
 
 /**
  * Shows an icon with the avatar of the current user, and displays a menu
@@ -50,7 +49,7 @@ export class UserMenu extends LitElement {
    * Drop-down menu,
    */
   @query("#user_menu")
-  private userMenu?: Menu;
+  private userMenu?: MdMenu;
 
   /**
    * Background color of the avatar.
@@ -78,20 +77,20 @@ export class UserMenu extends LitElement {
         />
 
         <!-- Dropdown menu -->
-        <mwc-menu id="user_menu">
-          <md-list-item
+        <md-menu id="user_menu">
+          <md-menu-item
             @click="${() => {
               window.location.href = getUserProfileUrl();
             }}"
           >
             <md-icon slot="start">manage_accounts</md-icon>
-            <span>Account Settings</span>
-          </md-list-item>
-          <md-list-item @click="${logout}">
+            <div slot="headline">Account Settings</div>
+          </md-menu-item>
+          <md-menu-item @click="${logout}">
             <md-icon slot="start">logout</md-icon>
-            <span>Sign Out</span>
-          </md-list-item>
-        </mwc-menu>
+            <div slot="headline">Sign Out</div>
+          </md-menu-item>
+        </md-menu>
       </div>
     `;
   }

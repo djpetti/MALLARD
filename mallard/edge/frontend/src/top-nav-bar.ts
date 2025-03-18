@@ -3,7 +3,6 @@ import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
 import "@material/mwc-top-app-bar-fixed";
 import "@material/mwc-textfield";
-import "@material/mwc-menu";
 import "./search-box";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
@@ -18,14 +17,13 @@ import {
   thunkSelectAll,
   thunkUpdateSelectedMetadata,
 } from "./thumbnail-grid-slice";
-import { Menu } from "@material/mwc-menu";
 import "./metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { MetadataForm } from "./metadata-form";
 import "./user-menu";
 import { connectRedux } from "./connected-element";
 import { Button } from "@material/web/button/internal/button";
-import { MdDialog } from "@material/web/all";
+import { MdDialog, MdMenu } from "@material/web/all";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -84,6 +82,10 @@ export class TopNavBar extends LitElement {
 
     #edit_metadata_dialog {
       max-height: 100%;
+    }
+
+    #more_actions_menu {
+      min-width: 200px;
     }
 
     :host {
@@ -216,7 +218,7 @@ export class TopNavBar extends LitElement {
    * The overflow actions menu.
    */
   @query("#more_actions_menu")
-  private moreActionsMenu?: Menu;
+  private moreActionsMenu?: MdMenu;
 
   /**
    * Hidden link for downloading files.
@@ -419,11 +421,11 @@ export class TopNavBar extends LitElement {
                 >
                   <md-icon class="top-bar-icon">more_vert</md-icon>
                 </md-icon-button>
-                <mwc-menu id="more_actions_menu">
-                  <md-list-item @click="${this.onUrlExportClick}"
-                    >Export URLs</md-list-item
-                  >
-                </mwc-menu>
+                <md-menu id="more_actions_menu">
+                  <md-menu-item @click="${this.onUrlExportClick}">
+                    <div slot="headline">Export URLs</div>
+                  </md-menu-item>
+                </md-menu>
               </div>
             `
           : nothing}
@@ -556,7 +558,7 @@ export class TopNavBar extends LitElement {
 
     if (this.moreActionsMenu) {
       // If we are showing this menu, make sure it is anchored to the button.
-      this.moreActionsMenu.anchor = this.moreActionsButton as Button;
+      this.moreActionsMenu.anchorElement = this.moreActionsButton as Button;
     }
 
     if (this.urlListDownloadLink) {

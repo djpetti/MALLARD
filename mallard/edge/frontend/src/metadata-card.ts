@@ -6,6 +6,7 @@ import store, { RootState } from "./store";
 import { Action } from "redux";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import { connectRedux } from "./connected-element";
+import "mdui/components/card.js";
 
 /**
  * Card that shows basic metadata for an image.
@@ -52,7 +53,7 @@ export class MetadataCard extends ArtifactInfoBase {
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
-      <div class="mdc-card card">
+      <mdui-card class="card" variant="elevated">
         <div class="card-content">
           ${
             !this.metadata
@@ -102,7 +103,7 @@ export class MetadataCard extends ArtifactInfoBase {
                   >`
           }
         </div>
-      </div>
+      </mdui-card>
         </div>
       </div>
     `;

@@ -1,3 +1,10 @@
+@use "mdui/mdui.css";
+@use 'sass:color';
+
+@function hexToRgb($hexColor) {
+  @return '#{color.red($hexColor)},#{color.green($hexColor)},#{color.blue($hexColor)}';
+}
+
 /* Custom color scheme. */
 :root {
     --md-sys-color-primary: hsl(133, 80%, 31%);
@@ -20,10 +27,10 @@
     --md-sys-color-surface-bright: hsl(133, 10%, 98%);
 
     --md-sys-color-surface-container-lowest: hsl(133, 10%, 100%);
-    --md-sys-color-surface-container-low: hsl(133, 10%, 96%);
-    --md-sys-color-surface-container: hsl(133, 10%, 92%);
-    --md-sys-color-surface-container-high: hsl(133, 10%, 88%);
-    --md-sys-color-surface-container-highest: hsl(133, 10%, 84%);
+    --md-sys-color-surface-container-low: hsl(133, 10%, 70%);
+    --md-sys-color-surface-container: hsl(133, 10%, 88%);
+    --md-sys-color-surface-container-high: hsl(133, 10%, 86%);
+    --md-sys-color-surface-container-highest: hsl(133, 10%, 82%);
 
     --md-sys-color-on-surface: hsl(133, 10%, 10%);
     --md-sys-color-on-surface-variant: hsl(157, 10%, 30%);
@@ -31,6 +38,69 @@
     --md-sys-color-outline-variant: hsl(157, 10%, 80%);
 
     --md-sys-color-background: hsl(107, 50%, 98%);
+
+    /* MDUI colors */
+    --mdui-color-primary-light: var(--md-sys-color-primary);
+    --mdui-color-on-primary-light: var(--md-sys-color-on-primary);
+    --mdui-color-primary-container-light: var(--md-sys-color-primary-container);
+    --mdui-color-on-primary-container-light: var(--md-sys-color-on-primary-container);
+
+    --mdui-color-secondary-light: var(--md-sys-color-secondary);
+    --mdui-color-on-secondary-light: var(--md-sys-color-on-secondary);
+    --mdui-color-secondary-container-light: var(--md-sys-color-secondary-container);
+    --mdui-color-on-secondary-container-light: var(--md-sys-color-on-secondary-container);
+
+    --mdui-color-tertiary-light: var(--md-sys-color-tertiary);
+    --mdui-color-on-tertiary-light: var(--md-sys-color-on-tertiary);
+    --mdui-color-tertiary-container-light: var(--md-sys-color-tertiary-container);
+    --mdui-color-on-tertiary-container-light: var(--md-sys-color-on-tertiary-container);
+
+    --mdui-color-surface-light: var(--md-sys-color-surface);
+    --mdui-color-surface-dim-light: var(--md-sys-color-surface-dim);
+    --mdui-color-surface-bright-light: var(--md-sys-color-surface-bright);
+    --mdui-color-surface-container-lowest-light: var(--md-sys-color-surface-container-lowest);
+    --mdui-color-surface-container-low-light: rgb(var(--md-sys-color-surface-container-low));
+    --mdui-color-surface-container-light: var(--md-sys-color-surface-container);
+    --mdui-color-surface-container-high-light: var(--md-sys-color-surface-container-high);
+    --mdui-color-surface-container-highest-light: var(--md-sys-color-surface-container-highest);
+
+    --mdui-color-on-surface-light: var(--md-sys-color-on-surface);
+    --mdui-color-on-surface-variant-light: var(--md-sys-color-on-surface-variant);
+    --mdui-color-outline-light: var(--md-sys-color-outline);
+    --mdui-color-outline-variant-light: var(--md-sys-color-outline-variant);
+
+    --mdui-color-background-light: var(--md-sys-color-background);
+
+    --mdui-color-primary-dark: var(--md-sys-color-primary);
+    --mdui-color-on-primary-dark: var(--md-sys-color-on-primary);
+    --mdui-color-primary-container-dark: var(--md-sys-color-primary-container);
+    --mdui-color-on-primary-container-dark: var(--md-sys-color-on-primary-container);
+
+    --mdui-color-secondary-dark: var(--md-sys-color-secondary);
+    --mdui-color-on-secondary-dark: var(--md-sys-color-on-secondary);
+    --mdui-color-secondary-container-dark: var(--md-sys-color-secondary-container);
+    --mdui-color-on-secondary-container-dark: var(--md-sys-color-on-secondary-container);
+
+    --mdui-color-tertiary-dark: var(--md-sys-color-tertiary);
+    --mdui-color-on-tertiary-dark: var(--md-sys-color-on-tertiary);
+    --mdui-color-tertiary-container-dark: var(--md-sys-color-tertiary-container);
+    --mdui-color-on-tertiary-container-dark: var(--md-sys-color-on-tertiary-container);
+
+    --mdui-color-surface-dark: var(--md-sys-color-surface);
+    --mdui-color-surface-dim-dark: var(--md-sys-color-surface-dim);
+    --mdui-color-surface-bright-dark: var(--md-sys-color-surface-bright);
+    --mdui-color-surface-container-lowest-dark: var(--md-sys-color-surface-container-lowest);
+    --mdui-color-surface-container-low-dark: var(--md-sys-color-surface-container-low);
+    --mdui-color-surface-container-dark: var(--md-sys-color-surface-container);
+    --mdui-color-surface-container-high-dark: var(--md-sys-color-surface-container-high);
+    --mdui-color-surface-container-highest-dark: var(--md-sys-color-surface-container-highest);
+
+    --mdui-color-on-surface-dark: var(--md-sys-color-on-surface);
+    --mdui-color-on-surface-variant-dark: var(--md-sys-color-on-surface-variant);
+    --mdui-color-outline-dark: var(--md-sys-color-outline);
+    --mdui-color-outline-variant-dark: var(--md-sys-color-outline-variant);
+
+    --mdui-color-background-dark: var(--md-sys-color-background);
 }
 
 md-fab {

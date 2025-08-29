@@ -1,9 +1,5 @@
-@use "@material/elevation/mdc-elevation";
 @use "multi_column";
 @use "colors";
-@use "@material/card";
-
-@include card.core-styles;
 
 @font-face {
   font-family: deftone-stylus;

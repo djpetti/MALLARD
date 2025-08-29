@@ -9,6 +9,7 @@ to the disk.
 import asyncio
 import json
 import tempfile
+from functools import partial
 from pathlib import Path
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
@@ -43,6 +44,12 @@ _FILE_CHUNK_SIZE = 10 * 2**20
 """
 Size of chunks to read when reading from a file.
 """
+
+_TMP_DIR = Path("/tmp/mallard")
+"""
+Temporary directory to use. Put this somewhere with a lot of disk space.
+"""
+_TMP_DIR.mkdir(exist_ok=True)
 
 _DEFAULT_PIPES = dict(
     stdin=asyncio.subprocess.PIPE,
@@ -292,9 +299,15 @@ async def ensure_streamable(
 
     logger.info("Fixing non-streamable video input...")
 
-    with tempfile.NamedTemporaryFile() as input_file, tempfile.NamedTemporaryFile(
-        mode="rb", suffix=".mp4", delete=False
-    ) as output_file:
+    create_temp_file = partial(
+        tempfile.NamedTemporaryFile, dir=Path("/tmp/mallard")
+    )
+    with (
+        create_temp_file() as input_file,
+        create_temp_file(
+            mode="rb", suffix=".mp4", delete=False
+        ) as output_file,
+    ):
         async for chunk in source:
             input_file.write(chunk)
         input_file.flush()
@@ -466,7 +479,7 @@ async def create_thumbnail(
         "-vframes",
         "1",
         "-f",
-        "singlejpeg",
+        "mjpeg",
         "-",
         **_DEFAULT_PIPES,
     )

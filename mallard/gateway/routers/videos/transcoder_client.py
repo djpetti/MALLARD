@@ -42,6 +42,10 @@ PROBE_TIMEOUT = 15
 """
 Timeout to use for video probes, in seconds.
 """
+FASTSTART_TIMEOUT = 5 * 60
+"""
+Timeout to use for ensure_faststart operations in seconds.
+"""
 
 client_retry = retry(
     retry=retry_if_exception_type((asyncio.Timeout, TimeoutError)),
@@ -122,7 +126,7 @@ async def ensure_faststart(video: ObjectRef) -> None:
     logger.debug("Ensuring faststart for video {}...", video)
     async with get_session().post(
         f"/ensure_faststart/{video.bucket}/{video.name}",
-        timeout=PROBE_TIMEOUT,
+        timeout=FASTSTART_TIMEOUT,
     ) as response:
         if response.status != 200:
             raise HTTPException(

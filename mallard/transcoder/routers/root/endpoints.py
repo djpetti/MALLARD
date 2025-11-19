@@ -19,6 +19,7 @@ from ...ffmpeg import (
     create_thumbnail,
     ensure_streamable,
     ffprobe,
+    reserve_processing_slot,
 )
 
 router = APIRouter(tags=["transcoder"])
@@ -187,10 +188,13 @@ async def create_video_preview(
         The preview that was created.
 
     """
+    # Pre-reserve the processing slot before we connect to the object store.
+    token = await reserve_processing_slot()
+
     video = await object_store.get_object(ObjectRef(bucket=bucket, name=name))
 
     preview_stream, error_stream = await create_preview(
-        video, preview_width=preview_width
+        video, preview_width=preview_width, reservation_token=token
     )
     return _streaming_response_with_errors(
         preview_stream, error_stream=error_stream, content_type="video/vp9"
@@ -218,10 +222,13 @@ async def create_streaming_video(
         The preview that was created.
 
     """
+    # Pre-reserve the processing slot before we connect to the object store.
+    token = await reserve_processing_slot()
+
     video = await object_store.get_object(ObjectRef(bucket=bucket, name=name))
 
     output_stream, error_stream = await create_streamable(
-        video, max_width=max_width
+        video, max_width=max_width, reservation_token=token
     )
     return _streaming_response_with_errors(
         output_stream, error_stream=error_stream, content_type="video/vp9"

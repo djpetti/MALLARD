@@ -4,6 +4,7 @@ API endpoints for managing video data.
 import asyncio
 from typing import List, cast
 
+from aiohttp.client_exceptions import ClientPayloadError
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -15,8 +16,13 @@ from fastapi import (
 )
 from loguru import logger
 from starlette.responses import StreamingResponse
-
-from mallard.gateway.routers.dependencies import use_bucket_videos
+from tenacity import (
+    AsyncRetrying,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from ...artifact_metadata import MissingLengthError
 from ...backends import backend_manager as backends
@@ -34,6 +40,7 @@ from ..common import (
     ignore_errors,
     update_metadata,
 )
+from ..dependencies import use_bucket_videos
 from .schemas import CreateResponse, MetadataResponse
 from .transcoder_client import (
     create_preview,
@@ -43,6 +50,13 @@ from .transcoder_client import (
 from .video_metadata import InvalidVideoError, fill_metadata
 
 router = APIRouter(prefix="/videos", tags=["videos"])
+
+background_task_retry = retry(
+    retry=retry_if_exception_type(ClientPayloadError),
+    wait=wait_random_exponential(multiplier=1, max=60),
+    after=lambda *_: logger.warning("Retrying background task..."),
+    stop=stop_after_attempt(10),
+)
 
 
 _VIDEO_FORMAT_TO_MIME_TYPES = {
@@ -175,6 +189,7 @@ async def create_uav_video(
 
     # Background tasks can be dispatched now that the video is added to the
     # object store.
+    @background_task_retry
     async def _create_preview() -> None:
         logger.debug("Starting video preview background task...")
         preview = create_preview(
@@ -183,6 +198,7 @@ async def create_uav_video(
         await object_store.create_object(preview_object_id, data=preview)
         logger.debug("Finished video preview background task.")
 
+    @background_task_retry
     async def _create_streamable() -> None:
         logger.debug("Starting video streamable background task...")
         streamable = create_streamable(
@@ -201,6 +217,60 @@ async def create_uav_video(
     await object_store.create_object(thumbnail_object_id, data=thumbnail)
 
     return CreateResponse(video_id=object_id)
+
+
+# TODO (danielp) This is a debugging-only endpoint that should eventually be
+#  removed.
+@router.post("/rerun_video_processing/{bucket}/{name}")
+async def rerun_video_processing(
+    bucket: str,
+    name: str,
+    background_tasks: BackgroundTasks = BackgroundTasks,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> None:  # pragma: no coverage
+    """
+    Reruns the background processing tasks for an existing video.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        background_tasks: Handle to use for submitting background tasks.
+        object_store: The object store to verify the video object.
+
+    """
+    # Create the object reference for the existing video.
+    object_id = ObjectRef(bucket=bucket, name=name)
+    logger.info("Regenerating tasks for video {} in bucket {}.", name, bucket)
+
+    # Check if the video object exists
+    if not await object_store.object_exists(object_id):
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    # Create the preview and streamable tasks.
+    @background_task_retry
+    async def _create_preview() -> None:
+        logger.debug("Starting video preview background task...")
+        preview = create_preview(
+            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+        )
+        await object_store.create_object(
+            derived_id(object_id, "preview"), data=preview
+        )
+        logger.debug("Finished video preview background task.")
+
+    @background_task_retry
+    async def _create_streamable() -> None:
+        logger.debug("Starting video streamable background task...")
+        streamable = create_streamable(
+            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+        )
+        await object_store.create_object(
+            derived_id(object_id, "streamable"), data=streamable
+        )
+        logger.debug("Finished video streamable background task.")
+
+    background_tasks.add_task(_create_preview)
+    background_tasks.add_task(_create_streamable)
 
 
 @router.delete("/delete")

@@ -31,6 +31,8 @@ class ConfigForTests:
         mock_create_preview: The mocked `create_preview` function.
         mock_create_thumbnail: The mocked `create_thumbnail` function.
         mock_create_streamable: The mocked `create_streamable` function.
+        mock_reserve_processing_slot: The mocked `reserve_processing_slot`
+            function.
         mock_read_file_chunks: The mocked `read_file_chunks` function.
         mock_streaming_response_class: The mocked `StreamingResponse` class.
 
@@ -43,6 +45,7 @@ class ConfigForTests:
     mock_create_preview: Mock
     mock_create_thumbnail: Mock
     mock_create_streamable: Mock
+    mock_reserve_processing_slot: Mock
     mock_read_file_chunks: Mock
     mock_streaming_response_class: Mock
 
@@ -71,6 +74,9 @@ def config(mocker: MockFixture) -> ConfigForTests:
         ),
         mock_create_streamable=mocker.patch(
             endpoints.__name__ + ".create_streamable"
+        ),
+        mock_reserve_processing_slot=mocker.patch(
+            endpoints.__name__ + ".reserve_processing_slot"
         ),
         mock_read_file_chunks=mocker.patch(
             endpoints.__name__ + ".read_file_chunks"
@@ -377,7 +383,9 @@ async def test_create_video_preview(
 
     # It should have called `create_preview` with the video.
     config.mock_create_preview.assert_called_once_with(
-        video_data, preview_width=preview_width
+        video_data,
+        preview_width=preview_width,
+        reservation_token=config.mock_reserve_processing_slot.return_value,
     )
 
     # It should have created the response.
@@ -471,7 +479,9 @@ async def test_create_streaming_video(
 
     # It should have called `create_streamable` with the video.
     config.mock_create_streamable.assert_called_once_with(
-        video_data, max_width=max_width
+        video_data,
+        max_width=max_width,
+        reservation_token=config.mock_reserve_processing_slot.return_value,
     )
 
     # It should have created the response.

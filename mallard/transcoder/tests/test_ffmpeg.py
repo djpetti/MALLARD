@@ -100,12 +100,34 @@ def replace_concurrency_limited_runner(mocker: MockerFixture) -> None:
     mock_runner = mocker.patch.object(ffmpeg, "_g_runner")
 
     # Replace the `run()` method with a pass-through.
-    mock_runner.run.side_effect = asyncio.create_subprocess_exec
+    async def _run_passthrough(*args, **kwargs):
+        # In the real version, this is consumed internally by run().
+        kwargs.pop("reservation_token", None)
+        return await asyncio.create_subprocess_exec(*args, **kwargs)
+
+    mock_runner.run.side_effect = _run_passthrough
+    # Replace the reserve method.
+    mock_runner.reserve = mocker.AsyncMock()
+    mock_runner.reserve.return_value = "token"
 
 
 class VideoType(enum.Enum):
     STREAMABLE = "streamable"
     NON_STREAMABLE = "non-streamable"
+
+
+@pytest.mark.asyncio
+async def test_reserve_processing_slot() -> None:
+    """
+    Tests that we can successfully reserve a processing slot.
+
+    """
+    # Arrange.
+    # Act.
+    token = await ffmpeg.reserve_processing_slot()
+
+    # Assert.
+    assert token is not None
 
 
 @pytest.mark.parametrize(

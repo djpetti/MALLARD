@@ -179,10 +179,10 @@ async def _streaming_communicate(
             BrokenPipeError,
         ):
             # Kill the process so it doesn't hang.
-            process.terminate()
+            process.kill()
             # Report exceptions if we have them.
             logger.opt(exception=task.exception()).error(
-                "Task {} failed:", task.get_name()
+                "Task {} (process {}) failed:", task.get_name(), process.pid
             )
             raise task.exception()
         running_tasks.discard(task)
@@ -218,7 +218,7 @@ async def _streaming_communicate(
     async def _stream_output(
         reader: asyncio.StreamReader,
         queue: asyncio.Queue,
-    ) -> None:
+    ) -> None:  # pragma: no coverage
         # Read data from the process and write it to a queue.
         chunk = await reader.read(_INPUT_CHUNK_SIZE)
         await queue.put(chunk)
@@ -271,6 +271,19 @@ async def _streaming_communicate(
         # output even if the command failed.
         _read_from_queue(stderr_queue, wait_task, ignore_errors=True),
     )
+
+
+async def reserve_processing_slot() -> str:
+    """
+    Reserves a slot for a processing operation. Once a slot is reserved,
+    that operation will be guaranteed to start immediately once requested
+    instead of possibly blocking.
+
+    Returns:
+        The reservation token.
+
+    """
+    return await _g_runner.reserve()
 
 
 async def ensure_streamable(
@@ -341,6 +354,8 @@ async def ensure_streamable(
         async def _error_stream() -> AsyncIterable[bytes]:
             yield stderr
 
+        logger.info("Fixed non-streamable video.")
+
         # Read the output from the file.
         return (
             read_output_from_file(Path(output_file.name)),
@@ -381,7 +396,9 @@ async def ffprobe(source: AsyncIterable[bytes]) -> Dict[str, Any]:
 
 
 async def create_preview(
-    source: AsyncIterable[bytes], preview_width: int = 128
+    source: AsyncIterable[bytes],
+    preview_width: int = 128,
+    reservation_token: str | None = None,
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     Creates a preview, which is just a small, low-resolution version of a video.
@@ -390,6 +407,8 @@ async def create_preview(
         source: The source video to process.
         preview_width: The width of the preview to generate, in pixels.
             (Aspect ratio will be maintained.)
+        reservation_token: Reservation to use for this operation, if we have
+            one.
 
     Returns:
         The video preview, as a raw stream, and the stderr from FFMpeg.
@@ -409,13 +428,16 @@ async def create_preview(
         "-f",
         "webm",
         "-",
+        reservation_token=reservation_token,
         **_DEFAULT_PIPES,
     )
     return await _streaming_communicate(ffmpeg_process, input_source=source)
 
 
 async def create_streamable(
-    source: AsyncIterable[bytes], max_width: int = 1920
+    source: AsyncIterable[bytes],
+    max_width: int = 1920,
+    reservation_token: str | None = None,
 ) -> Tuple[AsyncIterable[bytes], AsyncIterable[bytes]]:
     """
     Creates a version of the video optimized for streaming.
@@ -424,6 +446,8 @@ async def create_streamable(
         source: The source video to process.
         max_width: The maximum width of the video, in pixels. (Videos with an
             original resolution lower than this will not be resized.)
+        reservation_token: Reservation to use for this operation, if we have
+            one.
 
     Returns:
         The video preview, as a raw stream, and the stderr from FFMpeg.
@@ -449,6 +473,7 @@ async def create_streamable(
         "-f",
         "webm",
         "-",
+        reservation_token=reservation_token,
         **_DEFAULT_PIPES,
     )
     return await _streaming_communicate(ffmpeg_process, input_source=source)

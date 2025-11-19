@@ -44,6 +44,10 @@ class TestConcurrencyLimitedRunner:
             # Flag that keeps track of whether the process is finished.
             self.__is_running = True
 
+        @property
+        def pid(self) -> int:
+            return 0
+
         async def wait(self) -> int:
             """
             Waits for the process to complete. This will not return until
@@ -194,3 +198,72 @@ class TestConcurrencyLimitedRunner:
 
         # It should have completed.
         assert not process.running
+
+    @pytest.mark.asyncio
+    async def test_reserve_success(self, config: ConfigForTests) -> None:
+        """
+        Tests that reserving a processing slot is successful.
+
+        Args:
+            config: The configuration to use for testing.
+        """
+        # Arrange.
+        # Reserve a processing slot
+        # Act.
+        token = await config.runner.reserve()
+        # Assert.
+        assert isinstance(token, str)
+
+    @pytest.mark.asyncio
+    async def test_reserve_blocks_when_no_slots_available(
+        self, config: ConfigForTests
+    ) -> None:
+        """
+        Tests that reserving a processing slot blocks when no slots are available.
+
+        Args:
+            config: The configuration to use for testing.
+        """
+        # Arrange.
+        runner = concurrency_limited_runner.ConcurrencyLimitedRunner(
+            max_processes=0
+        )
+
+        # Act and assert that reserving a slot times out.
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(runner.reserve(), timeout=1)
+
+    @pytest.mark.asyncio
+    async def test_run_with_reserved_token(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """
+        Tests that a token reserved can be used to call `run`.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+        """
+        # Arrange.
+        token = await config.runner.reserve()  # Reserve a processing slot
+        process = self.FakeProcess()  # Create a fake process
+        config.mock_create_subprocess_exec.return_value = (
+            process  # Mock subprocess creation
+        )
+
+        # Arguments to pass to `run`.
+        arg1 = faker.word()
+
+        # Act.
+        got_process = await config.runner.run(arg1, reservation_token=token)
+
+        # Assert.
+        assert (
+            got_process == process
+        )  # Check if the process returned is the one we expected
+        assert (
+            config.mock_create_subprocess_exec.call_count == 1
+        )  # Ensure subprocess was called once
+        config.mock_create_subprocess_exec.assert_called_once_with(
+            arg1
+        )  # Check if called with the correct argument

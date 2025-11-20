@@ -1,3 +1,6 @@
+// Jest doesn't like the MDUI stuff so we need to stop it from loading.
+jest.mock("../../node_modules/mdui/components/card.js", () => jest.fn());
+
 import { ConnectedArtifactDetails } from "../artifact-details";
 import each from "jest-each";
 import { fakeObjectRef, fakeState, getShadowRoot } from "./element-test-utils";

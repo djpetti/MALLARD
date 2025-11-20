@@ -320,7 +320,7 @@ export function fakeImageMetadata(notes?: string): UavImageMetadata {
   metadata.format = faker.helpers.arrayElement([
     ImageFormat.GIF,
     ImageFormat.TIFF,
-    ImageFormat.JPEG,
+    ImageFormat.JPG,
     ImageFormat.BMP,
     ImageFormat.PNG,
   ]);

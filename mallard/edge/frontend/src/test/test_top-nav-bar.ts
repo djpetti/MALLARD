@@ -22,13 +22,7 @@ import { faker } from "@faker-js/faker";
 import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
-import {
-  MdDialog,
-  MdIconButton,
-  MdListItem,
-  MdMenu,
-  MdMenuItem,
-} from "@material/web/all";
+import { MdDialog, MdIconButton, MdMenu, MdMenuItem } from "@material/web/all";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {

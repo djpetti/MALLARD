@@ -1,3 +1,6 @@
+// Jest doesn't like the MDUI stuff so we need to stop it from loading.
+jest.mock("../../node_modules/mdui/components/card.js", () => jest.fn());
+
 import { ConnectedNotesCard } from "../notes-card";
 import { fakeImageMetadata } from "./element-test-utils";
 import { faker } from "@faker-js/faker";

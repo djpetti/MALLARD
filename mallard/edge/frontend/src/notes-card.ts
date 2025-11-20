@@ -4,6 +4,7 @@ import { ArtifactInfoBase } from "./artifact-info-base";
 import store, { RootState } from "./store";
 import { Action } from "redux";
 import { connectRedux } from "./connected-element";
+import "mdui/components/card.js";
 
 /**
  * Card that shows detailed notes for an image.
@@ -18,6 +19,7 @@ export class NotesCard extends ArtifactInfoBase {
 
     .card {
       margin: 20px;
+      width: 90%;
     }
 
     .card-content {
@@ -59,7 +61,7 @@ export class NotesCard extends ArtifactInfoBase {
 
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
-      <div class="mdc-card card">
+      <mdui-card class="card" variant="elevated">
         <div class="card-content">
           ${this.metadata === undefined
             ? html` <!-- Show the loading indicator. -->
@@ -75,7 +77,7 @@ export class NotesCard extends ArtifactInfoBase {
                 </div>
                 <p id="note_text">${notes}</p>`}
         </div>
-      </div>
+      </mdui-card>
     `;
   }
 }

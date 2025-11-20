@@ -17,6 +17,7 @@ export class MetadataCard extends ArtifactInfoBase {
   static styles = css`
     .card {
       margin: 20px;
+      width: 90%;
     }
 
     .card-content {

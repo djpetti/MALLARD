@@ -50,7 +50,7 @@ export class ArtifactDetails extends LitElement {
 
       .side-panel-layout {
         grid-column-start: 3;
-        grid-column-end: 4;
+        grid-column-end: 5;
       }
     }
 
@@ -92,6 +92,11 @@ export class ArtifactDetails extends LitElement {
       animation-duration: 0.25s;
       animation-delay: 0.5s;
       animation-fill-mode: forwards;
+    }
+
+    /* Card showing info about the artifact. */
+    .info-card {
+      display: block;
     }
   `;
 

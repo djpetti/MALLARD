@@ -49,14 +49,11 @@ export class MallardApp extends LitElement {
     }
 
     #upload_column {
-      z-index: 20;
+      max-height: 100%;
     }
 
     #metadata_column {
       margin-left: 24px;
-      margin-right: -24px;
-      box-shadow: inset 1px 1px 5px 1px rgba(0, 0, 0, 0.2);
-      background-color: var(--md-sys-color-surface-container-lowest);
     }
   `;
 

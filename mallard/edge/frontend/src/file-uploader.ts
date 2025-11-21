@@ -16,6 +16,7 @@ import { Action } from "redux";
 import { v4 as uuidv4 } from "uuid";
 import { connectRedux } from "./connected-element";
 import "@material/web/all";
+import "mdui/components/card.js";
 
 /**
  * An element that allows the user to select and upload files.
@@ -33,24 +34,8 @@ export class FileUploader extends LitElement {
       display: none;
     }
 
-    /** Content on the bottom layer is scrollable and occluded by
-     content on top. */
-    .bottom_layer {
-      position: relative;
-      z-index: 5;
-      background-color: var(--md-sys-color-surface-container-lowest);
-      overflow: auto;
-    }
-
-    /** Content on the top layer doesn't scroll. */
-    .top_layer {
-      position: fixed;
-      z-index: 10;
-      background-color: var(--md-sys-color-surface-container);
-    }
-
     .drop_zone {
-      height: 100px;
+      height: 25%;
       border-radius: 25px;
       padding: 20px 0;
       border-width: 5px;
@@ -72,23 +57,28 @@ export class FileUploader extends LitElement {
 
     /** Place the drop zone on its own plane above the other content. */
     #drop_zone_card {
-      padding: 5px 24px 40px 24px;
-      background: white;
+      padding: 24px;
+      background: var(--md-sys-color-surface);
+      width: 95%;
+      margin-left: 2.5%;
     }
 
     .file_list {
       min-width: 500px;
-      height: 100%;
+      height: 75%;
       margin-left: -24px;
       margin-right: -24px;
+      overflow: scroll;
+      max-height: 100%;
     }
 
     #upload_icon {
-      --mdc-icon-size: 75px;
+      --md-icon-size: 75px;
     }
 
     #upload_help {
       font-family: "Roboto", sans-serif;
+      font-size: 12pt;
       font-weight: 200;
     }
 
@@ -119,6 +109,7 @@ export class FileUploader extends LitElement {
       min-width: 50%;
       min-height: 50px;
       border-radius: 30px;
+      background: var(--md-sys-color-surface);
 
       transition: opacity 0.25s;
     }
@@ -143,15 +134,11 @@ export class FileUploader extends LitElement {
     }
 
     #browse {
-      position: absolute;
-      z-index: 15;
-      top: 167px;
-      left: 85%;
+      margin-top: 15px;
+      float: right;
     }
 
     #file_list {
-      position: absolute;
-      top: 200px;
       width: 100%;
     }
 
@@ -276,8 +263,8 @@ export class FileUploader extends LitElement {
         }}"
       />
 
-      <div id="drop_zone_container" class="top_layer">
-        <div id="drop_zone_card" class="mdc-elevation--z2">
+      <div id="drop_zone_container">
+        <mdui-card id="drop_zone_card" variant="elevated">
           <div
             id="upload_drop_zone"
             class="drop_zone ${dropZoneClass}"
@@ -311,21 +298,24 @@ export class FileUploader extends LitElement {
               Drag files here to upload.
             </p>
           </div>
-        </div>
 
-        <md-fab
-          id="browse"
-          @click="${(_: Event) => this.fileInput.click()}"
-        >
-          <md-icon slot="icon">add</md-icon>
-        </md-fab>
+          <!-- Browse button -->
+          <md-outlined-button
+            id="browse"
+            @click="${(_: Event) => this.fileInput.click()}"
+            trailing-icon
+          >
+            Browse
+            <md-icon slot="icon">folder_open</md-icon>
+        </md-outlined-button>
+        </mdui-card>
       </div>
 
-      <div class="file_list bottom_layer">
+      <div class="file_list">
         <file-list id="file_list"></file-list>
 
         <!-- Bottom pill showing upload progress. -->
-        <div class="mdc-card pill ${pillVisibilityClass}" id="pill">
+        <mdui-card variant="elevated" class="pill ${pillVisibilityClass}" id="pill">
             <div class="pill-content flex-center">
               <md-circular-progress
                 value="${this.numFilesUploaded / this.uploadingFiles.length}"
@@ -334,7 +324,7 @@ export class FileUploader extends LitElement {
                 ${numRemainingUploads} files to upload
               </p>
             </div>
-          </div>
+          </mdui-card>
         </div>
       </div>
     `;

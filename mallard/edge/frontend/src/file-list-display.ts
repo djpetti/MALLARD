@@ -26,6 +26,10 @@ export class FileListDisplay extends LitElement {
     :host {
       --md-circular-progress-size: 24px;
     }
+
+    md-list {
+      background: var(--md-sys-color-surface-low);
+    }
   `;
 
   /** Order that we display files with various statuses in. */

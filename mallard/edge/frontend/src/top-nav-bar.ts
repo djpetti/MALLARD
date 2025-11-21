@@ -381,7 +381,6 @@ export class TopNavBar extends LitElement {
         <!-- Back button -->
         <md-icon-button
           class="${backButtonClass}"
-          slot="navigationIcon"
           id="back_button"
           @click="${() => history.back()}"
         >

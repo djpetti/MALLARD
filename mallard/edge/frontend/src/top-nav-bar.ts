@@ -1,7 +1,6 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
-import "@material/mwc-top-app-bar-fixed";
 import "./search-box";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
@@ -23,6 +22,7 @@ import "./user-menu";
 import { connectRedux } from "./connected-element";
 import { Button } from "@material/web/button/internal/button";
 import { MdDialog, MdMenu } from "@material/web/all";
+import "mdui/components/top-app-bar.js";
 
 /**
  * Top navigation bar in the MALLARD app.
@@ -43,14 +43,14 @@ export class TopNavBar extends LitElement {
     }
 
     .normal {
-      --mdc-theme-primary: var(--md-sys-color-primary);
+      background-color: var(--md-sys-color-primary);
     }
 
     .selection-mode {
       /* Change the color slightly in selection mode to provide a cue to the
       user.
        */
-      --mdc-theme-primary: var(--md-sys-color-tertiary);
+      background-color: var(--md-sys-color-tertiary);
     }
 
     .vertical-centered {
@@ -61,12 +61,19 @@ export class TopNavBar extends LitElement {
     /* Styles for the MALLARD logo. */
     .logo {
       margin-right: 10px;
+      margin-left: 10px;
       font-family: deftone-stylus;
       font-size: 38px;
     }
 
+    mdui-top-app-bar-title {
+      color: var(--md-sys-color-on-primary);
+      font-family: "Roboto";
+      font-weight: bold;
+      font-size: 24px;
+    }
+
     #app_bar {
-      --mdc-theme-on-primary: var(--md-sys-color-on-primary);
       overflow-x: hidden;
     }
 
@@ -370,7 +377,7 @@ export class TopNavBar extends LitElement {
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
-      <mwc-top-app-bar-fixed id="app_bar" class="${topBarClass}">
+      <mdui-top-app-bar id="app_bar" class="${topBarClass}">
         <!-- Back button -->
         <md-icon-button
           class="${backButtonClass}"
@@ -381,33 +388,36 @@ export class TopNavBar extends LitElement {
           <md-icon class="top-bar-icon">arrow_back</md-icon>
         </md-icon-button>
         <!-- Title -->
-        <span slot="title" class="vertical-centered ${titleClass}" id="title">
+        <mdui-top-app-bar-title
+          class="vertical-centered ${titleClass}"
+          id="title"
+        >
           ${title}
-        </span>
+        </mdui-top-app-bar-title>
         ${this.numItemsSelected == 0 && !this.artifactLink
           ? html` <!-- Search box. -->
               <search-box id="search"></search-box>`
           : nothing}
 
+        <!-- Align everything after to the right side. -->
+        <div style="flex-grow: 1"></div>
+
         <!-- Action items. -->
         ${inSelectionMode
           ? html`
               <md-icon-button
-                slot="actionItems"
                 id="download_button"
                 @click="${this.onDownloadClick}"
               >
                 <md-icon class="top-bar-icon">download</md-icon>
               </md-icon-button>
               <md-icon-button
-                slot="actionItems"
                 id="delete_button"
                 @click="${() => (this.showDeletionDialog = true)}"
               >
                 <md-icon class="top-bar-icon">delete</md-icon>
               </md-icon-button>
               <md-icon-button
-                slot="actionItems"
                 id="edit_button"
                 @click="${this.onEditButtonClicked}"
               >
@@ -432,7 +442,6 @@ export class TopNavBar extends LitElement {
         ${this.artifactLink
           ? html`
               <md-icon-button
-                slot="actionItems"
                 id="original_download_button"
                 @click="${() => this.artifactDownloadLink?.click()}"
               >
@@ -441,102 +450,102 @@ export class TopNavBar extends LitElement {
             `
           : nothing}
         <!-- User menu -->
-        <user-menu slot="actionItems"></user-menu>
+        <user-menu></user-menu>
+      </mdui-top-app-bar>
 
-        <!-- Deletion confirmation dialog. -->
-        <md-dialog
-          id="confirm_delete_dialog"
-          ?open="${this.showDeletionDialog || this.showDeletionProgress}"
-          @close="${this.onDialogCloseEvent}"
-        >
-          <div slot="headline">Confirm Deletion</div>
-          <form id="delete_dialog_form" method="dialog" slot="content">
-            Are you sure you want to delete ${this.numItemsSelected} item(s)?
-          </form>
-          <div slot="actions">
-            ${this.showDeletionProgress
-              ? html`
-                  <div slot="primaryAction" class="no-overflow">
-                    <md-circular-progress indeterminate></md-circular-progress>
-                  </div>
-                `
-              : html`
-                  <md-filled-button
-                    value="delete"
-                    form="delete_dialog_form"
-                    id="delete_confirm_button"
-                    @click="${this.onDeleteClick}"
-                    >Delete
-                    <md-icon slot="icon">delete</md-icon>
-                  </md-filled-button>
-                `}
-            <md-text-button
-              dialogAction="cancel"
-              value="cancel"
-              form="delete_dialog_form"
-              ?disabled="${this.showDeletionProgress}"
-              >Cancel</md-text-button
-            >
-          </div>
-        </md-dialog>
+      <!-- Deletion confirmation dialog. -->
+      <md-dialog
+        id="confirm_delete_dialog"
+        ?open="${this.showDeletionDialog || this.showDeletionProgress}"
+        @close="${this.onDialogCloseEvent}"
+      >
+        <div slot="headline">Confirm Deletion</div>
+        <form id="delete_dialog_form" method="dialog" slot="content">
+          Are you sure you want to delete ${this.numItemsSelected} item(s)?
+        </form>
+        <div slot="actions">
+          ${this.showDeletionProgress
+            ? html`
+                <div slot="primaryAction" class="no-overflow">
+                  <md-circular-progress indeterminate></md-circular-progress>
+                </div>
+              `
+            : html`
+                <md-filled-button
+                  value="delete"
+                  form="delete_dialog_form"
+                  id="delete_confirm_button"
+                  @click="${this.onDeleteClick}"
+                  >Delete
+                  <md-icon slot="icon">delete</md-icon>
+                </md-filled-button>
+              `}
+          <md-text-button
+            dialogAction="cancel"
+            value="cancel"
+            form="delete_dialog_form"
+            ?disabled="${this.showDeletionProgress}"
+            >Cancel</md-text-button
+          >
+        </div>
+      </md-dialog>
 
-        <!-- Metadata editing dialog -->
-        <md-dialog
-          id="edit_metadata_dialog"
-          @close="${this.onDialogCloseEvent}"
-          ?open="${this.showEditingDialog || this.showEditingProgress}"
-        >
-          <div slot="headline">Edit Metadata</div>
-          <form id="metadata_dialog_form" method="dialog" slot="content">
-            Edit the saved metadata for the selected images:
-            <metadata-editing-form id="metadata_form"></metadata-editing-form>
-          </form>
-          <div slot="actions">
-            ${this.showEditingProgress
-              ? html`
-                  <div class="no-overflow">
-                    <md-circular-progress indeterminate></md-circular-progress>
-                  </div>
-                `
-              : html` <md-filled-button
-                  value="confirm"
-                  form="metadata_dialog_form"
-                  id="edit_confirm_button"
-                  icon="edit"
-                  @click="${this.onEditingDone}"
-                  >Confirm</md-filled-button
-                >`}
-            <md-text-button
-              id="edit_cancel_button"
-              value="cancel"
-              form="metadata_dialog_form"
-              @click="${this.onEditingCancelled}"
-              ?disabled="${this.showEditingProgress}"
-              >Cancel</md-text-button
-            >
-          </div>
-        </md-dialog>
+      <!-- Metadata editing dialog -->
+      <md-dialog
+        id="edit_metadata_dialog"
+        @close="${this.onDialogCloseEvent}"
+        ?open="${this.showEditingDialog || this.showEditingProgress}"
+      >
+        <div slot="headline">Edit Metadata</div>
+        <form id="metadata_dialog_form" method="dialog" slot="content">
+          Edit the saved metadata for the selected images:
+          <metadata-editing-form id="metadata_form"></metadata-editing-form>
+        </form>
+        <div slot="actions">
+          ${this.showEditingProgress
+            ? html`
+                <div class="no-overflow">
+                  <md-circular-progress indeterminate></md-circular-progress>
+                </div>
+              `
+            : html` <md-filled-button
+                value="confirm"
+                form="metadata_dialog_form"
+                id="edit_confirm_button"
+                icon="edit"
+                @click="${this.onEditingDone}"
+                >Confirm</md-filled-button
+              >`}
+          <md-text-button
+            id="edit_cancel_button"
+            value="cancel"
+            form="metadata_dialog_form"
+            @click="${this.onEditingCancelled}"
+            ?disabled="${this.showEditingProgress}"
+            >Cancel</md-text-button
+          >
+        </div>
+      </md-dialog>
 
-        <!-- Hidden links for downloading files. -->
-        ${this.exportedUrlFileLink
-          ? html`<a
-              id="url_list_download_link"
-              class="hidden"
-              href="${this.exportedUrlFileLink}"
-              download="artifact_urls.txt"
-            ></a>`
-          : nothing}
-        ${this.artifactLink
-          ? html`<a
-              id="artifact_download_link"
-              class="hidden"
-              href="${this.artifactLink}"
-              download="${this.artifactName as string}"
-            ></a>`
-          : nothing}
+      <!-- Hidden links for downloading files. -->
+      ${this.exportedUrlFileLink
+        ? html`<a
+            id="url_list_download_link"
+            class="hidden"
+            href="${this.exportedUrlFileLink}"
+            download="artifact_urls.txt"
+          ></a>`
+        : nothing}
+      ${this.artifactLink
+        ? html`<a
+            id="artifact_download_link"
+            class="hidden"
+            href="${this.artifactLink}"
+            download="${this.artifactName as string}"
+          ></a>`
+        : nothing}
 
-        <slot></slot>
-      </mwc-top-app-bar-fixed>
+      <slot></slot>
     `;
   }
 

@@ -124,7 +124,7 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   static tagName: string = "thumbnail-grid";
   static styles = css`
     :host {
-      height: 90vh;
+      height: 95vh;
       display: block;
       overflow: auto;
     }

@@ -1,3 +1,6 @@
+// Jest doesn't like the MDUI stuff so we need to stop it from loading.
+jest.mock("../../node_modules/mdui/components/top-app-bar.js", () => jest.fn());
+
 import { ConnectedTopNavBar, TopNavBar } from "../top-nav-bar";
 import {
   fakeArtifactEntities,
@@ -7,7 +10,6 @@ import {
   getShadowRoot,
 } from "./element-test-utils";
 import each from "jest-each";
-import { TopAppBarFixed } from "@material/mwc-top-app-bar-fixed";
 import {
   setEditingDialogOpen,
   thunkBulkDownloadSelected,
@@ -23,6 +25,7 @@ import { ConnectedMetadataEditingForm } from "../metadata-form";
 import { UavImageMetadata } from "mallard-api";
 import { Button } from "@material/web/button/internal/button";
 import { MdDialog, MdIconButton, MdMenu, MdMenuItem } from "@material/web/all";
+import { LitElement } from "lit";
 
 // Create the mocks.
 jest.mock("../thumbnail-grid-slice", () => {
@@ -112,10 +115,10 @@ describe("top-nav-bar", () => {
     expect(topBar).not.toBe(null);
 
     // It should have rendered the title.
-    const titleSpan = topBar?.querySelector("span");
-    expect(titleSpan).not.toBe(null);
-    expect(titleSpan?.textContent).toContain(fakeTitle);
-    expect(titleSpan?.classList).toContainEqual("logo");
+    const titleElement = topBar?.querySelector("mdui-top-app-bar-title");
+    expect(titleElement).not.toBe(null);
+    expect(titleElement?.textContent).toContain(fakeTitle);
+    expect(titleElement?.classList).toContainEqual("logo");
 
     // It should have rendered the deletion dialog, but not opened it.
     const deleteConfirmDialog = root.querySelector("#confirm_delete_dialog");
@@ -319,7 +322,7 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the download button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const topBar = root.querySelector("#app_bar") as LitElement;
     const downloadButton = topBar.querySelector(
       "#download_button"
     ) as MdIconButton;
@@ -375,7 +378,7 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the edit button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const topBar = root.querySelector("#app_bar") as LitElement;
     const editButton = topBar.querySelector("#edit_button") as MdIconButton;
 
     editButton.dispatchEvent(new MouseEvent("click"));
@@ -394,7 +397,7 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the delete button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const topBar = root.querySelector("#app_bar") as LitElement;
     const deleteButton = topBar.querySelector("#delete_button") as MdIconButton;
 
     deleteButton.dispatchEvent(new MouseEvent("click"));
@@ -517,7 +520,7 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the overflow button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const topBar = root.querySelector("#app_bar") as LitElement;
     const moreActionsButton = topBar.querySelector(
       "#more_actions_button"
     ) as MdIconButton;
@@ -583,7 +586,7 @@ describe("top-nav-bar", () => {
     // Act.
     // Simulate a click on the cancel button.
     const root = getShadowRoot(ConnectedTopNavBar.tagName);
-    const topBar = root.querySelector("#app_bar") as TopAppBarFixed;
+    const topBar = root.querySelector("#app_bar") as LitElement;
     const cancelButton = topBar.querySelector(
       "#cancel_selection"
     ) as MdIconButton;

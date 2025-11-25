@@ -77,7 +77,7 @@ export class UserMenu extends LitElement {
         />
 
         <!-- Dropdown menu -->
-        <md-menu id="user_menu">
+        <md-menu id="user_menu" anchor="avatar">
           <md-menu-item
             @click="${() => {
               window.location.href = getUserProfileUrl();

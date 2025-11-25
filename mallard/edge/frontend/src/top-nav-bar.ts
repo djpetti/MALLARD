@@ -53,6 +53,10 @@ export class TopNavBar extends LitElement {
       background-color: var(--md-sys-color-tertiary);
     }
 
+    user-menu {
+      margin-top: -3px;
+    }
+
     .vertical-centered {
       display: flex;
       align-items: center;
@@ -74,7 +78,8 @@ export class TopNavBar extends LitElement {
     }
 
     #app_bar {
-      overflow-x: hidden;
+      /* Need this to show the user drop-down menu. */
+      overflow: visible;
     }
 
     #search {

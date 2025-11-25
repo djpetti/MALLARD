@@ -4,6 +4,7 @@ import "@material/web/all";
 import { ObjectType } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
+import "vidstack/bundle";
 
 /** Type of click handler functions. */
 type ClickHandler = (_: Event) => any;
@@ -126,11 +127,18 @@ export class ArtifactDisplay extends ArtifactInfoBase {
    * @return {TemplateResult} The rendered template for the video.
    */
   protected renderVideo(): TemplateResult {
-    return html`<video
-      controls
-      id="media"
-      src="${this.sourceUrl as string}"
-    ></video>`;
+    return html`
+      <link rel="stylesheet" href="/static/mallard-edge.css" />
+
+      <media-player
+        title="Sprite Fight"
+        src="${this.sourceUrl as string}"
+        type="video/webm"
+      >
+        <media-provider></media-provider>
+        <media-video-layout></media-video-layout>
+      </media-player>
+    `;
   }
 
   /**

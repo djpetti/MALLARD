@@ -8,9 +8,9 @@ from functools import singledispatch
 from io import BytesIO
 from typing import AsyncIterable, AsyncIterator, Optional, Union
 
-from aiobotocore.session import get_session
 from aiobotocore.client import AioBaseClient
 from aiobotocore.response import StreamingBody
+from aiobotocore.session import get_session
 from botocore.exceptions import ClientError
 from confuse import ConfigView
 from loguru import logger
@@ -262,10 +262,22 @@ class _SafeObjectIter:
     """
 
     def __init__(
-        self, response: StreamingBody, chunk_size: int = _DEFAULT_CHUNK_SIZE
+        self,
+        response: StreamingBody,
+        *,
+        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        total_size: int,
     ):
+        """
+        Args:
+            response: The response to read data from.
+            chunk_size: The size of the chunks to read data in.
+            total_size: The total size of the content.
+
+        """
         self.__response = response
         self.__chunk_size = chunk_size
+        self.__total_size = total_size
 
     def __del__(self):
         # Ensure, at all costs, that the response is closed.
@@ -273,6 +285,9 @@ class _SafeObjectIter:
 
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self
+
+    def __len__(self):
+        return self.__total_size
 
     async def __anext__(self) -> bytes:
         if chunk := await self.__response.read(self.__chunk_size):
@@ -484,7 +499,7 @@ class S3ObjectStore(ObjectStore):
             Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
         )
 
-    async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
+    async def get_object(self, object_id: ObjectRef) -> _SafeObjectIter:
         try:
             data_object = await self.__client.get_object(
                 Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
@@ -495,4 +510,4 @@ class S3ObjectStore(ObjectStore):
             raise ObjectOperationError(str(error))
 
         body = data_object["Body"]
-        return _SafeObjectIter(body)
+        return _SafeObjectIter(body, total_size=data_object["ContentLength"])

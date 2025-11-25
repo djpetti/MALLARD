@@ -1,5 +1,8 @@
 @use "multi_column";
 @use "colors";
+@use "vidstack/player/styles/default/theme.css";
+@use "vidstack/player/styles/default/layouts/audio.css";
+@use "vidstack/player/styles/default/layouts/video.css";
 
 @font-face {
   font-family: deftone-stylus;

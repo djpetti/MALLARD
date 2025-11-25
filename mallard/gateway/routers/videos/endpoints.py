@@ -1,6 +1,7 @@
 """
 API endpoints for managing video data.
 """
+
 import asyncio
 from typing import List, cast
 
@@ -327,6 +328,7 @@ async def delete_videos(
                 )
 
 
+@router.head("/{bucket}/{name}")
 @router.get("/{bucket}/{name}")
 async def get_video(
     bucket: str,
@@ -401,9 +403,16 @@ async def _get_transcoded_video_stream(
             detail="Requested video could not be found.",
         )
 
-    return StreamingResponse(preview_stream, media_type="video/vp9")
+    return StreamingResponse(
+        preview_stream,
+        media_type="video/vp9",
+        headers={
+            "Content-Length": str(len(preview_stream)),
+        },
+    )
 
 
+@router.head("/preview/{bucket}/{name}")
 @router.get("/preview/{bucket}/{name}")
 async def get_preview(
     bucket: str,
@@ -428,6 +437,7 @@ async def get_preview(
     )
 
 
+@router.head("/stream/{bucket}/{name}")
 @router.get("/stream/{bucket}/{name}")
 async def get_streamable(
     bucket: str,

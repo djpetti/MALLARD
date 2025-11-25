@@ -94,7 +94,8 @@
     "sass-hex-rgb": "^1.0.1",
     "streamsaver": "^2.0.6",
     "url-join": "^5.0.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "vidstack": "^1.12.13"
   },
   "optionalDependencies": {
     "mallard-api": "file:gen/api"

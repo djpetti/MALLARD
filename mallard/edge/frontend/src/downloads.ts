@@ -98,23 +98,12 @@ export async function downloadArtifactZip(
   // Save the file.
   const zipName = "artifacts.zip";
   let fileStream: WritableStream | null = null;
-  try {
-    // For browsers that support the FS Access API, use that.
-    const fileHandle = await showSaveFilePicker({
-      suggestedName: zipName,
-      types: [
-        { description: ".zip file", accept: { "application/zip": [".zip"] } },
-      ],
-    });
-    fileStream = await fileHandle.createWritable();
-  } catch {
-    // Otherwise, fall back to StreamSaver.js.
-    fileStream = streamSaver.createWriteStream(zipName, {
-      // It's not typed to accept bigints, but it doesn't seem to care
-      // when you pass them.
-      size: zipLength as unknown as number,
-    });
-  }
+
+  fileStream = streamSaver.createWriteStream(zipName, {
+    // It's not typed to accept bigints, but it doesn't seem to care
+    // when you pass them.
+    size: zipLength as unknown as number,
+  });
 
   // Abort when the user closes the page so we don't end up with a stuck
   // download.

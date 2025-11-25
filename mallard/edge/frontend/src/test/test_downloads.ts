@@ -86,88 +86,61 @@ describe("downloads", () => {
     });
   });
 
-  each([
-    ["the FS Access API is available", true],
-    ["the FS Access API is not available", false],
-  ]).it(
-    "can download some images when %s",
-    async (_, simulateFsAccessApi: boolean) => {
-      // Arrange.
-      // Create some fake images.
-      const image = fakeTypedObjectRef(ObjectType.IMAGE);
-      const video = fakeTypedObjectRef(ObjectType.VIDEO);
-      const imageMetadata = fakeImageMetadata();
-      const videoMetadata = fakeVideoMetadata();
-      const artifactsWithMeta = [
-        { id: image, metadata: imageMetadata },
-        { id: video, metadata: videoMetadata },
-      ];
+  it("can download some images", async () => {
+    // Arrange.
+    // Create some fake images.
+    const image = fakeTypedObjectRef(ObjectType.IMAGE);
+    const video = fakeTypedObjectRef(ObjectType.VIDEO);
+    const imageMetadata = fakeImageMetadata();
+    const videoMetadata = fakeVideoMetadata();
+    const artifactsWithMeta = [
+      { id: image, metadata: imageMetadata },
+      { id: video, metadata: videoMetadata },
+    ];
 
-      // Make it look like we can predict the length.
-      const zipLength = BigInt(faker.datatype.number({ min: 0 }));
-      mockPredictLength.mockReturnValue(zipLength);
+    // Make it look like we can predict the length.
+    const zipLength = BigInt(faker.datatype.number({ min: 0 }));
+    mockPredictLength.mockReturnValue(zipLength);
 
-      // Create some sort of fake file stream for it to write to.
-      const fakeFileStream = {};
-      mockCreateWriteStream.mockReturnValue(fakeFileStream as WritableStream);
+    // Create some sort of fake file stream for it to write to.
+    const fakeFileStream = {};
+    mockCreateWriteStream.mockReturnValue(fakeFileStream as WritableStream);
 
-      let mockShowSaveFilePicker:
-        | jest.MockedFn<typeof global.showSaveFilePicker>
-        | undefined = undefined;
-      if (simulateFsAccessApi) {
-        //  Make it look like the FS Access API is available.
-        const fileHandle = { createWritable: jest.fn() };
-        fileHandle.createWritable.mockResolvedValue(fakeFileStream);
-
-        global.showSaveFilePicker = jest.fn();
-        mockShowSaveFilePicker = global.showSaveFilePicker as jest.MockedFn<
-          typeof global.showSaveFilePicker
-        >;
-        mockShowSaveFilePicker.mockResolvedValue(
-          fileHandle as unknown as FileSystemFileHandle
-        );
-      }
-
-      // Act.
-      await downloadArtifactZip(artifactsWithMeta);
-      // Wait for it to fully finish running.
-      while (!downloadZipFinished) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-
-      // Assert.
-      // It should have predicted the length.
-      expect(mockPredictLength).toBeCalledTimes(1);
-
-      expect(mockDownloadZip).toBeCalledTimes(1);
-      // It should have specified the correct length.
-      expect(mockDownloadZip).toBeCalledWith(expect.anything(), {
-        length: zipLength,
-      });
-
-      // It should have fetched the images.
-      expect(mockFetch).toBeCalledTimes(2);
-      // We don't care about the order, or the exact API call, so we're just
-      // going to concatenate all the fetched URLs into a big string and look
-      // for our image IDs.
-      const allUrls = mockFetch.mock.calls.map((c) => c[0]).join("");
-      expect(allUrls).toContain(image.id.bucket);
-      expect(allUrls).toContain(image.id.name);
-      expect(allUrls).toContain(video.id.bucket);
-      expect(allUrls).toContain(video.id.name);
-
-      // It should have written out the data to the file.
-      if (simulateFsAccessApi) {
-        expect(mockShowSaveFilePicker).toBeCalledTimes(1);
-      } else {
-        expect(mockCreateWriteStream).toBeCalledTimes(1);
-        expect(mockCreateWriteStream).toBeCalledWith(expect.anything(), {
-          size: zipLength,
-        });
-      }
-      expect(mockPipeTo).toBeCalledWith(fakeFileStream);
+    // Act.
+    await downloadArtifactZip(artifactsWithMeta);
+    // Wait for it to fully finish running.
+    while (!downloadZipFinished) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
-  );
+
+    // Assert.
+    // It should have predicted the length.
+    expect(mockPredictLength).toBeCalledTimes(1);
+
+    expect(mockDownloadZip).toBeCalledTimes(1);
+    // It should have specified the correct length.
+    expect(mockDownloadZip).toBeCalledWith(expect.anything(), {
+      length: zipLength,
+    });
+
+    // It should have fetched the images.
+    expect(mockFetch).toBeCalledTimes(2);
+    // We don't care about the order, or the exact API call, so we're just
+    // going to concatenate all the fetched URLs into a big string and look
+    // for our image IDs.
+    const allUrls = mockFetch.mock.calls.map((c) => c[0]).join("");
+    expect(allUrls).toContain(image.id.bucket);
+    expect(allUrls).toContain(image.id.name);
+    expect(allUrls).toContain(video.id.bucket);
+    expect(allUrls).toContain(video.id.name);
+
+    // It should have written out the data to the file.
+    expect(mockCreateWriteStream).toBeCalledTimes(1);
+    expect(mockCreateWriteStream).toBeCalledWith(expect.anything(), {
+      size: zipLength,
+    });
+    expect(mockPipeTo).toBeCalledWith(fakeFileStream);
+  });
 
   it("handles duplicate names correctly", async () => {
     // Arrange.

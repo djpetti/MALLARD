@@ -1,7 +1,7 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/web/all";
-import { ObjectType } from "mallard-api";
+import {ObjectType, UavVideoMetadata} from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import "vidstack/bundle";
@@ -127,13 +127,17 @@ export class ArtifactDisplay extends ArtifactInfoBase {
    * @return {TemplateResult} The rendered template for the video.
    */
   protected renderVideo(): TemplateResult {
+    // Calculate video duration in seconds.
+    const videoMetadata = this.metadata as UavVideoMetadata;
+    const videoDuration = (videoMetadata?.numFrames ?? 0) / (videoMetadata?.frameRate ?? 30);
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <media-player
-        title="Sprite Fight"
+        title="${this.metadata?.name ?? "Video"}"
         src="${this.sourceUrl as string}"
         type="video/webm"
+        duration="${videoDuration}"
       >
         <media-provider></media-provider>
         <media-video-layout></media-video-layout>

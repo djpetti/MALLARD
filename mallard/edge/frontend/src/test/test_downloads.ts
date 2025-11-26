@@ -7,7 +7,6 @@ import {
 } from "./element-test-utils";
 import { downloadArtifactZip, makeArtifactUrlList } from "../downloads";
 import streamSaver from "streamsaver";
-import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
 import { getArtifactUrl } from "../api-client";

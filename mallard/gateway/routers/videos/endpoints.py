@@ -405,7 +405,7 @@ async def _get_transcoded_video_stream(
 
     return StreamingResponse(
         preview_stream,
-        media_type="video/vp9",
+        media_type="video/webm",
         headers={
             "Content-Length": str(len(preview_stream)),
         },

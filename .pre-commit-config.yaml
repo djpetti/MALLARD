@@ -1,20 +1,23 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
+      - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-      - id: check-yaml
-        exclude: cookiecutter-docker/.*
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: forbid-new-submodules
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 25.11.0
     hooks:
       - id: black
   - repo: https://github.com/PyCQA/flake8.git
-    rev: 7.1.2
+    rev: 7.3.0
     hooks:
       - id: flake8
   - repo: https://github.com/timothycrosley/isort
-    rev: 6.0.0
+    rev: 7.0.0
     hooks:
       - id: isort

@@ -1,10 +1,11 @@
 import { css, html, nothing, PropertyValues, TemplateResult } from "lit";
 import { property, query } from "lit/decorators.js";
 import "@material/web/all";
-import {ObjectType, UavVideoMetadata} from "mallard-api";
+import { ObjectType, UavVideoMetadata } from "mallard-api";
 import { PageManager } from "./page-manager";
 import { ArtifactInfoBase } from "./artifact-info-base";
 import "vidstack/bundle";
+import { MediaErrorEvent } from "vidstack";
 
 /** Type of click handler functions. */
 type ClickHandler = (_: Event) => any;
@@ -46,6 +47,11 @@ export class ArtifactDisplay extends ArtifactInfoBase {
 
     .hidden {
       display: none;
+    }
+
+    media-player {
+      /* Align videos with the metadata cards. */
+      margin-top: 20px;
     }
 
     img {
@@ -102,12 +108,33 @@ export class ArtifactDisplay extends ArtifactInfoBase {
   private clickHandlerAbortController?: AbortController;
 
   /**
+   * Handler for the `MediaPlayer` error event.
+   * @param {MediaErrorEvent} event The event object.
+   * @private
+   */
+  private onVideoError(event: MediaErrorEvent) {
+    if (event.detail.code === 4) {
+      // Invalid video.
+      this.onInvalidVideo();
+    } else {
+      console.error(`Error loading video: ${event.detail.message}`);
+    }
+  }
+
+  /**
    * Checks if any content is set for this component.
    * @return {boolean} True iff an actual image is set in this component.
    */
   get hasContent(): boolean {
     return this.sourceUrl != undefined;
   }
+
+  /**
+   * Function that is called when the requested video is invalid. By default,
+   * it does nothing, but subclasses can override.
+   * @protected
+   */
+  protected onInvalidVideo() {}
 
   /**
    * Renders a particular image.
@@ -129,15 +156,18 @@ export class ArtifactDisplay extends ArtifactInfoBase {
   protected renderVideo(): TemplateResult {
     // Calculate video duration in seconds.
     const videoMetadata = this.metadata as UavVideoMetadata;
-    const videoDuration = (videoMetadata?.numFrames ?? 0) / (videoMetadata?.frameRate ?? 30);
+    const videoDuration =
+      (videoMetadata?.numFrames ?? 0) / (videoMetadata?.frameRate ?? 30);
     return html`
       <link rel="stylesheet" href="/static/mallard-edge.css" />
 
       <media-player
         title="${this.metadata?.name ?? "Video"}"
+        id="media"
         src="${this.sourceUrl as string}"
         type="video/webm"
         duration="${videoDuration}"
+        @error="${this.onVideoError}"
       >
         <media-provider></media-provider>
         <media-video-layout></media-video-layout>

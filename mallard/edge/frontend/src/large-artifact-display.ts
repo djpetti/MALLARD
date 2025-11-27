@@ -120,6 +120,11 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
    * @private
    */
   private adjustSizes() {
+    if (this.type === ObjectType.VIDEO) {
+      // MediaPlayer already knows how to adjust its own size.
+      return;
+    }
+
     const isPortrait = window.innerHeight > window.innerWidth;
 
     const fullscreenHeight = this.clientHeight;
@@ -183,6 +188,14 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
   /**
    * @inheritDoc
    */
+  protected override onInvalidVideo() {
+    // This error means that the video is probably still being transcoded.
+    this.showTranscodingMessage = true;
+  }
+
+  /**
+   * @inheritDoc
+   */
   protected override renderVideo(): TemplateResult {
     if (!this.showTranscodingMessage) {
       this.clearVideoReloadInterval();
@@ -232,16 +245,6 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
 
     if (_changedProperties.has("sourceUrl")) {
       this.adjustSizes();
-    }
-
-    if (this.type === ObjectType.VIDEO) {
-      // Add a handler for the error event. We assume that this is because
-      // the video is still being transcoded.
-      this.media?.addEventListener(
-        "error",
-        () => (this.showTranscodingMessage = true),
-        { once: true }
-      );
     }
   }
 

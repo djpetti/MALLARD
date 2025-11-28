@@ -416,6 +416,7 @@ async def _get_transcoded_video_stream(
         media_type="video/webm",
         headers={
             "Content-Length": str(len(preview_stream)),
+            "Accept-Ranges": bytes,
         },
     )
 

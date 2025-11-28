@@ -499,11 +499,27 @@ class S3ObjectStore(ObjectStore):
             Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
         )
 
-    async def get_object(self, object_id: ObjectRef) -> _SafeObjectIter:
+    async def get_object(
+        self, object_id: ObjectRef, data_range: str | None = None
+    ) -> _SafeObjectIter:
+        """
+        Args:
+            object_id: The ID of the object to get.
+            data_range: The range of data to read. Specified in the same format as HTTP Range header. If `None`, it will
+                read the whole thing.
+
+        Returns:
+            Iterator for the object data.
+
+        """
+        get_object_kwargs = dict(
+            Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
+        )
+        if data_range is not None:
+            get_object_kwargs["Range"] = data_range
+
         try:
-            data_object = await self.__client.get_object(
-                Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
-            )
+            data_object = await self.__client.get_object(**get_object_kwargs)
         except ClientError as error:
             if self.__extract_error_code(error) == "NoSuchKey":
                 raise KeyError(f"Object '{object_id}' does not exist.")

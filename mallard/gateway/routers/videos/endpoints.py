@@ -12,13 +12,13 @@ from fastapi import (
     Body,
     Depends,
     File,
+    Header,
     HTTPException,
     UploadFile,
 )
 from loguru import logger
 from starlette.responses import StreamingResponse
 from tenacity import (
-    AsyncRetrying,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -35,6 +35,7 @@ from ...backends.metadata import (
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
+from ...backends.objects.s3_object_store import S3ObjectStore
 from ..common import (
     check_key_errors,
     get_metadata,
@@ -379,6 +380,7 @@ async def _get_transcoded_video_stream(
     name: str,
     suffix: str,
     object_store: ObjectStore,
+    data_range: str | None = None,
 ) -> StreamingResponse:
     """
     Retrieves a transcoded video from the server.
@@ -388,15 +390,21 @@ async def _get_transcoded_video_stream(
         name: The name of the video.
         suffix: The suffix to apply to the object id.
         object_store: The object store to use.
+        data_range: Optional specifier for the range of data to read,
+         in the same format as the HTTP `Range` header.
 
     Returns:
         A `StreamingResponse` object containing the thumbnail.
 
     """
+    object_store = cast(S3ObjectStore, object_store)
+
     object_id = ObjectRef(bucket=bucket, name=name)
     preview_object_id = derived_id(object_id, suffix=suffix)
     try:
-        preview_stream = await object_store.get_object(preview_object_id)
+        preview_stream = await object_store.get_object(
+            preview_object_id, data_range=data_range
+        )
     except KeyError:
         raise HTTPException(
             status_code=404,
@@ -443,6 +451,7 @@ async def get_streamable(
     bucket: str,
     name: str,
     object_store: ObjectStore = Depends(backends.object_store),
+    range_header: str = Header(None),
 ) -> StreamingResponse:
     """
     Retrieves a streaming-optimized version of the video from the server.
@@ -451,10 +460,10 @@ async def get_streamable(
         bucket: The bucket the video is in.
         name: The name of the video.
         object_store: The object store to use.
+        range_header: The Range header from the request.
 
     Returns:
-        A `StreamingResponse` object containing the thumbnail.
-
+        A `StreamingResponse` object containing the video stream.
     """
     logger.info(
         "Getting streamable version of video {} in bucket {}.", name, bucket
@@ -464,6 +473,7 @@ async def get_streamable(
         name=name,
         suffix="streamable",
         object_store=object_store,
+        data_range=range_header,
     )
 
 

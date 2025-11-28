@@ -168,6 +168,8 @@ export class ArtifactDisplay extends ArtifactInfoBase {
         src="${this.sourceUrl as string}"
         type="video/webm"
         duration="${videoDuration}"
+        streamType="on-demand"
+        load="eager"
         @error="${this.onVideoError}"
       >
         <media-provider></media-provider>

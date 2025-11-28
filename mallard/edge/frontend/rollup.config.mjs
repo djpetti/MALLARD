@@ -30,13 +30,13 @@ export default [
     input: "build/index.js",
     output: [
       {
-        file: "bundled/mallard-edge.js",
+        dir: "bundled/mallard-edge",
         sourcemap: true,
         format: "esm",
       },
       {
-        file: "bundled/mallard-edge.min.js",
-        format: "iife",
+        dir: "bundled/mallard-edge.min",
+        format: "esm",
         name: "version",
         plugins: [
           terser({

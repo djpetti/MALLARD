@@ -117,6 +117,7 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       // Invalid video.
       this.onInvalidVideo();
     } else {
+      // istanbul ignore next
       console.error(`Error loading video: ${event.detail.message}`);
     }
   }

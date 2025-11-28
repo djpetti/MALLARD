@@ -17,6 +17,7 @@ import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
 import { RootState } from "../store";
+import { MediaErrorDetail } from "vidstack";
 
 jest.mock("../connected-element", () => ({
   // Turn connect() into a pass-through.
@@ -105,11 +106,14 @@ describe("large-artifact-display", () => {
     // Act.
     await displayElement.updateComplete;
 
-    // Make it look like loading failed with an error.
+    // Make it look like loading failed with an error by dispatching a MediaErrorEvent.
     const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
     const videoElement = root.querySelector("#media") as HTMLVideoElement;
     expect(videoElement).not.toBeNull();
-    videoElement.dispatchEvent(new Event("error"));
+    const errorEvent = new CustomEvent<MediaErrorDetail>("error", {
+      detail: { code: 4, message: "Invalid video." },
+    });
+    videoElement.dispatchEvent(errorEvent);
 
     await displayElement.updateComplete;
 

@@ -10,7 +10,7 @@ module.exports = {
     "node_modules/(?!(lit|@lit|lit-element|lit-html|@material|app-datepicker|nodemod|client-zip|url-join|to-readable-stream|lodash-es|jose|pwa-helpers|mdui)/)",
   ],
   collectCoverageFrom: [
-    "src/**/{!(index|elements|element-test-utils|store|auth-callback),}.ts",
+    "src/**/{!(index|elements|element-test-utils|store|auth-callback|connected-element),}.ts",
   ],
   setupFiles: ["<rootDir>/src/test/jest-set-up.js"],
   setupFilesAfterEnv: ["<rootDir>/src/test/jest-set-up-after-env.js"],

@@ -4,6 +4,8 @@ import { ArtifactDisplay } from "../artifact-display";
 import { faker } from "@faker-js/faker";
 import { ObjectType } from "mallard-api";
 import { MdIcon } from "@material/web/all";
+import { LitElement } from "lit";
+import { property } from "lit/decorators.js";
 
 // Using older require syntax here so that we get the correct mock type.
 const pageManager = require("../page-manager");
@@ -18,6 +20,14 @@ jest.mock("../page-manager", () => ({
   },
 }));
 
+/**
+ * Fake Vidstack player that implements part of the API for testing.
+ */
+class MockMediaPlayer extends LitElement {
+  @property({ type: String })
+  public src?: string;
+}
+
 each([
   ["image", ObjectType.IMAGE],
   ["video", ObjectType.VIDEO],
@@ -29,6 +39,11 @@ each([
     // Manually register the custom element.
     if (!customElements.get(ArtifactDisplay.tagName)) {
       customElements.define(ArtifactDisplay.tagName, ArtifactDisplay);
+    }
+
+    // Register the fake MediaPlayer.
+    if (!customElements.get("media-player")) {
+      customElements.define("media-player", MockMediaPlayer);
     }
   });
 
@@ -124,7 +139,7 @@ each([
     expect(containerDiv.classList).not.toContain("placeholder");
 
     const artifacts = containerDiv.getElementsByTagName(
-      objectType === ObjectType.IMAGE ? "img" : "video"
+      objectType === ObjectType.IMAGE ? "img" : "media-player"
     );
     expect(artifacts).toHaveLength(1);
 

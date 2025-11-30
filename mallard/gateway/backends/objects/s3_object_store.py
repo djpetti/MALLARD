@@ -267,7 +267,7 @@ class _SafeObjectIter:
         *,
         chunk_size: int = _DEFAULT_CHUNK_SIZE,
         total_size: int,
-        content_range: str,
+        content_range: str | None = None,
     ):
         """
         Args:
@@ -298,7 +298,7 @@ class _SafeObjectIter:
         raise StopAsyncIteration
 
     @property
-    def content_range(self) -> str:
+    def content_range(self) -> str | None:
         """
         Returns:
             The portion of the content in the response, in the same format as
@@ -542,5 +542,5 @@ class S3ObjectStore(ObjectStore):
         return _SafeObjectIter(
             body,
             total_size=data_object["ContentLength"],
-            content_range=data_object["ContentRange"],
+            content_range=data_object.get("ContentRange"),
         )

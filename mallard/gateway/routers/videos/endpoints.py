@@ -421,6 +421,12 @@ async def _get_transcoded_video_stream(
         status_code = 206
         headers["Content-Range"] = preview_stream.content_range
 
+        if preview_stream.content_range is None:
+            # This can only happen if a range was provided but not valid.
+            raise HTTPException(
+                status_code=416, detail="Invalid range specified."
+            )
+
     return StreamingResponse(
         preview_stream,
         status_code=status_code,

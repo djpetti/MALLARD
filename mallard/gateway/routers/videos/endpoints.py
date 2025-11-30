@@ -3,7 +3,7 @@ API endpoints for managing video data.
 """
 
 import asyncio
-from typing import List, cast
+from typing import Annotated, List, cast
 
 from aiohttp.client_exceptions import ClientPayloadError
 from fastapi import (
@@ -466,7 +466,7 @@ async def get_streamable(
     bucket: str,
     name: str,
     object_store: ObjectStore = Depends(backends.object_store),
-    range_header: str = Header(None),
+    range_header: Annotated[str | None, Header(alias="range")] = None,
 ) -> StreamingResponse:
     """
     Retrieves a streaming-optimized version of the video from the server.

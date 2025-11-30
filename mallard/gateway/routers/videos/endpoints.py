@@ -460,8 +460,8 @@ async def get_preview(
     )
 
 
-@router.head("/stream/{bucket}/{name}")
-@router.get("/stream/{bucket}/{name}")
+@router.head("/stream/{bucket}/{name}.webm")
+@router.get("/stream/{bucket}/{name}.webm")
 async def get_streamable(
     bucket: str,
     name: str,

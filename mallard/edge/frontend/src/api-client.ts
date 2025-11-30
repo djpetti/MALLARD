@@ -700,6 +700,6 @@ export async function getStreamableVideoUrl(
     "videos",
     "stream",
     artifactId.id.bucket,
-    `${artifactId.id.name}?${await getAuthQueryString()}`
+    `${artifactId.id.name}.webm?${await getAuthQueryString()}`
   );
 }

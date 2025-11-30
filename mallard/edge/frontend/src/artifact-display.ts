@@ -165,6 +165,8 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       <media-player
         title="${this.metadata?.name ?? "Video"}"
         id="media"
+        aspectRatio="16/9"
+        logLevel="warn"
         src="${this.sourceUrl as string}"
         type="video/webm"
         duration="${videoDuration}"

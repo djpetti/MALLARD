@@ -267,17 +267,20 @@ class _SafeObjectIter:
         *,
         chunk_size: int = _DEFAULT_CHUNK_SIZE,
         total_size: int,
+        content_range: str,
     ):
         """
         Args:
             response: The response to read data from.
             chunk_size: The size of the chunks to read data in.
             total_size: The total size of the content.
+            content_range: THe portion of the content in the response.
 
         """
         self.__response = response
         self.__chunk_size = chunk_size
         self.__total_size = total_size
+        self.__content_range = content_range
 
     def __del__(self):
         # Ensure, at all costs, that the response is closed.
@@ -293,6 +296,16 @@ class _SafeObjectIter:
         if chunk := await self.__response.read(self.__chunk_size):
             return chunk
         raise StopAsyncIteration
+
+    @property
+    def content_range(self) -> str:
+        """
+        Returns:
+            The portion of the content in the response, in the same format as
+            the HTTP header by the same name.
+
+        """
+        return self.__content_range
 
 
 class S3ObjectStore(ObjectStore):
@@ -526,4 +539,8 @@ class S3ObjectStore(ObjectStore):
             raise ObjectOperationError(str(error))
 
         body = data_object["Body"]
-        return _SafeObjectIter(body, total_size=data_object["ContentLength"])
+        return _SafeObjectIter(
+            body,
+            total_size=data_object["ContentLength"],
+            content_range=data_object["ContentRange"],
+        )

@@ -411,13 +411,21 @@ async def _get_transcoded_video_stream(
             detail="Requested video could not be found.",
         )
 
+    status_code = 200
+    headers = {
+        "Content-Length": str(len(preview_stream)),
+        "Accept-Ranges": "bytes",
+    }
+    if data_range is not None:
+        # We requested partial data.
+        status_code = 206
+        headers["Content-Range"] = preview_stream.content_range
+
     return StreamingResponse(
         preview_stream,
+        status_code=status_code,
         media_type="video/webm",
-        headers={
-            "Content-Length": str(len(preview_stream)),
-            "Accept-Ranges": "bytes",
-        },
+        headers=headers,
     )
 
 

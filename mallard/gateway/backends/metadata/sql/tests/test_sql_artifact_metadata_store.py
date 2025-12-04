@@ -78,7 +78,6 @@ class ConfigForTests:
 
         mock_session: The mocked `AsyncSession` to use.
         mock_select: The mocked `select` function to use.
-        mock_union_all: The mocked `union_all` function to use.
 
         class_specific: The class-specific configuration.
     """
@@ -87,7 +86,6 @@ class ConfigForTests:
 
     mock_session: AsyncSession
     mock_select: mock.Mock
-    mock_union_all: mock.Mock
 
     class_specific: ClassSpecificConfig
 
@@ -161,7 +159,6 @@ class TestSqlArtifactMetadataStore:
         module_name = sql_artifact_metadata_store.__name__
         mock_session = mocker.create_autospec(AsyncSession, instance=True)
         mock_select = mocker.patch(f"{module_name}.select")
-        mock_union_all = mocker.patch(f"{module_name}.union_all")
         # create_autospec is a little overzealous about making these
         # coroutines when in fact they aren't.
         mock_results = mock_session.execute.return_value
@@ -178,7 +175,6 @@ class TestSqlArtifactMetadataStore:
         mock_query.union.return_value = mock_query
         mock_query.join_from.return_value = mock_query
         mock_query.from_statement.return_value = mock_query
-        mock_union_all.return_value = mock_query
 
         store = class_specific_config.store_class(mock_session)
 
@@ -186,7 +182,6 @@ class TestSqlArtifactMetadataStore:
             store=store,
             mock_session=mock_session,
             mock_select=mock_select,
-            mock_union_all=mock_union_all,
             class_specific=class_specific_config,
         )
 
@@ -612,6 +607,7 @@ class TestSqlArtifactMetadataStore:
             mock_create_async_engine.assert_called_once_with(
                 mock_config["endpoint_url"].as_str.return_value,
                 echo_pool=mocker.ANY,
+                pool_recycle=mocker.ANY,
             )
             mock_session_maker.assert_called_once()
 

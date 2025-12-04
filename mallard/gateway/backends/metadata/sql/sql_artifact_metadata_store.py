@@ -1,9 +1,9 @@
 """
 A metadata store that interfaces with a SQL database.
 """
+
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import timedelta
 from functools import singledispatchmethod
 from typing import (
     Any,
@@ -11,7 +11,6 @@ from typing import (
     AsyncIterator,
     Generic,
     Iterable,
-    Optional,
     Tuple,
     Type,
 )
@@ -23,10 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql.expression import Select, select, union_all
+from sqlalchemy.sql.expression import Select, select
 
 from ...objects.models import ObjectRef, ObjectType, TypedObjectRef
-from ...time_expiring_cache import time_expiring_cache
 from .. import ArtifactMetadataStore, MetadataTypeVar
 from ..schemas import (
     GeoPoint,
@@ -39,17 +37,7 @@ from ..schemas import (
 )
 from .models import Artifact, Base, Image, Raster, Video
 
-_SQL_CONNECTION_TIMEOUT = timedelta(minutes=30)
-"""
-The SQL server has a habit of terminating connections when they go too
-long with no activity, and, despite several attempts to fix this bug,
-`aiomysql` still doesn't handle this properly. As a workaround, we manually
-refresh the session when it goes unused for a certain amount of time. This
-variable specifies what that refresh period is, in seconds.
-"""
 
-
-@time_expiring_cache(_SQL_CONNECTION_TIMEOUT)
 def _create_session_maker(db_url: str) -> sessionmaker:
     """
     Creates the `sessionmaker` for a particular database.
@@ -61,7 +49,7 @@ def _create_session_maker(db_url: str) -> sessionmaker:
         The appropriate session-maker.
 
     """
-    engine = create_async_engine(db_url, echo_pool=True)
+    engine = create_async_engine(db_url, echo_pool=True, pool_recycle=3600)
     return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
@@ -372,7 +360,7 @@ class SqlArtifactMetadataStore(
     ) -> ColumnElement:
         # Shortcut for applying a selection of filters to a query.
         def _apply_expression_updates(
-            updates: Iterable[Tuple[Any, InstrumentedAttribute]]
+            updates: Iterable[Tuple[Any, InstrumentedAttribute]],
         ) -> Select:
             _expression = conjunction
             for _value, column in updates:

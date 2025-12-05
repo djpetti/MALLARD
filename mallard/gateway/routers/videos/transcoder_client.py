@@ -9,7 +9,10 @@ from functools import singledispatch, wraps
 from typing import Any, AsyncIterable, Callable, Dict
 
 import aiohttp
-from aiohttp.client_exceptions import ClientPayloadError
+from aiohttp.client_exceptions import (
+    ClientPayloadError,
+    ServerDisconnectedError,
+)
 from fastapi import HTTPException, UploadFile
 from loguru import logger
 from tenacity import (
@@ -49,7 +52,9 @@ Timeout to use for ensure_faststart operations in seconds.
 """
 
 client_retry = retry(
-    retry=retry_if_exception_type((asyncio.Timeout, TimeoutError)),
+    retry=retry_if_exception_type(
+        (asyncio.Timeout, TimeoutError, ServerDisconnectedError)
+    ),
     wait=wait_random_exponential(multiplier=1, max=60),
     after=lambda *_: logger.warning("Retrying transcoder API call..."),
     stop=stop_after_attempt(10),

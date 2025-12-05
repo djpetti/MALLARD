@@ -277,6 +277,7 @@ class _SafeObjectIter:
             content_range: THe portion of the content in the response.
 
         """
+        logger.info("Creating object response.")
         self.__response = response
         self.__chunk_size = chunk_size
         self.__total_size = total_size
@@ -284,6 +285,7 @@ class _SafeObjectIter:
 
     def __del__(self):
         # Ensure, at all costs, that the response is closed.
+        logger.info("Closing object response.")
         self.__response.close()
 
     def __aiter__(self) -> AsyncIterator[bytes]:

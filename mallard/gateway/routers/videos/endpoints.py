@@ -75,6 +75,8 @@ _VIDEO_FORMAT_TO_MIME_TYPES = {
 Maps video formats to corresponding MIME types.
 """
 
+g_background_task_semaphore = asyncio.Semaphore(1)
+
 
 async def _fill_metadata(
     metadata: UavVideoMetadata,
@@ -193,21 +195,25 @@ async def create_uav_video(
     # object store.
     @background_task_retry
     async def _create_preview() -> None:
-        logger.debug("Starting video preview background task...")
-        preview = create_preview(
-            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-        )
-        await object_store.create_object(preview_object_id, data=preview)
-        logger.debug("Finished video preview background task.")
+        async with g_background_task_semaphore:
+            logger.debug("Starting video preview background task...")
+            preview = create_preview(
+                object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+            )
+            await object_store.create_object(preview_object_id, data=preview)
+            logger.debug("Finished video preview background task.")
 
     @background_task_retry
     async def _create_streamable() -> None:
-        logger.debug("Starting video streamable background task...")
-        streamable = create_streamable(
-            object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-        )
-        await object_store.create_object(streamable_object_id, data=streamable)
-        logger.debug("Finished video streamable background task.")
+        async with g_background_task_semaphore:
+            logger.debug("Starting video streamable background task...")
+            streamable = create_streamable(
+                object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
+            )
+            await object_store.create_object(
+                streamable_object_id, data=streamable
+            )
+            logger.debug("Finished video streamable background task.")
 
     background_tasks.add_task(_create_preview)
     background_tasks.add_task(_create_streamable)
@@ -368,7 +374,7 @@ async def get_video(
         object_task.result(),
         media_type=mime_type,
         headers={
-            "Content-Length": str(metadata.size),
+            "Content-Length": str(len(object_task.result())),
             "Content-Disposition": f'attachment; filename= "{metadata.name}"',
         },
     )

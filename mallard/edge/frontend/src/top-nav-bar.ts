@@ -427,19 +427,17 @@ export class TopNavBar extends LitElement {
               >
                 <md-icon class="top-bar-icon">edit</md-icon>
               </md-icon-button>
-              <div class="relative" slot="actionItems">
-                <md-icon-button
-                  id="more_actions_button"
-                  @click="${() => this.moreActionsMenu?.show()}"
-                >
-                  <md-icon class="top-bar-icon">more_vert</md-icon>
-                </md-icon-button>
-                <md-menu id="more_actions_menu">
-                  <md-menu-item @click="${this.onUrlExportClick}">
-                    <div slot="headline">Export URLs</div>
-                  </md-menu-item>
-                </md-menu>
-              </div>
+              <md-icon-button
+                id="more_actions_button"
+                @click="${() => this.moreActionsMenu?.show()}"
+              >
+                <md-icon class="top-bar-icon">more_vert</md-icon>
+              </md-icon-button>
+              <md-menu id="more_actions_menu">
+                <md-menu-item @click="${this.onUrlExportClick}">
+                  <div slot="headline">Export URLs</div>
+                </md-menu-item>
+              </md-menu>
             `
           : nothing}
         <!--- Download button. -->

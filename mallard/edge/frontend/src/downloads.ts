@@ -129,8 +129,12 @@ export async function makeArtifactUrlList(
     async (id) => `${await getArtifactUrl(id)} `
   );
   const imageUrls = await Promise.all(imageUrlPromises);
+  // Join these URLs together with newlines.
+  const joinedUrls = imageUrls.join("\n");
 
   // Create the list.
-  const urlFile = new File(imageUrls, "image_urls.txt", { type: "text/plain" });
+  const urlFile = new File([joinedUrls], "image_urls.txt", {
+    type: "text/plain",
+  });
   return URL.createObjectURL(urlFile);
 }

@@ -35,9 +35,8 @@ from ...backends.metadata import (
     MetadataStore,
 )
 from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
-from ...backends.objects import ObjectStore
+from ...backends.objects import InvalidRangeError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
-from ...backends.objects.s3_object_store import S3ObjectStore
 from ..common import (
     check_key_errors,
     get_metadata,
@@ -547,7 +546,6 @@ async def _get_transcoded_video_stream(
         A `StreamingResponse` object containing the thumbnail.
 
     """
-    object_store = cast(S3ObjectStore, object_store)
 
     object_id = ObjectRef(bucket=bucket, name=name)
     preview_object_id = derived_id(object_id, suffix=suffix)
@@ -555,6 +553,10 @@ async def _get_transcoded_video_stream(
         preview_stream = await object_store.get_object(
             preview_object_id, data_range=data_range
         )
+    except InvalidRangeError as error:
+        raise HTTPException(
+            status_code=416, detail="Invalid range specified."
+        ) from error
     except KeyError:
         raise HTTPException(
             status_code=404,
@@ -566,16 +568,10 @@ async def _get_transcoded_video_stream(
         "Content-Length": str(len(preview_stream)),
         "Accept-Ranges": "bytes",
     }
-    if data_range is not None:
-        # We requested partial data.
+    if data_range is not None and preview_stream.content_range is not None:
+        # Backends that ignore Range return the full object with status 200.
         status_code = 206
         headers["Content-Range"] = preview_stream.content_range
-
-        if preview_stream.content_range is None:
-            # This can only happen if a range was provided but not valid.
-            raise HTTPException(
-                status_code=416, detail="Invalid range specified."
-            )
 
     return StreamingResponse(
         preview_stream,

@@ -2,10 +2,9 @@
 Common interface for all object storage backends.
 """
 
-
 import abc
 from io import BytesIO
-from typing import AsyncIterable
+from typing import AsyncIterable, AsyncIterator, Protocol
 
 from starlette.datastructures import UploadFile
 
@@ -23,6 +22,27 @@ class ObjectOperationError(Exception):
     """
     General exception triggered when an operation on an object fails.
     """
+
+
+class InvalidRangeError(ObjectOperationError):
+    """Raised when a requested byte range cannot be satisfied."""
+
+
+class ObjectStream(Protocol):
+    """An async byte stream with a known response size and optional range."""
+
+    def __aiter__(self) -> AsyncIterator[bytes]:
+        """Returns an iterator over the response body chunks."""
+        ...
+
+    def __len__(self) -> int:
+        """Returns the response size in bytes, not the remaining unread size."""
+        ...
+
+    @property
+    def content_range(self) -> str | None:
+        """Returns the HTTP Content-Range value, or None for a full object."""
+        ...
 
 
 class ObjectStore(Injectable):
@@ -102,7 +122,7 @@ class ObjectStore(Injectable):
         self,
         object_id: ObjectRef,
         *,
-        data: bytes | BytesIO | UploadFile | AsyncIterable[bytes]
+        data: bytes | BytesIO | UploadFile | AsyncIterable[bytes],
     ) -> None:
         """
         Creates a new object.
@@ -155,18 +175,25 @@ class ObjectStore(Injectable):
         """
 
     @abc.abstractmethod
-    async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
+    async def get_object(
+        self, object_id: ObjectRef, data_range: str | None = None
+    ) -> ObjectStream:
         """
         Gets an existing object from the object store.
 
         Args:
-            object_id: The identifier of the object being created.
+            object_id: The identifier of the object to retrieve.
+            data_range: Optional byte range in HTTP Range header format.
+                Backends without range support may return the full object.
 
         Raises:
-            `KeyError` if the object (or bucket) doesn't exist,
-            or `ObjectOperationError` for other failures.
+            KeyError: If the object or bucket does not exist.
+            InvalidRangeError: If a range-aware backend cannot satisfy the range.
+            ObjectOperationError: If another storage operation fails.
 
         Returns:
-            A stream of binary data that contains the object data, in chunks.
+            A lazy byte stream whose length is the response size in bytes.
+            Partial responses provide content_range; full responses use None.
+            The length remains constant as the stream is consumed.
 
         """

@@ -16,7 +16,12 @@ from starlette.responses import StreamingResponse
 from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import MetadataOperationError
 from mallard.gateway.backends.metadata.schemas import UavVideoMetadata
-from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
+from mallard.gateway.backends.objects import (
+    InvalidRangeError,
+    ObjectOperationError,
+    ObjectStore,
+    ObjectStream,
+)
 from mallard.gateway.backends.objects.models import ObjectRef, derived_id
 from mallard.gateway.routers.conftest import ConfigForTests
 from mallard.gateway.routers.videos import InvalidVideoError, endpoints
@@ -659,6 +664,11 @@ async def test_get_video(config: ConfigForTests, faker: Faker) -> None:
     # Make it look like we have a valid image format.
     metadata = faker.video_metadata()
     config.mock_metadata_store.get.return_value = metadata
+    # Stored bytes, not potentially stale metadata, determine response length.
+    stream_size = metadata.size + 1
+    config.mock_object_store.get_object.return_value.__len__.return_value = (
+        stream_size
+    )
 
     # Generate fake bucket and image names.
     bucket = faker.pystr()
@@ -686,7 +696,7 @@ async def test_get_video(config: ConfigForTests, faker: Faker) -> None:
     # Check the headers.
     _, response_kwargs = config.mock_streaming_response_class.call_args
     headers = response_kwargs["headers"]
-    assert headers["Content-Length"] == str(metadata.size)
+    assert headers["Content-Length"] == str(stream_size)
     assert "attachment" in headers["Content-Disposition"]
     assert metadata.name in headers["Content-Disposition"]
 
@@ -749,6 +759,11 @@ async def test_get_transcoded(
     bucket = faker.pystr()
     video_name = faker.pystr()
 
+    stream = config.mock_object_store.get_object.return_value
+    stream_size = faker.pyint(min_value=1)
+    stream.__len__.return_value = stream_size
+    config.mock_streaming_response_class.side_effect = StreamingResponse
+
     # Act.
     response = await endpoint(
         bucket=bucket,
@@ -767,10 +782,82 @@ async def test_get_transcoded(
     video_stream = config.mock_object_store.get_object.return_value
 
     # It should have used a StreamingResponse object.
-    config.mock_streaming_response_class.assert_called_once_with(
-        video_stream, media_type="video/vp9"
-    )
-    assert response == config.mock_streaming_response_class.return_value
+    assert response.media_type == "video/webm"
+    assert response.status_code == 200
+    assert response.headers["Content-Length"] == str(stream_size)
+    assert response.headers["Accept-Ranges"] == "bytes"
+    assert "Content-Range" not in response.headers
+    assert video_stream is stream
+
+
+@pytest.mark.asyncio
+class TestVideoRanges:
+    """Tests partial responses and backend-neutral range failures."""
+
+    @pytest.mark.parametrize("partial", [False, True])
+    async def test_range_response(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        mocker: MockFixture,
+        partial: bool,
+    ) -> None:
+        """Returns 206 for partial data or 200 when a backend ignores Range.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate response bytes.
+            mocker: The fixture used to create a contract-compatible stream.
+            partial: Whether the backend honors the requested range.
+        """
+        video_id = faker.object_ref()
+        data = faker.binary(length=16)
+        stream = mocker.create_autospec(ObjectStream, instance=True)
+        stream.__len__.return_value = len(data)
+        stream.__aiter__.return_value = [data]
+        stream.content_range = "bytes 0-15/32" if partial else None
+        config.mock_object_store.get_object.return_value = stream
+        config.mock_streaming_response_class.side_effect = StreamingResponse
+
+        response = await endpoints.get_streamable(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            object_store=config.mock_object_store,
+            range_header="bytes=0-15",
+        )
+
+        config.mock_object_store.get_object.assert_awaited_once_with(
+            derived_id(video_id, "streamable"), data_range="bytes=0-15"
+        )
+        assert response.status_code == (206 if partial else 200)
+        assert response.headers["Content-Length"] == str(len(data))
+        assert response.headers.get("Content-Range") == stream.content_range
+        assert (
+            b"".join([chunk async for chunk in response.body_iterator]) == data
+        )
+
+    async def test_unsatisfiable_range(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """Maps a storage range error to HTTP 416 before starting a response.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        config.mock_object_store.get_object.side_effect = InvalidRangeError
+
+        with pytest.raises(HTTPException) as error:
+            await endpoints.get_streamable(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                object_store=config.mock_object_store,
+                range_header="bytes=1024-",
+            )
+
+        assert error.value.status_code == 416
+        config.mock_streaming_response_class.assert_not_called()
 
 
 @pytest.mark.asyncio

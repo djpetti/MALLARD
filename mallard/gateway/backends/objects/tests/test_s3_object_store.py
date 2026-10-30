@@ -2,7 +2,6 @@
 Tests for the `s3_object_store` module.
 """
 
-
 import unittest.mock as mock
 from typing import Any, Dict, List
 
@@ -17,6 +16,7 @@ from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends.objects import s3_object_store
 from mallard.gateway.backends.objects.object_store import (
     BucketOperationError,
+    InvalidRangeError,
     ObjectOperationError,
 )
 from mallard.type_helpers import ArbitraryTypesConfig
@@ -634,8 +634,15 @@ class TestS3ObjectStore:
             await config.store.delete_object(object_id)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("partial", [False, True])
+    @pytest.mark.parametrize("size", [0, 1024])
     async def test_get_object(
-        self, config: ConfigForTests, faker: Faker, mocker: MockFixture
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        mocker: MockFixture,
+        partial: bool,
+        size: int,
     ) -> None:
         """
         Tests that we can get an object.
@@ -644,37 +651,68 @@ class TestS3ObjectStore:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
             mocker: The fixture to use for mocking.
+            partial: Whether S3 returns a partial response.
+            size: The size of the response body in bytes.
 
         """
         # Arrange.
         object_id = faker.object_ref()
 
         # Make it look like we got valid data.
-        mock_body = mocker.create_autospec(StreamingBody, instace=True)
-        object_chunk = faker.binary()
+        mock_body = mocker.create_autospec(StreamingBody, instance=True)
+        object_chunk = faker.binary(length=size)
         mock_body.read.side_effect = [object_chunk, b""]
-        config.mock_client.get_object.return_value = dict(Body=mock_body)
+        response = dict(Body=mock_body, ContentLength=size)
+        # An empty object cannot have a satisfiable partial response.
+        data_range = "bytes=0-1023" if partial and size else None
+        content_range = (
+            f"bytes 0-{size - 1}/{size * 2}" if data_range else None
+        )
+        if content_range is not None:
+            response["ContentRange"] = content_range
+        config.mock_client.get_object.return_value = response
 
         # Act.
-        object_iter = await config.store.get_object(object_id)
+        object_iter = await config.store.get_object(
+            object_id, data_range=data_range
+        )
 
         # Assert.
         # It should have read the data from the backend.
-        config.mock_client.get_object.assert_called_once_with(
+        expected_kwargs = dict(
             Bucket=object_id.bucket, Key=KeyComparator(object_id.name)
         )
+        if data_range is not None:
+            expected_kwargs["Range"] = data_range
+        config.mock_client.get_object.assert_awaited_once_with(
+            **expected_kwargs
+        )
+        assert len(object_iter) == size
+        assert object_iter.content_range == content_range
+        mock_body.read.assert_not_awaited()
 
         # Make sure we got the right data.
         got_data = b"".join([c async for c in object_iter])
         assert got_data == object_chunk
-        mock_body.read.assert_called()
+        # Length describes the response, not the number of unread bytes.
+        assert len(object_iter) == size
+        mock_body.read.assert_awaited()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "nonexistent", [True, False], ids=("nonexistent", "unknown")
+        ("error_code", "expected_error"),
+        [
+            ("NoSuchKey", KeyError),
+            ("InvalidRange", InvalidRangeError),
+            ("unknown", ObjectOperationError),
+        ],
     )
     async def test_get_object_failure(
-        self, config: ConfigForTests, faker: Faker, nonexistent: bool
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        error_code: str,
+        expected_error: type[Exception],
     ) -> None:
         """
         Tests that `get_object` handles failure conditions correctly.
@@ -682,25 +720,22 @@ class TestS3ObjectStore:
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
-            nonexistent: If true, simulate a nonexistent object. Otherwise,
-                simulate a miscellaneous error.
+            error_code: The S3 error code to simulate.
+            expected_error: The backend-neutral exception expected by callers.
 
         """
         # Arrange.
         # Make it look like getting the object failed.
-        error_code = "unknown"
-        if nonexistent:
-            error_code = "NoSuchKey"
         client_error = faker.client_error(error_code)
         config.mock_client.get_object.side_effect = client_error
 
         # Act and assert.
-        expected_error = ObjectOperationError
-        if nonexistent:
-            expected_error = KeyError
-
-        with pytest.raises(expected_error):
-            await config.store.get_object(object_id=faker.object_ref())
+        with pytest.raises(expected_error) as error:
+            await config.store.get_object(
+                object_id=faker.object_ref(), data_range="bytes=1024-"
+            )
+        if error_code == "InvalidRange":
+            assert error.value.__cause__ is client_error
 
     @pytest.mark.asyncio
     async def test_from_config(self, mocker: MockFixture) -> None:

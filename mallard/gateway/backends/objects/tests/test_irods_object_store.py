@@ -2,12 +2,10 @@
 Tests for the `irods_object_store` module.
 """
 
-
 import enum
 import io
 from pathlib import Path
 from typing import Type, Union
-from unittest import mock
 
 import pytest
 from faker import Faker
@@ -47,14 +45,12 @@ class TestIrodsObjectStore:
             store: The `IrodsObjectStore` under test.
             mock_session: The mocked `iRODSSession` instance.
             root_collection: The root collection path that we use for the store.
-            mock_make_async_iter: The mocked `make_async_iter` function.
 
         """
 
         store: irods_object_store.IrodsObjectStore
         mock_session: iRODSSession
         root_collection: Path
-        mock_make_async_iter: mock.Mock
 
     @classmethod
     @pytest.fixture
@@ -91,9 +87,6 @@ class TestIrodsObjectStore:
             store=store,
             mock_session=mock_session,
             root_collection=root_path,
-            mock_make_async_iter=mocker.patch(
-                f"{irods_object_store.__name__}.make_async_iter",
-            ),
         )
 
     @pytest.mark.asyncio
@@ -536,15 +529,25 @@ class TestIrodsObjectStore:
             await config.store.delete_object(faker.object_ref())
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("data_length", [0, 1024, 2**20 + 1])
+    @pytest.mark.parametrize(
+        "data_range", [None, "bytes=1-3", "bytes=9999999-"]
+    )
     async def test_get_object(
-        self, config: ConfigForTests, faker: Faker
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        data_length: int,
+        data_range: str | None,
     ) -> None:
         """
-        Tests that `get_object` works.
+        Tests that `get_object` streams the full object and ignores ranges.
 
         Args:
             config: The configuration to use for testing.
             faker: The fixture to use for generating fake data.
+            data_length: The number of bytes in the stored object.
+            data_range: The optional range request to ignore.
 
         """
         # Arrange.
@@ -552,11 +555,19 @@ class TestIrodsObjectStore:
 
         # Make it look like it produces a file with some data.
         mock_object = config.mock_session.data_objects.get.return_value
-        test_data = faker.binary(length=1024)
-        mock_object.open.return_value = io.BytesIO(test_data)
+        test_data = faker.binary(length=data_length)
+        object_file = io.BytesIO(test_data)
+        mock_object.size = len(test_data)
+        mock_object.open.return_value = object_file
 
         # Act.
-        got_data = await config.store.get_object(object_id)
+        got_data = await config.store.get_object(object_id, data_range)
+
+        # The size comes from metadata, so retrieving the stream must not read it.
+        assert len(got_data) == data_length
+        assert got_data.content_range is None
+        assert object_file.tell() == 0
+        assert not object_file.closed
 
         # Assert.
         # It should have read the correct object.
@@ -570,10 +581,39 @@ class TestIrodsObjectStore:
         mock_object.open.assert_called_once_with("r")
 
         # Piece the chunks back together.
-        assert got_data == config.mock_make_async_iter.return_value
-        file_chunks = config.mock_make_async_iter.call_args.args[0]
-        file_stream = b"".join([c for c in file_chunks])
+        file_chunks = [chunk async for chunk in got_data]
+        file_stream = b"".join(file_chunks)
         assert file_stream == test_data
+        assert all(file_chunks)
+        assert object_file.closed
+        assert len(got_data) == data_length
+        assert got_data.content_range is None
+
+    @pytest.mark.asyncio
+    async def test_get_object_read_failure(
+        self, config: ConfigForTests, faker: Faker, mocker: MockFixture
+    ) -> None:
+        """Test that a failed read closes the file and propagates the error.
+
+        Args:
+            config: The configuration to use for testing.
+            faker: The fixture to use for generating fake data.
+            mocker: The fixture to use for mocking.
+        """
+        object_file = io.BytesIO(faker.binary(length=1024))
+        mock_object = config.mock_session.data_objects.get.return_value
+        mock_object.size = len(object_file.getvalue())
+        mock_object.open.return_value = object_file
+        mocker.patch.object(
+            object_file, "read", side_effect=OSError("Object read failed")
+        )
+        stream = await config.store.get_object(faker.object_ref())
+
+        with pytest.raises(OSError):
+            async for _ in stream:
+                pytest.fail("A failed read must not produce data.")
+
+        assert object_file.closed
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

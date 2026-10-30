@@ -20,6 +20,7 @@ from ...async_utils import read_file_chunks
 from .models import ObjectRef
 from .object_store import (
     BucketOperationError,
+    InvalidRangeError,
     ObjectOperationError,
     ObjectStore,
 )
@@ -291,7 +292,8 @@ class _SafeObjectIter:
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Returns the response size in bytes, even after reading chunks."""
         return self.__total_size
 
     async def __anext__(self) -> bytes:
@@ -517,15 +519,20 @@ class S3ObjectStore(ObjectStore):
     async def get_object(
         self, object_id: ObjectRef, data_range: str | None = None
     ) -> _SafeObjectIter:
-        """
+        """Retrieves a sized stream for an entire object or a byte range.
+
         Args:
             object_id: The ID of the object to get.
-            data_range: The range of data to read. Specified in the same format as HTTP Range header. If `None`, it will
-                read the whole thing.
+            data_range: The range in HTTP Range header format, or None to
+                retrieve the entire object.
 
         Returns:
-            Iterator for the object data.
+            A stream sized to the response body, with optional range metadata.
 
+        Raises:
+            KeyError: If the object does not exist.
+            InvalidRangeError: If S3 cannot satisfy the requested range.
+            ObjectOperationError: If another storage operation fails.
         """
         get_object_kwargs = dict(
             Bucket=object_id.bucket, Key=_name_to_key(object_id.name)
@@ -536,8 +543,12 @@ class S3ObjectStore(ObjectStore):
         try:
             data_object = await self.__client.get_object(**get_object_kwargs)
         except ClientError as error:
-            if self.__extract_error_code(error) == "NoSuchKey":
+            error_code = self.__extract_error_code(error)
+            if error_code == "NoSuchKey":
                 raise KeyError(f"Object '{object_id}' does not exist.")
+            if error_code == "InvalidRange":
+                # Preserve range failures so HTTP callers can return 416.
+                raise InvalidRangeError(str(error)) from error
             raise ObjectOperationError(str(error))
 
         body = data_object["Body"]

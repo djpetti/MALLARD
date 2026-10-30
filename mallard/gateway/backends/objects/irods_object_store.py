@@ -2,20 +2,57 @@
 Object store that uses iRODS as backing storage.
 """
 
-
 import shutil
 from functools import singledispatchmethod
 from io import BufferedRandom, BytesIO
-from typing import Any, AsyncIterable, Iterable, Union
+from typing import Any, AsyncIterable, AsyncIterator, Union
 
 from irods.exception import CollectionDoesNotExist
 from loguru import logger
 from starlette.datastructures import UploadFile
 
-from ...async_utils import make_async_iter
 from ..irods_store import IrodsStore
 from .models import ObjectRef
-from .object_store import BucketOperationError, ObjectStore
+from .object_store import BucketOperationError, ObjectStore, ObjectStream
+
+
+class _SizedObjectStream:
+    """Expose an object's known size without buffering its streamed data."""
+
+    def __init__(self, chunks: AsyncIterator[bytes], total_size: int) -> None:
+        """Initialize the stream.
+
+        Args:
+            chunks: The iterator supplying object data.
+            total_size: The object's size in bytes from iRODS metadata.
+        """
+        self.__chunks = chunks
+        self.__total_size = total_size
+
+    def __aiter__(self) -> AsyncIterator[bytes]:
+        """Return the iterator supplying object data.
+
+        Returns:
+            The underlying asynchronous chunk iterator.
+        """
+        return self.__chunks
+
+    def __len__(self) -> int:
+        """Return the full object's size in bytes.
+
+        Returns:
+            The size reported by iRODS metadata.
+        """
+        return self.__total_size
+
+    @property
+    def content_range(self) -> str | None:
+        """Return no content range because the stream contains the full object.
+
+        Returns:
+            None, since range requests are unsupported.
+        """
+        return None
 
 
 class IrodsObjectStore(IrodsStore, ObjectStore):
@@ -143,12 +180,36 @@ class IrodsObjectStore(IrodsStore, ObjectStore):
             force=True,
         )
 
-    async def get_object(self, object_id: ObjectRef) -> AsyncIterable[bytes]:
+    async def get_object(
+        self, object_id: ObjectRef, data_range: str | None = None
+    ) -> ObjectStream:
+        """Get the full object as a sized stream.
+
+        Args:
+            object_id: The identifier of the object to retrieve.
+            data_range: An HTTP Range value, ignored because ranges are
+                unsupported.
+
+        Returns:
+            The full object stream with its size and no content range.
+        """
         data_object = await self._get_object(object_id)
         object_file = await self._async_db_op(data_object.open, "r")
 
-        def _read_chunks() -> Iterable[bytes]:
-            while chunk := object_file.read(self._COPY_BUFFER_SIZE):
-                yield chunk
+        async def _read_chunks() -> AsyncIterator[bytes]:
+            """Read object data lazily and close the file when iteration ends.
 
-        return make_async_iter(_read_chunks())
+            Yields:
+                The next chunk of object data.
+            """
+            try:
+                while chunk := await self._async_db_op(
+                    object_file.read, self._COPY_BUFFER_SIZE
+                ):
+                    yield chunk
+            finally:
+                # Close after both normal exhaustion and a failed read.
+                await self._async_db_op(object_file.close)
+
+        # Metadata supplies the length without reading or buffering object data.
+        return _SizedObjectStream(_read_chunks(), data_object.size)

@@ -3,7 +3,8 @@ API endpoints for managing video data.
 """
 
 import asyncio
-from typing import Annotated, List, cast
+from math import isfinite
+from typing import Annotated, BinaryIO, List, cast
 
 from aiohttp.client_exceptions import ClientPayloadError
 from fastapi import (
@@ -17,6 +18,7 @@ from fastapi import (
     UploadFile,
 )
 from loguru import logger
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import StreamingResponse
 from tenacity import (
     retry,
@@ -306,6 +308,14 @@ async def delete_videos(
                 tasks.create_task(metadata_store.delete(video))
 
                 tasks.create_task(object_store.delete_object(video))
+                # Timestamp files are optional, so missing files are harmless.
+                tasks.create_task(
+                    ignore_errors(
+                        object_store.delete_object(
+                            derived_id(video, "timestamps")
+                        )
+                    )
+                )
                 # Thumbnail creation can sometimes fail if the upload process
                 # is interrupted.
                 tasks.create_task(
@@ -333,6 +343,140 @@ async def delete_videos(
                         )
                     )
                 )
+
+
+def _validate_timestamps(timestamp_file: BinaryIO) -> None:
+    """Checks timestamp rows without interpreting their relationship to a video.
+
+    Args:
+        timestamp_file: The binary file containing frame and timestamp pairs.
+
+    Raises:
+        HTTPException: If the file is empty or contains an invalid row.
+    """
+    has_rows = False
+    for line_number, line in enumerate(timestamp_file, start=1):
+        has_rows = True
+        try:
+            frame, timestamp = line.split()
+            if int(frame) < 0 or not isfinite(float(timestamp)):
+                raise ValueError
+        except ValueError:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Invalid timestamp format on line {line_number}: "
+                "expected a nonnegative integer frame number and a finite "
+                "timestamp in seconds, separated by whitespace.",
+            )
+
+    if not has_rows:
+        raise HTTPException(status_code=415, detail="Timestamp file is empty.")
+
+
+@router.post(
+    "/timestamps/{bucket}/{name}", response_model=ObjectRef, status_code=201
+)
+async def create_timestamps(
+    bucket: str,
+    name: str,
+    timestamp_data: UploadFile = File(...),
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> ObjectRef:
+    """Uploads or replaces the timestamp file for an existing video.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        timestamp_data: The .txt file containing frame and timestamp pairs.
+        object_store: The object store to upload the timestamps to.
+
+    Returns:
+        The reference to the saved timestamp file.
+
+    Raises:
+        HTTPException: If the video is missing or the timestamp file is invalid.
+    """
+    object_id = ObjectRef(bucket=bucket, name=name)
+    if not await object_store.object_exists(object_id):
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if not (timestamp_data.filename or "").lower().endswith(".txt"):
+        raise HTTPException(status_code=415, detail="Expected a .txt file.")
+
+    # Validate line by line off the event loop without loading the entire file.
+    await run_in_threadpool(_validate_timestamps, timestamp_data.file)
+    await timestamp_data.seek(0)
+    timestamp_id = derived_id(object_id, "timestamps")
+    try:
+        await object_store.create_object(timestamp_id, data=timestamp_data)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Video bucket not found.")
+    return timestamp_id
+
+
+@router.head("/timestamps/{bucket}/{name}")
+@router.get("/timestamps/{bucket}/{name}")
+async def get_timestamps(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> StreamingResponse:
+    """Downloads the original timestamp file for a video.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        object_store: The object store to retrieve the timestamps from.
+
+    Returns:
+        A streaming response containing the timestamp file.
+
+    Raises:
+        HTTPException: If the timestamp file does not exist.
+    """
+    timestamp_id = derived_id(
+        ObjectRef(bucket=bucket, name=name), "timestamps"
+    )
+    try:
+        timestamp_stream = await object_store.get_object(timestamp_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail="Timestamp file not found."
+        )
+
+    return StreamingResponse(
+        timestamp_stream,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": 'attachment; filename="timestamps.txt"'
+        },
+    )
+
+
+@router.delete("/timestamps/{bucket}/{name}")
+async def delete_timestamps(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> None:
+    """Deletes a video's timestamp file without deleting the video.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        object_store: The object store to delete the timestamps from.
+
+    Raises:
+        HTTPException: If the timestamp file does not exist.
+    """
+    timestamp_id = derived_id(
+        ObjectRef(bucket=bucket, name=name), "timestamps"
+    )
+    try:
+        await object_store.delete_object(timestamp_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail="Timestamp file not found."
+        )
 
 
 @router.head("/{bucket}/{name}")

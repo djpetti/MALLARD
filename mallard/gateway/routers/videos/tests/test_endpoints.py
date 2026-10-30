@@ -2,8 +2,8 @@
 Unit tests for the `endpoints` module.
 """
 
-
 import unittest.mock as mock
+from io import BytesIO
 from typing import Awaitable, Callable, Type
 
 import pytest
@@ -17,7 +17,7 @@ from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import MetadataOperationError
 from mallard.gateway.backends.metadata.schemas import UavVideoMetadata
 from mallard.gateway.backends.objects import ObjectOperationError, ObjectStore
-from mallard.gateway.backends.objects.models import ObjectRef
+from mallard.gateway.backends.objects.models import ObjectRef, derived_id
 from mallard.gateway.routers.conftest import ConfigForTests
 from mallard.gateway.routers.videos import InvalidVideoError, endpoints
 from mallard.type_helpers import ArbitraryTypesConfig
@@ -301,8 +301,9 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
     # Assert.
     # It should have deleted the corresponding items in both databases.
     # (There are one main artifact and 3 derived objects in the object store.)
+    # Optional timestamps add a fourth derived object to clean up.
     assert (
-        config.mock_object_store.delete_object.call_count == num_to_delete * 4
+        config.mock_object_store.delete_object.call_count == num_to_delete * 5
     )
     assert config.mock_metadata_store.delete.call_count == num_to_delete
     for object_ref in object_refs:
@@ -316,6 +317,9 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
             ObjectRef(
                 bucket=object_ref.bucket, name=f"{object_ref.name}.preview"
             )
+        )
+        config.mock_object_store.delete_object.assert_any_call(
+            derived_id(object_ref, "timestamps")
         )
         config.mock_metadata_store.delete.assert_any_call(object_ref)
 
@@ -387,6 +391,258 @@ async def test_delete_videos_other_error(config: ConfigForTests, faker: Faker):
         assert errors.value.subgroup(KeyError) is not None
 
     config.mock_object_store.delete_object.assert_called()
+
+
+@pytest.mark.asyncio
+class TestTimestamps:
+    """Tests timestamp storage, retrieval, validation, and video cleanup."""
+
+    @pytest.fixture
+    def timestamp_data(self, faker: Faker) -> bytes:
+        """Generates valid timestamp data while preserving decimal precision.
+
+        Args:
+            faker: The fixture used to generate a starting timestamp.
+
+        Returns:
+            A timestamp file with four frame and timestamp pairs.
+        """
+        timestamp = faker.unix_time()
+        return "".join(
+            f"{frame} {timestamp}.{frame:09d}\n" for frame in range(4)
+        ).encode("ascii")
+
+    @pytest.mark.parametrize("line_ending", [b"\n", b"\r\n", b""])
+    async def test_create(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        timestamp_data: bytes,
+        line_ending: bytes,
+    ) -> None:
+        """Stores unchanged bytes, including CRLF or a missing final newline.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The valid timestamp file contents.
+            line_ending: The final line ending to test.
+        """
+        video_id = faker.object_ref()
+        data = timestamp_data.rstrip(b"\n").replace(b"\n", b"\r\n")
+        data += line_ending
+        upload = UploadFile(file=BytesIO(data), filename="timestamps.txt")
+
+        timestamp_id = await endpoints.create_timestamps(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            timestamp_data=upload,
+            object_store=config.mock_object_store,
+        )
+
+        assert timestamp_id == derived_id(video_id, "timestamps")
+        config.mock_object_store.object_exists.assert_awaited_once_with(
+            video_id
+        )
+        config.mock_object_store.create_object.assert_awaited_once_with(
+            timestamp_id, data=upload
+        )
+        # Validation must rewind the file so storage receives every byte.
+        assert await upload.read() == data
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            b"",
+            b"\n",
+            b"0\n",
+            b"0 1.0 extra\n",
+            b"frame timestamp\n",
+            b"0.0 1.0\n",
+            b"-1 1.0\n",
+            b"0 nan\n",
+            b"0 inf\n",
+            b"0 -inf\n",
+            b"0 1e999\n",
+            b"0 \xff\n",
+            b"0 1.0\ninvalid later row\n",
+        ],
+    )
+    async def test_invalid_data(
+        self, config: ConfigForTests, faker: Faker, data: bytes
+    ) -> None:
+        """Rejects invalid files before writing to the object store.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            data: Invalid timestamp file contents.
+        """
+        video_id = faker.object_ref()
+        upload = UploadFile(file=BytesIO(data), filename="timestamps.txt")
+        with pytest.raises(HTTPException) as error:
+            await endpoints.create_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                timestamp_data=upload,
+                object_store=config.mock_object_store,
+            )
+        assert error.value.status_code == 415
+        config.mock_object_store.create_object.assert_not_awaited()
+
+    @pytest.mark.parametrize("filename", [None, "timestamps.csv"])
+    async def test_invalid_filename(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        timestamp_data: bytes,
+        filename: str | None,
+    ) -> None:
+        """Requires uploads to have a .txt filename.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The valid timestamp file contents.
+            filename: The invalid filename to test.
+        """
+        video_id = faker.object_ref()
+        upload = UploadFile(file=BytesIO(timestamp_data), filename=filename)
+        with pytest.raises(HTTPException) as error:
+            await endpoints.create_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                timestamp_data=upload,
+                object_store=config.mock_object_store,
+            )
+        assert error.value.status_code == 415
+        config.mock_object_store.create_object.assert_not_awaited()
+
+    async def test_missing_video(
+        self, config: ConfigForTests, faker: Faker, timestamp_data: bytes
+    ) -> None:
+        """Does not create timestamps without a corresponding video.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The valid timestamp file contents.
+        """
+        video_id = faker.object_ref()
+        config.mock_object_store.object_exists.return_value = False
+        upload = UploadFile(
+            file=BytesIO(timestamp_data), filename="timestamps.txt"
+        )
+        with pytest.raises(HTTPException) as error:
+            await endpoints.create_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                timestamp_data=upload,
+                object_store=config.mock_object_store,
+            )
+        assert error.value.status_code == 404
+        config.mock_object_store.create_object.assert_not_awaited()
+
+    async def test_get(
+        self, config: ConfigForTests, faker: Faker, timestamp_data: bytes
+    ) -> None:
+        """Streams the exact stored bytes as a downloadable text file.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The valid timestamp file contents.
+        """
+        video_id = faker.object_ref()
+        config.mock_object_store.get_object.return_value = iter(
+            [timestamp_data]
+        )
+        config.mock_streaming_response_class.side_effect = StreamingResponse
+        response = await endpoints.get_timestamps(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            object_store=config.mock_object_store,
+        )
+        config.mock_object_store.get_object.assert_awaited_once_with(
+            derived_id(video_id, "timestamps")
+        )
+        assert response.media_type == "text/plain"
+        assert "attachment" in response.headers["Content-Disposition"]
+        assert b"".join([chunk async for chunk in response.body_iterator]) == (
+            timestamp_data
+        )
+
+    async def test_delete(self, config: ConfigForTests, faker: Faker) -> None:
+        """Deletes only the timestamps, leaving the source video untouched.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        await endpoints.delete_timestamps(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            object_store=config.mock_object_store,
+        )
+        config.mock_object_store.delete_object.assert_awaited_once_with(
+            derived_id(video_id, "timestamps")
+        )
+        config.mock_metadata_store.delete.assert_not_awaited()
+
+    @pytest.mark.parametrize("operation", ["get", "delete"])
+    async def test_missing_timestamps(
+        self, config: ConfigForTests, faker: Faker, operation: str
+    ) -> None:
+        """Reports missing timestamp files as HTTP 404.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            operation: The endpoint operation to exercise.
+        """
+        video_id = faker.object_ref()
+        getattr(
+            config.mock_object_store, f"{operation}_object"
+        ).side_effect = KeyError
+        with pytest.raises(HTTPException) as error:
+            await getattr(endpoints, f"{operation}_timestamps")(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                object_store=config.mock_object_store,
+            )
+        assert error.value.status_code == 404
+
+    async def test_delete_video_without_timestamps(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """Allows deletion of videos that have no optional timestamp file.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        timestamp_id = derived_id(video_id, "timestamps")
+
+        async def delete_object(object_id: ObjectRef) -> None:
+            """Simulates a missing timestamp file in the object store.
+
+            Args:
+                object_id: The object to delete.
+            """
+            if object_id == timestamp_id:
+                raise KeyError(object_id)
+
+        config.mock_object_store.delete_object.side_effect = delete_object
+        await endpoints.delete_videos(
+            videos=[video_id],
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
+        )
+        config.mock_object_store.delete_object.assert_any_await(video_id)
+        config.mock_object_store.delete_object.assert_any_await(timestamp_id)
+        config.mock_metadata_store.delete.assert_awaited_once_with(video_id)
 
 
 @pytest.mark.asyncio

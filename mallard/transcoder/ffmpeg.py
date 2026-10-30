@@ -13,6 +13,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, AsyncIterable, Coroutine, Dict, Tuple
 
+from aiofile import async_open
 from loguru import logger
 
 from ..cli_utils import find_exe
@@ -302,9 +303,9 @@ async def ensure_streamable(
     """
 
     async def read_output_from_file(file_path: Path) -> AsyncIterable[bytes]:
-        file = file_path.open("rb")
-        while _chunk := file.read(_FILE_CHUNK_SIZE):
-            yield _chunk
+        async with async_open(file_path.open("rb")) as file:
+            while _chunk := await file.read(_FILE_CHUNK_SIZE):
+                yield _chunk
 
         # Delete the file when done.
         logger.debug("Deleting temporary file {}", file_path)

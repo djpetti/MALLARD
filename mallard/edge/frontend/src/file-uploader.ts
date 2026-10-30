@@ -103,7 +103,7 @@ export class FileUploader extends LitElement {
     .pill {
       position: sticky;
       z-index: 20;
-      top: calc(100% - 75px);
+      top: calc(90% - 75px);
       left: 25%;
       max-width: 50%;
       min-width: 50%;

@@ -2,6 +2,7 @@
 API endpoints for the video transcoding microservice.
 """
 
+from functools import wraps
 from typing import Annotated, Any, AsyncIterable, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
@@ -22,6 +23,21 @@ from ...ffmpeg import (
 )
 
 router = APIRouter(tags=["transcoder"])
+
+
+def _key_error_handler(func):
+    """
+    Decorator to handle KeyErrors and raise 404 HTTPException.
+    """
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Not Found")
+
+    return wrapper
 
 
 async def _streaming_response_with_errors(
@@ -90,6 +106,7 @@ async def _streaming_response_with_errors(
 
 
 @router.post("/ensure_faststart/{bucket}/{name}")
+@_key_error_handler
 async def ensure_faststart(
     bucket: str,
     name: str,
@@ -160,6 +177,7 @@ async def infer_video_metadata(video: UploadFile) -> Dict[str, Any]:
 
 
 @router.post("/metadata/infer/{bucket}/{name}")
+@_key_error_handler
 async def infer_existing_video_metadata(
     bucket: str,
     name: str,
@@ -183,6 +201,7 @@ async def infer_existing_video_metadata(
 
 
 @router.post("/create_preview/{bucket}/{name}")
+@_key_error_handler
 async def create_video_preview(
     bucket: str,
     name: str,
@@ -217,6 +236,7 @@ async def create_video_preview(
 
 
 @router.post("/create_streaming_video/{bucket}/{name}")
+@_key_error_handler
 async def create_streaming_video(
     bucket: str,
     name: str,
@@ -252,6 +272,7 @@ async def create_streaming_video(
 
 
 @router.post("/create_thumbnail/{bucket}/{name}")
+@_key_error_handler
 async def create_video_thumbnail(
     bucket: str,
     name: str,

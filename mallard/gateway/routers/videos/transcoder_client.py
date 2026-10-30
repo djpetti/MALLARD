@@ -51,9 +51,22 @@ FASTSTART_TIMEOUT = 5 * 60
 Timeout to use for ensure_faststart operations in seconds.
 """
 
+
+class VideoUnavailableError(Exception):
+    """
+    Custom exception raised when a video is (possibly temporarily)
+    unavailable.
+    """
+
+
 client_retry = retry(
     retry=retry_if_exception_type(
-        (asyncio.Timeout, TimeoutError, ServerDisconnectedError)
+        (
+            asyncio.Timeout,
+            TimeoutError,
+            ServerDisconnectedError,
+            VideoUnavailableError,
+        )
     ),
     wait=wait_random_exponential(multiplier=1, max=60),
     after=lambda *_: logger.warning("Retrying transcoder API call..."),
@@ -169,8 +182,19 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
             async for chunk in to_wrap(video, chunk_size):
                 yield chunk
             return
-        except (ClientPayloadError, HTTPException):
+        except ClientPayloadError:
             pass
+        except HTTPException as error:
+            if error.status_code == 404:
+                # This is a special case. This usually means we caught it in
+                # the middle of converting the video to support faststart, so
+                # we're better off just retrying normally.
+                logger.error(
+                    "Video {} is unavailable, deferring to standard "
+                    "retry handler.",
+                    video,
+                )
+                raise VideoUnavailableError(f"Video {video} is not available.")
 
         logger.info("Initial request failed, retrying with optimized video...")
         # Optimize it.

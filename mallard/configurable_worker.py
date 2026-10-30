@@ -3,7 +3,9 @@ Custom `UvicornWorker` subclass that facilitates running under
 Gunicorn.
 """
 
+from typing import Any
 
+from loguru import logger
 from starlette.config import Config
 from uvicorn.workers import UvicornWorker
 
@@ -21,3 +23,7 @@ class ConfigurableWorker(UvicornWorker):
         "root_path": config("SCRIPT_NAME", default=""),
         "proxy_headers": True,
     }
+
+    @logger.catch
+    def run(self) -> Any:
+        return super().run()

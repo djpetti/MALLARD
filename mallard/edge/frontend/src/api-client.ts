@@ -15,7 +15,7 @@ import {
 import { ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
-import { AxiosRequestConfig, AxiosProgressEvent } from "axios";
+import axios, { AxiosRequestConfig, AxiosProgressEvent } from "axios";
 import {
   Fief,
   browser,
@@ -656,6 +656,32 @@ export async function getArtifactUrl(
     artifactId.id.bucket,
     `${artifactId.id.name}?${await getAuthQueryString()}`
   );
+}
+
+/**
+ * Gets a video's timestamp download URL when its timestamp file exists.
+ * @param {TypedObjectRef} artifactId The ID of the artifact.
+ * @return {Promise<string | null>} The URL, or null for missing timestamps or non-videos.
+ */
+export async function getVideoTimestampsUrl(
+  artifactId: TypedObjectRef
+): Promise<string | null> {
+  if (artifactId.type !== ObjectType.VIDEO) {
+    return null;
+  }
+
+  const url = urlJoin(
+    API_BASE_URL,
+    "videos",
+    "timestamps",
+    encodeURIComponent(artifactId.id.bucket),
+    `${encodeURIComponent(artifactId.id.name)}?${await getAuthQueryString()}`
+  );
+  const response = await axios.head(url, {
+    // Missing timestamps are expected, but authentication and server errors are not.
+    validateStatus: (status) => status === 200 || status === 404,
+  });
+  return response.status === 200 ? url : null;
 }
 
 /**

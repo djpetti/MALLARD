@@ -28,6 +28,7 @@ import { MdDialog, MdIconButton, MdMenu, MdMenuItem } from "@material/web/all";
 import { LitElement } from "lit";
 
 // Create the mocks.
+
 jest.mock("../thumbnail-grid-slice", () => {
   const actualSlice = jest.requireActual("../thumbnail-grid-slice");
   return {
@@ -245,7 +246,7 @@ describe("top-nav-bar", () => {
       // Assert.
       // It should be displaying the download button.
       const root = getShadowRoot(ConnectedTopNavBar.tagName);
-      const downloadButton = root.querySelector("#original_download_button");
+      const downloadButton = root.querySelector("#details_download_button");
       expect(downloadButton).not.toBeNull();
 
       // It should also have added the hidden download link.
@@ -267,6 +268,135 @@ describe("top-nav-bar", () => {
       expect(editButton).toBeNull();
     }
   );
+
+  describe("timestamp downloads", () => {
+    beforeEach(() => {
+      navBarElement.artifactLink = faker.internet.url();
+      navBarElement.artifactName = faker.system.fileName();
+    });
+
+    it("renders and downloads the supplied timestamp link", async () => {
+      const url = faker.internet.url();
+      navBarElement.timestampLink = url;
+      await navBarElement.updateComplete;
+
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
+      expect(root.querySelector("#details_download_button")).not.toBeNull();
+      const item = root.querySelector("#timestamp_download_item") as MdMenuItem;
+      expect(item.textContent).toContain("Download timestamps");
+      expect(item.disabled).toBe(false);
+      expect(root.querySelector("#details_download_menu")?.contains(item)).toBe(
+        true
+      );
+      const link = root.querySelector(
+        "#timestamp_download_link"
+      ) as HTMLAnchorElement;
+      expect(link.getAttribute("href")).toBe(url);
+      expect(link.download).toBe(
+        `${navBarElement.artifactName}.timestamps.txt`
+      );
+
+      // Prevent JSDOM navigation while verifying that the action starts a download.
+      const onClick = jest.fn((event: Event) => event.preventDefault());
+      link.addEventListener("click", onClick);
+      item.click();
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps both options visible but disables unavailable timestamps", async () => {
+      navBarElement.timestampLink = null;
+      await navBarElement.updateComplete;
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
+      const item = root.querySelector("#timestamp_download_item") as MdMenuItem;
+      expect(item).not.toBeNull();
+      expect(item.disabled).toBe(true);
+      expect(item.textContent).toContain("Download timestamps");
+      const menu = root.querySelector("#details_download_menu") as MdMenu;
+      expect(menu.querySelectorAll("md-menu-item")).toHaveLength(2);
+      const original = menu.querySelector(
+        "#original_download_item"
+      ) as MdMenuItem;
+      expect(original.disabled).toBe(false);
+      expect(root.querySelector("#timestamp_download_link")).toBeNull();
+      expect(root.querySelector("#details_download_button")).not.toBeNull();
+    });
+
+    it.each([null, "missing"])(
+      "clears the timestamp download when switching to details with %s timestamps",
+      async (timestampUrl) => {
+        const state = fakeState();
+        const entities = fakeArtifactEntities(2);
+        state.imageView.entities = entities.entities;
+        state.imageView.ids = entities.ids;
+        const previousId = entities.ids[0];
+        const nextId = entities.ids[1];
+        const previousEntity = entities.entities[previousId]!;
+        // Details download controls require an original artifact URL.
+        previousEntity.artifactUrl = faker.internet.url();
+        previousEntity.timestampUrl = faker.internet.url();
+        const nextEntity = entities.entities[nextId]!;
+        nextEntity.artifactUrl = faker.internet.url();
+        if (timestampUrl === null) {
+          nextEntity.timestampUrl = null;
+        } else {
+          // Model an entity whose timestamp URL has not been populated yet.
+          Reflect.deleteProperty(nextEntity, "timestampUrl");
+        }
+        state.imageView.details.frontendId = previousId as string;
+        navBarElement.stateChanged(state);
+        await navBarElement.updateComplete;
+        const root = getShadowRoot(ConnectedTopNavBar.tagName);
+        expect(
+          root.querySelector("#timestamp_download_link")?.getAttribute("href")
+        ).toBe(previousEntity.timestampUrl);
+
+        state.imageView.details.frontendId = nextId as string;
+        navBarElement.stateChanged(state);
+        expect(navBarElement.timestampLink).toBeNull();
+        await navBarElement.updateComplete;
+        expect(
+          (root.querySelector("#timestamp_download_item") as MdMenuItem)
+            .disabled
+        ).toBe(true);
+        expect(root.querySelector("#timestamp_download_link")).toBeNull();
+        expect(root.querySelector("#details_download_button")).not.toBeNull();
+
+        nextEntity.timestampUrl = faker.internet.url();
+        navBarElement.stateChanged(state);
+        await navBarElement.updateComplete;
+        expect(
+          root.querySelector("#timestamp_download_link")?.getAttribute("href")
+        ).toBe(nextEntity.timestampUrl);
+        expect(
+          (root.querySelector("#timestamp_download_item") as MdMenuItem)
+            .disabled
+        ).toBe(false);
+      }
+    );
+
+    it("clears the timestamp download after leaving the details view", async () => {
+      const state = fakeState();
+      const entities = fakeArtifactEntities(1);
+      state.imageView.entities = entities.entities;
+      state.imageView.ids = entities.ids;
+      const detailsId = entities.ids[0];
+      // Render the download controls before verifying that leaving details clears them.
+      entities.entities[detailsId]!.artifactUrl = faker.internet.url();
+      entities.entities[detailsId]!.timestampUrl = faker.internet.url();
+      state.imageView.details.frontendId = detailsId as string;
+      navBarElement.stateChanged(state);
+      await navBarElement.updateComplete;
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
+      expect(root.querySelector("#timestamp_download_link")).not.toBeNull();
+
+      state.imageView.details.frontendId = null;
+      navBarElement.stateChanged(state);
+      expect(navBarElement.timestampLink).toBeNull();
+      await navBarElement.updateComplete;
+      expect(root.querySelector("#timestamp_download_item")).toBeNull();
+      expect(root.querySelector("#timestamp_download_link")).toBeNull();
+    });
+  });
 
   it("renders correctly when items are selected", async () => {
     // Act.
@@ -334,7 +464,39 @@ describe("top-nav-bar", () => {
     expect(downloadHandler).toBeCalledTimes(1);
   });
 
-  it("starts a download when the download button is clicked in details mode", async () => {
+  it("opens the download menu without starting a download", async () => {
+    navBarElement.artifactLink = faker.internet.url();
+    navBarElement.timestampLink = faker.internet.url();
+    await navBarElement.updateComplete;
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const button = root.querySelector(
+      "#details_download_button"
+    ) as MdIconButton;
+    const menu = root.querySelector("#details_download_menu") as MdMenu;
+    const originalLink = root.querySelector(
+      "#artifact_download_link"
+    ) as HTMLElement;
+    const timestampLink = root.querySelector(
+      "#timestamp_download_link"
+    ) as HTMLElement;
+    const onDownload = jest.fn((event: Event) => event.preventDefault());
+    originalLink.addEventListener("click", onDownload);
+    timestampLink.addEventListener("click", onDownload);
+
+    button.click();
+    await menu.updateComplete;
+
+    expect(menu.open).toBe(true);
+    expect(menu.anchorElement).toBe(button);
+    expect(button.getAttribute("aria-haspopup")).toBe("menu");
+    expect(menu.querySelectorAll("md-menu-item")).toHaveLength(2);
+    expect(
+      root.querySelectorAll("md-icon-button[aria-haspopup='menu']")
+    ).toHaveLength(1);
+    expect(onDownload).not.toHaveBeenCalled();
+  });
+
+  it("starts the original download when its menu item is clicked", async () => {
     // Arrange.
     navBarElement.artifactLink = faker.internet.url();
     navBarElement.artifactName = faker.system.fileName();
@@ -347,15 +509,17 @@ describe("top-nav-bar", () => {
     const downloadLink = root.querySelector(
       "#artifact_download_link"
     ) as HTMLElement;
-    const downloadLinkClickHandler = jest.fn();
+    const downloadLinkClickHandler = jest.fn((event: Event) =>
+      event.preventDefault()
+    );
     downloadLink.addEventListener("click", downloadLinkClickHandler);
 
     // Act.
-    // Simulate a click on the button.
-    const downloadButton = root.querySelector(
-      "#original_download_button"
-    ) as MdIconButton;
-    downloadButton.dispatchEvent(new MouseEvent("click"));
+    // Selecting a menu item, rather than opening the menu, starts the download.
+    const downloadItem = root.querySelector(
+      "#original_download_item"
+    ) as MdMenuItem;
+    downloadItem.click();
 
     // Assert.
     // It should have clicked on the link.
@@ -798,14 +962,17 @@ describe("top-nav-bar", () => {
       const detailsId = imageView.ids[0];
       imageView.details.frontendId = detailsId as string;
 
+      const detailsEntity = imageView.entities[detailsId]!;
+      detailsEntity.timestampUrl = faker.internet.url();
+
       // Act.
       navBarElement.stateChanged(state);
 
       // Assert.
-      // It should have set the artifact link and name.
-      const detailsEntity = imageView.entities[detailsId];
+      // It should have set the artifact link, name, and timestamp link.
       expect(navBarElement.artifactLink).toEqual(detailsEntity?.artifactUrl);
       expect(navBarElement.artifactName).toEqual(detailsEntity?.metadata?.name);
+      expect(navBarElement.timestampLink).toEqual(detailsEntity.timestampUrl);
     });
   });
 

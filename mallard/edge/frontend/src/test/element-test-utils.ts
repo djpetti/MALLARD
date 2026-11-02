@@ -172,6 +172,8 @@ export function fakeArtifactEntity(
     artifactUrl: imageUrl,
     previewUrl: previewUrl,
     streamableUrl: streamableUrl,
+    timestampUrl: null,
+    timestampRequestId: null,
     metadata: metadata,
     isSelected: isSelected ?? faker.datatype.boolean(),
   };

@@ -548,17 +548,33 @@ class TestTimestamps:
         assert error.value.status_code == 404
         config.mock_object_store.create_object.assert_not_awaited()
 
+    @pytest.mark.parametrize(
+        ("suffix", "stem_suffix"),
+        [(".mp4", ""), (".webm", ""), ("", ""), (".part.mp4", ".part")],
+    )
     async def test_get(
-        self, config: ConfigForTests, faker: Faker, timestamp_data: bytes
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        timestamp_data: bytes,
+        suffix: str,
+        stem_suffix: str,
     ) -> None:
-        """Streams the exact stored bytes as a downloadable text file.
+        """Streams the stored bytes with a filename based on video metadata.
 
         Args:
             config: The mocked endpoint dependencies.
             faker: The fixture used to generate the video reference.
             timestamp_data: The valid timestamp file contents.
+            suffix: The suffix appended to the original video's filename.
+            stem_suffix: The part of the suffix retained in the download name.
         """
         video_id = faker.object_ref()
+        video_stem = f"Flight {faker.word()}"
+        metadata = faker.video_metadata().model_copy(
+            update={"name": f"{video_stem}{suffix}"}
+        )
+        config.mock_metadata_store.get.return_value = metadata
         config.mock_object_store.get_object.return_value = iter(
             [timestamp_data]
         )
@@ -567,15 +583,92 @@ class TestTimestamps:
             bucket=video_id.bucket,
             name=video_id.name,
             object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
         )
         config.mock_object_store.get_object.assert_awaited_once_with(
             derived_id(video_id, "timestamps")
         )
+        config.mock_metadata_store.get.assert_awaited_once_with(video_id)
         assert response.media_type == "text/plain"
-        assert "attachment" in response.headers["Content-Disposition"]
+        assert response.headers["Content-Disposition"] == (
+            f'attachment; filename="{video_stem}{stem_suffix}_ts.txt"'
+        )
         assert b"".join([chunk async for chunk in response.body_iterator]) == (
             timestamp_data
         )
+
+    async def test_get_missing_metadata(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """Reports missing source video metadata as HTTP 404.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        config.mock_metadata_store.get.side_effect = KeyError(video_id)
+        with pytest.raises(HTTPException) as error:
+            await endpoints.get_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
+            )
+        assert error.value.status_code == 404
+        config.mock_metadata_store.get.assert_awaited_once_with(video_id)
+        config.mock_streaming_response_class.assert_not_called()
+
+    async def test_head(self, config: ConfigForTests, faker: Faker) -> None:
+        """Returns an empty success response without downloading timestamps.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        config.mock_object_store.object_exists.return_value = True
+
+        response = await endpoints.head_timestamps(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            object_store=config.mock_object_store,
+        )
+
+        assert response.status_code == 200
+        assert response.body == b""
+        config.mock_object_store.object_exists.assert_awaited_once_with(
+            derived_id(video_id, "timestamps")
+        )
+        # HEAD must not open a download stream, even when timestamps exist.
+        config.mock_object_store.get_object.assert_not_called()
+        config.mock_streaming_response_class.assert_not_called()
+
+    async def test_head_missing_timestamps(
+        self, config: ConfigForTests, faker: Faker
+    ) -> None:
+        """Reports missing timestamps without attempting to download them.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+        """
+        video_id = faker.object_ref()
+        config.mock_object_store.object_exists.return_value = False
+
+        with pytest.raises(HTTPException) as error:
+            await endpoints.head_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                object_store=config.mock_object_store,
+            )
+
+        assert error.value.status_code == 404
+        config.mock_object_store.object_exists.assert_awaited_once_with(
+            derived_id(video_id, "timestamps")
+        )
+        config.mock_object_store.get_object.assert_not_called()
+        config.mock_streaming_response_class.assert_not_called()
 
     async def test_delete(self, config: ConfigForTests, faker: Faker) -> None:
         """Deletes only the timestamps, leaving the source video untouched.
@@ -610,11 +703,17 @@ class TestTimestamps:
         getattr(
             config.mock_object_store, f"{operation}_object"
         ).side_effect = KeyError
+        metadata_kwargs = (
+            {"metadata_store": config.mock_metadata_store}
+            if operation == "get"
+            else {}
+        )
         with pytest.raises(HTTPException) as error:
             await getattr(endpoints, f"{operation}_timestamps")(
                 bucket=video_id.bucket,
                 name=video_id.name,
                 object_store=config.mock_object_store,
+                **metadata_kwargs,
             )
         assert error.value.status_code == 404
 

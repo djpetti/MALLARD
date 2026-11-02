@@ -204,6 +204,10 @@ export class TopNavBar extends LitElement {
   @property({ type: String })
   artifactName: string | null = null;
 
+  /** Download URL for the current video's timestamps, once availability is confirmed. */
+  @property({ type: String })
+  timestampLink: string | null = null;
+
   /**
    * Whether we are showing the deletion dialog.
    */
@@ -231,6 +235,13 @@ export class TopNavBar extends LitElement {
   @query("#more_actions_menu")
   private moreActionsMenu?: MdMenu;
 
+  /** The details-view download menu and its anchor button. */
+  @query("#details_download_button")
+  private detailsDownloadButton?: HTMLElement;
+
+  @query("#details_download_menu")
+  private detailsDownloadMenu?: MdMenu;
+
   /**
    * Hidden link for downloading files.
    */
@@ -242,6 +253,10 @@ export class TopNavBar extends LitElement {
    */
   @query("#artifact_download_link")
   private artifactDownloadLink?: HTMLElement;
+
+  /** Hidden link for downloading the video's timestamp file. */
+  @query("#timestamp_download_link")
+  private timestampDownloadLink?: HTMLElement;
 
   /**
    * Run when the download button is clicked.
@@ -444,11 +459,34 @@ export class TopNavBar extends LitElement {
         ${this.artifactLink
           ? html`
               <md-icon-button
-                id="original_download_button"
-                @click="${() => this.artifactDownloadLink?.click()}"
+                id="details_download_button"
+                title="Download"
+                aria-label="Download"
+                aria-haspopup="menu"
+                aria-controls="details_download_menu"
+                @click="${() => this.detailsDownloadMenu?.show()}"
               >
                 <md-icon class="top-bar-icon">download</md-icon>
               </md-icon-button>
+              <md-menu
+                id="details_download_menu"
+                anchor-corner="end-end"
+                menu-corner="start-end"
+              >
+                <md-menu-item
+                  id="original_download_item"
+                  @click="${() => this.artifactDownloadLink?.click()}"
+                >
+                  <div slot="headline">Download original</div>
+                </md-menu-item>
+                <md-menu-item
+                  id="timestamp_download_item"
+                  ?disabled="${!this.timestampLink}"
+                  @click="${() => this.timestampDownloadLink?.click()}"
+                >
+                  <div slot="headline">Download timestamps</div>
+                </md-menu-item>
+              </md-menu>
             `
           : nothing}
         <!-- User menu -->
@@ -546,6 +584,14 @@ export class TopNavBar extends LitElement {
             download="${this.artifactName as string}"
           ></a>`
         : nothing}
+      ${this.artifactLink && this.timestampLink
+        ? html`<a
+            id="timestamp_download_link"
+            class="hidden"
+            href="${this.timestampLink}"
+            download="${this.artifactName ?? "video"}_timestamps.txt"
+          ></a>`
+        : nothing}
 
       <slot></slot>
     `;
@@ -569,6 +615,12 @@ export class TopNavBar extends LitElement {
     if (this.moreActionsMenu) {
       // If we are showing this menu, make sure it is anchored to the button.
       this.moreActionsMenu.anchorElement = this.moreActionsButton as Button;
+    }
+
+    if (this.detailsDownloadMenu) {
+      // Anchor the menu after Lit has rendered both the button and menu.
+      this.detailsDownloadMenu.anchorElement = this
+        .detailsDownloadButton as HTMLElement;
     }
 
     if (this.urlListDownloadLink) {
@@ -595,6 +647,7 @@ export class ConnectedTopNavBar extends connectRedux(store, TopNavBar) {
   override stateChanged(state: RootState): void {
     let artifactLink = null;
     let artifactName = null;
+    let timestampLink = null;
     if (state.imageView.details.frontendId) {
       // We are in the details view.
       const entity = thumbnailGridSelectors.selectById(
@@ -603,6 +656,7 @@ export class ConnectedTopNavBar extends connectRedux(store, TopNavBar) {
       );
       artifactLink = entity?.artifactUrl;
       artifactName = entity?.metadata?.name;
+      timestampLink = entity?.timestampUrl ?? null;
     }
 
     this.numItemsSelected = state.imageView.numItemsSelected;
@@ -614,6 +668,7 @@ export class ConnectedTopNavBar extends connectRedux(store, TopNavBar) {
     this.exportedUrlFileLink = state.imageView.exportedImagesUrl;
     this.artifactLink = artifactLink;
     this.artifactName = artifactName ?? null;
+    this.timestampLink = timestampLink;
   }
 
   /**

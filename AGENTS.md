@@ -22,6 +22,10 @@
 - Tests and other python-related commands typically need to be run from the `models` sub-directory instead of the root directory of the project.
 - You might have to activate the virtual environment to use installed tools like `pytest`. For instance, `source .venv/bin/activate`.
 
+## Typescript/JS notes
+
+- This app uses Redux for state management. All web components should only be concerned with rendering views. Calls to the backend should happen in Redux thunks.
+
 ## Testing Best Practices
 
 After every code change, you should check that the tests still pass, and address any failures. There is a task in `tasks.json` that builds and runs the tests.

@@ -8,6 +8,7 @@ import {
   getMetadata,
   getPreviewVideoUrl,
   getStreamableVideoUrl,
+  getVideoTimestampsUrl,
   getUserInfo,
   getUserProfileUrl,
   inferImageMetadata,
@@ -39,7 +40,7 @@ import {
 import each from "jest-each";
 import { faker } from "@faker-js/faker";
 import { cloneDeep } from "lodash";
-import { AxiosRequestConfig } from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import { browser, Fief, FiefAccessTokenExpired } from "@fief/fief";
 
 // Mock out the gateway API.
@@ -925,6 +926,77 @@ describe("api-client", () => {
       expect(gotUrl).toContain(`${artifactId.id.bucket}/${artifactId.id.name}`);
     }
   );
+
+  describe("timestamp download URLs", () => {
+    let mockHead: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockHead = jest.spyOn(axios, "head");
+    });
+
+    afterEach(() => {
+      mockHead.mockRestore();
+    });
+
+    it("checks availability with HEAD and returns an authenticated download URL", async () => {
+      const artifactId = fakeTypedObjectRef(ObjectType.VIDEO);
+      const token = faker.datatype.uuid();
+      mockFiefAuth.prototype.getTokenInfo.mockReturnValue({
+        access_token: token,
+        id_token: faker.datatype.uuid(),
+        expires_in: 60,
+        token_type: "bearer",
+      });
+      mockHead.mockResolvedValue({ status: 200 });
+
+      const url = await getVideoTimestampsUrl(artifactId);
+
+      expect(url).toContain(
+        `videos/timestamps/${encodeURIComponent(
+          artifactId.id.bucket
+        )}/${encodeURIComponent(artifactId.id.name)}`
+      );
+      expect(new URL(url as string).searchParams.get("auth_token")).toBe(token);
+      expect(mockHead).toHaveBeenCalledTimes(1);
+      expect(mockHead).toHaveBeenCalledWith(url, expect.any(Object));
+      const config = mockHead.mock.calls[0][1] as AxiosRequestConfig;
+      expect(config.validateStatus?.(200)).toBe(true);
+      expect(config.validateStatus?.(404)).toBe(true);
+      for (const status of [401, 403, 500]) {
+        expect(config.validateStatus?.(status)).toBe(false);
+      }
+    });
+
+    it("returns null when timestamps are absent", async () => {
+      mockHead.mockResolvedValue({ status: 404 });
+      await expect(
+        getVideoTimestampsUrl(fakeTypedObjectRef(ObjectType.VIDEO))
+      ).resolves.toBeNull();
+    });
+
+    it("does not probe timestamps for non-video artifacts", async () => {
+      await expect(
+        getVideoTimestampsUrl(fakeTypedObjectRef(ObjectType.IMAGE))
+      ).resolves.toBeNull();
+      expect(mockHead).not.toHaveBeenCalled();
+    });
+
+    it("encodes bucket and video names in the URL", async () => {
+      const artifactId = fakeTypedObjectRef(ObjectType.VIDEO);
+      artifactId.id.bucket = "bucket with spaces";
+      artifactId.id.name = "video#1?test";
+      mockHead.mockResolvedValue({ status: 200 });
+      const url = await getVideoTimestampsUrl(artifactId);
+      expect(url).toContain("bucket%20with%20spaces/video%231%3Ftest");
+    });
+
+    it("propagates unexpected errors instead of treating them as missing files", async () => {
+      mockHead.mockRejectedValue(new Error("Network error"));
+      await expect(
+        getVideoTimestampsUrl(fakeTypedObjectRef(ObjectType.VIDEO))
+      ).rejects.toThrow("Network error");
+    });
+  });
 
   each([
     ["image", ObjectType.IMAGE],

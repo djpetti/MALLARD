@@ -22,6 +22,7 @@ import {
   getMetadata,
   getPreviewVideoUrl,
   getStreamableVideoUrl,
+  getVideoTimestampsUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -140,6 +141,8 @@ function createDefaultEntity(artifact: AddArtifactsReturn): ArtifactEntity {
     artifactUrl: null,
     previewUrl: artifact.previewUrl,
     streamableUrl: artifact.streamableUrl,
+    timestampUrl: null,
+    timestampRequestId: null,
     metadata: null,
     isSelected: false,
   };
@@ -200,6 +203,35 @@ export const thunkAddArtifacts = createAsyncThunk(
     }
 
     return artifacts;
+  }
+);
+
+/**
+ * Checks timestamp availability for a video and stores its download URL.
+ */
+export const thunkLoadVideoTimestamps = createAsyncThunk<
+  string | null,
+  string,
+  { state: RootState }
+>(
+  "thumbnailGrid/loadVideoTimestamps",
+  async (id, { getState }) => {
+    const artifact = thumbnailGridSelectors.selectById(
+      getState(),
+      id
+    ) as ArtifactEntity;
+    return await getVideoTimestampsUrl(artifact.backendId);
+  },
+  {
+    condition(id, { getState }): boolean {
+      const artifact = thumbnailGridSelectors.selectById(getState(), id);
+      // Only probe videos, and share any request already in progress for this entity.
+      return (
+        artifact !== undefined &&
+        artifact.backendId.type === ObjectType.VIDEO &&
+        artifact.timestampRequestId === null
+      );
+    },
   }
 );
 
@@ -873,6 +905,7 @@ export function thunkShowDetails(backendId: TypedObjectRef): ThunkResult<void> {
 
     // Mark this as the image displayed on the details page.
     dispatch(showDetails(frontendId));
+    dispatch(thunkLoadVideoTimestamps(frontendId));
   };
 }
 
@@ -1043,6 +1076,39 @@ export const thumbnailGridSlice = createSlice({
           },
         }))
       );
+    });
+
+    builder.addCase(thunkLoadVideoTimestamps.pending, (state, action) => {
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: {
+          timestampUrl: null,
+          timestampRequestId: action.meta.requestId,
+        },
+      });
+    });
+    builder.addCase(thunkLoadVideoTimestamps.fulfilled, (state, action) => {
+      const artifact = state.entities[action.meta.arg];
+      // Removed or replaced entities must not receive an older request's result.
+      if (artifact?.timestampRequestId !== action.meta.requestId) {
+        return;
+      }
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: { timestampUrl: action.payload, timestampRequestId: null },
+      });
+    });
+    builder.addCase(thunkLoadVideoTimestamps.rejected, (state, action) => {
+      if (
+        state.entities[action.meta.arg]?.timestampRequestId !==
+        action.meta.requestId
+      ) {
+        return;
+      }
+      thumbnailGridAdapter.updateOne(state, {
+        id: action.meta.arg,
+        changes: { timestampUrl: null, timestampRequestId: null },
+      });
     });
 
     // Sets the source URL for video artifacts.

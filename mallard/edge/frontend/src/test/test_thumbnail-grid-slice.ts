@@ -28,6 +28,7 @@ import thumbnailGridReducer, {
   clearVideoUrl,
   thunkAddArtifacts,
   thunkSetVideoUrl,
+  thunkLoadVideoTimestamps,
   setScrollLocation,
 } from "../thumbnail-grid-slice";
 import {
@@ -57,6 +58,7 @@ import {
   getMetadata,
   getPreviewVideoUrl,
   getStreamableVideoUrl,
+  getVideoTimestampsUrl,
   loadImage,
   loadThumbnail,
   queryImages,
@@ -82,6 +84,7 @@ jest.mock("../api-client", () => ({
   getArtifactUrl: jest.fn(),
   getPreviewVideoUrl: jest.fn(),
   getStreamableVideoUrl: jest.fn(),
+  getVideoTimestampsUrl: jest.fn(),
 }));
 
 const mockQueryImages = queryImages as jest.MockedFn<typeof queryImages>;
@@ -100,6 +103,10 @@ const mockGetPreviewVideoUrl = getPreviewVideoUrl as jest.MockedFn<
 >;
 const mockGetStreamableVideoUrl = getStreamableVideoUrl as jest.MockedFn<
   typeof getStreamableVideoUrl
+>;
+
+const mockGetVideoTimestampsUrl = getVideoTimestampsUrl as jest.MockedFn<
+  typeof getVideoTimestampsUrl
 >;
 
 // Mock out the autocomplete functions.
@@ -148,6 +155,8 @@ describe("thumbnail-grid-slice action creators", () => {
 
     // Reset mocks.
     jest.clearAllMocks();
+    mockGetVideoTimestampsUrl.mockReset();
+    mockGetVideoTimestampsUrl.mockResolvedValue(null);
   });
 
   it("creates an addArtifacts action", async () => {
@@ -204,6 +213,160 @@ describe("thumbnail-grid-slice action creators", () => {
         streamableUrl
       );
     }
+  });
+
+  describe("timestamp availability", () => {
+    let store: ReturnType<typeof setupStore>;
+    let entity: ArtifactEntity;
+    let id: string;
+
+    beforeEach(() => {
+      const state = fakeState();
+      entity = fakeArtifactEntity();
+      entity.backendId.type = ObjectType.VIDEO;
+      entity.timestampUrl = faker.internet.url();
+      id = createArtifactEntityId(entity.backendId.id);
+      state.imageView.ids = [id];
+      state.imageView.entities[id] = entity;
+      store = setupStore(state);
+    });
+
+    each([true, false]).it(
+      "stores the result when timestamps are available: %s",
+      async (available: boolean) => {
+        const url = available ? faker.internet.url() : null;
+        mockGetVideoTimestampsUrl.mockResolvedValueOnce(url);
+        const request = store.dispatch(thunkLoadVideoTimestamps(id));
+        const pending = store.getState().imageView.entities[id];
+        expect(pending?.timestampUrl).toBeNull();
+        expect(pending?.timestampRequestId).toBe(request.requestId);
+
+        await request;
+
+        expect(mockGetVideoTimestampsUrl).toHaveBeenCalledWith(
+          entity.backendId
+        );
+        const loaded = store.getState().imageView.entities[id];
+        expect(loaded?.timestampUrl).toBe(url);
+        expect(loaded?.timestampRequestId).toBeNull();
+      }
+    );
+
+    it("does not probe non-video or unknown artifacts", async () => {
+      const state = fakeState();
+      const image = fakeArtifactEntity();
+      image.backendId.type = ObjectType.IMAGE;
+      const imageId = createArtifactEntityId(image.backendId.id);
+      state.imageView.ids = [imageId];
+      state.imageView.entities[imageId] = image;
+      const imageStore = setupStore(state);
+
+      await imageStore.dispatch(thunkLoadVideoTimestamps(imageId));
+      await imageStore.dispatch(
+        thunkLoadVideoTimestamps(faker.datatype.uuid())
+      );
+      expect(mockGetVideoTimestampsUrl).not.toHaveBeenCalled();
+    });
+
+    it("clears failed requests and allows retrying them", async () => {
+      mockGetVideoTimestampsUrl.mockRejectedValueOnce(
+        new Error("Network error")
+      );
+      const action = await store.dispatch(thunkLoadVideoTimestamps(id));
+      expect(thunkLoadVideoTimestamps.rejected.match(action)).toBe(true);
+      const failed = store.getState().imageView.entities[id];
+      expect(failed?.timestampUrl).toBeNull();
+      expect(failed?.timestampRequestId).toBeNull();
+
+      const url = faker.internet.url();
+      mockGetVideoTimestampsUrl.mockResolvedValueOnce(url);
+      await store.dispatch(thunkLoadVideoTimestamps(id));
+      expect(store.getState().imageView.entities[id]?.timestampUrl).toBe(url);
+    });
+
+    it("shares a pending availability check for the same video", async () => {
+      let resolveAvailability!: (url: string | null) => void;
+      mockGetVideoTimestampsUrl.mockReturnValueOnce(
+        new Promise((resolve) => (resolveAvailability = resolve))
+      );
+      const request = store.dispatch(thunkLoadVideoTimestamps(id));
+      await store.dispatch(thunkLoadVideoTimestamps(id));
+      expect(mockGetVideoTimestampsUrl).toHaveBeenCalledTimes(1);
+      expect(store.getState().imageView.entities[id]?.timestampRequestId).toBe(
+        request.requestId
+      );
+      resolveAvailability(null);
+      await request;
+    });
+
+    each([true, false]).it(
+      "checks timestamps when opening details for a registered video: %s",
+      async (registered: boolean) => {
+        if (!registered) {
+          store.dispatch(clearImageView({}));
+        }
+        const url = faker.internet.url();
+        mockGetVideoTimestampsUrl.mockResolvedValueOnce(url);
+        // Observe the stored result instead of relying on promise scheduling details.
+        const completed = new Promise<void>((resolve) => {
+          const unsubscribe = store.subscribe(() => {
+            if (store.getState().imageView.entities[id]?.timestampUrl === url) {
+              unsubscribe();
+              resolve();
+            }
+          });
+        });
+        store.dispatch(thunkShowDetails(entity.backendId));
+        await completed;
+
+        expect(mockGetVideoTimestampsUrl).toHaveBeenCalledWith(
+          entity.backendId
+        );
+        expect(store.getState().imageView.details.frontendId).toBe(id);
+        expect(store.getState().imageView.entities[id]?.timestampUrl).toBe(url);
+      }
+    );
+
+    it("keeps a late result on its own entity after switching videos", async () => {
+      let resolveAvailability!: (url: string | null) => void;
+      mockGetVideoTimestampsUrl.mockReturnValueOnce(
+        new Promise((resolve) => (resolveAvailability = resolve))
+      );
+      const request = store.dispatch(thunkLoadVideoTimestamps(id));
+      const nextVideo = fakeTypedObjectRef(ObjectType.VIDEO);
+      store.dispatch(thunkShowDetails(nextVideo));
+      const url = faker.internet.url();
+      resolveAvailability(url);
+      await request;
+
+      const state = store.getState();
+      expect(state.imageView.details.frontendId).toBe(
+        createArtifactEntityId(nextVideo.id)
+      );
+      expect(state.imageView.entities[id]?.timestampUrl).toBe(url);
+      expect(
+        thumbnailGridSelectors.selectById(
+          state,
+          state.imageView.details.frontendId as string
+        )?.timestampUrl
+      ).toBeNull();
+    });
+
+    it("ignores results after the entity has been removed and registered again", async () => {
+      let resolveAvailability!: (url: string | null) => void;
+      mockGetVideoTimestampsUrl.mockReturnValueOnce(
+        new Promise((resolve) => (resolveAvailability = resolve))
+      );
+      const previousRequest = store.dispatch(thunkLoadVideoTimestamps(id));
+      store.dispatch(clearImageView({}));
+      await store.dispatch(thunkAddArtifacts([entity.backendId]));
+      const url = faker.internet.url();
+      mockGetVideoTimestampsUrl.mockResolvedValueOnce(url);
+      await store.dispatch(thunkLoadVideoTimestamps(id));
+      resolveAvailability(faker.internet.url());
+      await previousRequest;
+      expect(store.getState().imageView.entities[id]?.timestampUrl).toBe(url);
+    });
   });
 
   it("creates a setVideoUrl action", async () => {

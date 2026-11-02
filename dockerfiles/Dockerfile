@@ -62,8 +62,8 @@ COPY config/local/local_config.yaml .config/mallard/config.yaml
 ENV SCRIPT_NAME="/api/v1/"
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
-     -k mallard.configurable_worker.ConfigurableWorker \
-     mallard.gateway.main:app
+    -k mallard.configurable_worker.ConfigurableWorker \
+    mallard.gateway.main:app
 
 ####
 # edge_builder image is used for building the edge service dependencies.
@@ -74,15 +74,15 @@ FROM gateway AS edge_builder
 
 USER root
 
-RUN apt-get update
-RUN apt-get install -y curl
+RUN apt-get update && apt-get install -y curl libatomic1 && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/mallard/
 
 # Install Node.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash
 ENV NVM_DIR=/root/.nvm
-RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 22.14.0
+RUN . ~/.nvm/nvm.sh && echo ${NVM_DIR} && nvm install 26.12.1
 
 # Install NPM dependencies.
 RUN cd mallard/edge/frontend && . ~/.nvm/nvm.sh && npm install
@@ -108,8 +108,8 @@ COPY --from=edge_builder /home/mallard/mallard/edge/frontend/bundled \
 COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
-     -k mallard.configurable_worker.ConfigurableWorker \
-     mallard.edge.main:app
+    -k mallard.configurable_worker.ConfigurableWorker \
+    mallard.edge.main:app
 
 #####
 # transcoder image is used for running the transcoder service.
@@ -128,8 +128,8 @@ COPY --from=edge_builder /home/mallard/.config /home/mallard/.config
 # multi-threaded, and we want to limit the number of concurrent FFMpeg
 # processes.
 CMD gunicorn -w 1 -b 0.0.0.0:8000 \
-     -k mallard.configurable_worker.ConfigurableWorker \
-     mallard.transcoder.main:app
+    -k mallard.configurable_worker.ConfigurableWorker \
+    mallard.transcoder.main:app
 
 #####
 # backup image is used for handling object store backups.

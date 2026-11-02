@@ -4,6 +4,7 @@ API endpoints for managing video data.
 
 import asyncio
 from math import isfinite
+from pathlib import Path
 from typing import Annotated, BinaryIO, List, cast
 
 from aiohttp.client_exceptions import ClientPayloadError
@@ -19,7 +20,7 @@ from fastapi import (
 )
 from loguru import logger
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import StreamingResponse
+from starlette.responses import Response, StreamingResponse
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -413,11 +414,43 @@ async def create_timestamps(
 
 
 @router.head("/timestamps/{bucket}/{name}")
+async def head_timestamps(
+    bucket: str,
+    name: str,
+    object_store: ObjectStore = Depends(backends.object_store),
+) -> Response:
+    """Checks whether a video's timestamp file exists without downloading it.
+
+    Args:
+        bucket: The bucket the video is in.
+        name: The name of the video.
+        object_store: The object store to check for timestamps.
+
+    Returns:
+        An empty HTTP 200 response if the timestamp file exists.
+
+    Raises:
+        HTTPException: If the timestamp file does not exist.
+    """
+    video_id = ObjectRef(bucket=bucket, name=name)
+    # Check only object metadata to avoid opening or reading the file.
+    if not await object_store.object_exists(
+        derived_id(video_id, "timestamps")
+    ):
+        raise HTTPException(
+            status_code=404, detail="Timestamp file not found."
+        )
+    return Response(status_code=200)
+
+
 @router.get("/timestamps/{bucket}/{name}")
 async def get_timestamps(
     bucket: str,
     name: str,
     object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.video_metadata_store
+    ),
 ) -> StreamingResponse:
     """Downloads the original timestamp file for a video.
 
@@ -425,28 +458,34 @@ async def get_timestamps(
         bucket: The bucket the video is in.
         name: The name of the video.
         object_store: The object store to retrieve the timestamps from.
+        metadata_store: The metadata store to retrieve the video name from.
 
     Returns:
         A streaming response containing the timestamp file.
 
     Raises:
-        HTTPException: If the timestamp file does not exist.
+        HTTPException: If the timestamp file or video metadata does not exist.
     """
-    timestamp_id = derived_id(
-        ObjectRef(bucket=bucket, name=name), "timestamps"
-    )
-    try:
-        timestamp_stream = await object_store.get_object(timestamp_id)
-    except KeyError:
-        raise HTTPException(
-            status_code=404, detail="Timestamp file not found."
-        )
+    object_id = ObjectRef(bucket=bucket, name=name)
+    timestamp_id = derived_id(object_id, "timestamps")
+    with check_key_errors():
+        async with asyncio.TaskGroup() as tasks:
+            object_task = tasks.create_task(
+                object_store.get_object(timestamp_id)
+            )
+            metadata_task = tasks.create_task(metadata_store.get(object_id))
+
+    # The response header determines the filename, even when HTML supplies
+    # one, so we have to make sure it's reasonable.
+    metadata = metadata_task.result()
+    # Strip any extensions, if present.
+    file_name = f"{Path(metadata.name).stem}_ts.txt"
 
     return StreamingResponse(
-        timestamp_stream,
+        object_task.result(),
         media_type="text/plain",
         headers={
-            "Content-Disposition": 'attachment; filename="timestamps.txt"'
+            "Content-Disposition": f'attachment; filename="{file_name}"',
         },
     )
 

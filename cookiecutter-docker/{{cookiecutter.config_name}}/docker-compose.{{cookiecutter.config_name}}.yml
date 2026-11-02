@@ -69,7 +69,7 @@ services:
 
   # Object storage service.
   object_store:
-    image: minio/minio
+    image: elestio/minio
     hostname: object-store
     volumes:
       - {{cookiecutter.object_location}}:/data

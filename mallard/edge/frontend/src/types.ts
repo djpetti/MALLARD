@@ -155,6 +155,10 @@ export interface ArtifactEntity {
    * artifact is not a video, this should be null.
    */
   streamableUrl: string | null;
+  /** The timestamp download URL, or null when unavailable or not yet checked. */
+  timestampUrl: string | null;
+  /** The active timestamp availability request, used to ignore stale results. */
+  timestampRequestId: string | null;
 
   /** The metadata associated with the artifact. */
   metadata: UavImageMetadata | UavVideoMetadata | null;

@@ -345,18 +345,22 @@ async def delete_videos(
                 )
 
 
-def _validate_timestamps(timestamp_file: BinaryIO) -> None:
-    """Checks timestamp rows without interpreting their relationship to a video.
+def _validate_timestamps(
+    timestamp_file: BinaryIO, metadata: UavVideoMetadata
+) -> None:
+    """Checks timestamp syntax and the frame count recorded for the video.
 
     Args:
         timestamp_file: The binary file containing frame and timestamp pairs.
+        metadata: The saved video metadata, including its frame count if known.
 
     Raises:
-        HTTPException: If the file is empty or contains an invalid row.
+        HTTPException: If the file is empty, contains an invalid row, or has
+            a different frame count than the video.
     """
-    has_rows = False
+    num_rows = 0
     for line_number, line in enumerate(timestamp_file, start=1):
-        has_rows = True
+        num_rows += 1
         try:
             frame, timestamp = line.split()
             if int(frame) < 0 or not isfinite(float(timestamp)):
@@ -369,8 +373,16 @@ def _validate_timestamps(timestamp_file: BinaryIO) -> None:
                 "timestamp in seconds, separated by whitespace.",
             )
 
-    if not has_rows:
+    if num_rows == 0:
         raise HTTPException(status_code=415, detail="Timestamp file is empty.")
+
+    # Videos without a recorded frame count retain syntax-only validation.
+    if metadata.num_frames is not None and num_rows != metadata.num_frames:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Timestamp file has {num_rows} frames, but the video "
+            f"metadata specifies {metadata.num_frames} frames.",
+        )
 
 
 @router.post(
@@ -381,6 +393,9 @@ async def create_timestamps(
     name: str,
     timestamp_data: UploadFile = File(...),
     object_store: ObjectStore = Depends(backends.object_store),
+    metadata_store: ArtifactMetadataStore = Depends(
+        backends.video_metadata_store
+    ),
 ) -> ObjectRef:
     """Uploads or replaces the timestamp file for an existing video.
 
@@ -389,6 +404,7 @@ async def create_timestamps(
         name: The name of the video.
         timestamp_data: The .txt file containing frame and timestamp pairs.
         object_store: The object store to upload the timestamps to.
+        metadata_store: The metadata store to retrieve the video's frame count from.
 
     Returns:
         The reference to the saved timestamp file.
@@ -402,8 +418,17 @@ async def create_timestamps(
     if not (timestamp_data.filename or "").lower().endswith(".txt"):
         raise HTTPException(status_code=415, detail="Expected a .txt file.")
 
+    try:
+        metadata = await metadata_store.get(object_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail="Video metadata not found."
+        )
+
     # Validate line by line off the event loop without loading the entire file.
-    await run_in_threadpool(_validate_timestamps, timestamp_data.file)
+    await run_in_threadpool(
+        _validate_timestamps, timestamp_data.file, metadata
+    )
     await timestamp_data.seek(0)
     timestamp_id = derived_id(object_id, "timestamps")
     try:

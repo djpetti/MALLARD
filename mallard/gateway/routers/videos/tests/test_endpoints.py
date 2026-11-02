@@ -402,6 +402,18 @@ async def test_delete_videos_other_error(config: ConfigForTests, faker: Faker):
 class TestTimestamps:
     """Tests timestamp storage, retrieval, validation, and video cleanup."""
 
+    @pytest.fixture(autouse=True)
+    def video_metadata(self, config: ConfigForTests, faker: Faker) -> None:
+        """Configures stored metadata matching the four-frame timestamp fixture.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate saved video metadata.
+        """
+        config.mock_metadata_store.get.return_value = (
+            faker.video_metadata().model_copy(update={"num_frames": 4})
+        )
+
     @pytest.fixture
     def timestamp_data(self, faker: Faker) -> bytes:
         """Generates valid timestamp data while preserving decimal precision.
@@ -443,6 +455,7 @@ class TestTimestamps:
             name=video_id.name,
             timestamp_data=upload,
             object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
         )
 
         assert timestamp_id == derived_id(video_id, "timestamps")
@@ -452,8 +465,93 @@ class TestTimestamps:
         config.mock_object_store.create_object.assert_awaited_once_with(
             timestamp_id, data=upload
         )
+        config.mock_metadata_store.get.assert_awaited_once_with(video_id)
         # Validation must rewind the file so storage receives every byte.
         assert await upload.read() == data
+
+    @pytest.mark.parametrize(
+        ("num_frames", "accepted"),
+        [
+            (None, True),
+            (0, False),
+            (1, False),
+            (3, False),
+            (4, True),
+            (5, False),
+        ],
+    )
+    async def test_create_frame_count(
+        self,
+        config: ConfigForTests,
+        faker: Faker,
+        timestamp_data: bytes,
+        num_frames: int | None,
+        accepted: bool,
+    ) -> None:
+        """Validates timestamp row counts against the stored video metadata.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The four-frame timestamp file contents.
+            num_frames: The stored video frame count, if available.
+            accepted: Whether the timestamp file should be accepted.
+        """
+        video_id = faker.object_ref()
+        config.mock_metadata_store.get.return_value = (
+            faker.video_metadata().model_copy(
+                update={"num_frames": num_frames}
+            )
+        )
+        upload = UploadFile(
+            file=BytesIO(timestamp_data), filename="timestamps.txt"
+        )
+        create = endpoints.create_timestamps(
+            bucket=video_id.bucket,
+            name=video_id.name,
+            timestamp_data=upload,
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
+        )
+        if accepted:
+            timestamp_id = await create
+            assert timestamp_id == derived_id(video_id, "timestamps")
+            config.mock_object_store.create_object.assert_awaited_once_with(
+                timestamp_id, data=upload
+            )
+            assert await upload.read() == timestamp_data
+        else:
+            with pytest.raises(HTTPException) as error:
+                await create
+            assert error.value.status_code == 415
+            config.mock_object_store.create_object.assert_not_awaited()
+        config.mock_metadata_store.get.assert_awaited_once_with(video_id)
+
+    async def test_create_missing_metadata(
+        self, config: ConfigForTests, faker: Faker, timestamp_data: bytes
+    ) -> None:
+        """Rejects uploads whose source video metadata cannot be loaded.
+
+        Args:
+            config: The mocked endpoint dependencies.
+            faker: The fixture used to generate the video reference.
+            timestamp_data: The valid timestamp file contents.
+        """
+        video_id = faker.object_ref()
+        config.mock_metadata_store.get.side_effect = KeyError(video_id)
+        upload = UploadFile(
+            file=BytesIO(timestamp_data), filename="timestamps.txt"
+        )
+        with pytest.raises(HTTPException) as error:
+            await endpoints.create_timestamps(
+                bucket=video_id.bucket,
+                name=video_id.name,
+                timestamp_data=upload,
+                object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
+            )
+        assert error.value.status_code == 404
+        config.mock_object_store.create_object.assert_not_awaited()
 
     @pytest.mark.parametrize(
         "data",
@@ -491,6 +589,7 @@ class TestTimestamps:
                 name=video_id.name,
                 timestamp_data=upload,
                 object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
             )
         assert error.value.status_code == 415
         config.mock_object_store.create_object.assert_not_awaited()
@@ -519,6 +618,7 @@ class TestTimestamps:
                 name=video_id.name,
                 timestamp_data=upload,
                 object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
             )
         assert error.value.status_code == 415
         config.mock_object_store.create_object.assert_not_awaited()
@@ -544,6 +644,7 @@ class TestTimestamps:
                 name=video_id.name,
                 timestamp_data=upload,
                 object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
             )
         assert error.value.status_code == 404
         config.mock_object_store.create_object.assert_not_awaited()

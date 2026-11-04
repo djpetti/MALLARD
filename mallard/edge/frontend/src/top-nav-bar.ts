@@ -1,7 +1,7 @@
 import { css, html, LitElement, nothing, PropertyValues } from "lit";
 import { property, query, state } from "lit/decorators.js";
 import "@material/web/all";
-import "./search-box";
+import { SearchBox } from "./search-box";
 import store, { RootState } from "./store";
 import { RequestState } from "./types";
 import { Action } from "redux";
@@ -89,6 +89,36 @@ export class TopNavBar extends LitElement {
       /* Put the search box on top of the navigation bar. */
       top: 0;
       z-index: 10;
+    }
+
+    #search_button {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      #search_button {
+        display: inline-flex;
+        flex-shrink: 0;
+      }
+
+      #search {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin: 0;
+        padding: 8px;
+        box-sizing: border-box;
+        background-color: var(--md-sys-color-primary);
+        /* Size both the field and its suggestions across the dropdown. */
+        --search-box-width: 100%;
+        --search-box-min-width: 0;
+      }
+
+      #search.mobile-search-open {
+        display: block;
+      }
     }
 
     #edit_metadata_dialog {
@@ -207,6 +237,72 @@ export class TopNavBar extends LitElement {
   /** Download URL for the current video's timestamps, once availability is confirmed. */
   @property({ type: String })
   timestampLink: string | null = null;
+
+  /** Whether the compact-screen search dropdown is open. */
+  @state()
+  private showMobileSearch: boolean = false;
+
+  @query("#search")
+  private searchBox?: SearchBox;
+
+  @query("#search_button")
+  private searchButton?: HTMLElement;
+
+  /**
+   * Close the dropdown when a click occurs outside its controls.
+   * @param {MouseEvent} event The document click event.
+   */
+  private readonly onOutsideSearchClick = (event: MouseEvent): void => {
+    const path = event.composedPath();
+    if (
+      !path.includes(this.searchBox as EventTarget) &&
+      !path.includes(this.searchButton as EventTarget)
+    ) {
+      this.showMobileSearch = false;
+    }
+  };
+
+  /** @inheritDoc */
+  override connectedCallback(): void {
+    super.connectedCallback();
+    document.addEventListener("click", this.onOutsideSearchClick);
+  }
+
+  /** @inheritDoc */
+  override disconnectedCallback(): void {
+    document.removeEventListener("click", this.onOutsideSearchClick);
+    super.disconnectedCallback();
+  }
+
+  /** Toggle the dropdown and focus the field after it becomes visible. */
+  private async onSearchToggle(): Promise<void> {
+    this.showMobileSearch = !this.showMobileSearch;
+    await this.updateComplete;
+    if (this.showMobileSearch) {
+      this.searchBox?.focus();
+    }
+  }
+
+  /**
+   * Dismiss keyboard search without losing the user's place in the bar.
+   * @param {KeyboardEvent} event The key pressed in the search controls.
+   */
+  private onSearchKeyDown(event: KeyboardEvent): void {
+    if (event.key === "Escape" && this.showMobileSearch) {
+      event.preventDefault();
+      this.showMobileSearch = false;
+      this.searchButton?.focus();
+    }
+  }
+
+  /** @inheritDoc */
+  protected override willUpdate(changedProperties: PropertyValues): void {
+    super.willUpdate(changedProperties);
+    // Do not reopen a stale dropdown after returning from another view.
+    if (this.numItemsSelected > 0 || this.artifactLink) {
+      this.showMobileSearch = false;
+    }
+  }
 
   /**
    * Whether we are showing the deletion dialog.
@@ -415,11 +511,29 @@ export class TopNavBar extends LitElement {
         </mdui-top-app-bar-title>
         ${this.numItemsSelected == 0 && !this.artifactLink
           ? html` <!-- Search box. -->
-              <search-box id="search"></search-box>`
+              <search-box
+                id="search"
+                class="${this.showMobileSearch ? "mobile-search-open" : ""}"
+                @keydown="${this.onSearchKeyDown}"
+              ></search-box>`
           : nothing}
 
         <!-- Align everything after to the right side. -->
         <div style="flex-grow: 1"></div>
+
+        ${this.numItemsSelected == 0 && !this.artifactLink
+          ? html`<md-icon-button
+              id="search_button"
+              title="Search"
+              aria-label="Search"
+              aria-expanded="${this.showMobileSearch}"
+              aria-controls="search"
+              @click="${this.onSearchToggle}"
+              @keydown="${this.onSearchKeyDown}"
+            >
+              <md-icon class="top-bar-icon">search</md-icon>
+            </md-icon-button>`
+          : nothing}
 
         <!-- Action items. -->
         ${inSelectionMode

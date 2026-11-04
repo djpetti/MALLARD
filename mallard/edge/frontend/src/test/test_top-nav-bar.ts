@@ -141,6 +141,91 @@ describe("top-nav-bar", () => {
     }
   });
 
+  it("toggles compact search and focuses the existing field", async () => {
+    await navBarElement.updateComplete;
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const button = root.querySelector("#search_button") as MdIconButton;
+    const search = root.querySelector("#search") as HTMLElement;
+    const focus = jest.spyOn(search, "focus");
+
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(button.getAttribute("aria-controls")).toBe(search.id);
+
+    button.click();
+    await navBarElement.updateComplete;
+
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(search.classList.contains("mobile-search-open")).toBe(true);
+    expect(focus).toHaveBeenCalledTimes(1);
+    // Keep one search instance so typed text and autocomplete survive toggling.
+    expect(root.querySelectorAll("search-box")).toHaveLength(1);
+
+    search.click();
+    await navBarElement.updateComplete;
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+
+    button.click();
+    await navBarElement.updateComplete;
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(root.querySelector("#search")).toBe(search);
+  });
+
+  it("dismisses compact search on Escape and returns focus to its button", async () => {
+    await navBarElement.updateComplete;
+    const root = getShadowRoot(ConnectedTopNavBar.tagName);
+    const button = root.querySelector("#search_button") as MdIconButton;
+    const search = root.querySelector("#search") as HTMLElement;
+    const focus = jest.spyOn(button, "focus");
+    button.click();
+    await navBarElement.updateComplete;
+
+    search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await navBarElement.updateComplete;
+
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses compact search when clicking outside", async () => {
+    await navBarElement.updateComplete;
+    const button = navBarElement.shadowRoot?.querySelector(
+      "#search_button"
+    ) as MdIconButton;
+    button.click();
+    await navBarElement.updateComplete;
+
+    document.body.click();
+    await navBarElement.updateComplete;
+
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  each(["selection", "details"]).it(
+    "removes search controls in %s mode and resets the dropdown",
+    async (mode: string) => {
+      await navBarElement.updateComplete;
+      const root = getShadowRoot(ConnectedTopNavBar.tagName);
+      (root.querySelector("#search_button") as MdIconButton).click();
+      await navBarElement.updateComplete;
+
+      if (mode === "selection") {
+        navBarElement.numItemsSelected = 1;
+      } else {
+        navBarElement.artifactLink = faker.internet.url();
+      }
+      await navBarElement.updateComplete;
+      expect(root.querySelector("#search")).toBeNull();
+      expect(root.querySelector("#search_button")).toBeNull();
+
+      navBarElement.numItemsSelected = 0;
+      navBarElement.artifactLink = null;
+      await navBarElement.updateComplete;
+      expect(
+        root.querySelector("#search_button")?.getAttribute("aria-expanded")
+      ).toBe("false");
+    }
+  );
+
   it("renders when showing the deletion progress indicator", async () => {
     // Arrange.
     // Show the progress indicator.

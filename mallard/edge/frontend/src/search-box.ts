@@ -55,8 +55,8 @@ export class SearchBox extends LitElement {
 
   static styles = css`
     #search {
-      width: 20vw;
-      min-width: 250px;
+      width: var(--search-box-width, 20vw);
+      min-width: var(--search-box-min-width, 250px);
     }
 
     #clear_button {
@@ -70,6 +70,7 @@ export class SearchBox extends LitElement {
     .autocomplete {
       position: relative;
       display: inline-block;
+      width: var(--search-box-width, auto);
     }
 
     .autocomplete-content {
@@ -85,8 +86,8 @@ export class SearchBox extends LitElement {
     }
 
     .autocomplete-background {
-      width: 20vw;
-      min-width: 250px;
+      width: var(--search-box-width, 20vw);
+      min-width: var(--search-box-min-width, 250px);
     }
 
     md-list-item:hover {
@@ -157,6 +158,11 @@ export class SearchBox extends LitElement {
 
   /** Keeps track of which date condition the user selected. */
   private selectedDateCondition: DateCondition = DateCondition.ON;
+
+  /** Focus the input rather than the custom-element host. */
+  override focus(): void {
+    this.searchBox.focus();
+  }
 
   /**
    * Clears the search box.

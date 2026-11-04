@@ -141,6 +141,18 @@ describe("search-box", () => {
     }
   );
 
+  it("focuses the search input when the component receives focus", async () => {
+    await searchBoxElement.updateComplete;
+    const field = searchBoxElement.shadowRoot?.querySelector(
+      "#search"
+    ) as MdFilledTextField;
+    await field.updateComplete;
+
+    searchBoxElement.focus();
+
+    expect(searchBoxElement.shadowRoot?.activeElement).toBe(field);
+  });
+
   it("renders the date autocomplete menu", async () => {
     // Arrange.
     // Show the menu.

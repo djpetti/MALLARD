@@ -30,6 +30,7 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       display: flex;
       justify-content: center;
       align-items: center;
+      border-radius: 10px;
     }
 
     .placeholder_icon {
@@ -61,6 +62,11 @@ export class ArtifactDisplay extends ArtifactInfoBase {
       object-fit: contain;
       position: relative;
       object-position: 50% top;
+      border-radius: 10px;
+    }
+
+    video {
+      border-radius: 10px;
     }
   `;
 

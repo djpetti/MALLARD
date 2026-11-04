@@ -293,7 +293,7 @@ describe("top-nav-bar", () => {
       ) as HTMLAnchorElement;
       expect(link.getAttribute("href")).toBe(url);
       expect(link.download).toBe(
-        `${navBarElement.artifactName}.timestamps.txt`
+        `${navBarElement.artifactName}_timestamps.txt`
       );
 
       // Prevent JSDOM navigation while verifying that the action starts a download.

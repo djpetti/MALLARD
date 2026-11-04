@@ -161,13 +161,13 @@ describe("api-client", () => {
 
       // Set this up so the function call doesn't fail.
       const mockThumbnailGet =
-        mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
+        mockApiClass.prototype.getThumbnailThumbnailBucketNameScaleGet;
       // @ts-ignore
       mockThumbnailGet.mockResolvedValue({ data: undefined });
 
       // Act.
       // Call a function that requires login.
-      await loadThumbnail(fakeObjectRef());
+      await loadThumbnail(fakeObjectRef(), 128);
 
       // Assert.
       // It should have checked login status.
@@ -299,47 +299,56 @@ describe("api-client", () => {
     expect(fakeError.toJSON).toBeCalledTimes(1);
   });
 
-  it("can load a thumbnail", async () => {
-    // Arrange.
-    // Fake a valid response.
-    const mockThumbnailGet =
-      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
+  each([128, 256, 384]).it(
+    "can load a thumbnail with width %i",
+    async (thumbnailWidth: number) => {
+      // Arrange.
+      // Fake a valid response.
+      const mockThumbnailGet =
+        mockApiClass.prototype.getThumbnailThumbnailBucketNameScaleGet;
 
-    const imageData = faker.image.cats(128, 128);
-    // @ts-ignore
-    mockThumbnailGet.mockResolvedValue({ data: imageData });
+      const imageData = new Blob([faker.datatype.string()], {
+        type: "image/jpeg",
+      });
+      // @ts-ignore
+      mockThumbnailGet.mockResolvedValue({ data: imageData });
 
-    const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
+      const imageId = {
+        bucket: faker.lorem.word(),
+        name: faker.datatype.uuid(),
+      };
 
-    // Act.
-    const result: Blob = await loadThumbnail(imageId);
+      // Act.
+      const result: Blob = await loadThumbnail(imageId, thumbnailWidth);
 
-    // Assert.
-    // It should have loaded the thumbnail.
-    expect(mockThumbnailGet).toBeCalledTimes(1);
-    expect(mockThumbnailGet).toBeCalledWith(
-      imageId.bucket,
-      imageId.name,
-      undefined,
-      { responseType: "blob", headers: { Authorization: expect.any(String) } }
-    );
+      // Assert.
+      // It should have loaded the thumbnail.
+      expect(mockThumbnailGet).toBeCalledTimes(1);
+      expect(mockThumbnailGet).toBeCalledWith(
+        imageId.bucket,
+        imageId.name,
+        thumbnailWidth,
+        undefined,
+        { responseType: "blob", headers: { Authorization: expect.any(String) } }
+      );
 
-    // It should have gotten the proper result.
-    expect(result).toEqual(imageData);
-  });
+      // It should have gotten the proper result.
+      expect(result).toBe(imageData);
+    }
+  );
 
   it("handles a failure when loading a thumbnail", async () => {
     // Arrange.
     // Make it look like loading a thumbnail fails.
     const mockThumbnailGet =
-      mockApiClass.prototype.getThumbnailThumbnailBucketNameGet;
+      mockApiClass.prototype.getThumbnailThumbnailBucketNameScaleGet;
     const fakeError = new FakeAxiosError();
     mockThumbnailGet.mockRejectedValue(fakeError);
 
     const imageId = { bucket: faker.lorem.word(), name: faker.datatype.uuid() };
 
     // Act and assert.
-    await expect(loadThumbnail(imageId)).rejects.toThrow(FakeAxiosError);
+    await expect(loadThumbnail(imageId, 128)).rejects.toThrow(FakeAxiosError);
 
     // It should have logged the error information.
     expect(fakeError.toJSON).toBeCalledTimes(1);

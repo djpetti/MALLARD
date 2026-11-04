@@ -294,15 +294,20 @@ export async function queryImages(
 /**
  * Loads a specific thumbnail.
  * @param {ObjectRef} imageId The ID of the image to load the thumbnail for.
+ * @param {number} thumbnailWidth The requested thumbnail width in pixels.
  * @return {Blob} The raw thumbnail image blob data.
  */
-export async function loadThumbnail(imageId: ObjectRef): Promise<Blob> {
+export async function loadThumbnail(
+  imageId: ObjectRef,
+  thumbnailWidth: number
+): Promise<Blob> {
   const authHeaders = await getAuthHeaders();
 
   const response = await api
-    .getThumbnailThumbnailBucketNameGet(
+    .getThumbnailThumbnailBucketNameScaleGet(
       imageId.bucket,
       imageId.name,
+      thumbnailWidth,
       undefined,
       {
         responseType: "blob",
@@ -362,7 +367,9 @@ export async function getMetadata(
         console.error(error.toJSON());
         throw error;
       });
-    response.data.metadata.forEach((m, i) => idsToMeta.set(imageIds[i].id, m));
+    response.data.metadata.forEach((m: UavImageMetadata, i: number) =>
+      idsToMeta.set(imageIds[i].id, m)
+    );
   }
   if (videoIds.length > 0) {
     const response = await videosApi
@@ -375,7 +382,9 @@ export async function getMetadata(
         console.error(error.toJSON());
         throw error;
       });
-    response.data.metadata.forEach((m, i) => idsToMeta.set(videoIds[i].id, m));
+    response.data.metadata.forEach((m: UavVideoMetadata, i: number) =>
+      idsToMeta.set(videoIds[i].id, m)
+    );
   }
 
   // Return metadata in the same order as the input.

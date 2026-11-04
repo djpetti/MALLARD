@@ -4,7 +4,7 @@ Unit tests for the `endpoints` module.
 
 import unittest.mock as mock
 from io import BytesIO
-from typing import Awaitable, Callable, Type
+from typing import AsyncIterable, Awaitable, Callable, Type
 
 import pytest
 from faker import Faker
@@ -139,6 +139,82 @@ def mock_transcoder_client(mocker: MockFixture) -> MockedTranscoderClient:
     )
 
 
+class TestVideoThumbnails:
+    """Test that video thumbnail streams are stored under their own widths."""
+
+    @pytest.mark.asyncio
+    async def test_store_distinct_variants(
+        self,
+        config: ConfigForTests,
+        create_uav_params: CreateUavParams,
+        mock_transcoder_client: MockedTranscoderClient,
+        faker: Faker,
+    ) -> None:
+        """Consume and store the distinct bytes returned for each resolution.
+
+        Args:
+            config: The mocked storage configuration.
+            create_uav_params: Common upload parameters.
+            mock_transcoder_client: The mocked transcoder functions.
+            faker: The fixture generating thumbnail contents.
+        """
+        contents = {width: faker.binary(100) for width in (128, 256, 384)}
+        stored: dict[ObjectRef, bytes] = {}
+        create_uav_params.mock_fill_metadata.return_value = (
+            create_uav_params.mock_metadata
+        )
+
+        async def thumbnail_stream(
+            video: ObjectRef, chunk_size: int, thumbnail_width: int
+        ) -> AsyncIterable[bytes]:
+            """Yield a unique thumbnail in multiple transport chunks.
+
+            Args:
+                video: The source video reference.
+                chunk_size: The requested streaming chunk size.
+                thumbnail_width: The requested horizontal resolution.
+
+            Yields:
+                A portion of the encoded thumbnail.
+            """
+            image = contents[thumbnail_width]
+            yield image[:50]
+            yield image[50:]
+
+        async def store_object(
+            object_id: ObjectRef,
+            *,
+            data: UploadFile | AsyncIterable[bytes],
+        ) -> None:
+            """Consume thumbnail streams as a real object store would.
+
+            Args:
+                object_id: The destination object reference.
+                data: The original upload or a generated thumbnail stream.
+            """
+            if isinstance(data, UploadFile):
+                return
+            stored[object_id] = b"".join([chunk async for chunk in data])
+
+        mock_transcoder_client.mock_create_thumbnail.side_effect = (
+            thumbnail_stream
+        )
+        config.mock_object_store.create_object.side_effect = store_object
+        response = await endpoints.create_uav_video(
+            metadata=UavVideoMetadata(),
+            video_data=create_uav_params.mock_file,
+            object_store=config.mock_object_store,
+            metadata_store=config.mock_metadata_store,
+            bucket=create_uav_params.bucket_id,
+            background_tasks=create_uav_params.mock_background_tasks,
+        )
+
+        assert stored == {
+            derived_id(response.video_id, "thumbnail", scale=width): data
+            for width, data in contents.items()
+        }
+
+
 @pytest.mark.asyncio
 async def test_create_uav_video(
     config: ConfigForTests,
@@ -190,7 +266,7 @@ async def test_create_uav_video(
     )
 
     # It should have updated the databases.
-    assert config.mock_object_store.create_object.call_count == 4
+    assert config.mock_object_store.create_object.call_count == 6
     config.mock_object_store.create_object.assert_any_call(
         got_video_id, data=create_uav_params.mock_file
     )
@@ -206,16 +282,18 @@ async def test_create_uav_video(
     )
 
     # It should have created the thumbnail.
-    mock_transcoder_client.mock_create_thumbnail.assert_called_once_with(
-        got_video_id, chunk_size=mock.ANY
-    )
+    assert mock_transcoder_client.mock_create_thumbnail.call_count == 3
     mock_thumbnail = mock_transcoder_client.mock_create_thumbnail.return_value
-    config.mock_object_store.create_object.assert_any_call(
-        ObjectRef(
-            bucket=got_video_id.bucket, name=f"{got_video_id.name}.thumbnail"
-        ),
-        data=mock_thumbnail,
-    )
+    for width in (128, 256, 384):
+        mock_transcoder_client.mock_create_thumbnail.assert_any_call(
+            got_video_id,
+            chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE,
+            thumbnail_width=width,
+        )
+        config.mock_object_store.create_object.assert_any_call(
+            derived_id(got_video_id, "thumbnail", scale=width),
+            data=mock_thumbnail,
+        )
 
     # It should have created the preview.
     mock_transcoder_client.mock_create_preview.assert_called_once_with(
@@ -307,8 +385,9 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
     # It should have deleted the corresponding items in both databases.
     # (There are one main artifact and 3 derived objects in the object store.)
     # Optional timestamps add a fourth derived object to clean up.
+    # Three sized thumbnails must also be removed alongside the legacy one.
     assert (
-        config.mock_object_store.delete_object.call_count == num_to_delete * 5
+        config.mock_object_store.delete_object.call_count == num_to_delete * 8
     )
     assert config.mock_metadata_store.delete.call_count == num_to_delete
     for object_ref in object_refs:
@@ -326,6 +405,10 @@ async def test_delete_videos(config: ConfigForTests, faker: Faker) -> None:
         config.mock_object_store.delete_object.assert_any_call(
             derived_id(object_ref, "timestamps")
         )
+        for width in (128, 256, 384):
+            config.mock_object_store.delete_object.assert_any_call(
+                derived_id(object_ref, "thumbnail", scale=width)
+            )
         config.mock_metadata_store.delete.assert_any_call(object_ref)
 
 

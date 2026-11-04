@@ -6,7 +6,7 @@ autogenerate this, but OpenAPI is weird about async stuff.
 import asyncio
 from asyncio import IncompleteReadError, TimeoutError
 from functools import singledispatch, wraps
-from typing import Any, AsyncIterable, Callable, Dict
+from typing import Any, AsyncIterable, Callable, Concatenate, Dict, ParamSpec
 
 import aiohttp
 from aiohttp.client_exceptions import (
@@ -154,13 +154,18 @@ async def ensure_faststart(video: ObjectRef) -> None:
             )
 
 
-TranscoderEndpoint = Callable[[ObjectRef, int], AsyncIterable[bytes]]
+_EndpointParams = ParamSpec("_EndpointParams")
+TranscoderEndpoint = Callable[
+    Concatenate[ObjectRef, _EndpointParams], AsyncIterable[bytes]
+]
 """
 Type alias for transcoder endpoint functions.
 """
 
 
-def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
+def _try_optimize_on_fail(
+    to_wrap: TranscoderEndpoint[_EndpointParams],
+) -> TranscoderEndpoint[_EndpointParams]:
     """
     Decorator that checks for a common failure case that occurs when the
     input video is unoptimized. If this case is detected, it will optimize
@@ -176,10 +181,22 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
 
     @wraps(to_wrap)
     async def _wrapped(
-        video: ObjectRef, chunk_size: int = 1024
+        video: ObjectRef,
+        *args: _EndpointParams.args,
+        **kwargs: _EndpointParams.kwargs,
     ) -> AsyncIterable[bytes]:
+        """Streams endpoint output, retrying after optimizing the video.
+
+        Args:
+            video: The video file.
+            *args: Positional arguments for the endpoint.
+            **kwargs: Keyword arguments for the endpoint.
+
+        Yields:
+            The endpoint output, in chunks.
+        """
         try:
-            async for chunk in to_wrap(video, chunk_size):
+            async for chunk in to_wrap(video, *args, **kwargs):
                 yield chunk
             return
         except ClientPayloadError:
@@ -190,8 +207,7 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
                 # the middle of converting the video to support faststart, so
                 # we're better off just retrying normally.
                 logger.error(
-                    "Video {} is unavailable, deferring to standard "
-                    "retry handler.",
+                    "Video {} is unavailable, deferring to standard retry handler.",
                     video,
                 )
                 raise VideoUnavailableError(f"Video {video} is not available.")
@@ -201,7 +217,8 @@ def _try_optimize_on_fail(to_wrap: TranscoderEndpoint) -> TranscoderEndpoint:
         await ensure_faststart(video)
 
         # Retry.
-        async for chunk in to_wrap(video, chunk_size):
+        # Preserve endpoint-specific options as well as the output chunk size.
+        async for chunk in to_wrap(video, *args, **kwargs):
             yield chunk
 
     return _wrapped
@@ -349,7 +366,7 @@ async def create_streamable(
 @client_retry
 @_try_optimize_on_fail
 async def create_thumbnail(
-    video: ObjectRef, chunk_size: int = 1024
+    video: ObjectRef, chunk_size: int = 1024, thumbnail_width: int = 128
 ) -> AsyncIterable[bytes]:
     """
     Creates a thumbnail for the video.
@@ -357,6 +374,7 @@ async def create_thumbnail(
     Args:
         video: The video file.
         chunk_size: Chunk size to use for the output iterator.
+        thumbnail_width: The thumbnail width in pixels, preserving aspect ratio.
 
     Returns:
         The thumbnail, in chunks.
@@ -365,6 +383,7 @@ async def create_thumbnail(
     logger.debug("Creating thumbnail for video {}...", video)
     async with get_session().post(
         f"/create_thumbnail/{video.bucket}/{video.name}",
+        params={"thumbnail_width": thumbnail_width},
     ) as response:
         if response.status != 200:
             raise HTTPException(

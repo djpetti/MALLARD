@@ -613,8 +613,23 @@ describe("thumbnail-grid-slice action creators", () => {
     }
   );
 
-  it("creates a loadThumbnail action", async () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    [undefined, 128],
+    [0.75, 128],
+    [1, 128],
+    [1.25, 256],
+    [1.5, 256],
+    [2, 256],
+    [2.5, 384],
+    [3, 384],
+    [4, 384],
+  ])("loads one %s-DPR thumbnail variant at width %s", async (dpr, width) => {
     // Arrange.
+    jest.replaceProperty(window, "devicePixelRatio", dpr as number);
     // Make it look like the loadThumbnail request succeeds.
     const rawImage = fakeFile();
     mockLoadThumbnail.mockResolvedValue(rawImage);
@@ -674,6 +689,14 @@ describe("thumbnail-grid-slice action creators", () => {
     // Assert.
     // It should have loaded two thumbnails.
     expect(mockLoadThumbnail).toHaveBeenCalledTimes(2);
+    expect(mockLoadThumbnail).toHaveBeenCalledWith(
+      unloadedImage1.backendId.id,
+      width
+    );
+    expect(mockLoadThumbnail).toHaveBeenCalledWith(
+      unloadedImage2.backendId.id,
+      width
+    );
 
     newState = store.getState().imageView;
 

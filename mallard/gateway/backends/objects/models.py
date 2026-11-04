@@ -2,7 +2,6 @@
 Data models for object storage.
 """
 
-
 import enum
 import uuid
 from datetime import date
@@ -55,19 +54,24 @@ class TypedObjectRef(BaseModel):
     type: ObjectType
 
 
-def derived_id(object_id: ObjectRef, suffix: str) -> ObjectRef:
+def derived_id(
+    object_id: ObjectRef, suffix: str, scale: int | None = None
+) -> ObjectRef:
     """
     Transforms an object ID to the ID for the corresponding derived object
 
     Args:
         object_id: The object ID.
         suffix: The suffix to append to the object name.
+        scale: Optional width in pixels to append after the suffix.
 
     Returns:
         The ID for the corresponding derived object.
 
     """
     derived_name = f"{object_id.name}.{suffix}"
+    if scale is not None:
+        derived_name = f"{derived_name}.{scale}"
     return ObjectRef(bucket=object_id.bucket, name=derived_name)
 
 

@@ -48,6 +48,30 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
       grid-gap: 0;
     }
 
+    /* Use the shorter viewport dimension so tablets keep their sizing when rotated. */
+    @media (600px < width <= 1024px) and (orientation: portrait),
+      (600px < height <= 1024px) and (orientation: landscape) {
+      #section_contents {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(calc(133px * 1.15), 1fr)
+        );
+      }
+    }
+
+    @media (max-width: 600px) and (orientation: portrait) {
+      #section_contents {
+        /* A zero minimum lets three columns fit even on narrow screens. */
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-height: 600px) and (orientation: landscape) {
+      #section_contents {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
     #section_divider {
       background-color: var(--md-sys-color-secondary);
       color: var(--md-sys-color-on-secondary);

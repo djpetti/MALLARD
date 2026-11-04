@@ -39,6 +39,7 @@ from ...backends.metadata.schemas import UavVideoMetadata, VideoFormat
 from ...backends.objects import InvalidRangeError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
 from ..common import (
+    THUMBNAIL_WIDTHS,
     check_key_errors,
     get_metadata,
     ignore_errors,
@@ -189,7 +190,6 @@ async def create_uav_video(
         raise error
 
     # Create and save the preview.
-    thumbnail_object_id = derived_id(object_id, "thumbnail")
     preview_object_id = derived_id(object_id, "preview")
     streamable_object_id = derived_id(object_id, "streamable")
 
@@ -221,10 +221,16 @@ async def create_uav_video(
     background_tasks.add_task(_create_streamable)
 
     # Create the thumbnail.
-    thumbnail = create_thumbnail(
-        object_id, chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE
-    )
-    await object_store.create_object(thumbnail_object_id, data=thumbnail)
+    for width in THUMBNAIL_WIDTHS:
+        # Consume each response before requesting another transcoder operation.
+        thumbnail = create_thumbnail(
+            object_id,
+            chunk_size=ObjectStore.UPLOAD_CHUNK_SIZE,
+            thumbnail_width=width,
+        )
+        await object_store.create_object(
+            derived_id(object_id, "thumbnail", scale=width), data=thumbnail
+        )
 
     return CreateResponse(video_id=object_id)
 
@@ -325,6 +331,16 @@ async def delete_videos(
                         )
                     )
                 )
+
+                # Keep legacy cleanup while also removing every sized variant.
+                for width in THUMBNAIL_WIDTHS:
+                    tasks.create_task(
+                        ignore_errors(
+                            object_store.delete_object(
+                                derived_id(video, "thumbnail", scale=width)
+                            )
+                        )
+                    )
 
                 # These are created as background tasks, and could
                 # potentially fail if the video is deleted before the tasks

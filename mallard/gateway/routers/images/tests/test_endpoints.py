@@ -2,7 +2,7 @@
 Unit tests for the `endpoints` module.
 """
 
-
+import io
 import unittest.mock as mock
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timezone
@@ -11,6 +11,7 @@ from typing import Type
 import pytest
 from faker import Faker
 from fastapi import HTTPException, UploadFile
+from PIL import Image
 from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 
@@ -18,10 +19,52 @@ from mallard.gateway.artifact_metadata import MissingLengthError
 from mallard.gateway.backends.metadata import MetadataOperationError
 from mallard.gateway.backends.metadata.schemas import UavImageMetadata
 from mallard.gateway.backends.objects import ObjectOperationError
-from mallard.gateway.backends.objects.models import ObjectRef
+from mallard.gateway.backends.objects.models import ObjectRef, derived_id
 from mallard.gateway.routers.conftest import ConfigForTests
 from mallard.gateway.routers.images import InvalidImageError, endpoints
 from mallard.type_helpers import ArbitraryTypesConfig
+
+
+class TestThumbnailGeneration:
+    """Test the dimensions and encoding of generated thumbnail variants."""
+
+    @pytest.mark.parametrize("width", endpoints.THUMBNAIL_WIDTHS)
+    @pytest.mark.parametrize("size", [(800, 400), (400, 800), (64, 32)])
+    def test_thumbnail_dimensions(
+        self, faker: Faker, width: int, size: tuple[int, int]
+    ) -> None:
+        """Preserve aspect ratio and produce the requested horizontal size.
+
+        Args:
+            faker: The fixture supplying image colors.
+            width: The requested thumbnail width.
+            size: The original image dimensions.
+        """
+        source = io.BytesIO()
+        color = tuple(faker.random_int(min=0, max=255) for _ in range(3))
+        Image.new("RGB", size, color).save(source, "PNG")
+        thumbnail = endpoints._create_thumbnail_sync(source.getvalue(), width)
+        with Image.open(thumbnail) as image:
+            assert image.size == (width, round(size[1] * width / size[0]))
+            assert image.format == "JPEG"
+            assert image.mode == "RGB"
+
+    @pytest.mark.parametrize("scale", [None, 128, 256, 384])
+    def test_derived_thumbnail_id(
+        self, faker: Faker, scale: int | None
+    ) -> None:
+        """Keep legacy identifiers stable and distinguish thumbnail widths.
+
+        Args:
+            faker: The fixture supplying object references.
+            scale: The optional horizontal resolution.
+        """
+        original = faker.object_ref()
+        result = derived_id(original, "thumbnail", scale=scale)
+        expected = f"{original.name}.thumbnail"
+        if scale is not None:
+            expected = f"{expected}.{scale}"
+        assert result == ObjectRef(bucket=original.bucket, name=expected)
 
 
 @dataclass(frozen=True, config=ArbitraryTypesConfig)
@@ -60,7 +103,7 @@ def create_uav_params(
 
     """
     # Create a fake file to upload.
-    mock_file = faker.upload_file()
+    mock_file = faker.upload_file(contents=faker.image().getvalue())
     # Create fake metadata.
     mock_metadata = mocker.create_autospec(UavImageMetadata, instance=True)
 
@@ -79,6 +122,64 @@ def create_uav_params(
     )
 
 
+class TestThumbnailStorage:
+    """Test rollback when only some thumbnail variants are stored."""
+
+    @pytest.mark.asyncio
+    async def test_partial_thumbnail_failure(
+        self,
+        config: ConfigForTests,
+        create_uav_params: CreateUavParams,
+        mocker: MockFixture,
+    ) -> None:
+        """Remove all variants after an individual thumbnail write fails.
+
+        Args:
+            config: The mocked storage configuration.
+            create_uav_params: Common upload parameters.
+            mocker: The fixture for replacing thumbnail generation.
+        """
+        mocker.patch.object(
+            endpoints,
+            "_create_thumbnail",
+            return_value={width: io.BytesIO() for width in (128, 256, 384)},
+        )
+
+        async def store_thumbnail(
+            object_id: ObjectRef, *, data: object
+        ) -> None:
+            """Fail one variant while allowing the remaining writes to finish.
+
+            Args:
+                object_id: The object being saved.
+                data: The uploaded bytes or stream.
+            """
+            if object_id.name.endswith(".thumbnail.256"):
+                raise ObjectOperationError("Thumbnail storage failed.")
+
+        config.mock_object_store.create_object.side_effect = store_thumbnail
+        with pytest.raises(ObjectOperationError):
+            await endpoints.create_uav_image(
+                metadata=create_uav_params.mock_metadata,
+                image_data=create_uav_params.mock_file,
+                object_store=config.mock_object_store,
+                metadata_store=config.mock_metadata_store,
+                bucket=create_uav_params.bucket_id,
+            )
+
+        created_ids = {
+            call.args[0]
+            for call in config.mock_object_store.create_object.call_args_list
+        }
+        deleted_ids = {
+            call.args[0]
+            for call in config.mock_object_store.delete_object.call_args_list
+        }
+        assert len(created_ids) == 4
+        assert deleted_ids == created_ids
+        config.mock_metadata_store.delete.assert_awaited_once()
+
+
 @pytest.mark.asyncio
 async def test_create_uav_image(
     config: ConfigForTests,
@@ -93,10 +194,10 @@ async def test_create_uav_image(
         create_uav_params: Common parameters for testing this endpoint.
         mocker: The fixture to use for mocking.
 
+
     """
     # Arrange.
-    # Mock out the PIL Image class.
-    mock_image_class = mocker.patch(endpoints.__name__ + ".Image")
+    # Use real image bytes so the stored JPEGs can be checked end to end.
 
     # Turn the process pool into a thread pool to make testing easier.
     mock_get_process_pool = mocker.patch(
@@ -122,7 +223,7 @@ async def test_create_uav_image(
     )
 
     # It should have updated the databases.
-    assert config.mock_object_store.create_object.call_count == 2
+    assert config.mock_object_store.create_object.call_count == 4
     config.mock_object_store.create_object.assert_any_call(
         got_image_id, data=create_uav_params.mock_file
     )
@@ -132,14 +233,23 @@ async def test_create_uav_image(
 
     # It should have created the thumbnail.
     create_uav_params.mock_file.read.assert_called_once_with()
-    mock_image_class.open.assert_called_once()
-    mock_image = mock_image_class.open.return_value
-    mock_image.thumbnail.assert_called_once()
-
-    mock_image.convert.assert_called_once_with("RGB")
-    mock_image = mock_image.convert.return_value
-
-    mock_image.save.assert_called_once_with(mock.ANY, format="jpeg")
+    stored_thumbnails = {
+        call.args[0]: call.kwargs["data"]
+        for call in config.mock_object_store.create_object.call_args_list
+        if call.args[0] != got_image_id
+    }
+    assert set(stored_thumbnails) == {
+        derived_id(got_image_id, "thumbnail", scale=width)
+        for width in endpoints.THUMBNAIL_WIDTHS
+    }
+    for width in endpoints.THUMBNAIL_WIDTHS:
+        thumbnail = stored_thumbnails[
+            derived_id(got_image_id, "thumbnail", scale=width)
+        ]
+        with Image.open(thumbnail) as image:
+            assert image.size == (width, width)
+            assert image.format == "JPEG"
+            assert image.mode == "RGB"
 
 
 @pytest.mark.asyncio
@@ -161,9 +271,11 @@ async def test_create_uav_image_write_failure(
         create_uav_params: Common parameters for testing this endpoint.
         exception: The specific failure mode to test.
 
+
     """
     # Arrange.
     # Make it look like the operations failed.
+
     config.mock_object_store.create_object.side_effect = exception
     config.mock_metadata_store.add.side_effect = exception
 
@@ -183,7 +295,7 @@ async def test_create_uav_image_write_failure(
         config.mock_metadata_store.delete.assert_called_once()
     else:
         # It should have deleted both the object and its thumbnail.
-        assert config.mock_object_store.delete_object.call_count == 2
+        assert config.mock_object_store.delete_object.call_count == 4
 
 
 @pytest.mark.asyncio
@@ -211,7 +323,7 @@ async def test_delete_images(config: ConfigForTests, faker: Faker) -> None:
     # Assert.
     # It should have deleted the corresponding items in both databases.
     assert (
-        config.mock_object_store.delete_object.call_count == num_to_delete * 2
+        config.mock_object_store.delete_object.call_count == num_to_delete * 5
     )
     assert config.mock_metadata_store.delete.call_count == num_to_delete
     for object_ref in object_refs:
@@ -221,6 +333,10 @@ async def test_delete_images(config: ConfigForTests, faker: Faker) -> None:
                 bucket=object_ref.bucket, name=f"{object_ref.name}.thumbnail"
             )
         )
+        for width in endpoints.THUMBNAIL_WIDTHS:
+            config.mock_object_store.delete_object.assert_any_call(
+                derived_id(object_ref, "thumbnail", scale=width)
+            )
         config.mock_metadata_store.delete.assert_any_call(object_ref)
 
 

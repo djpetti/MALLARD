@@ -1,12 +1,15 @@
 """
 Routs for endpoints common to all artifact types.
 """
+
+import asyncio
 from typing import Annotated, List, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from loguru import logger
 from starlette.responses import StreamingResponse
 
+from mallard.gateway.async_utils import get_process_pool
 from mallard.gateway.backends import backend_manager as backends
 from mallard.gateway.backends.metadata import (
     ArtifactMetadataStore,
@@ -15,6 +18,7 @@ from mallard.gateway.backends.metadata import (
 from mallard.gateway.backends.metadata.schemas import ImageQuery, Ordering
 from mallard.gateway.backends.objects import ObjectStore
 from mallard.gateway.backends.objects.models import ObjectRef, derived_id
+from mallard.gateway.routers.images.endpoints import _create_thumbnail_sync
 from mallard.gateway.routers.root.schemas import QueryResponse
 
 router = APIRouter()
@@ -73,10 +77,11 @@ async def query_artifacts(
     )
 
 
-@router.get("/thumbnail/{bucket}/{name}")
+@router.get("/thumbnail/{bucket}/{name}/{scale}")
 async def get_thumbnail(
     bucket: str,
     name: str,
+    scale: Annotated[int, Path(gt=0)],
     object_store: ObjectStore = Depends(backends.object_store),
 ) -> StreamingResponse:
     """
@@ -86,6 +91,7 @@ async def get_thumbnail(
         bucket: The bucket that the image is in.
         name: The name of the image.
         object_store: The object store to use.
+        scale: The requested horizontal thumbnail size in pixels.
 
     Returns:
         The binary contents of the thumbnail.
@@ -96,14 +102,27 @@ async def get_thumbnail(
     )
     object_id = ObjectRef(bucket=bucket, name=name)
 
-    thumbnail_object_id = derived_id(object_id, suffix="thumbnail")
+    thumbnail_object_id = derived_id(object_id, "thumbnail", scale=scale)
     try:
         image_stream = await object_store.get_object(thumbnail_object_id)
     except KeyError:
-        # The thumbnail doesn't exist.
-        raise HTTPException(
-            status_code=404,
-            detail="Requested thumbnail could not be found.",
+        try:
+            image_stream = await object_store.get_object(
+                derived_id(object_id, "thumbnail")
+            )
+        except KeyError:
+            # The thumbnail doesn't exist.
+            raise HTTPException(
+                status_code=404,
+                detail="Requested thumbnail could not be found.",
+            ) from None
+
+        # Legacy thumbnails must be buffered before resizing in another process.
+        image = b"".join([chunk async for chunk in image_stream])
+        loop = asyncio.get_running_loop()
+        thumbnail = await loop.run_in_executor(
+            get_process_pool(), _create_thumbnail_sync, image, scale
         )
+        return StreamingResponse(thumbnail, media_type="image/jpeg")
 
     return StreamingResponse(image_stream, media_type="image/jpeg")

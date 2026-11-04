@@ -2,7 +2,6 @@
 API endpoints for managing image data.
 """
 
-
 import asyncio
 import io
 from datetime import timezone
@@ -38,6 +37,7 @@ from ...backends.metadata.schemas import ImageFormat, UavImageMetadata
 from ...backends.objects import ObjectOperationError, ObjectStore
 from ...backends.objects.models import ObjectRef, derived_id, unique_name
 from ..common import (
+    THUMBNAIL_WIDTHS,
     check_key_errors,
     get_metadata,
     ignore_errors,
@@ -60,28 +60,27 @@ _IMAGE_FORMAT_TO_MIME_TYPES = {
 Maps image formats to corresponding MIME types.
 """
 
-_THUMBNAIL_SIZE = (128, 128)
-"""
-Max size in pixels of generated thumbnails.
-"""
 
-
-def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
+def _create_thumbnail_sync(image: bytes, width: int = 128) -> io.BytesIO:
     """
     Non-async version of `_create_thumbnail`. This is meant to be run in
     a separate process so as not to block the event loop.
 
     Args:
         image: The image data to create a thumbnail for.
+        width: The desired horizontal resolution in pixels.
 
     Returns:
         The thumbnail that it created.
 
     """
-    pil_image = Image.open(io.BytesIO(image))
-    pil_image.thumbnail(_THUMBNAIL_SIZE)
-    # Make sure it's an RGB image.
-    pil_image = pil_image.convert("RGB")
+    with Image.open(io.BytesIO(image)) as source:
+        # Preserve aspect ratio, including when upscaling a legacy thumbnail.
+        height = max(1, round(source.height * width / source.width))
+        # Make sure it's an RGB image.
+        pil_image = source.convert("RGB").resize(
+            (width, height), resample=Image.Resampling.LANCZOS
+        )
 
     # Save result as a JPEG.
     thumbnail = io.BytesIO()
@@ -91,7 +90,7 @@ def _create_thumbnail_sync(image: bytes) -> io.BytesIO:
     return thumbnail
 
 
-async def _create_thumbnail(image: bytes) -> io.BytesIO:
+async def _create_thumbnail(image: bytes) -> dict[int, io.BytesIO]:
     """
     Generates a thumbnail from an input image.
 
@@ -99,15 +98,21 @@ async def _create_thumbnail(image: bytes) -> io.BytesIO:
         image: The image to generate the thumbnail from.
 
     Returns:
-        The generated thumbnail.
+        The generated thumbnails, keyed by horizontal resolution.
 
     """
     # Run in a separate process so we don't block the event loop.
     logger.debug("Creating thumbnail for image.")
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        get_process_pool(), _create_thumbnail_sync, image
+    thumbnails = await asyncio.gather(
+        *(
+            loop.run_in_executor(
+                get_process_pool(), _create_thumbnail_sync, image, width
+            )
+            for width in THUMBNAIL_WIDTHS
+        )
     )
+    return dict(zip(THUMBNAIL_WIDTHS, thumbnails, strict=True))
 
 
 async def filled_uav_metadata(
@@ -199,11 +204,27 @@ async def create_uav_image(
     )
 
     # Create and save the thumbnail.
-    thumbnail_object_id = derived_id(object_id, "thumbnail")
+    thumbnail_object_ids = {
+        width: derived_id(object_id, "thumbnail", scale=width)
+        for width in THUMBNAIL_WIDTHS
+    }
 
     async def _create_and_save_thumbnail() -> None:
-        thumbnail = await _create_thumbnail(image_bytes)
-        await object_store.create_object(thumbnail_object_id, data=thumbnail)
+        """Generate and store each resolution of the image thumbnail."""
+        thumbnails = await _create_thumbnail(image_bytes)
+        results = await asyncio.gather(
+            *(
+                object_store.create_object(
+                    thumbnail_object_ids[width], data=thumbnail
+                )
+                for width, thumbnail in thumbnails.items()
+            ),
+            return_exceptions=True,
+        )
+        # Finish every write before rollback can remove partially saved sizes.
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
     thumbnail_task = asyncio.create_task(_create_and_save_thumbnail())
 
@@ -213,12 +234,28 @@ async def create_uav_image(
         # If one operation fails, it would be best to try and roll back the
         # other.
         logger.info("Rolling back object creation {} upon error.", object_id)
-        await object_store.delete_object(object_id)
-        await object_store.delete_object(thumbnail_object_id)
+        await asyncio.gather(
+            object_task, metadata_task, thumbnail_task, return_exceptions=True
+        )
+        await asyncio.gather(
+            *(
+                ignore_errors(object_store.delete_object(ref))
+                for ref in (object_id, *thumbnail_object_ids.values())
+            )
+        )
         raise error
     except ObjectOperationError as error:
         logger.info("Rolling back metadata add for {} upon error.", object_id)
-        await metadata_store.delete(object_id)
+        await asyncio.gather(
+            object_task, metadata_task, thumbnail_task, return_exceptions=True
+        )
+        await ignore_errors(metadata_store.delete(object_id))
+        await asyncio.gather(
+            *(
+                ignore_errors(object_store.delete_object(ref))
+                for ref in (object_id, *thumbnail_object_ids.values())
+            )
+        )
         raise error
 
     return CreateResponse(image_id=object_id)
@@ -254,6 +291,15 @@ async def delete_images(
                         )
                     )
                 )
+                # Delete sized thumbnails as well as the legacy thumbnail.
+                for width in THUMBNAIL_WIDTHS:
+                    tasks.create_task(
+                        ignore_errors(
+                            object_store.delete_object(
+                                derived_id(image, "thumbnail", scale=width)
+                            )
+                        )
+                    )
                 tasks.create_task(metadata_store.delete(image))
 
 

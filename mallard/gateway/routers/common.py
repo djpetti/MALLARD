@@ -2,7 +2,6 @@
 Utilities that are common to all routers.
 """
 
-
 import asyncio
 from contextlib import contextmanager
 from typing import Any, Awaitable, Iterable, List, Set, Type
@@ -17,6 +16,11 @@ from ..backends.metadata import (
 )
 from ..backends.metadata.schemas import Metadata
 from ..backends.objects.models import ObjectRef
+
+THUMBNAIL_WIDTHS = (128, 256, 384)
+"""
+Horizontal resolutions in pixels for 1x, 2x, and 3x thumbnails.
+"""
 
 
 @contextmanager
@@ -40,8 +44,7 @@ def check_key_errors() -> Iterable[None]:
             logger.error("Could not find artifacts: {}", combined_error)
             raise HTTPException(
                 status_code=404,
-                detail=f"Some of the artifacts could not be "
-                f"found:\n{combined_error}",
+                detail=f"Some of the artifacts could not be found:\n{combined_error}",
             )
 
         if others is not None:

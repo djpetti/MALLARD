@@ -370,6 +370,10 @@ const thunkLoadThumbnailsChunk = createAsyncThunk(
   async (imageIds: string[], { getState }): Promise<LoadImageReturn[]> => {
     const promises: Promise<Blob>[] = [];
     const filteredIds: string[] = [];
+    // Thumbnails occupy 128 CSS pixels; fetch only the smallest sufficient variant.
+    const targetWidth = 128 * (window.devicePixelRatio || 1);
+    const thumbnailWidth =
+      [128, 256, 384].find((width) => width >= targetWidth) ?? 384;
     for (const imageId of imageIds) {
       // This should never be undefined, because that means our image ID is invalid.
       const imageEntity: ArtifactEntity = thumbnailGridSelectors.selectById(
@@ -381,7 +385,7 @@ const thunkLoadThumbnailsChunk = createAsyncThunk(
         continue;
       }
 
-      promises.push(loadThumbnail(imageEntity.backendId.id));
+      promises.push(loadThumbnail(imageEntity.backendId.id, thumbnailWidth));
       filteredIds.push(imageId);
     }
 

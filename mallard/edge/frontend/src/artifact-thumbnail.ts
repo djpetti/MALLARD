@@ -64,8 +64,7 @@ export class ArtifactThumbnail extends ArtifactDisplay {
 
     :host {
       display: inline-block;
-      margin: 0.5rem;
-      min-width: 128px;
+      margin: 0.25rem;
       min-height: 80px;
       position: relative;
     }

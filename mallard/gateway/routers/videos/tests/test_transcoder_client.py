@@ -372,20 +372,27 @@ async def test_create_streamable_bad_response(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "thumbnail_width",
+    [None, 128, 256, 384],
+    ids=["default", "128", "256", "384"],
+)
 async def test_create_thumbnail(
     config: ConfigForTests,
     faker: Faker,
     mock_response: ClientResponse,
     binary_content: bytes,
+    thumbnail_width: int | None,
 ) -> None:
     """
-    Tests that `create_thumbnail` works.
+    Tests that `create_thumbnail` forwards the selected or default width.
 
     Args:
         config: The configuration to use for testing.
         faker: The fixture to use for generating fake data.
         mock_response: The mocked response object.
         binary_content: The binary content of the response object.
+        thumbnail_width: The requested width, or None to use the default.
 
     """
     # Arrange.
@@ -396,8 +403,11 @@ async def test_create_thumbnail(
     mock_post.return_value.__aenter__.return_value = mock_response
 
     # Act.
+    width_options = (
+        {} if thumbnail_width is None else {"thumbnail_width": thumbnail_width}
+    )
     got_preview = transcoder_client.create_thumbnail(
-        video_ref,
+        video_ref, 512, **width_options
     )
 
     # Assert.
@@ -407,7 +417,15 @@ async def test_create_thumbnail(
 
     config.mock_get_session.assert_called_once_with()
     mock_post.assert_called_once_with(
-        f"/create_thumbnail/{video_ref.bucket}/{video_ref.name}"
+        f"/create_thumbnail/{video_ref.bucket}/{video_ref.name}",
+        params={
+            "thumbnail_width": (
+                128 if thumbnail_width is None else thumbnail_width
+            )
+        },
+    )
+    mock_response.content.readexactly.assert_has_awaits(
+        [mock.call(512)] * mock_response.content.readexactly.await_count
     )
 
 
@@ -444,30 +462,47 @@ async def test_create_thumbnail_bad_response(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "endpoint",
+    "endpoint, thumbnail_width",
     [
-        transcoder_client.create_preview,
-        transcoder_client.create_thumbnail,
-        transcoder_client.create_streamable,
+        (transcoder_client.create_preview, None),
+        (transcoder_client.create_streamable, None),
+        (transcoder_client.create_thumbnail, None),
+        (transcoder_client.create_thumbnail, 128),
+        (transcoder_client.create_thumbnail, 256),
+        (transcoder_client.create_thumbnail, 384),
     ],
-    ids=["create_preview", "create_thumbnail", "create_streamable"],
+    ids=[
+        "create_preview",
+        "create_streamable",
+        "thumbnail_default",
+        "thumbnail_128",
+        "thumbnail_256",
+        "thumbnail_384",
+    ],
+)
+@pytest.mark.parametrize(
+    "positional_args", [False, True], ids=["keyword", "positional"]
 )
 async def test_optimize_on_fail(
     config: ConfigForTests,
     faker: Faker,
     mock_response: ClientResponse,
     binary_content: bytes,
-    endpoint: transcoder_client.TranscoderEndpoint,
+    endpoint: transcoder_client.TranscoderEndpoint[...],
+    thumbnail_width: int | None,
+    positional_args: bool,
 ) -> None:
     """
-    Tests that the endpoints that support it can automatically optimize the
-    video for streaming.
+    Tests that optimization retries preserve endpoint options and chunk size.
 
     Args:
         config: The configuration to use for testing.
         faker: The fixture to use for generating fake data.
         mock_response: The mocked response object.
         binary_content: The binary content of the response object.
+        endpoint: The endpoint to exercise.
+        thumbnail_width: The requested width, or None to use the default.
+        positional_args: Whether to pass endpoint options positionally.
 
     """
     # Arrange.
@@ -484,9 +519,17 @@ async def test_optimize_on_fail(
     )
 
     # Act.
-    got_video = endpoint(
-        video_ref,
-    )
+    chunk_size = 512
+    if positional_args:
+        args = (chunk_size,)
+        if thumbnail_width is not None:
+            args += (thumbnail_width,)
+        got_video = endpoint(video_ref, *args)
+    else:
+        options = {"chunk_size": chunk_size}
+        if thumbnail_width is not None:
+            options["thumbnail_width"] = thumbnail_width
+        got_video = endpoint(video_ref, **options)
 
     # Assert.
     # It should have read the transcode results.
@@ -502,3 +545,19 @@ async def test_optimize_on_fail(
         f"/ensure_faststart/{video_ref.bucket}/{video_ref.name}",
         timeout=mock.ANY,
     )
+    mock_response.content.readexactly.assert_has_awaits(
+        [mock.call(chunk_size)] * mock_response.content.readexactly.await_count
+    )
+
+    # Both thumbnail attempts must use the selected width, not just the retry.
+    if endpoint is transcoder_client.create_thumbnail:
+        thumbnail_call = mock.call(
+            f"/create_thumbnail/{video_ref.bucket}/{video_ref.name}",
+            params={
+                "thumbnail_width": (
+                    128 if thumbnail_width is None else thumbnail_width
+                )
+            },
+        )
+        assert mock_post.call_args_list[0] == thumbnail_call
+        assert mock_post.call_args_list[2] == thumbnail_call

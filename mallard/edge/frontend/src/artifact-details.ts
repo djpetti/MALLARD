@@ -38,23 +38,34 @@ export class ArtifactDetails extends LitElement {
 
     .grid-layout {
       display: grid;
+      /* Allow content to shrink instead of widening the page. */
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .main-panel-layout,
+    .side-panel-layout {
+      min-width: 0;
     }
 
     /* The main image panel. */
-    @media only screen and (orientation: landscape) {
+    /* Short landscape viewports use the stacked layout, just like portrait. */
+    @media only screen and (orientation: landscape) and (min-height: 600px) {
       /* Landscape layout. */
+      .grid-layout {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      }
+
       .main-panel-layout {
-        grid-column-start: 1;
-        grid-column-end: 3;
+        grid-column: 1;
       }
 
       .side-panel-layout {
-        grid-column-start: 3;
-        grid-column-end: 5;
+        grid-column: 2;
       }
     }
 
-    @media only screen and (orientation: portrait) {
+    @media only screen and (orientation: portrait),
+      only screen and (height < 600px) {
       /* Portrait layout. */
       .main-panel-layout {
         grid-column-start: 1;
@@ -67,14 +78,15 @@ export class ArtifactDetails extends LitElement {
       }
     }
 
-    @media only screen and (orientation: landscape) {
+    @media only screen and (orientation: landscape) and (min-height: 600px) {
       .side-panel {
         left: 100%;
         animation-name: fly-in-right;
       }
     }
 
-    @media only screen and (orientation: portrait) {
+    @media only screen and (orientation: portrait),
+      only screen and (height < 600px) {
       .side-panel {
         top: 100%;
         animation-name: fly-in-bottom;
@@ -85,7 +97,7 @@ export class ArtifactDetails extends LitElement {
     .side-panel {
       overflow: auto;
       /* Extra 64px leaves room for the navigation bar. */
-      height: calc(100vh - 64px);
+      height: calc(100dvh - 64px);
 
       /** Start all the way off to the side. */
       position: relative;

@@ -1,5 +1,5 @@
 import { ArtifactDisplay } from "./artifact-display";
-import { css, html, PropertyValues, TemplateResult } from "lit";
+import { css, html, TemplateResult } from "lit";
 import store from "./store";
 import { ArtifactStatus } from "./types";
 import {
@@ -21,16 +21,56 @@ import { connectRedux } from "./connected-element";
  */
 export class LargeArtifactDisplay extends ArtifactDisplay {
   static styles = css`
-    @media only screen and (orientation: landscape) {
+    ${ArtifactDisplay.styles}
+
+    /* Keep this breakpoint in sync with the details page grid layout. */
+    @media only screen and (orientation: landscape) and (min-height: 600px) {
       :host {
         /* Extra 64px leaves room for the navigation bar. */
-        height: calc(100vh - 64px);
+        height: calc(100dvh - 64px);
+      }
+
+      #media_container {
+        height: 100%;
+        min-height: 0;
+      }
+
+      img#media {
+        /* Fit the image inside the panel without measuring its aspect ratio. */
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        object-fit: contain;
+        object-position: center top;
+      }
+    }
+
+    @media only screen and (orientation: portrait),
+      only screen and (height < 600px) {
+      :host {
+        padding-right: 10px;
+      }
+
+      img#media {
+        /* Fill the column even for small images while preserving aspect ratio. */
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+      }
+
+      #media_container.placeholder {
+        height: calc(100dvh - 64px);
       }
     }
 
     :host {
       display: block;
       width: 100%;
+      min-width: 0;
+      /* Include the inset in the panel dimensions to avoid overflow. */
+      box-sizing: border-box;
+      padding-top: 10px;
+      padding-left: 10px;
     }
 
     .transcode_message_background {
@@ -81,12 +121,6 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     #download_icon {
       color: var(--md-sys-color-background);
     }
-
-    .placeholder {
-      height: 100vh;
-    }
-
-    ${ArtifactDisplay.styles}
   `;
 
   static readonly tagName = "large-artifact-display";
@@ -108,51 +142,6 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
   // Default to showing the animation for large images, which might
   // take a while to load.
   showLoadingAnimation = true;
-
-  /**
-   * Observer for resize events on the image.
-   */
-  private resizeObserver!: ResizeObserver;
-
-  /**
-   * Adjusts the size of the image so that it takes up the maximum amount of
-   * screen real-estate without overflowing.
-   * @private
-   */
-  private adjustSizes() {
-    if (this.type === ObjectType.VIDEO) {
-      // MediaPlayer already knows how to adjust its own size.
-      return;
-    }
-
-    const isPortrait = window.innerHeight > window.innerWidth;
-
-    const fullscreenHeight = this.clientHeight;
-    // Maximum width allowed by the column layout.
-    const maxWidth = this.clientWidth;
-
-    // Adjust the image and placeholder to use the full height.
-    if (this.displayContainer) {
-      if (isPortrait) {
-        this.displayContainer.style.height = "auto";
-      } else {
-        // Take up the whole viewport with the placeholder.
-        this.displayContainer.style.height = `${fullscreenHeight}px`;
-      }
-    }
-    if (this.media) {
-      if (isPortrait) {
-        this.media.style.height = "auto";
-      } else {
-        // Determine the maximum allowable height for the media that won't
-        // overflow horizontally.
-        const boundingRect = this.media.getBoundingClientRect();
-        const maxHeight = (boundingRect.height / boundingRect.width) * maxWidth;
-
-        this.media.style.height = `${maxHeight}px`;
-      }
-    }
-  }
 
   /**
    * Sets up periodic reloading of the video.
@@ -221,31 +210,6 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
         </div>
       </div>
     `;
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected override firstUpdated(_changedProperties: PropertyValues) {
-    super.firstUpdated(_changedProperties);
-
-    // Add event handlers for window resizing.
-    this.resizeObserver = new ResizeObserver(() => this.adjustSizes());
-    this.resizeObserver.observe(this);
-
-    // Always resize after the first rendering.
-    this.adjustSizes();
-  }
-
-  /**
-   * @inheritDoc
-   */
-  protected override updated(_changedProperties: PropertyValues) {
-    super.updated(_changedProperties);
-
-    if (_changedProperties.has("sourceUrl")) {
-      this.adjustSizes();
-    }
   }
 
   /**

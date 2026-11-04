@@ -44,14 +44,6 @@ jest.mock("../store", () => ({
   configureStore: jest.fn(),
 }));
 
-// Mock the ResizeObserver class, because JSDom doesn't implement it.
-const mockResizeObserver = jest.fn(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}));
-global.ResizeObserver = mockResizeObserver;
-
 // Use fake timers.
 jest.useFakeTimers();
 jest.spyOn(window, "setInterval");
@@ -92,10 +84,9 @@ describe("large-artifact-display", () => {
     // Assert.
     expect(displayElement.frontendId).toBeUndefined();
 
-    // It should have added the ResizeObserver.
-    expect(mockResizeObserver).toBeCalledTimes(1);
-    const mockResizeObserverInstance = mockResizeObserver.mock.results[0].value;
-    expect(mockResizeObserverInstance.observe).toBeCalledWith(displayElement);
+    // The loading placeholder is available before an artifact is selected.
+    const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
+    expect(root.querySelector("#media_container.placeholder")).not.toBeNull();
   });
 
   it("renders the transcoding message when the video fails to load", async () => {
@@ -163,72 +154,29 @@ describe("large-artifact-display", () => {
     expect(handler).toBeCalledTimes(1);
   });
 
-  each([
-    ["landscape", 1920, 1080],
-    ["portrait", 1080, 1920],
-  ]).it(
-    "sets the image size when the image is updated in %s orientation",
-    async (_, screenWidth: number, screenHeight: number) => {
-      // Arrange.
-      // Set the screen size.
-      Object.defineProperty(displayElement, "clientHeight", {
-        value: screenHeight,
-      });
-      Object.defineProperty(displayElement, "clientWidth", {
-        value: screenWidth,
-      });
-      Object.defineProperty(window, "innerHeight", {
-        value: screenHeight,
-      });
-      Object.defineProperty(window, "innerWidth", {
-        value: screenWidth,
-      });
+  it("leaves image sizing to CSS when the source changes", async () => {
+    // Arrange.
+    displayElement.type = ObjectType.IMAGE;
+    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
+    await displayElement.updateComplete;
 
-      // Set up the bounding rectangle check.
-      const mockGetBoundingClientRect = jest.fn();
-      const imageWidth = screenWidth / 2;
-      const imageHeight = screenHeight / 3;
-      mockGetBoundingClientRect.mockReturnValue({
-        width: imageWidth,
-        height: imageHeight,
-      });
+    const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
+    const containerElement = root.querySelector(
+      "#media_container"
+    ) as HTMLElement;
+    const internalImage = root.querySelector("#media") as HTMLImageElement;
 
-      // Act.
-      // Update the image.
-      displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
-      // Wait for it to render.
-      await displayElement.updateComplete;
+    // Act.
+    displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
+    await displayElement.updateComplete;
 
-      const root = getShadowRoot(ConnectedLargeArtifactDisplay.tagName);
-      const containerElement = root.querySelector(
-        "#media_container"
-      ) as HTMLElement;
-      const internalImage = root.querySelector("#media") as HTMLImageElement;
-
-      // Mock out the boundingClientRectangle check.
-      Object.assign(internalImage, {
-        getBoundingClientRect: mockGetBoundingClientRect,
-      });
-
-      // Force it to adjust sizes again.
-      displayElement.sourceUrl = faker.image.image(undefined, undefined, true);
-      await displayElement.updateComplete;
-
-      // Assert.
-      if (screenWidth > screenHeight) {
-        // It should have set the height of the underlying elements.
-        expect(containerElement.style.height).toEqual(`${screenHeight}px`);
-        // Image should be sized so as not to overflow.
-        expect(internalImage.style.height).toEqual(
-          `${(imageHeight / imageWidth) * screenWidth}px`
-        );
-      } else {
-        // In portrait mode, it should not mess with the sizing.
-        expect(containerElement.style.height).toEqual("auto");
-        expect(internalImage.style.height).toEqual("auto");
-      }
-    }
-  );
+    // Assert.
+    expect(internalImage.src).toEqual(displayElement.sourceUrl);
+    // Inline dimensions would override the orientation-dependent CSS rules.
+    expect(containerElement.style.height).toEqual("");
+    expect(internalImage.style.height).toEqual("");
+    expect(containerElement.classList.contains("placeholder")).toBe(false);
+  });
 
   each([
     ["not specified", undefined, ObjectType.IMAGE, false],

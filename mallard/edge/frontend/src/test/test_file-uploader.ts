@@ -355,25 +355,32 @@ describe("file-uploader", () => {
     }
   );
 
-  it("forwards click events on the browse button to the file input", () => {
-    // Arrange.
-    // Get the elements.
-    const shadowRoot = getShadowRoot(fileUploader.tagName);
-    const browseButton = shadowRoot.querySelector("#browse") as HTMLElement;
-    const uploadInput = shadowRoot.querySelector("#file_input") as HTMLElement;
+  it.each(["browse", "mobile_browse"])(
+    "forwards click events on the %s button to the file input",
+    (buttonId: string) => {
+      // Arrange.
+      // Get the elements.
+      const shadowRoot = getShadowRoot(fileUploader.tagName);
+      const browseButton = shadowRoot.querySelector(
+        `#${buttonId}`
+      ) as HTMLElement;
+      const uploadInput = shadowRoot.querySelector(
+        "#file_input"
+      ) as HTMLElement;
 
-    // Add a handler for the click event.
-    const handler = jest.fn();
-    uploadInput.addEventListener("click", handler);
+      // Add a handler for the click event.
+      const handler = jest.fn();
+      uploadInput.addEventListener("click", handler);
 
-    // Act.
-    // Simulate the click event.
-    browseButton.dispatchEvent(new Event("click"));
+      // Act.
+      // Simulate the click event.
+      browseButton.dispatchEvent(new Event("click"));
 
-    // Assert.
-    // It should have called the handler.
-    expect(handler).toBeCalledTimes(1);
-  });
+      // Assert.
+      // It should have called the handler.
+      expect(handler).toBeCalledTimes(1);
+    }
+  );
 
   it("updates the properties from the Redux state", () => {
     // Arrange.

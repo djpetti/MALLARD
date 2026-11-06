@@ -138,6 +138,40 @@ export class FileUploader extends LitElement {
       float: right;
     }
 
+    #mobile_browse_container {
+      display: none;
+    }
+
+    /* Short touch-screen layouts also need room for files in landscape. */
+    @media (max-width: 600px), (max-height: 600px) and (pointer: coarse) {
+      :host {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        width: 100%;
+      }
+
+      #drop_zone_container {
+        display: none;
+      }
+
+      .file_list {
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        height: auto;
+        margin: 0;
+      }
+
+      #mobile_browse_container {
+        display: flex;
+        justify-content: center;
+        align-self: stretch;
+        flex-shrink: 0;
+        padding-top: 15px;
+      }
+    }
+
     #file_list {
       width: 100%;
     }
@@ -307,7 +341,7 @@ export class FileUploader extends LitElement {
           >
             Browse
             <md-icon slot="icon">folder_open</md-icon>
-        </md-outlined-button>
+          </md-outlined-button>
         </mdui-card>
       </div>
 
@@ -315,17 +349,32 @@ export class FileUploader extends LitElement {
         <file-list id="file_list"></file-list>
 
         <!-- Bottom pill showing upload progress. -->
-        <mdui-card variant="elevated" class="pill ${pillVisibilityClass}" id="pill">
-            <div class="pill-content flex-center">
-              <md-circular-progress
-                value="${this.numFilesUploaded / this.uploadingFiles.length}"
-              ></md-circular-progress>
-              <p id="upload_progress_text">
-                ${numRemainingUploads} files to upload
-              </p>
-            </div>
-          </mdui-card>
-        </div>
+        <mdui-card
+          variant="elevated"
+          class="pill ${pillVisibilityClass}"
+          id="pill"
+        >
+          <div class="pill-content flex-center">
+            <md-circular-progress
+              value="${this.numFilesUploaded / this.uploadingFiles.length}"
+            ></md-circular-progress>
+            <p id="upload_progress_text">
+              ${numRemainingUploads} files to upload
+            </p>
+          </div>
+        </mdui-card>
+      </div>
+
+      <!-- Keep file selection available when the desktop drop-zone card is hidden. -->
+      <div id="mobile_browse_container">
+        <md-outlined-button
+          id="mobile_browse"
+          @click="${(_: Event) => this.fileInput.click()}"
+          trailing-icon
+        >
+          Browse
+          <md-icon slot="icon">folder_open</md-icon>
+        </md-outlined-button>
       </div>
     `;
   }

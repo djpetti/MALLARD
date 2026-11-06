@@ -39,8 +39,6 @@ export class MallardApp extends LitElement {
     }
 
     #upload_modal {
-      /** Provide for two-column layout. */
-      max-width: 2000px;
       max-height: 100%;
     }
 
@@ -54,6 +52,34 @@ export class MallardApp extends LitElement {
 
     #metadata_column {
       margin-left: 24px;
+    }
+
+    @media (max-width: 600px), (max-height: 600px) and (pointer: coarse) {
+      #upload_modal {
+        width: calc(100vw - 20px);
+        max-width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px);
+        min-width: 0;
+      }
+
+      /* Give the uploader the full dialog width so Browse centers in the modal. */
+      #upload_row {
+        /* Reserve room for the dialog headline, actions, padding, and margins. */
+        height: min(70dvh, calc(100dvh - 200px));
+        flex-direction: column;
+        flex-wrap: nowrap;
+      }
+
+      #upload_column {
+        min-width: 0;
+        min-height: 0;
+        width: 100%;
+      }
+
+      #metadata_column {
+        flex: none;
+        margin-left: 0;
+      }
     }
   `;
 

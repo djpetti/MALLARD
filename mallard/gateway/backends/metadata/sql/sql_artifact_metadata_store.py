@@ -2,7 +2,6 @@
 A metadata store that interfaces with a SQL database.
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from functools import singledispatchmethod
 from typing import (
@@ -17,9 +16,12 @@ from typing import (
 
 from confuse import ConfigView
 from loguru import logger
-from sqlalchemy import ColumnElement, or_, true
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import ColumnElement, or_, text, true
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import Select, select
@@ -38,19 +40,24 @@ from ..schemas import (
 from .models import Artifact, Base, Image, Raster, Video
 
 
-def _create_session_maker(db_url: str) -> sessionmaker:
-    """
-    Creates the `sessionmaker` for a particular database.
+@asynccontextmanager
+async def _create_session_maker(
+    db_url: str,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Creates a session factory and manages its connection pool's lifetime.
 
     Args:
         db_url: The URL of the database.
 
-    Returns:
-        The appropriate session-maker.
-
+    Yields:
+        The session factory bound to the database's shared engine.
     """
     engine = create_async_engine(db_url, echo_pool=True, pool_recycle=3600)
-    return sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    try:
+        yield async_sessionmaker(engine, expire_on_commit=False)
+    finally:
+        # Dispose pooled connections even when backend initialization fails.
+        await engine.dispose()
 
 
 class SqlArtifactMetadataStore(
@@ -70,32 +77,29 @@ class SqlArtifactMetadataStore(
 
         logger.info("Connecting to SQL database at {}.", db_url)
 
-        # Create the session.
-        session_maker = _create_session_maker(db_url)
-        async with session_maker() as session:
-            yield cls(session)
+        # Create the shared factory without opening a session at startup.
+        async with _create_session_maker(db_url) as session_factory:
+            yield cls(session_factory)
 
     def __init__(
         self,
-        session: AsyncSession,
+        session_factory: async_sessionmaker[AsyncSession],
         *,
         pydantic_type: Type[MetadataTypeVar] = Metadata,
         enable_match: bool = True,
-    ):
+    ) -> None:
         """
         Args:
-            session: The session to use for communicating with the database.
+            session_factory: Factory for independent transactional sessions.
             pydantic_type: Pydantic metadata type to use.
             enable_match: Enables the MATCH keyword for full-text search.
                 Some databases might not support this.
 
         """
-        self.__unsafe_session = session
+        # Share the connection pool, not mutable session state, between tasks.
+        self.__session_factory = session_factory
         self.__pydantic_type = pydantic_type
         self.__enable_match = enable_match
-
-        # Manages access to the raw session between concurrent tasks.
-        self.__session_lock = asyncio.Lock()
 
         # Maps orderings to corresponding columns in the ORM.
         self.__order_to_column = {
@@ -109,25 +113,51 @@ class SqlArtifactMetadataStore(
     @asynccontextmanager
     async def __session_begin(self) -> AsyncIterator[AsyncSession]:
         """
-        A substitute for `session.begin()` meant to ensure that two
-        co-routines don't use the same session at once.
+        Creates an independent session and transaction for an operation.
 
         Examples:
             ```
-            with self.__session_begin() as session:
+            async with self.__session_begin() as session:
                 query = select(Image)
-                session.execute(query)
+                await session.execute(query)
             ```
 
         Yields:
             The session that we should use.
 
         """
-        # In the future, we can potentially replace this with some
-        # fancy-pants session pool system, but for now, just locking access
-        # to a single session is probably fine.
-        async with self.__session_lock, self.__unsafe_session.begin():
-            yield self.__unsafe_session
+        # The engine's pool reuses connections while sessions remain task-local;
+        # the context commits or rolls back and closes the session on exit.
+        async with self.__session_factory.begin() as session:
+            yield session
+
+    @asynccontextmanager
+    async def __write_session_begin(
+        self, object_id: ObjectRef
+    ) -> AsyncIterator[AsyncSession]:
+        """Locks an artifact before reading or modifying its metadata graph.
+
+        Args:
+            object_id: The object whose writers must be serialized.
+
+        Yields:
+            A transactional session holding the parent lock until exit.
+        """
+        async with self.__session_begin() as session:
+            if session.get_bind().dialect.name == "sqlite":
+                # SQLite ignores FOR UPDATE, so reserve its writer before reads.
+                await session.execute(text("BEGIN IMMEDIATE"))
+            # Lock the parent before any select-in loads establish a snapshot.
+            query = (
+                select(Artifact.bucket)
+                .where(
+                    Artifact.bucket == object_id.bucket,
+                    Artifact.key == object_id.name,
+                )
+                .with_for_update()
+            )
+            await session.execute(query)
+            yield session
 
     def __merge_orm_to_pydantic(self, *orm_models: Base) -> MetadataTypeVar:
         """
@@ -464,7 +494,12 @@ class SqlArtifactMetadataStore(
 
         # Add the new image.
         image = self._pydantic_to_orm_model(object_id, metadata)
-        async with self.__session_begin() as session:
+        transaction = (
+            self.__write_session_begin(object_id)
+            if overwrite
+            else self.__session_begin()
+        )
+        async with transaction as session:
             if overwrite:
                 await session.merge(image)
             else:
@@ -473,13 +508,48 @@ class SqlArtifactMetadataStore(
     async def get(self, object_id: ObjectRef) -> MetadataTypeVar:
         async with self.__session_begin() as session:
             model = await self.__get_by_id(object_id, session=session)
+            return self.__orm_model_to_pydantic(model)
 
-        return self.__orm_model_to_pydantic(model)
+    async def update(
+        self,
+        *,
+        object_id: ObjectRef,
+        metadata: MetadataTypeVar,
+        merge: bool = True,
+    ) -> None:
+        """Updates metadata, keeping a merged read and write atomic.
+
+        Args:
+            object_id: The object whose metadata should be updated.
+            metadata: The new metadata to merge or replace.
+            merge: Whether non-None fields should override existing values.
+
+        Raises:
+            KeyError: If merging metadata for an object that does not exist.
+        """
+        if not merge:
+            # Preserve replacement's existing upsert behavior without merging fields.
+            await self.add(
+                object_id=object_id, metadata=metadata, overwrite=True
+            )
+            return
+
+        async with self.__write_session_begin(object_id) as session:
+            old_model = await self.__get_by_id(object_id, session=session)
+            merged_metadata = self._merge_metadata(
+                object_id=object_id,
+                old_metadata=self.__orm_model_to_pydantic(old_model),
+                metadata=metadata,
+            )
+            # All artifact, raster, and subtype writes share the locked transaction.
+            await session.merge(
+                self._pydantic_to_orm_model(object_id, merged_metadata)
+            )
 
     async def delete(self, object_id: ObjectRef) -> None:
         logger.debug("Deleting metadata for object {}.", object_id)
 
-        async with self.__session_begin() as session:
+        async with self.__write_session_begin(object_id) as session:
             artifact = await self.__get_by_id(object_id, session=session)
             await session.delete(artifact)
 
@@ -525,13 +595,17 @@ class SqlArtifactMetadataStore(
         # Execute the query.
         async with self.__session_begin() as session:
             query_results = await session.execute(selection)
+            # Detach plain references before yielding to a potentially slow caller.
+            results = [
+                TypedObjectRef(
+                    id=ObjectRef(bucket=result.bucket, name=result.key),
+                    type=self.__object_type(result),
+                )
+                for result in query_results.scalars()
+            ]
 
-        for result in query_results.scalars():
-            object_type = self.__object_type(result)
-            yield TypedObjectRef(
-                id=ObjectRef(bucket=result.bucket, name=result.key),
-                type=object_type,
-            )
+        for result in results:
+            yield result
 
 
 class SqlRasterMetadataStore(

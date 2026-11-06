@@ -3,9 +3,10 @@ Tests for the `sql_raster_metadata_store` module.
 """
 
 import unittest.mock as mock
+from contextlib import nullcontext
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Type
 
 import pytest
 import pytest_asyncio
@@ -14,8 +15,11 @@ from pydantic.dataclasses import dataclass
 from pytest_mock import MockFixture
 from sqlalchemy.engine import ScalarResult
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from mallard.config_view_mock import ConfigViewMock
 from mallard.gateway.backends.metadata.schemas import (
@@ -77,6 +81,7 @@ class ConfigForTests:
         store: The `SqlImageMetadataStore` under test.
 
         mock_session: The mocked `AsyncSession` to use.
+        mock_session_factory: The factory that creates transaction contexts.
         mock_select: The mocked `select` function to use.
 
         class_specific: The class-specific configuration.
@@ -85,6 +90,7 @@ class ConfigForTests:
     store: sql_artifact_metadata_store.SqlArtifactMetadataStore
 
     mock_session: AsyncSession
+    mock_session_factory: mock.Mock
     mock_select: mock.Mock
 
     class_specific: ClassSpecificConfig
@@ -105,7 +111,7 @@ class TestSqlArtifactMetadataStore:
         ids=["image", "video", "base"],
     )
     def class_specific_config(
-        cls, request, faker: Faker
+        cls, request: pytest.FixtureRequest, faker: Faker
     ) -> ClassSpecificConfig:
         """
         Generates subclass-specific configuration for tests.
@@ -175,26 +181,39 @@ class TestSqlArtifactMetadataStore:
         mock_query.union.return_value = mock_query
         mock_query.join_from.return_value = mock_query
         mock_query.from_statement.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
 
-        store = class_specific_config.store_class(mock_session)
+        # The factory owns each transaction context, not the store's session.
+        mock_session_factory = mocker.Mock(spec=async_sessionmaker)
+        mock_session_factory.begin.return_value = mocker.MagicMock()
+        mock_session_factory.begin.return_value.__aenter__.return_value = (
+            mock_session
+        )
+        mock_session.get_bind.return_value.dialect.name = "sqlite"
+        mock_session.bind = mocker.Mock()
+        mock_session.bind.dialect.name = "sqlite"
+        store = class_specific_config.store_class(mock_session_factory)
 
         return ConfigForTests(
             store=store,
             mock_session=mock_session,
+            mock_session_factory=mock_session_factory,
             mock_select=mock_select,
             class_specific=class_specific_config,
         )
 
     @pytest_asyncio.fixture()
-    async def sqlite_session(self, tmp_path: Path) -> AsyncSession:
+    async def sqlite_session_factory(
+        self, tmp_path: Path
+    ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
         """
-        Creates a new SQL session backed by a SQLite DB.
+        Creates a SQL session factory backed by a SQLite DB.
 
         Args:
             tmp_path: The root path for temporary files.
 
-        Returns:
-            The session that it created.
+        Yields:
+            The session factory that it created.
 
         """
         db_path = tmp_path / "test_metadata.db"
@@ -205,12 +224,11 @@ class TestSqlArtifactMetadataStore:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
 
-        # Create the session.
-        session_maker = sessionmaker(
-            engine, expire_on_commit=False, class_=AsyncSession
-        )
-        async with session_maker() as session:
-            yield session
+        # Create a fresh session for each operation and release pooled resources.
+        try:
+            yield async_sessionmaker(engine, expire_on_commit=False)
+        finally:
+            await engine.dispose()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("uav", [True, False], ids=["uav", "ground"])
@@ -315,8 +333,10 @@ class TestSqlArtifactMetadataStore:
         )
 
         # Assert.
+        # Reading and writing a merged graph must share one transaction.
+        config.mock_session_factory.begin.assert_called_once_with()
         # It should have set the new metadata.
-        config.mock_session.merge.assert_called_once()
+        config.mock_session.merge.assert_awaited_once()
         added_model = config.mock_session.merge.call_args[0][0]
 
         # Check that the proper new metadata was set.
@@ -436,8 +456,8 @@ class TestSqlArtifactMetadataStore:
         await config.store.delete(object_id)
 
         # Assert.
-        # It should have performed a deletion.
-        config.mock_select.assert_called_once()
+        # It should lock the parent before loading the graph for deletion.
+        assert config.mock_select.call_count == 2
         mock_artifact = (
             config.mock_session.execute.return_value.scalar_one.return_value
         )
@@ -578,12 +598,20 @@ class TestSqlArtifactMetadataStore:
         mock_query.where.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_from_config(self, mocker: MockFixture) -> None:
+    @pytest.mark.parametrize("fail_in_context", [False, True])
+    async def test_from_config(
+        self,
+        mocker: MockFixture,
+        class_specific_config: ClassSpecificConfig,
+        fail_in_context: bool,
+    ) -> None:
         """
         Tests that `from_config` works.
 
         Args:
             mocker: The fixture to use for mocking.
+            class_specific_config: The subclass to construct.
+            fail_in_context: Whether consumer failure should trigger cleanup.
 
         """
         # Arrange.
@@ -594,44 +622,61 @@ class TestSqlArtifactMetadataStore:
         mock_create_async_engine = mocker.patch(
             f"{sql_artifact_metadata_store.__name__}.create_async_engine"
         )
+        engine = mock_create_async_engine.return_value
+        engine.dispose = mocker.AsyncMock()
         mock_session_maker = mocker.patch(
-            f"{sql_artifact_metadata_store.__name__}.sessionmaker"
+            f"{sql_artifact_metadata_store.__name__}.async_sessionmaker"
         )
+        factory = mock_session_maker.return_value
 
         # Act.
-        async with sql_artifact_metadata_store.SqlImageMetadataStore.from_config(
-            mock_config
-        ):
-            # Assert.
-            # It should have created the session.
-            mock_create_async_engine.assert_called_once_with(
-                mock_config["endpoint_url"].as_str.return_value,
-                echo_pool=mocker.ANY,
-                pool_recycle=mocker.ANY,
-            )
-            mock_session_maker.assert_called_once()
+        expectation = (
+            pytest.raises(RuntimeError, match="Consumer failed")
+            if fail_in_context
+            else nullcontext()
+        )
+        with expectation:
+            async with class_specific_config.store_class.from_config(
+                mock_config
+            ) as store:
+                # Assert.
+                # Startup should create the factory without opening a session.
+                assert isinstance(store, class_specific_config.store_class)
+                mock_create_async_engine.assert_called_once_with(
+                    mock_config["endpoint_url"].as_str.return_value,
+                    echo_pool=mocker.ANY,
+                    pool_recycle=mocker.ANY,
+                )
+                mock_session_maker.assert_called_once_with(
+                    engine, expire_on_commit=False
+                )
+                factory.assert_not_called()
+                factory.begin.assert_not_called()
+                engine.dispose.assert_not_awaited()
+                if fail_in_context:
+                    raise RuntimeError("Consumer failed")
 
-            # It should have entered the session context.
-            mock_session_factory = mock_session_maker.return_value
-            mock_session_factory.assert_called_once_with()
-            mock_session_factory.return_value.__aenter__.assert_called_once()
+        # The engine belongs to the factory context, including exceptional exit.
+        engine.dispose.assert_awaited_once_with()
 
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_add_get(
-        self, sqlite_session: AsyncSession, faker: Faker
+        self,
+        sqlite_session_factory: async_sessionmaker[AsyncSession],
+        faker: Faker,
     ) -> None:
         """
         Tests that we can add and get metadata to and from an actual database.
 
         Args:
-            sqlite_session: The SQLite session to use for testing.
+            sqlite_session_factory: The SQLite session factory to use for testing.
             faker: Fixture to use for generating fake data.
 
         """
         # Arrange.
         store = sql_artifact_metadata_store.SqlImageMetadataStore(
-            sqlite_session
+            sqlite_session_factory
         )
 
         metadata = faker.image_metadata()
@@ -639,9 +684,7 @@ class TestSqlArtifactMetadataStore:
 
         # Act.
         await store.add(object_id=object_id, metadata=metadata)
-        # Force a session close here to simulate two separate sessions, which
-        # is how we would typically use this.
-        await sqlite_session.close()
+        # Each operation now opens and closes its own independent session.
         got_metadata = await store.get(object_id)
 
         # Assert.
@@ -650,19 +693,21 @@ class TestSqlArtifactMetadataStore:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_add_delete(
-        self, sqlite_session: AsyncSession, faker: Faker
+        self,
+        sqlite_session_factory: async_sessionmaker[AsyncSession],
+        faker: Faker,
     ) -> None:
         """
         Tests that we can add metadata and then delete it.
 
         Args:
-            sqlite_session: The SQLite session to use for testing.
+            sqlite_session_factory: The SQLite session factory to use for testing.
             faker: Fixture to use for generating fake data.
 
         """
         # Arrange.
         store = sql_artifact_metadata_store.SqlImageMetadataStore(
-            sqlite_session
+            sqlite_session_factory
         )
 
         metadata = faker.image_metadata()
@@ -670,12 +715,9 @@ class TestSqlArtifactMetadataStore:
 
         # Act.
         await store.add(object_id=object_id, metadata=metadata)
-        # Force a session close here to simulate two separate sessions, which
-        # is how we would typically use this.
-        await sqlite_session.close()
+        # Each operation now opens and closes its own independent session.
         # Delete the metadata.
         await store.delete(object_id)
-        await sqlite_session.close()
 
         # Assert.
         # Now trying to get this metadata should fail.
@@ -685,20 +727,22 @@ class TestSqlArtifactMetadataStore:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_standard_queries(
-        self, sqlite_session: AsyncSession, faker: Faker
+        self,
+        sqlite_session_factory: async_sessionmaker[AsyncSession],
+        faker: Faker,
     ) -> None:
         """
         Tests that we can perform some pretty standard queries.
 
         Args:
-            sqlite_session: The SQLite session to use for testing.
+            sqlite_session_factory: The SQLite session factory to use for testing.
             faker: Fixture to use for generating fake data.
 
         """
         # Arrange.
         store = sql_artifact_metadata_store.SqlImageMetadataStore(
             # SQLite only supports MATCH in limited contexts.
-            sqlite_session,
+            sqlite_session_factory,
             enable_match=False,
         )
 
@@ -730,8 +774,7 @@ class TestSqlArtifactMetadataStore:
         await store.add(object_id=object_id1.id, metadata=metadata1)
         await store.add(object_id=object_id2.id, metadata=metadata2)
         await store.add(object_id=object_id3.id, metadata=metadata3)
-        # Simulate a fresh session.
-        await sqlite_session.close()
+        # Queries use fresh sessions without an explicit close between operations.
 
         # Act.
         # Perform some queries.

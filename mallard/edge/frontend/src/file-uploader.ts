@@ -148,6 +148,7 @@ export class FileUploader extends LitElement {
         display: flex;
         flex-direction: column;
         min-width: 0;
+        min-height: 0;
         width: 100%;
       }
 
@@ -161,6 +162,7 @@ export class FileUploader extends LitElement {
         min-width: 0;
         height: auto;
         margin: 0;
+        overflow: auto;
       }
 
       #mobile_browse_container {
@@ -168,6 +170,8 @@ export class FileUploader extends LitElement {
         justify-content: center;
         align-self: stretch;
         flex-shrink: 0;
+        /* Keep Browse anchored below the independently scrolling file list. */
+        margin-top: auto;
         padding-top: 15px;
       }
     }

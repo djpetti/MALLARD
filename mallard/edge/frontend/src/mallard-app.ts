@@ -62,23 +62,36 @@ export class MallardApp extends LitElement {
         min-width: 0;
       }
 
-      /* Give the uploader the full dialog width so Browse centers in the modal. */
+      /* Keep Browse centered within the uploader rather than across both columns. */
       #upload_row {
         /* Reserve room for the dialog headline, actions, padding, and margins. */
         height: min(70dvh, calc(100dvh - 200px));
-        flex-direction: column;
         flex-wrap: nowrap;
+        gap: 16px;
       }
 
-      #upload_column {
+      #upload_column,
+      #metadata_column {
+        flex: 1 1 0;
         min-width: 0;
         min-height: 0;
-        width: 100%;
       }
 
       #metadata_column {
-        flex: none;
+        display: block;
         margin-left: 0;
+        overflow-y: auto;
+      }
+    }
+
+    @media (max-width: 600px) and (orientation: portrait) {
+      #upload_row {
+        flex-direction: column;
+      }
+
+      #upload_column {
+        /* Reserve file-list space even when the metadata form is taller. */
+        flex: 0 0 45%;
       }
     }
   `;

@@ -9,6 +9,7 @@ running it.
    and NPM.
 1. In the MALLARD directory, run `poetry install --no-root` to install the
    Python dependencies.
+1. Run `playwright install` to install testing dependencies for `playwright`.
 1. Run `poetry shell` to activate the Python virtual environment.
 1. The `deploy.py` script automates the process of building the frontend.
    Run `python deploy.py build` to do this now.
@@ -59,5 +60,5 @@ only made changes to the frontend. Adding this option is not strictly needed,
 but it speeds up the build process quite a bit.
 
 Once you have rebuilt the frontend, make sure that you reload the page in
-your browser *with caching disabled*. The method of doing this varies
+your browser _with caching disabled_. The method of doing this varies
 between browsers.

@@ -61,6 +61,7 @@ export class MetadataForm extends LitElement {
     .radio_field {
       min-height: max(30%, 36px);
       font-size: 16px;
+      margin-top: 5px;
     }
 
     label {
@@ -73,6 +74,64 @@ export class MetadataForm extends LitElement {
 
     md-outlined-text-field {
       padding: 10px;
+    }
+
+    .field_unit {
+      justify-content: center;
+      margin-left: 10px;
+    }
+
+    .field_unit p {
+      margin: 0;
+    }
+
+    @media (max-width: 600px), (max-height: 600px) and (pointer: coarse) {
+      :host {
+        display: block;
+        min-width: 0;
+        width: 100%;
+      }
+
+      #main {
+        min-width: 0;
+        width: 100%;
+      }
+
+      #form {
+        padding: 12px;
+      }
+
+      /* Stack fields within the narrow form column in either phone orientation. */
+      #form > .row {
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .column_width1,
+      .column_width2 {
+        min-width: 0;
+      }
+
+      md-outlined-text-field,
+      md-filled-text-field {
+        box-sizing: border-box;
+        min-width: 0;
+        width: 100%;
+      }
+
+      md-outlined-text-field {
+        padding: 8px 0;
+      }
+
+      #platform_type_row {
+        min-height: 0;
+      }
+
+      .radio_field {
+        display: inline-flex;
+        align-items: center;
+      }
     }
   `;
 
@@ -222,7 +281,7 @@ export class MetadataForm extends LitElement {
               this.updateMetadataNumber(event, "altitudeMeters")}"
           ></md-outlined-text-field>
         </div>
-        <div class="column_width1"><p>mAGL</p></div>
+        <div class="column_width1 field_unit"><p>mAGL</p></div>
       </div>
       <div class="row">
         <div class="column_width2">
@@ -238,7 +297,7 @@ export class MetadataForm extends LitElement {
               this.updateMetadataNumber(event, "gsdCmPx")}"
           ></md-outlined-text-field>
         </div>
-        <div class="column_width1"><p>cm/px</p></div>
+        <div class="column_width1 field_unit"><p>cm/px</p></div>
       </div>
     `;
 

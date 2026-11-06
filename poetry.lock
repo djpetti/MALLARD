@@ -1016,7 +1016,7 @@ version = "3.1.1"
 description = "Lightweight in-process concurrent programming"
 optional = false
 python-versions = ">=3.7"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "greenlet-3.1.1-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:0bbae94a29c9e5c7e4a2b7f0aae5c17e8e90acbfd3bf6270eeba60c39fce3563"},
     {file = "greenlet-3.1.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0fde093fb93f35ca72a556cf72c92ea3ebfda3d79fc35bb19fbe685853869a83"},
@@ -1463,6 +1463,7 @@ optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
+    {file = "methodtools-0.4.7-py2.py3-none-any.whl", hash = "sha256:5e188c780b236adc12e75b5f078c5afb419ef99eb648569fc6d7071f053a1f11"},
     {file = "methodtools-0.4.7.tar.gz", hash = "sha256:e213439dd64cfe60213f7015da6efe5dd4003fd89376db3baa09fe13ec2bb0ba"},
 ]
 
@@ -1713,6 +1714,28 @@ files = [
 docs = ["furo (>=2025.9.25)", "proselint (>=0.14)", "sphinx (>=8.2.3)", "sphinx-autodoc-typehints (>=3.2)"]
 test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest (>=8.4.2)", "pytest-cov (>=7)", "pytest-mock (>=3.15.1)"]
 type = ["mypy (>=1.18.2)"]
+
+[[package]]
+name = "playwright"
+version = "1.64.1"
+description = "A high-level API to automate web browsers"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "playwright-1.64.1-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:29453ff76e25c17d0b45658cacd6b92e9eec46e8db21e134fb3b7143df50f013"},
+    {file = "playwright-1.64.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:59f7b041284ce8d1b72098ae50ca48a2d83692eec25154ab5ba79d4b6b4fe8a9"},
+    {file = "playwright-1.64.1-py3-none-macosx_11_0_universal2.whl", hash = "sha256:6a6f99adad1ae40e6ee62efe89785db861ce7ddd57651521cb31894183cc4ae3"},
+    {file = "playwright-1.64.1-py3-none-manylinux1_x86_64.whl", hash = "sha256:577b8d88778c245cfbd145ae17cf53044f084b1b46c55c69081d4069d56057e2"},
+    {file = "playwright-1.64.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a29fda44725e11b0b625c4bff6458a1f6dbee97b88c9788d12e18a8344458c2d"},
+    {file = "playwright-1.64.1-py3-none-win32.whl", hash = "sha256:d3c48b31da426c2f3562d0919cb9ea4e5415f6dbd29d7211fa4d66cca24fbd2f"},
+    {file = "playwright-1.64.1-py3-none-win_amd64.whl", hash = "sha256:5e240a79464434c9260957b9ef59a5808e02e96e3fcabdc717fd7485260b9730"},
+    {file = "playwright-1.64.1-py3-none-win_arm64.whl", hash = "sha256:983ccd085453ea5a7588193657fc349a6ffbf7bf7ba663fd58dc81e4aa3af9d9"},
+]
+
+[package.dependencies]
+greenlet = ">=3.1.1,<4.0.0"
+pyee = ">=13,<15"
 
 [[package]]
 name = "pluggy"
@@ -2018,6 +2041,21 @@ files = [
 typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
+name = "pyee"
+version = "14.0.0"
+description = "A rough port of Node.js's EventEmitter to Python with a few tricks of its own"
+optional = false
+python-versions = ">=3.12"
+groups = ["dev"]
+files = [
+    {file = "pyee-14.0.0-py3-none-any.whl", hash = "sha256:3ac2d3229a9677f7de2c33d7f52fe25b638a46b19c413fea2edc8c6d0a644e4d"},
+    {file = "pyee-14.0.0.tar.gz", hash = "sha256:76dd0f4314ecd27f02dc73589dea7fd3853f9b6176d8ef9b122860657e3602de"},
+]
+
+[package.dependencies]
+typing-extensions = "*"
+
+[[package]]
 name = "pyflakes"
 version = "3.2.0"
 description = "passive checker of Python programs"
@@ -2177,6 +2215,26 @@ pytest = ">=6.2.5"
 
 [package.extras]
 dev = ["pre-commit", "pytest-asyncio", "tox"]
+
+[[package]]
+name = "pytest-playwright"
+version = "0.10.0"
+description = "A pytest wrapper with fixtures for Playwright to automate web browsers"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "pytest_playwright-0.10.0-py3-none-any.whl", hash = "sha256:8314d1af726e2c15531635902ece3ee47ed83f5a75c937a7eda8686d3dae6c0d"},
+    {file = "pytest_playwright-0.10.0.tar.gz", hash = "sha256:47baf574dfb120bb53675d05c9784f8bf94e04c6dd7477dc56159ce732191952"},
+]
+
+[package.dependencies]
+playwright = ">=1.18"
+pytest = ">=7.0.0,<10.0.0"
+python-slugify = ">=6.0.0,<10.0.0"
+
+[package.extras]
+base-url = ["pytest-base-url (>=1.0.0,<3.0.0)"]
 
 [[package]]
 name = "pytest-xdist"
@@ -2836,6 +2894,7 @@ optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
+    {file = "wirerope-0.4.7-py2.py3-none-any.whl", hash = "sha256:332973a3be6898f02fd0e73b2e20414c5102cc6c811d75856a938206677495c8"},
     {file = "wirerope-0.4.7.tar.gz", hash = "sha256:f3961039218276283c5037da0fa164619def0327595f10892d562a61a8603990"},
 ]
 
@@ -2873,6 +2932,16 @@ files = [
     {file = "wrapt-1.14.1-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:8ad85f7f4e20964db4daadcab70b47ab05c7c1cf2a7c1e51087bfaa83831854c"},
     {file = "wrapt-1.14.1-cp310-cp310-win32.whl", hash = "sha256:a9a52172be0b5aae932bef82a79ec0a0ce87288c7d132946d645eba03f0ad8a8"},
     {file = "wrapt-1.14.1-cp310-cp310-win_amd64.whl", hash = "sha256:6d323e1554b3d22cfc03cd3243b5bb815a51f5249fdcbb86fda4bf62bab9e164"},
+    {file = "wrapt-1.14.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:ecee4132c6cd2ce5308e21672015ddfed1ff975ad0ac8d27168ea82e71413f55"},
+    {file = "wrapt-1.14.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:2020f391008ef874c6d9e208b24f28e31bcb85ccff4f335f15a3251d222b92d9"},
+    {file = "wrapt-1.14.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2feecf86e1f7a86517cab34ae6c2f081fd2d0dac860cb0c0ded96d799d20b335"},
+    {file = "wrapt-1.14.1-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:240b1686f38ae665d1b15475966fe0472f78e71b1b4903c143a842659c8e4cb9"},
+    {file = "wrapt-1.14.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a9008dad07d71f68487c91e96579c8567c98ca4c3881b9b113bc7b33e9fd78b8"},
+    {file = "wrapt-1.14.1-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:6447e9f3ba72f8e2b985a1da758767698efa72723d5b59accefd716e9e8272bf"},
+    {file = "wrapt-1.14.1-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:acae32e13a4153809db37405f5eba5bac5fbe2e2ba61ab227926a22901051c0a"},
+    {file = "wrapt-1.14.1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:49ef582b7a1152ae2766557f0550a9fcbf7bbd76f43fbdc94dd3bf07cc7168be"},
+    {file = "wrapt-1.14.1-cp311-cp311-win32.whl", hash = "sha256:358fe87cc899c6bb0ddc185bf3dbfa4ba646f05b1b0b9b5a27c2cb92c2cea204"},
+    {file = "wrapt-1.14.1-cp311-cp311-win_amd64.whl", hash = "sha256:26046cd03936ae745a502abf44dac702a5e6880b2b01c29aea8ddf3353b68224"},
     {file = "wrapt-1.14.1-cp35-cp35m-manylinux1_i686.whl", hash = "sha256:43ca3bbbe97af00f49efb06e352eae40434ca9d915906f77def219b88e85d907"},
     {file = "wrapt-1.14.1-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:6b1a564e6cb69922c7fe3a678b9f9a3c54e72b469875aa8018f18b4d1dd1adf3"},
     {file = "wrapt-1.14.1-cp35-cp35m-manylinux2010_i686.whl", hash = "sha256:00b6d4ea20a906c0ca56d84f93065b398ab74b927a7a3dbd470f6fc503f95dc3"},
@@ -3020,4 +3089,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.13"
-content-hash = "8a9404e27e28c16ea37a2fed475ccab67eb1798c55e0cfad6c67a49113d2018e"
+content-hash = "9d80175f15db49e261deb3e3c383599aef28e6b41b464d471feb4e7cda41646b"

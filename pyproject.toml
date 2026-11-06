@@ -57,6 +57,7 @@ PyMySQL = ">=0.9"
 Faker = "^13.3.4"
 pytest-xdist = "^3.6.1"
 cookiecutter = "^2.1.1"
+pytest-playwright = "^0.10.0"
 
 [tool.black]
 line-length = 79

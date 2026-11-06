@@ -11,6 +11,9 @@ import { ArtifactDisplay } from "./artifact-display";
 import { ObjectType, UavImageMetadata, UavVideoMetadata } from "mallard-api";
 import { connectRedux } from "./connected-element";
 
+/** Duration shared by the touch-hold timer and its visual feedback. */
+const TOUCH_HOLD_DURATION_MS = 1000;
+
 /** Custom event indicating that the selection status has changed. */
 type SelectedEvent = CustomEvent<boolean>;
 
@@ -71,6 +74,31 @@ export class ArtifactThumbnail extends ArtifactDisplay {
 
     .parent-size {
       height: 100%;
+    }
+
+    .hold-feedback {
+      transform: scale(1);
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .holding {
+      transform: scale(0.85);
+      transition: transform ${TOUCH_HOLD_DURATION_MS}ms linear;
+    }
+
+    @media (any-pointer: coarse) {
+      :host {
+        /* Keep native image callouts from interrupting a touch hold. */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hold-feedback {
+        transition: none;
+      }
     }
 
     /* Fade animation for the select button. */
@@ -141,6 +169,10 @@ export class ArtifactThumbnail extends ArtifactDisplay {
   @property({ type: Boolean })
   selected: boolean = false;
 
+  /** Whether the grid has any selected artifacts. */
+  @property({ type: Boolean })
+  selectionMode: boolean = false;
+
   /**
    * Metadata structure to display information from.
    */
@@ -158,6 +190,141 @@ export class ArtifactThumbnail extends ArtifactDisplay {
   @state()
   private isHovering: boolean = false;
 
+  /** Whether a touch hold is currently counting down. */
+  @state()
+  private isHolding: boolean = false;
+
+  private holdTimer?: ReturnType<typeof setTimeout>;
+  private holdListeners?: AbortController;
+  private holdPointerId?: number;
+  private suppressClick: boolean = false;
+
+  /** Registers touch gestures and guards the inherited click navigation. */
+  constructor() {
+    super();
+
+    this.addEventListener("pointerdown", this.onPointerDown);
+    // Capture the compatibility click before the inherited navigation handler.
+    this.addEventListener(
+      "click",
+      (event: MouseEvent) => {
+        if (this.suppressClick) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          this.suppressClick = false;
+        } else if (
+          this.selectionMode &&
+          !event
+            .composedPath()
+            .some(
+              (target) =>
+                target instanceof Element && target.id === "select_button"
+            )
+        ) {
+          // Block navigation before selection updates can exit selection mode.
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          this.cancelHold();
+          if (this.hasContent) {
+            this.toggleSelection(event.shiftKey);
+          }
+        }
+      },
+      { capture: true }
+    );
+    this.addEventListener("contextmenu", (event: MouseEvent) => {
+      if (this.holdPointerId !== undefined || this.suppressClick) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  /**
+   * Starts a hold for a primary touch on loaded thumbnail content.
+   * @param {PointerEvent} event The initiating pointer event.
+   */
+  private onPointerDown(event: PointerEvent): void {
+    this.suppressClick = false;
+    if (
+      event.pointerType !== "touch" ||
+      !event.isPrimary ||
+      !this.hasContent ||
+      event
+        .composedPath()
+        .some(
+          (target) => target instanceof Element && target.id === "select_button"
+        )
+    ) {
+      return;
+    }
+
+    this.cancelHold();
+    this.holdPointerId = event.pointerId;
+    this.isHolding = true;
+    this.holdListeners = new AbortController();
+    const options = { signal: this.holdListeners.signal };
+    const startX = event.clientX;
+    const startY = event.clientY;
+
+    // Observe the gesture outside the thumbnail without disabling native scrolling.
+    window.addEventListener(
+      "pointermove",
+      (move: PointerEvent) => {
+        if (
+          move.pointerId === this.holdPointerId &&
+          Math.hypot(move.clientX - startX, move.clientY - startY) > 10
+        ) {
+          this.cancelHold();
+        }
+      },
+      options
+    );
+    const finish = (end: PointerEvent): void => {
+      if (end.pointerId === this.holdPointerId) {
+        this.cancelHold();
+      }
+    };
+    window.addEventListener("pointerup", finish, options);
+    window.addEventListener("pointercancel", finish, options);
+    window.addEventListener(
+      "pointerdown",
+      (other: PointerEvent) => {
+        if (other.pointerId !== this.holdPointerId) {
+          this.cancelHold();
+        }
+      },
+      options
+    );
+    window.addEventListener("scroll", () => this.cancelHold(), {
+      ...options,
+      capture: true,
+    });
+    window.addEventListener("blur", () => this.cancelHold(), options);
+
+    this.holdTimer = setTimeout(() => {
+      this.cancelHold();
+      this.suppressClick = true;
+      this.toggleSelection();
+    }, TOUCH_HOLD_DURATION_MS);
+  }
+
+  /** Clears the pending gesture and restores the thumbnail's normal scale. */
+  private cancelHold(): void {
+    clearTimeout(this.holdTimer);
+    this.holdTimer = undefined;
+    this.holdListeners?.abort();
+    this.holdListeners = undefined;
+    this.holdPointerId = undefined;
+    this.isHolding = false;
+  }
+
+  /** @inheritDoc */
+  override disconnectedCallback(): void {
+    this.cancelHold();
+    this.suppressClick = false;
+    super.disconnectedCallback();
+  }
+
   /**
    * Run whenever the select button is clicked.
    * @param {Event} event The click event.
@@ -168,9 +335,17 @@ export class ArtifactThumbnail extends ArtifactDisplay {
     // thumbnail.
     event.stopPropagation();
 
+    this.toggleSelection(event.shiftKey);
+  }
+
+  /**
+   * Toggles selection using the same events for mouse and touch input.
+   * @param {boolean} shiftKey Whether to extend the selection with Shift.
+   */
+  private toggleSelection(shiftKey: boolean = false): void {
     this.selected = !this.selected;
 
-    if (this.selected && event.shiftKey) {
+    if (this.selected && shiftKey) {
       // We selected something while holding down shift. This should trigger
       // special behavior.
       this.dispatchEvent(
@@ -222,9 +397,12 @@ export class ArtifactThumbnail extends ArtifactDisplay {
 
     const baseHtml = super.render();
     return html`<div class="parent-size">
-      <div class="${paddingClass} parent-size">${baseHtml}</div>
+      <div class="hold-feedback parent-size ${this.isHolding ? "holding" : ""}">
+        <div class="${paddingClass} parent-size">${baseHtml}</div>
+      </div>
       <!-- Selection button -->
-      ${(this.isHovering || this.selected) && this.hasContent
+      ${(this.isHovering || this.selected || this.selectionMode) &&
+      this.hasContent
         ? html`<md-icon-button
             toggle
             ?selected="${this.selected}"
@@ -268,6 +446,11 @@ export class ArtifactThumbnail extends ArtifactDisplay {
    */
   protected override updated(_changedProperties: PropertyValues) {
     super.updated(_changedProperties);
+
+    // A recycled or unloaded thumbnail must not finish an earlier touch gesture.
+    if (_changedProperties.has("frontendId") || !this.hasContent) {
+      this.cancelHold();
+    }
 
     // Muting does not work on dynamically-loaded videos, so we set
     // it manually here.
@@ -314,6 +497,9 @@ export class ConnectedArtifactThumbnail extends connectRedux(
    * @inheritDoc
    */
   override stateChanged(state: RootState): void {
+    // Reveal selection controls across the grid, not only on selected artifacts.
+    this.selectionMode = state.imageView.numItemsSelected > 0;
+
     // Set defaults.
     this.sourceUrl = undefined;
     this.selected = false;

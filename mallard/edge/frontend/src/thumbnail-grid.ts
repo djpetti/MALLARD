@@ -160,6 +160,8 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
    * Maximum number of thumbnails we will keep loaded at once.
    */
   public static readonly MAX_THUMBNAILS_LOADED: number = 500;
+  /** Maximum session-name characters on narrow screens, excluding the date and suffix. */
+  public static readonly COMPACT_SESSION_NAME_MAX_LENGTH: number = 20;
   /**
    * Name for the custom event signaling that the user has scrolled near
    * the bottom, and we need to load more data.
@@ -282,16 +284,26 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
   /**
    * Generates a name for a section of the thumbnail grid.
    * @param {GroupedImages} group The group associated with this section.
+   * @param {number} maxSessionLength Optional limit for the session name.
    * @return {string} The name for the section.
    * @private
    */
-  private makeSectionName(group: GroupedImages): string {
+  private makeSectionName(
+    group: GroupedImages,
+    maxSessionLength?: number
+  ): string {
     const date = group.captureDate.toISOString().split("T")[0];
     if (!group.session) {
       // If we have no session name, just show the date.
       return date;
     } else {
-      return `${group.session} (${date})`;
+      // Only shorten the session name so the date is always preserved.
+      const session = Array.from(group.session);
+      const name =
+        maxSessionLength !== undefined && session.length > maxSessionLength
+          ? `${session.slice(0, maxSessionLength).join("")}...`
+          : group.session;
+      return `${name} (${date})`;
     }
   }
 
@@ -350,6 +362,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
           (g) => html`
             <thumbnail-grid-section
               .sectionHeader=${this.makeSectionName(g)}
+              .compactSectionHeader=${this.makeSectionName(
+                g,
+                ThumbnailGrid.COMPACT_SESSION_NAME_MAX_LENGTH
+              )}
               .displayedArtifacts=${g.imageIds}
             ></thumbnail-grid-section>
           `

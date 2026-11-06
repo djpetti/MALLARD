@@ -75,8 +75,12 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
     #section_divider {
       background-color: var(--md-sys-color-secondary);
       color: var(--md-sys-color-on-secondary);
-      padding: 1rem;
+      padding: 0.5rem;
       width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
       border: none;
       text-align: left;
       outline: none;
@@ -84,10 +88,30 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
       font-style: normal;
     }
 
+    .section-header {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .compact-header {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .full-header {
+        display: none;
+      }
+
+      .compact-header {
+        display: inline;
+      }
+    }
+
     .action-buttons {
-      position: absolute;
-      top: 0;
-      right: 0;
+      /* Keep button space separate from the header, even when it wraps. */
+      display: flex;
+      flex-shrink: 0;
+      margin-left: auto;
     }
 
     md-icon {
@@ -111,6 +135,10 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
    */
   @property({ type: String })
   sectionHeader: string = "Section Header";
+
+  /** Short display header for narrow screens; never used as a section key. */
+  @property({ type: String })
+  compactSectionHeader: string = "";
 
   /**
    * The unique IDs of the artifacts whose thumbnails are displayed in this component.
@@ -265,7 +293,12 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
     return html`
       ${this.displayedArtifacts.length > 0
         ? html` <div id="section_divider">
-            ${this.sectionHeader}
+            <span class="section-header" title=${this.sectionHeader}>
+              <span class="full-header">${this.sectionHeader}</span>
+              <span class="compact-header"
+                >${this.compactSectionHeader || this.sectionHeader}</span
+              >
+            </span>
             <span class="action-buttons">
               <!-- Selection button -->
               <md-icon-button

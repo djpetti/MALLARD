@@ -163,6 +163,39 @@ describe("thumbnail-grid-section", () => {
     }
   );
 
+  it("renders compact and full headers without changing the section key", async () => {
+    const session = faker.random.alpha({ count: 40 });
+    const date = faker.date.past().toISOString().split("T")[0];
+    gridSectionElement.sectionHeader = `${session} (${date})`;
+    gridSectionElement.compactSectionHeader = `${session.slice(
+      0,
+      25
+    )}... (${date})`;
+    gridSectionElement.displayedArtifacts = [faker.datatype.uuid()];
+    await gridSectionElement.updateComplete;
+
+    const root = getShadowRoot(ConnectedThumbnailGridSection.tagName);
+    expect(root.querySelector(".full-header")?.textContent).toBe(
+      gridSectionElement.sectionHeader
+    );
+    expect(root.querySelector(".compact-header")?.textContent).toBe(
+      gridSectionElement.compactSectionHeader
+    );
+    expect(root.querySelector(".section-header")?.getAttribute("title")).toBe(
+      gridSectionElement.sectionHeader
+    );
+
+    (root.querySelector("#collapse_button") as HTMLElement).click();
+    const event = expandEventHandler.mock.calls[0][0];
+    gridSectionElement
+      .mapEvents()
+      [ConnectedThumbnailGridSection.EXPAND_TOGGLED_EVENT_NAME](event);
+    expect(mockSetSectionExpanded).toHaveBeenCalledWith({
+      sectionName: `${session} (${date})`,
+      expand: false,
+    });
+  });
+
   it("correctly renders when the section is collapsed", async () => {
     // Arrange.
     // Add a few thumbnails.

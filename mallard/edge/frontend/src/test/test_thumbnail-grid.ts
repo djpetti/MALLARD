@@ -1,4 +1,8 @@
-import { ConnectedThumbnailGrid, GroupedImages } from "../thumbnail-grid";
+import {
+  ConnectedThumbnailGrid,
+  GroupedImages,
+  ThumbnailGrid,
+} from "../thumbnail-grid";
 import {
   EntitiesAndIds,
   fakeArtifactEntities,
@@ -192,6 +196,47 @@ describe("thumbnail-grid", () => {
     const emptyMessage = root.querySelector("#empty_message") as HTMLElement;
     expect(emptyMessage.classList).toContain("hidden");
   });
+
+  const maxSessionLength = ThumbnailGrid.COMPACT_SESSION_NAME_MAX_LENGTH;
+  // Keep boundary coverage aligned with the configured truncation limit.
+  it.each([
+    0,
+    Math.max(0, maxSessionLength - 1),
+    maxSessionLength,
+    maxSessionLength + 1,
+    maxSessionLength * 3,
+  ])(
+    "preserves the date in compact headers with a %i-character session",
+    async (length: number) => {
+      const session = faker.random.alpha({ count: length });
+      const captureDate = faker.date.past();
+      const date = captureDate.toISOString().split("T")[0];
+      gridElement.groupedArtifacts = [
+        {
+          imageIds: [faker.datatype.uuid()],
+          captureDate,
+          session,
+        },
+      ];
+      gridElement.requestUpdate();
+      await gridElement.updateComplete;
+
+      const section = getShadowRoot(
+        ConnectedThumbnailGrid.tagName
+      ).querySelector("thumbnail-grid-section") as ThumbnailGridSection;
+      const compactName =
+        length > maxSessionLength
+          ? `${session.slice(0, maxSessionLength)}...`
+          : session;
+      expect(section.compactSectionHeader).toBe(
+        session ? `${compactName} (${date})` : date
+      );
+      // The complete name remains the stable key for selection and collapse actions.
+      expect(section.sectionHeader).toBe(
+        session ? `${session} (${date})` : date
+      );
+    }
+  );
 
   each([
     ["request active", RequestState.LOADING, false],

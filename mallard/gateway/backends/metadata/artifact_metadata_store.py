@@ -2,7 +2,6 @@
 Metadata storage backend specifically for image data.
 """
 
-
 import abc
 from typing import AsyncIterable, Generic, Iterable, TypeVar
 
@@ -81,25 +80,47 @@ class ArtifactMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
         if merge:
             # Get the old metadata.
             old_metadata = await self.get(object_id)
-            old_metadata_params = old_metadata.dict()
-
-            # Apply the new metadata on top of it.
-            metadata_set_params = {
-                k: v
-                for k, v in metadata.dict(exclude_none=True).items()
-                if k in old_metadata_params.keys()
-            }
-            logger.debug(
-                "Updating the following metadata parameters for "
-                "object ({}): {}",
-                object_id,
-                metadata_set_params,
+            metadata = self._merge_metadata(
+                object_id=object_id,
+                old_metadata=old_metadata,
+                metadata=metadata,
             )
-            old_metadata_params.update(metadata_set_params)
-            metadata = type(old_metadata)(**old_metadata_params)
 
         # Update the metadata.
         await self.add(object_id=object_id, metadata=metadata, overwrite=True)
+
+    @staticmethod
+    def _merge_metadata(
+        *,
+        object_id: ObjectRef,
+        old_metadata: MetadataTypeVar,
+        metadata: MetadataTypeVar,
+    ) -> MetadataTypeVar:
+        """Merges non-None values using the existing metadata model's fields.
+
+        Args:
+            object_id: The object whose metadata is being merged.
+            old_metadata: The current metadata to preserve for None values.
+            metadata: The metadata containing replacement values.
+
+        Returns:
+            The merged metadata in the existing metadata model's type.
+        """
+        old_metadata_params = old_metadata.dict()
+
+        # Apply the new metadata on top of it.
+        metadata_set_params = {
+            k: v
+            for k, v in metadata.dict(exclude_none=True).items()
+            if k in old_metadata_params.keys()
+        }
+        logger.debug(
+            "Updating the following metadata parameters for object ({}): {}",
+            object_id,
+            metadata_set_params,
+        )
+        old_metadata_params.update(metadata_set_params)
+        return type(old_metadata)(**old_metadata_params)
 
     @abc.abstractmethod
     async def query(

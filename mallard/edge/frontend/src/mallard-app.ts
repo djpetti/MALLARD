@@ -39,6 +39,8 @@ export class MallardApp extends LitElement {
     }
 
     #upload_modal {
+      /* Override Material's width cap so the desktop columns fit side by side. */
+      max-width: 2000px;
       max-height: 100%;
     }
 

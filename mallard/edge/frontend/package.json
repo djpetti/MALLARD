@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "test:browser": "npm run build && npm run bundle && python -m pytest -c ../../../testing_framework/browser/pytest.ini ../../../testing_framework/browser",
     "coverage": "jest --coverage",
     "lint": "npm run lint:lit-analyzer && npm run lint:eslint",
     "lint:eslint": "eslint 'src/*.ts' 'src/**/*.ts'",

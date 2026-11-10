@@ -63,7 +63,7 @@ ENV SCRIPT_NAME="/api/v1/"
 
 CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
     -k mallard.configurable_worker.ConfigurableWorker \
-    mallard.gateway.main:app
+    mallard.gateway.main:app --log-level debug
 
 ####
 # edge_builder image is used for building the edge service dependencies.
@@ -114,7 +114,7 @@ CMD gunicorn -w $(nproc) -b 0.0.0.0:8000 \
 #####
 # transcoder image is used for running the transcoder service.
 #####
-FROM service_base as transcoder
+FROM service_base AS transcoder
 
 # Install runtime dependencies.
 USER root
@@ -134,7 +134,7 @@ CMD gunicorn -w 1 -b 0.0.0.0:8000 \
 #####
 # backup image is used for handling object store backups.
 #####
-FROM efrecon/s3fs:1.93 as backup
+FROM efrecon/s3fs:1.93 AS backup
 
 # Custom entry point to work around issue of `ls` on large directories.
 COPY s3fs_entrypoint.sh /s3fs_entrypoint.sh
@@ -145,7 +145,7 @@ CMD [ "empty.sh" ]
 #####
 # backup_metadata image is used for handling metadata backups.
 #####
-FROM mariadb:10.11 as backup_metadata
+FROM mariadb:10.11 AS backup_metadata
 
 COPY backup_metadata.sh /backup_metadata.sh
 

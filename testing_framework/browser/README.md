@@ -52,6 +52,9 @@ expose the desktop column-wrapping regression.
 The viewport cases cover desktop, laptop, short non-touch desktop, landscape
 tablet, and high-DPR phones in portrait and landscape. Assertions check column
 placement, dialog bounds, the Done button, and phone Browse-button positioning.
+Pending-upload cases hold API responses for single-file and scrolling batches,
+check that the progress pill remains visible above the footer while scrolling,
+and release the responses to verify that progress disappears on completion.
 They use relative geometry with a small rounding tolerance, not pixel-perfect
 screenshots or assertions about particular CSS declarations.
 

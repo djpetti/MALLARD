@@ -80,7 +80,25 @@ def browser_context_args(
 
 
 @pytest.fixture
-def upload_page(page: Page, frontend_url: str, faker: Faker) -> Iterator[Page]:
+def upload_batch_size(request: pytest.FixtureRequest) -> int:
+    """Return the number of uploads to hold pending, or zero for normal uploads."""
+    return getattr(request, "param", 0)
+
+
+@pytest.fixture
+def pending_uploads() -> list[Route]:
+    """Collect held requests so tests can complete the upload workflow."""
+    return []
+
+
+@pytest.fixture
+def upload_page(
+    page: Page,
+    frontend_url: str,
+    faker: Faker,
+    upload_batch_size: int,
+    pending_uploads: list[Route],
+) -> Iterator[Page]:
     """Open the dialog and select an image through the real upload workflow."""
     unexpected_requests: list[str] = []
     page_errors: list[str] = []
@@ -101,7 +119,18 @@ def upload_page(page: Page, frontend_url: str, faker: Faker) -> Iterator[Page]:
         elif path == "/api/images/metadata/infer":
             route.fulfill(json=metadata)
         elif path == "/api/images/create_uav":
-            route.fulfill(json={"bucket": "layout-tests", "name": "image.png"})
+            if upload_batch_size:
+                # Keep progress visible without relying on network timing.
+                pending_uploads.append(route)
+            else:
+                route.fulfill(
+                    json={
+                        "imageId": {
+                            "bucket": "layout-tests",
+                            "name": "image.png",
+                        }
+                    }
+                )
         else:
             unexpected_requests.append(path)
             route.fulfill(
@@ -125,18 +154,32 @@ def upload_page(page: Page, frontend_url: str, faker: Faker) -> Iterator[Page]:
             return canvas.toDataURL("image/png").split(",")[1];
         }"""
     )
-    page.locator("#file_input").set_input_files(
-        {
-            "name": faker.file_name(extension="png"),
-            "mimeType": "image/png",
-            "buffer": base64.b64decode(image),
-        }
-    )
+    with page.expect_request("**/api/images/create_uav?*"):
+        page.locator("#file_input").set_input_files(
+            [
+                {
+                    "name": faker.file_name(extension="png"),
+                    "mimeType": "image/png",
+                    "buffer": base64.b64decode(image),
+                }
+                for _ in range(upload_batch_size or 1)
+            ]
+        )
     # The regression only appears once metadata is visible, not in an empty modal.
     expect(page.locator("metadata-form #session_name input")).to_have_value(
         metadata["sessionName"]
     )
-    expect(page.locator("#done_button")).to_be_enabled()
+    if upload_batch_size:
+        expect(
+            page.get_by_role("button", name="Done", exact=True)
+        ).to_be_disabled()
+        expect(page.locator("#upload_progress_text")).to_have_text(
+            f"{upload_batch_size} files to upload"
+        )
+    else:
+        expect(
+            page.get_by_role("button", name="Done", exact=True)
+        ).to_be_enabled()
     page.get_by_role("dialog").evaluate(
         """async (dialog) => {
             await Promise.all(dialog.getAnimations({subtree: true})
@@ -150,6 +193,70 @@ def upload_page(page: Page, frontend_url: str, faker: Faker) -> Iterator[Page]:
 
 class TestUploadLayout:
     """Verify visual relationships instead of exact CSS rules or snapshots."""
+
+    @pytest.mark.parametrize("upload_batch_size", [1, 12], indirect=True)
+    def test_upload_pill_stays_visible(
+        self,
+        upload_page: Page,
+        upload_batch_size: int,
+        pending_uploads: list[Route],
+    ) -> None:
+        """Keep pending progress in view before and after scrolling the files."""
+        pill = upload_page.locator("#pill")
+        files = upload_page.locator("#file_list")
+        column = upload_page.locator("#upload_column").bounding_box()
+        done = upload_page.locator("#done_button").bounding_box()
+        assert column and done
+        expect(pill).to_be_in_viewport(ratio=1)
+        expect(pill).to_have_css("opacity", "1")
+        if upload_batch_size > 1:
+            assert files.evaluate(
+                "element => element.scrollHeight > element.clientHeight"
+            )
+
+        for scroll_to_bottom in (False, True):
+            files.evaluate(
+                "(element, bottom) => element.scrollTop = bottom ? element.scrollHeight : 0",
+                scroll_to_bottom,
+            )
+            box = pill.bounding_box()
+            assert box
+            assert box["y"] >= column["y"] - 1
+            assert (
+                box["y"] + box["height"]
+                <= min(column["y"] + column["height"], done["y"]) + 1
+            )
+            assert box["x"] >= column["x"] - 1
+            assert box["x"] + box["width"] <= column["x"] + column["width"] + 1
+            # Viewport intersection alone does not detect clipping or footer occlusion.
+            assert pill.evaluate(
+                """element => {
+                    const box = element.getBoundingClientRect();
+                    return element.getRootNode().elementFromPoint(
+                        box.x + box.width / 2, box.y + box.height / 2
+                    )?.closest("#pill") === element;
+                }"""
+            )
+
+        # Release the requests and check that progress disappears on completion.
+        upload_page.route(
+            "**/api/images/create_uav?*",
+            lambda route: route.fulfill(
+                json={
+                    "imageId": {"bucket": "layout-tests", "name": "image.png"}
+                }
+            ),
+        )
+        for route in pending_uploads:
+            route.fulfill(
+                json={
+                    "imageId": {"bucket": "layout-tests", "name": "image.png"}
+                }
+            )
+        expect(pill).to_have_css("opacity", "0")
+        expect(
+            upload_page.get_by_role("button", name="Done", exact=True)
+        ).to_be_enabled()
 
     def test_columns_and_controls_fit(
         self, upload_page: Page, layout_case: LayoutCase

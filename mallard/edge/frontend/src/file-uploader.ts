@@ -26,6 +26,9 @@ export class FileUploader extends LitElement {
   static tagName: string = "file-uploader";
   static styles = css`
     :host {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
       height: 100%;
       --md-circular-progress-size: 28px;
     }
@@ -49,6 +52,7 @@ export class FileUploader extends LitElement {
 
     /** Show shadow only along bottom of the drop zone. */
     #drop_zone_container {
+      flex-shrink: 0;
       min-width: 500px;
       padding-bottom: 10px;
       margin-left: -24px;
@@ -64,12 +68,13 @@ export class FileUploader extends LitElement {
     }
 
     .file_list {
+      /* Anchor progress to the visible list area, not its scrolling contents. */
+      position: relative;
+      flex: 1;
+      min-height: 0;
       min-width: 500px;
-      height: 75%;
       margin-left: -24px;
       margin-right: -24px;
-      overflow: scroll;
-      max-height: 100%;
     }
 
     #upload_icon {
@@ -101,12 +106,13 @@ export class FileUploader extends LitElement {
     }
 
     .pill {
-      position: sticky;
+      position: absolute;
       z-index: 20;
-      top: calc(90% - 75px);
-      left: 25%;
-      max-width: 50%;
-      min-width: 50%;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: calc(100% - 24px);
       min-height: 50px;
       border-radius: 30px;
       background: var(--md-sys-color-surface);
@@ -162,7 +168,6 @@ export class FileUploader extends LitElement {
         min-width: 0;
         height: auto;
         margin: 0;
-        overflow: auto;
       }
 
       #mobile_browse_container {
@@ -177,7 +182,16 @@ export class FileUploader extends LitElement {
     }
 
     #file_list {
+      display: block;
       width: 100%;
+      height: 100%;
+      overflow: auto;
+      box-sizing: border-box;
+    }
+
+    .uploads-pending #file_list {
+      /* Let the last row scroll clear of the overlaid progress pill. */
+      padding-bottom: 80px;
     }
 
     #upload_progress_text {
@@ -349,7 +363,9 @@ export class FileUploader extends LitElement {
         </mdui-card>
       </div>
 
-      <div class="file_list">
+      <div
+        class="file_list ${numRemainingUploads > 0 ? "uploads-pending" : ""}"
+      >
         <file-list id="file_list"></file-list>
 
         <!-- Bottom pill showing upload progress. -->

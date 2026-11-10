@@ -10,6 +10,7 @@ import "mdui/components/card.js";
 
 /**
  * Card that shows basic metadata for an image.
+ * @customElement metadata-card
  */
 export class MetadataCard extends ArtifactInfoBase {
   static readonly tagName: string = "metadata-card";

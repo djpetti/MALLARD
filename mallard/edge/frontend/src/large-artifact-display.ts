@@ -21,8 +21,6 @@ import { connectRedux } from "./connected-element";
  */
 export class LargeArtifactDisplay extends ArtifactDisplay {
   static styles = css`
-    ${ArtifactDisplay.styles}
-
     /* Keep this breakpoint in sync with the details page grid layout. */
     @media only screen and (orientation: landscape) and (min-height: 600px) {
       :host {
@@ -46,7 +44,7 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     }
 
     @media only screen and (orientation: portrait),
-      only screen and (height < 600px) {
+      not all and (min-height: 600px) {
       :host {
         padding-right: 10px;
       }
@@ -121,6 +119,8 @@ export class LargeArtifactDisplay extends ArtifactDisplay {
     #download_icon {
       color: var(--md-sys-color-background);
     }
+
+    ${ArtifactDisplay.styles}
   `;
 
   static readonly tagName = "large-artifact-display";

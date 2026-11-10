@@ -49,8 +49,8 @@ export class ThumbnailGridSection extends VisibilityCheckingContainer {
     }
 
     /* Use the shorter viewport dimension so tablets keep their sizing when rotated. */
-    @media (600px < width <= 1024px) and (orientation: portrait),
-      (600px < height <= 1024px) and (orientation: landscape) {
+    @media (min-width: 600px) and (max-width: 1024px) and (orientation: portrait),
+      (min-height: 600px) and (max-height: 1024px) and (orientation: landscape) {
       #section_contents {
         grid-template-columns: repeat(
           auto-fill,

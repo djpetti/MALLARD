@@ -8,6 +8,7 @@ import "mdui/components/card.js";
 
 /**
  * Card that shows detailed notes for an image.
+ * @customElement notes-card
  */
 export class NotesCard extends ArtifactInfoBase {
   static readonly tagName = "notes-card";

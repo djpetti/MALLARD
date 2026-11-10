@@ -65,7 +65,7 @@ export class ArtifactDetails extends LitElement {
     }
 
     @media only screen and (orientation: portrait),
-      only screen and (height < 600px) {
+      not all and (min-height: 600px) {
       /* Portrait layout. */
       .main-panel-layout {
         grid-column-start: 1;
@@ -86,7 +86,7 @@ export class ArtifactDetails extends LitElement {
     }
 
     @media only screen and (orientation: portrait),
-      only screen and (height < 600px) {
+      not all and (min-height: 600px) {
       .side-panel {
         top: 100%;
         animation-name: fly-in-bottom;

@@ -1,3 +1,7 @@
+diagnostics:
+  # Opt in to verbose ASGI request lifecycle logging to stderr.
+  enable_request_tracing: false
+
 security:
   # Default to enabling authentication.
   enable_auth: true

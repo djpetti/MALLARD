@@ -2,7 +2,6 @@
 Handles custom logger configuration.
 """
 
-
 import sys
 from pathlib import Path
 
@@ -33,6 +32,8 @@ def config_logger(name: str) -> None:
     logger.add(
         _LOG_DIR / f"{name}.log",
         level="DEBUG",
+        # Request diagnostics must not wait on the queued, rotating file sink.
+        filter=lambda record: not record["extra"].get("request_trace", False),
         enqueue=True,
         rotation="00:00",
         retention="30 days",

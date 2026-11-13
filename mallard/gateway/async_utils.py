@@ -2,8 +2,8 @@
 Utilities for asynchronous code.
 """
 
-
 import asyncio
+import multiprocessing as mp
 from concurrent import futures
 from functools import cache
 from typing import AsyncIterable, Iterable, TypeVar
@@ -17,7 +17,8 @@ IterType = TypeVar("IterType")
 @cache
 def get_process_pool() -> futures.ProcessPoolExecutor:
     logger.debug("Creating process pool.")
-    return futures.ProcessPoolExecutor()
+    context = mp.get_context("spawn")
+    return futures.ProcessPoolExecutor(mp_context=context)
 
 
 async def make_async_iter(

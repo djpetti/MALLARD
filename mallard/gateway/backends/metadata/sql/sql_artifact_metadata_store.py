@@ -19,7 +19,16 @@ from typing import (
 
 from confuse import ConfigView
 from loguru import logger
-from sqlalchemy import ColumnElement, and_, case, false, or_, text, true
+from sqlalchemy import (
+    ColumnElement,
+    and_,
+    case,
+    false,
+    or_,
+    text,
+    true,
+    tuple_,
+)
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -598,6 +607,57 @@ class SqlArtifactMetadataStore(
             )
         return value
 
+    @staticmethod
+    async def __query_page_types(
+        session: AsyncSession, identities: list[tuple[str, str]]
+    ) -> dict[tuple[str, str], ObjectType]:
+        """Fetches subtypes for selected identities in bounded SQL batches.
+
+        Args:
+            session: Transaction used to select the cursor page.
+            identities: Artifact identities from the limited page selection.
+
+        Returns:
+            Types for identities whose raster rows are still visible.
+        """
+        object_types = {}
+        # Two parameters per identity stay below even older SQLite bind limits.
+        for start in range(0, len(identities), 400):
+            selection = (
+                select(
+                    Raster.bucket,
+                    Raster.key,
+                    Image.bucket.label("image_bucket"),
+                    Video.bucket.label("video_bucket"),
+                )
+                .outerjoin(
+                    Image,
+                    (Raster.bucket == Image.bucket)
+                    & (Raster.key == Image.key),
+                )
+                .outerjoin(
+                    Video,
+                    (Raster.bucket == Video.bucket)
+                    & (Raster.key == Video.key),
+                )
+                .where(
+                    tuple_(Raster.bucket, Raster.key).in_(
+                        identities[start : start + 400]
+                    )
+                )
+            )
+            for row in (await session.execute(selection)).all():
+                object_types[(row.bucket, row.key)] = (
+                    ObjectType.IMAGE
+                    if row.image_bucket is not None
+                    else (
+                        ObjectType.VIDEO
+                        if row.video_bucket is not None
+                        else ObjectType.RASTER
+                    )
+                )
+        return object_types
+
     async def query_page(
         self,
         queries: Iterable[ImageQuery],
@@ -663,7 +723,8 @@ class SqlArtifactMetadataStore(
             self.__update_raster_query_expression(query) for query in queries
         ]
         selection = (
-            select(Artifact, *columns)
+            # A covering page projection avoids full-row scans chosen by MariaDB.
+            select(Artifact.bucket, Artifact.key, *columns)
             .join_from(
                 Artifact,
                 Raster,
@@ -672,28 +733,49 @@ class SqlArtifactMetadataStore(
             )
             .where(or_(*expressions) if expressions else true())
         )
+        null_ranks = {
+            "capture_date": Artifact.capture_date_is_null,
+            "session_name": Artifact.session_name_is_null,
+            "name": Artifact.name_is_null,
+        }
         after = false()
         equal_prefix = true()
+        constant_null_prefix = values is not None
         for index, (column, ascending) in enumerate(zip(columns, directions)):
-            # CASE is portable to dialects without native NULLS LAST syntax.
+            value = values[index] if values is not None else None
+            constant_null = constant_null_prefix and value is None
+            if value is not None:
+                constant_null_prefix = False
+            null_rank = None
             if column.nullable:
+                # MariaDB needs the generated column named explicitly to use its index.
+                null_rank = null_ranks.get(column.key)
+                if null_rank is None:
+                    # Less common orderings retain portable null-last behavior.
+                    null_rank = case((column.is_(None), 1), else_=0)
+                if not constant_null:
+                    selection = selection.order_by(null_rank.asc())
+            # A leading NULL cursor prefix is fixed by WHERE; sorting it confuses MariaDB.
+            if not constant_null:
+                # Keep nonnullable identity ordering eligible for ordinary indexes.
                 selection = selection.order_by(
-                    case((column.is_(None), 1), else_=0).asc()
+                    column.asc() if ascending else column.desc()
                 )
-            # Keep nonnullable identity ordering eligible for ordinary indexes.
-            selection = selection.order_by(
-                column.asc() if ascending else column.desc()
-            )
             if values is not None:
-                value = values[index]
+                if null_rank is not None:
+                    rank_value = 1 if value is None else 0
+                    if value is not None:
+                        # Seek in the same ranked key order used by the composite index.
+                        after = or_(
+                            after, and_(equal_prefix, null_rank > rank_value)
+                        )
+                    equal_prefix = and_(equal_prefix, null_rank == rank_value)
                 if value is None:
                     equal_prefix = and_(equal_prefix, column.is_(None))
                 else:
                     comparison = (
                         column > value if ascending else column < value
                     )
-                    if column.nullable:
-                        comparison = or_(comparison, column.is_(None))
                     after = or_(after, and_(equal_prefix, comparison))
                     equal_prefix = and_(equal_prefix, column == value)
         if values is not None:
@@ -703,19 +785,25 @@ class SqlArtifactMetadataStore(
         async with self.__session_begin() as session:
             rows = (await session.execute(selection)).all()
             page_rows = rows[:max_num_results]
+            # Determine subtype only for this bounded page, not the whole result set.
+            object_types = await self.__query_page_types(
+                session, [(row[0], row[1]) for row in page_rows]
+            )
             image_ids = [
                 TypedObjectRef(
-                    id=ObjectRef(bucket=row[0].bucket, name=row[0].key),
-                    type=self.__object_type(row[0]),
+                    id=ObjectRef(bucket=row[0], name=row[1]),
+                    type=object_types[(row[0], row[1])],
                 )
                 for row in page_rows
+                # READ COMMITTED and SQLite may expose deletions between the two reads.
+                if (row[0], row[1]) in object_types
             ]
             next_cursor = None
             if len(rows) > max_num_results:
                 # Capture selected values, never look up the anchor on resume.
                 last_values = [
                     value.isoformat() if isinstance(value, date) else value
-                    for value in page_rows[-1][1:]
+                    for value in page_rows[-1][2:]
                 ]
                 next_cursor = _encode_cursor(fingerprint, last_values)
         return QueryPage(image_ids=image_ids, next_cursor=next_cursor)

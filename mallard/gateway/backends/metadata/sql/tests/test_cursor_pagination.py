@@ -705,8 +705,8 @@ class TestCursorPagination:
             event.remove(engine, "before_cursor_execute", capture)
         assert len(statements) == 6
         for statement, parameters in statements:
-            # Only nullable fields need a rank; identity indexes need raw columns.
-            assert statement.upper().count("CASE WHEN") == len(orderings)
+            # Indexed null ranks avoid expression sorts on the common fields.
+            assert "CASE WHEN" not in statement.upper()
             normalized = statement.replace('"', "")
             assert "artifacts.bucket IS NULL" not in normalized
             assert "artifacts.key IS NULL" not in normalized

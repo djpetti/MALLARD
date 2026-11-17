@@ -2,7 +2,6 @@
 Defines ORM models to use for metadata.
 """
 
-
 import abc
 from functools import partial
 from typing import Set
@@ -10,6 +9,7 @@ from typing import Set
 from sqlalchemy import (
     BigInteger,
     Column,
+    Computed,
     Date,
     Enum,
     Float,
@@ -18,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import DeclarativeMeta, declarative_base, relationship
 
@@ -88,9 +89,20 @@ class Artifact(Base):
     __table_args__ = (
         Index(
             "ix_name_session_capture_date",
-            "name",
+            text("capture_date DESC"),
             "session_name",
-            "capture_date",
+            "name",
+        ),
+        Index(
+            "ix_artifacts_cursor_sort",
+            "capture_date_is_null",
+            text("capture_date DESC"),
+            "session_name_is_null",
+            "session_name",
+            "name_is_null",
+            "name",
+            "bucket",
+            "key",
         ),
         Index(
             "ix_notes_fulltext",
@@ -132,6 +144,15 @@ class Artifact(Base):
     sequence_number = Column(Integer)
 
     capture_date = Column(Date, index=True)
+
+    # Indexed ranks preserve NULLS LAST without sorting on CASE expressions.
+    capture_date_is_null = Column(
+        Integer, Computed("capture_date IS NULL", persisted=False)
+    )
+    session_name_is_null = Column(
+        Integer, Computed("session_name IS NULL", persisted=False)
+    )
+    name_is_null = Column(Integer, Computed("name IS NULL", persisted=False))
 
     location_lat = Column(Float)
     location_lon = Column(Float)

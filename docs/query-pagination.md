@@ -89,15 +89,77 @@ Normal request authentication and authorization still apply.
 
 Cursor traversal is not a database snapshot. Concurrent edits to sort fields,
 query membership changes, and newly visible records can affect the results.
-Use a snapshot/export mechanism if a complete point-in-time result is needed.
+If artifacts disappear between page selection and type lookup, they are
+omitted, but the continuation still advances past the selected identities.
+Such a page can be short or empty with a non-null nextCursor; use the token,
+not the page length, to decide whether to continue. Use a snapshot/export
+mechanism if a complete point-in-time result is needed.
 
 ### Performance
 
 Cursor queries use keyset predicates and a limit, not a growing offset. They
-fetch at most one extra artifact to determine whether another page exists;
-there is no full result count. This removes the work of skipping earlier
-pages, but filtering, joins, relationship loading, and sorting can still cost
-time. Suitable indexes and actual query plans matter. In particular, the
-portable null-last ordering of nullable columns uses a CASE expression that
-may require a sort rather than ordinary index ordering. No schema or index
-migration is included in this change.
+fetch at most one extra reference to determine whether another page exists;
+there is no full result count. The page selection projects only artifact
+identity and sort values so that a covering index can serve it. A separate,
+bounded lookup determines the returned artifacts' image/video/raster types,
+without loading full metadata relationships.
+
+Revision `8c2f6a9d104e` adds virtual generated columns to `artifacts`:
+`capture_date_is_null`, `session_name_is_null`, and `name_is_null`. The new
+`ix_artifacts_cursor_sort` index orders these ranks and their source fields as:
+
+```text
+capture_date_is_null ASC, capture_date DESC,
+session_name_is_null ASC, session_name ASC,
+name_is_null ASC, name ASC, bucket ASC, key ASC
+```
+
+This matches the frontend's default capture-date/session/name ordering with
+nulls last and deterministic identity tie breakers. Cursor SQL references the
+generated columns explicitly: MariaDB 10.11 does not automatically replace an
+ORDER BY CASE expression with an equivalent indexed generated column. On
+continuation pages, leading sort terms fixed to NULL by the seek predicate
+are omitted from ORDER BY to avoid unnecessary MariaDB filesorts; the logical
+ordering and token format remain unchanged.
+
+The existing legacy sort index is retained. This new index targets the default
+ordering, not every combination of filters or sort directions. Other nullable
+fields still use portable CASE ranking; custom sorts and selective filters may
+need different indexes or plans. SQLite can still choose a temporary sort on
+some continuation predicates. Removing offsets alone never guarantees bounded
+work for an arbitrary search.
+
+### Deploying the cursor sort index
+
+1. Back up the metadata database and test the migration on staging first.
+2. Apply `alembic upgrade head` from the repository root in the configured
+   gateway/database migration environment, using the production database's
+   connection configuration. This is the same migration command used by
+   `init_db.sh`; check that it targets the intended database before running it.
+3. Confirm that `ix_artifacts_cursor_sort` and all three generated columns
+   exist, then deploy/restart gateway workers with the updated code. Apply the
+   migration **before** deploying the code: ORM queries now reference the new
+   columns, including ordinary metadata reads.
+4. Check the real default query with EXPLAIN. Expect index-ordered access to
+   `artifacts` using `ix_artifacts_cursor_sort` rather than `ALL` plus
+   `Using filesort`, followed by primary-key lookups into `rasters`. Test both
+   the initial page and continuation through null-valued fields.
+
+On a large table, adding the index can take significant time, temporary disk
+space, and I/O, and may wait for metadata locks or block concurrent work.
+Schedule a maintenance window appropriate for the deployment; the migration
+does not promise lock-free or instant DDL. Do not drop the existing legacy
+index to make room without evaluating clients that still use it. For rollback,
+restore the old gateway code before downgrading the schema.
+
+The database-specific regression tests use disposable databases only:
+
+```sh
+MALLARD_TEST_MARIADB_URL="mysql+aiomysql://USER:PASSWORD@HOST/TEST_DB" \
+  python -m pytest mallard/gateway/backends/metadata/sql/tests/test_cursor_index_plan.py
+```
+
+The supplied account needs CREATE/DROP DATABASE privileges. The tests create
+and remove unique owned databases; they do not modify the database named in
+the URL. Use a disposable test server, not production. Without the variable,
+MariaDB-specific cases are skipped and SQLite coverage still runs.

@@ -1008,7 +1008,6 @@ describe("thumbnail-grid", () => {
     (_: string, isQueryRunning: boolean) => {
       // Arrange.
       gridElement.isQueryRunning = isQueryRunning;
-      gridElement.queryPageNum = faker.datatype.number();
 
       // Act.
       const eventMap = gridElement.mapEvents();
@@ -1037,14 +1036,50 @@ describe("thumbnail-grid", () => {
       } else {
         // Continuing an old one
         expect(mockThunkContinueQuery).toBeCalledTimes(1);
-        expect(mockThunkContinueQuery).toBeCalledWith(
-          gridElement.queryPageNum + 1
-        );
+        expect(mockThunkContinueQuery).toBeCalledWith();
 
         expect(mockThunkStartNewQuery).not.toBeCalled();
       }
     }
   );
+
+  it.each([RequestState.IDLE, RequestState.FAILED])(
+    "restarts preserved query inputs without a token when state is %s",
+    (queryState) => {
+      const state = fakeState();
+      const query = [{ name: faker.system.fileName() }];
+      const options = { orderings: [], resultsPerPage: 7 };
+      state.imageView.currentQuery = query;
+      state.imageView.currentQueryOptions = options;
+      state.imageView.currentQueryState = queryState;
+      gridElement.stateChanged(state);
+      gridElement
+        .mapEvents()
+        [ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME](
+          new Event("load")
+        );
+      expect(mockThunkStartNewQuery).toHaveBeenCalledWith({
+        query,
+        ...options,
+      });
+      expect(mockThunkContinueQuery).not.toHaveBeenCalled();
+    }
+  );
+
+  it("retries a failed continuation using the stored token", () => {
+    const state = fakeState();
+    state.imageView.currentQuery = [{}];
+    state.imageView.currentQueryState = RequestState.FAILED;
+    state.imageView.nextCursor = faker.datatype.uuid();
+    gridElement.stateChanged(state);
+    gridElement
+      .mapEvents()
+      [ConnectedThumbnailGrid.LOAD_MORE_DATA_BOTTOM_EVENT_NAME](
+        new Event("load")
+      );
+    expect(mockThunkContinueQuery).toHaveBeenCalledWith();
+    expect(mockThunkStartNewQuery).not.toHaveBeenCalled();
+  });
 
   it("maps the correct actions to the click event", () => {
     // Arrange.

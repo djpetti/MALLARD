@@ -9,6 +9,7 @@ from loguru import logger
 
 from ..objects.models import ObjectRef, TypedObjectRef
 from .metadata_store import MetadataStore
+from .pagination import QueryPage
 from .schemas import ImageQuery, Ordering, RasterMetadata
 
 MetadataTypeVar = TypeVar("MetadataTypeVar", bound=RasterMetadata)
@@ -121,6 +122,34 @@ class ArtifactMetadataStore(MetadataStore, Generic[MetadataTypeVar], abc.ABC):
         )
         old_metadata_params.update(metadata_set_params)
         return type(old_metadata)(**old_metadata_params)
+
+    async def query_page(
+        self,
+        queries: Iterable[ImageQuery],
+        orderings: Iterable[Ordering] = (),
+        *,
+        cursor: str | None = None,
+        max_num_results: int = 500,
+    ) -> QueryPage:
+        """Queries a backend using a keyset continuation instead of an offset.
+
+        Args:
+            queries: Disjunctive query criteria to match.
+            orderings: Sort fields, followed by backend identity tie breakers.
+            cursor: A continuation token, or None to start a new traversal.
+            max_num_results: Maximum number of references to return.
+
+        Returns:
+            References and a continuation token when more results exist.
+
+        Raises:
+            NotImplementedError: If this backend does not support cursors.
+            ValueError: If a cursor is invalid or does not match the query.
+        """
+        # Backends must opt in rather than disguise offsets as cursor queries.
+        raise NotImplementedError(
+            "This metadata backend does not support cursor pagination."
+        )
 
     @abc.abstractmethod
     async def query(

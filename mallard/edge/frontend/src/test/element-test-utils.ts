@@ -54,6 +54,11 @@ export function fakeState(): RootState {
     imageView: {
       currentQuery: [],
       currentQueryOptions: {},
+      nextCursor: null,
+      currentQueryRequestId: null,
+      queryGeneration: 0,
+      artifactRequests: {},
+      metadataRequests: {},
       currentQueryState: RequestState.IDLE,
       metadataLoadingState: RequestState.IDLE,
       imageDeletionState: RequestState.IDLE,

@@ -33,6 +33,7 @@ import thumbnailGridReducer, {
 } from "../thumbnail-grid-slice";
 import {
   ArtifactEntity,
+  CursorQueryResponse,
   ImageQuery,
   ArtifactStatus,
   ImageViewState,
@@ -48,7 +49,7 @@ import {
   fakeSuggestions,
   fakeTypedObjectRef,
 } from "./element-test-utils";
-import { ObjectType, QueryResponse, UavImageMetadata } from "mallard-api";
+import { ObjectType, UavImageMetadata } from "mallard-api";
 import each from "jest-each";
 import {
   batchUpdateMetadata,
@@ -422,109 +423,97 @@ describe("thumbnail-grid-slice action creators", () => {
     );
   });
 
-  each([
-    ["no start page", undefined],
-    ["start page", faker.datatype.number()],
-  ]).it(
-    "creates a startNewQuery action with %s",
-    async (_: string, startPage?: number) => {
-      // Arrange.
-      // Make it look like the query request succeeds.
-      const queryResult: QueryResponse = {
-        imageIds: [fakeTypedObjectRef(), fakeTypedObjectRef()],
-        pageNum: startPage ?? 1,
-        isLastPage: true,
-      };
-      mockQueryImages.mockResolvedValue(queryResult);
+  it("creates a startNewQuery action", async () => {
+    // Arrange.
+    // Make it look like the query request succeeds.
+    const queryResult: CursorQueryResponse = {
+      imageIds: [fakeTypedObjectRef(), fakeTypedObjectRef()],
+      nextCursor: null,
+    };
+    mockQueryImages.mockResolvedValue(queryResult);
 
-      const state = fakeState();
-      state.imageView.currentQueryState = RequestState.IDLE;
+    const state = fakeState();
+    state.imageView.currentQueryState = RequestState.IDLE;
 
-      const store = setupStore(state);
+    const store = setupStore(state);
 
-      // Fake query to perform.
-      const queries: ImageQuery[] = [{}];
-      const orderings = DEFAULT_ORDERINGS;
-      const resultsPerPage = faker.datatype.number({ min: 1 });
+    // Fake query to perform.
+    const queries: ImageQuery[] = [{}];
+    const orderings = DEFAULT_ORDERINGS;
+    const resultsPerPage = faker.datatype.number({ min: 1 });
 
-      // Set up fake metadata.
-      const fakeMetadata = fakeImageMetadata();
-      mockGetMetadata.mockResolvedValue([fakeMetadata, fakeMetadata]);
+    // Set up fake metadata.
+    const fakeMetadata = fakeImageMetadata();
+    mockGetMetadata.mockResolvedValue([fakeMetadata, fakeMetadata]);
 
-      // Act.
-      const startQueryPromise = thunkStartNewQuery({
-        query: queries,
-        orderings,
-        resultsPerPage,
-        startPageNum: startPage,
-      })(store.dispatch, store.getState, {});
+    // Act.
+    const startQueryPromise = thunkStartNewQuery({
+      query: queries,
+      orderings,
+      resultsPerPage,
+    })(store.dispatch, store.getState, {});
 
-      // Assert.
-      let newState = store.getState();
-      // It should have marked the query request as loading.
-      expect(newState.imageView.currentQueryState).toEqual(
-        RequestState.LOADING
+    // Assert.
+    let newState = store.getState();
+    // It should have marked the query request as loading.
+    expect(newState.imageView.currentQueryState).toEqual(RequestState.LOADING);
+    // It should have cleared the image view state.
+    expect(newState.imageView.ids).toHaveLength(0);
+
+    // Act.
+    await startQueryPromise;
+
+    // Assert.
+    // It should have started the query.
+    expect(mockQueryImages).toBeCalledTimes(1);
+
+    newState = store.getState();
+    // It should have marked the query as succeeded.
+    expect(newState.imageView.currentQueryState).toEqual(
+      RequestState.SUCCEEDED
+    );
+
+    // The query should have been preserved so that we can re-run it.
+    expect(newState.imageView.currentQuery).toEqual(queries);
+    expect(newState.imageView.currentQueryOptions).toEqual({
+      orderings,
+      resultsPerPage,
+    });
+
+    // It should have loaded metadata for all of them.
+    expect(mockGetMetadata).toBeCalledWith(queryResult.imageIds);
+    expect(newState.imageView.metadataLoadingState).toEqual(
+      RequestState.SUCCEEDED
+    );
+
+    for (const backendId of queryResult.imageIds) {
+      // It should have added the query results to the state.
+      const frontendId = createArtifactEntityId(backendId.id);
+      expect(newState.imageView.ids).toContain(frontendId);
+      // It should have set the metadata.
+      expect(newState.imageView.entities[frontendId].metadata).toEqual(
+        fakeMetadata
       );
-      // It should have cleared the image view state.
-      expect(newState.imageView.ids).toHaveLength(0);
-
-      // Act.
-      await startQueryPromise;
-
-      // Assert.
-      // It should have started the query.
-      expect(mockQueryImages).toBeCalledTimes(1);
-
-      newState = store.getState();
-      // It should have marked the query as succeeded.
-      expect(newState.imageView.currentQueryState).toEqual(
-        RequestState.SUCCEEDED
-      );
-
-      // The query should have been preserved so that we can re-run it.
-      expect(newState.imageView.currentQuery).toEqual(queries);
-      expect(newState.imageView.currentQueryOptions).toEqual({
-        orderings,
-        resultsPerPage,
-        pageNum: startPage ?? 1,
-      });
-
-      // It should have loaded metadata for all of them.
-      expect(mockGetMetadata).toBeCalledWith(queryResult.imageIds);
-      expect(newState.imageView.metadataLoadingState).toEqual(
-        RequestState.SUCCEEDED
-      );
-
-      for (const backendId of queryResult.imageIds) {
-        // It should have added the query results to the state.
-        const frontendId = createArtifactEntityId(backendId.id);
-        expect(newState.imageView.ids).toContain(frontendId);
-        // It should have set the metadata.
-        expect(newState.imageView.entities[frontendId].metadata).toEqual(
-          fakeMetadata
-        );
-      }
     }
-  );
+  });
 
   it("creates a continueQuery action", async () => {
     // Arrange.
     // Set up the state so that it looks like we have an existing query.
     const query: ImageQuery = {};
     const state = fakeState();
-    const pageNum = faker.datatype.number();
+    const cursor = faker.datatype.uuid();
     state.imageView.currentQuery = [query];
     state.imageView.currentQueryHasMorePages = true;
-    state.imageView.currentQueryOptions.pageNum = pageNum;
+    state.imageView.nextCursor = cursor;
     // The state will probably be SUCCEEDED in practice since we have
     // run another query before.
     state.imageView.currentQueryState = RequestState.SUCCEEDED;
 
     // Make it look like the query request succeeds.
-    const queryResult: QueryResponse = {
+    const queryResult: CursorQueryResponse = {
       imageIds: [fakeTypedObjectRef(), fakeTypedObjectRef()],
-      pageNum: pageNum + 1,
-      isLastPage: true,
+      nextCursor: null,
     };
     mockQueryImages.mockResolvedValue(queryResult);
 
@@ -535,7 +524,7 @@ describe("thumbnail-grid-slice action creators", () => {
     const store = setupStore(state);
 
     // Act.
-    const continueQueryPromise = thunkContinueQuery(pageNum + 1)(
+    const continueQueryPromise = thunkContinueQuery()(
       store.dispatch,
       store.getState,
       {}
@@ -556,7 +545,7 @@ describe("thumbnail-grid-slice action creators", () => {
       state.imageView.currentQuery,
       state.imageView.currentQueryOptions.orderings,
       state.imageView.currentQueryOptions.resultsPerPage,
-      pageNum + 1
+      cursor
     );
 
     newState = store.getState();
@@ -564,8 +553,9 @@ describe("thumbnail-grid-slice action creators", () => {
     expect(newState.imageView.currentQueryState).toEqual(
       RequestState.SUCCEEDED
     );
-    // It should have updated the page number.
-    expect(newState.imageView.currentQueryOptions.pageNum).toEqual(pageNum + 1);
+    // The final response exhausts the continuation token.
+    expect(newState.imageView.nextCursor).toBeNull();
+    expect(newState.imageView.currentQueryHasMorePages).toBe(false);
 
     // It should have loaded metadata for all of them.
     expect(mockGetMetadata).toBeCalledWith(queryResult.imageIds);
@@ -584,34 +574,269 @@ describe("thumbnail-grid-slice action creators", () => {
     }
   });
 
-  each([
-    ["there is no current query", [], true, 3],
-    ["there are no more pages", [{}], false, 3],
-    ["this page was already loaded", [{}], true, 2],
-  ]).it(
-    "ignores a thunkContinueQuery call when %s",
-    async (
-      _: string,
-      query: ImageQuery[],
-      hasMorePages: boolean,
-      pageNum: number
-    ) => {
+  it.each([null, ""])(
+    "ignores a thunkContinueQuery call without a token (%s)",
+    async (cursor) => {
       // Arrange.
       // Set up the state.
       const state = fakeState();
-      state.imageView.currentQuery = query;
-      state.imageView.currentQueryHasMorePages = hasMorePages;
-      state.imageView.currentQueryOptions.pageNum = 2;
+      state.imageView.currentQuery = [{}];
+      state.imageView.nextCursor = cursor;
       const store = setupStore(state);
 
       // Act.
-      await thunkContinueQuery(pageNum)(store.dispatch, store.getState, {});
+      await store.dispatch(thunkContinueQuery());
 
       // Assert.
       // It should not have performed a query.
       expect(mockQueryImages).not.toHaveBeenCalled();
     }
   );
+
+  describe("cursor pagination", () => {
+    beforeEach(() => {
+      mockQueryImages.mockReset();
+      mockGetMetadata.mockImplementation(async (ids) =>
+        ids.map(() => fakeImageMetadata())
+      );
+    });
+
+    it("follows sequential cursors, appends results, and stops when exhausted", async () => {
+      const store = setupStore(fakeState());
+      const query = [fakeImageQuery()];
+      const cursors = [faker.datatype.uuid(), faker.datatype.uuid()];
+      const artifacts = [fakeTypedObjectRef(), fakeTypedObjectRef()];
+      mockQueryImages
+        .mockResolvedValueOnce({
+          imageIds: [artifacts[0]],
+          nextCursor: cursors[0],
+        })
+        // An empty batch with a continuation token is not an exhausted query.
+        .mockResolvedValueOnce({ imageIds: [], nextCursor: cursors[1] })
+        .mockResolvedValueOnce({ imageIds: [artifacts[1]], nextCursor: null });
+
+      await store.dispatch(thunkStartNewQuery({ query, resultsPerPage: 1 }));
+      expect(store.getState().imageView.nextCursor).toBe(cursors[0]);
+      await store.dispatch(thunkContinueQuery());
+      expect(store.getState().imageView.nextCursor).toBe(cursors[1]);
+      await store.dispatch(thunkContinueQuery());
+      await store.dispatch(thunkContinueQuery());
+
+      expect(mockQueryImages.mock.calls).toEqual([
+        [query, DEFAULT_ORDERINGS, 1],
+        [query, DEFAULT_ORDERINGS, 1, cursors[0]],
+        [query, DEFAULT_ORDERINGS, 1, cursors[1]],
+      ]);
+      expect(store.getState().imageView.ids).toEqual(
+        artifacts.map((artifact) => createArtifactEntityId(artifact.id))
+      );
+      expect(store.getState().imageView.nextCursor).toBeNull();
+      expect(store.getState().imageView.currentQueryHasMorePages).toBe(false);
+    });
+
+    it("coalesces repeated load-more events while the token is in flight", async () => {
+      const state = fakeState();
+      state.imageView.currentQuery = [fakeImageQuery()];
+      state.imageView.nextCursor = faker.datatype.uuid();
+      const store = setupStore(state);
+      let resolve!: (value: CursorQueryResponse) => void;
+      mockQueryImages.mockReturnValueOnce(
+        new Promise((done) => {
+          resolve = done;
+        })
+      );
+
+      const pending = store.dispatch(thunkContinueQuery());
+      await store.dispatch(thunkContinueQuery());
+      await store.dispatch(thunkContinueQuery());
+      expect(mockQueryImages).toHaveBeenCalledTimes(1);
+      expect(store.getState().imageView.currentQueryState).toBe(
+        RequestState.LOADING
+      );
+      expect(store.getState().imageView.nextCursor).toBe(
+        state.imageView.nextCursor
+      );
+
+      const artifact = fakeTypedObjectRef();
+      resolve({ imageIds: [artifact], nextCursor: null });
+      await pending;
+      expect(store.getState().imageView.ids).toEqual([
+        createArtifactEntityId(artifact.id),
+      ]);
+    });
+
+    it("preserves existing results and the cursor on rejection, then retries that cursor", async () => {
+      const store = setupStore(fakeState());
+      const artifact = fakeTypedObjectRef();
+      const cursor = faker.datatype.uuid();
+      mockQueryImages
+        .mockResolvedValueOnce({ imageIds: [artifact], nextCursor: cursor })
+        .mockRejectedValueOnce(new Error("Temporary query failure"))
+        .mockResolvedValueOnce({ imageIds: [], nextCursor: null });
+      await store.dispatch(thunkStartNewQuery({ query: [{}] }));
+      const ids = store.getState().imageView.ids;
+      await store.dispatch(thunkContinueQuery());
+
+      expect(store.getState().imageView.ids).toEqual(ids);
+      expect(store.getState().imageView.nextCursor).toBe(cursor);
+      expect(store.getState().imageView.currentQueryState).toBe(
+        RequestState.FAILED
+      );
+      expect(store.getState().imageView.currentQueryError).toBeTruthy();
+      await store.dispatch(thunkContinueQuery());
+      expect(
+        mockQueryImages.mock.calls.slice(1).map((args) => args[3])
+      ).toEqual([cursor, cursor]);
+      expect(store.getState().imageView.currentQueryState).toBe(
+        RequestState.SUCCEEDED
+      );
+      expect(store.getState().imageView.currentQueryError).toBeNull();
+    });
+
+    it("can restart a rejected initial query without a continuation token", async () => {
+      const store = setupStore(fakeState());
+      const request = { query: [fakeImageQuery()] };
+      mockQueryImages.mockRejectedValueOnce(
+        new Error("Temporary query failure")
+      );
+      await store.dispatch(thunkStartNewQuery(request));
+      expect(store.getState().imageView.currentQueryState).toBe(
+        RequestState.FAILED
+      );
+      expect(store.getState().imageView.nextCursor).toBeNull();
+      await store.dispatch(thunkContinueQuery());
+      expect(mockQueryImages).toHaveBeenCalledTimes(1);
+
+      mockQueryImages.mockResolvedValueOnce({ imageIds: [], nextCursor: null });
+      await store.dispatch(thunkStartNewQuery(request));
+      expect(store.getState().imageView.currentQueryState).toBe(
+        RequestState.SUCCEEDED
+      );
+      expect(store.getState().imageView.currentQueryError).toBeNull();
+    });
+
+    it.each(
+      [false, true].flatMap((continuation) =>
+        [false, true].flatMap((changeOrdering) =>
+          [false, true].flatMap((rejectOld) =>
+            [false, true].map((completeNewFirst) => ({
+              continuation,
+              changeOrdering,
+              rejectOld,
+              completeNewFirst,
+            }))
+          )
+        )
+      )
+    )(
+      "discards stale responses: %j",
+      async ({ continuation, changeOrdering, rejectOld, completeNewFirst }) => {
+        const store = setupStore(fakeState());
+        const query = [fakeImageQuery()];
+        if (continuation) {
+          mockQueryImages.mockResolvedValueOnce({
+            imageIds: [],
+            nextCursor: faker.datatype.uuid(),
+          });
+          await store.dispatch(thunkStartNewQuery({ query }));
+        }
+        let resolveOld!: (value: CursorQueryResponse) => void;
+        let reject!: (reason: Error) => void;
+        mockQueryImages.mockReturnValueOnce(
+          new Promise((resolve, fail) => {
+            resolveOld = resolve;
+            reject = fail;
+          })
+        );
+        const oldRequest = continuation
+          ? store.dispatch(thunkContinueQuery())
+          : store.dispatch(thunkStartNewQuery({ query }));
+
+        let resolveNew!: (value: CursorQueryResponse) => void;
+        mockQueryImages.mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveNew = resolve;
+          })
+        );
+        const newQuery = changeOrdering ? query : [fakeImageQuery()];
+        const orderings = changeOrdering ? [] : DEFAULT_ORDERINGS;
+        const newRequest = store.dispatch(
+          thunkStartNewQuery({ query: newQuery, orderings })
+        );
+        expect(store.getState().imageView.nextCursor).toBeNull();
+        expect(
+          mockQueryImages.mock.calls[mockQueryImages.mock.calls.length - 1]
+        ).toEqual([newQuery, orderings, undefined]);
+        const fresh = {
+          imageIds: [fakeTypedObjectRef()],
+          nextCursor: faker.datatype.uuid(),
+        };
+        if (completeNewFirst) {
+          resolveNew(fresh);
+          await newRequest;
+        }
+        const before = store.getState().imageView;
+        const metadataCalls = mockGetMetadata.mock.calls.length;
+        if (rejectOld) {
+          reject(new Error("Obsolete query failure"));
+        } else {
+          resolveOld({
+            imageIds: [fakeTypedObjectRef()],
+            nextCursor: faker.datatype.uuid(),
+          });
+        }
+        await oldRequest;
+        // Neither artifacts, cursors, loading status, nor errors may leak from old requests.
+        const after = store.getState().imageView;
+        expect(after.ids).toEqual(before.ids);
+        expect(after.currentQuery).toEqual(before.currentQuery);
+        expect(after.currentQueryOptions).toEqual(before.currentQueryOptions);
+        expect(after.nextCursor).toBe(before.nextCursor);
+        expect(after.currentQueryHasMorePages).toBe(
+          before.currentQueryHasMorePages
+        );
+        expect(after.currentQueryState).toBe(before.currentQueryState);
+        expect(after.currentQueryError).toBe(before.currentQueryError);
+        expect(mockGetMetadata).toHaveBeenCalledTimes(metadataCalls);
+        if (!completeNewFirst) {
+          resolveNew(fresh);
+          await newRequest;
+        }
+        expect(store.getState().imageView.ids).toEqual(
+          fresh.imageIds.map((id) => createArtifactEntityId(id.id))
+        );
+        expect(store.getState().imageView.nextCursor).toBe(fresh.nextCursor);
+      }
+    );
+
+    it.each([false, true])(
+      "invalidates in-flight requests when clearing (preserveQuery=%s)",
+      async (preserveQuery) => {
+        const store = setupStore(fakeState());
+        let resolve!: (value: CursorQueryResponse) => void;
+        mockQueryImages.mockReturnValueOnce(
+          new Promise((done) => {
+            resolve = done;
+          })
+        );
+        const pending = store.dispatch(
+          thunkStartNewQuery({ query: [fakeImageQuery()] })
+        );
+        store.dispatch(clearImageView({ preserveQuery }));
+        resolve({
+          imageIds: [fakeTypedObjectRef()],
+          nextCursor: faker.datatype.uuid(),
+        });
+        await pending;
+        expect(store.getState().imageView.ids).toEqual([]);
+        expect(store.getState().imageView.nextCursor).toBeNull();
+        expect(store.getState().imageView.currentQueryState).toBe(
+          RequestState.IDLE
+        );
+        expect(mockGetMetadata).not.toHaveBeenCalled();
+      }
+    );
+  });
 
   afterEach(() => {
     jest.restoreAllMocks();
@@ -1577,12 +1802,15 @@ describe("thumbnail-grid-slice reducers", () => {
       expect(newImageState.collapsedSections).toEqual({});
 
       if (preserveQuery) {
-        // It should have maintained the current query but reset the page
-        // number.
+        // It should preserve the query inputs but discard the continuation token.
         expect(newImageState.currentQuery).toEqual(
           state.imageView.currentQuery
         );
-        expect(newImageState.currentQueryOptions.pageNum).toEqual(0);
+        expect(newImageState.currentQueryOptions).toEqual(
+          state.imageView.currentQueryOptions
+        );
+        expect(newImageState.nextCursor).toBeNull();
+        expect(newImageState.currentQueryRequestId).toBeNull();
       } else {
         // It should have cleared the current query.
         expect(newImageState.currentQuery).toEqual([]);

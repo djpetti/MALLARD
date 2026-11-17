@@ -94,6 +94,14 @@ export interface ImageQuery {
   platformType?: PlatformType;
 }
 
+/** Cursor-only query results used by the frontend. */
+export interface CursorQueryResponse {
+  /** The artifacts returned in this batch. */
+  imageIds: TypedObjectRef[];
+  /** Continuation token, or null when no more results remain. */
+  nextCursor: string | null;
+}
+
 /**
  * Represents the various options associated with performing a query.
  */
@@ -102,8 +110,6 @@ export interface QueryOptions {
   orderings?: Ordering[];
   /** The number of results to produce for each page. */
   resultsPerPage?: number;
-  /** The page number that we loaded. */
-  pageNum?: number;
 }
 
 /**
@@ -204,6 +210,15 @@ export interface ImageViewState
   currentQuery: ImageQuery[];
   /** Options provided for the current query. */
   currentQueryOptions: QueryOptions;
+  /** Continuation token returned by the last successful query. */
+  nextCursor: string | null;
+  /** Identity of the active query request, used to discard stale responses. */
+  currentQueryRequestId: string | null;
+  /** View lifetime shared by query children, including after the query completes. */
+  queryGeneration: number;
+  /** Generations captured by pending artifact URL and metadata requests. */
+  artifactRequests: Record<string, number>;
+  metadataRequests: Record<string, number>;
 
   /** State of the current query. */
   currentQueryState: RequestState;

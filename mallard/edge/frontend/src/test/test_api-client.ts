@@ -1,4 +1,4 @@
-import { ImageQuery } from "../types";
+import { CursorQueryResponse, ImageQuery } from "../types";
 import {
   batchUpdateMetadata,
   createImage,
@@ -28,7 +28,6 @@ import {
 } from "./element-test-utils";
 import {
   ObjectRef,
-  QueryResponse,
   UavImageMetadata,
   ImagesApi,
   DefaultApi,
@@ -181,57 +180,67 @@ describe("api-client", () => {
     }
   );
 
-  it("can query images", async () => {
-    // Arrange.
-    // Fake a valid response.
-    const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
+  it.each(
+    [undefined, null, "", faker.datatype.uuid()].flatMap((cursor) =>
+      [undefined, null, faker.datatype.uuid()].map((nextCursor) => ({
+        cursor,
+        nextCursor,
+      }))
+    )
+  )(
+    "queries with cursor $cursor and normalizes nextCursor $nextCursor",
+    async ({ cursor, nextCursor }) => {
+      // Arrange.
+      // Fake a valid response.
+      const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
 
-    const resultsPerPage = faker.datatype.number();
-    const imageIds: TypedObjectRef[] = [];
-    for (let i = 0; i < resultsPerPage; ++i) {
-      imageIds.push(fakeTypedObjectRef());
+      const resultsPerPage = faker.datatype.number();
+      const imageIds: TypedObjectRef[] = [];
+      for (let i = 0; i < resultsPerPage; ++i) {
+        imageIds.push(fakeTypedObjectRef());
+      }
+
+      // @ts-ignore
+      mockQueryImages.mockResolvedValue({
+        data: {
+          imageIds: imageIds,
+          pageNum: null,
+          isLastPage: false,
+          nextCursor,
+        },
+      });
+
+      const orderings = [fakeOrdering(), fakeOrdering()];
+      const queries: ImageQuery[] = [{}];
+
+      // Act.
+      const result: CursorQueryResponse = await queryImages(
+        queries,
+        orderings,
+        resultsPerPage,
+        cursor
+      );
+
+      // Assert.
+      // It should have queried the images.
+      expect(mockQueryImages).toBeCalledTimes(1);
+      expect(mockQueryImages).toBeCalledWith(
+        resultsPerPage,
+        undefined,
+        cursor ?? "",
+        undefined,
+        {
+          queries: queries,
+          orderings: orderings,
+        },
+        { headers: { Authorization: expect.any(String) } }
+      );
+
+      // It should have gotten the proper result.
+      expect(result.imageIds).toEqual(imageIds);
+      expect(result).toEqual({ imageIds, nextCursor: nextCursor ?? null });
     }
-    const pageNum: number = faker.datatype.number();
-    const isLastPage: boolean = faker.datatype.boolean();
-    // @ts-ignore
-    mockQueryImages.mockResolvedValue({
-      data: {
-        imageIds: imageIds,
-        pageNum: pageNum,
-        isLastPage: isLastPage,
-      },
-    });
-
-    const orderings = [fakeOrdering(), fakeOrdering()];
-    const queries: ImageQuery[] = [{}];
-
-    // Act.
-    const result: QueryResponse = await queryImages(
-      queries,
-      orderings,
-      resultsPerPage,
-      pageNum
-    );
-
-    // Assert.
-    // It should have queried the images.
-    expect(mockQueryImages).toBeCalledTimes(1);
-    expect(mockQueryImages).toBeCalledWith(
-      resultsPerPage,
-      pageNum,
-      undefined,
-      {
-        queries: queries,
-        orderings: orderings,
-      },
-      { headers: { Authorization: expect.any(String) } }
-    );
-
-    // It should have gotten the proper result.
-    expect(result.imageIds).toEqual(imageIds);
-    expect(result.pageNum).toEqual(pageNum);
-    expect(result.isLastPage).toEqual(isLastPage);
-  });
+  );
 
   describe("authentication", () => {
     it("can get information about the current user", () => {
@@ -239,19 +248,27 @@ describe("api-client", () => {
     });
   });
 
-  it("handles a failure when querying images", async () => {
-    // Arrange.
-    // Make it look like querying images fails.
-    const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
-    const fakeError = new FakeAxiosError();
-    mockQueryImages.mockRejectedValue(fakeError);
+  it.each([422, 501])(
+    "propagates query failure %s without legacy fallback",
+    async (status) => {
+      // Arrange.
+      // Make it look like querying images fails.
+      const mockQueryImages = mockApiClass.prototype.queryArtifactsQueryPost;
+      const fakeError = Object.assign(new FakeAxiosError(), {
+        response: { status },
+      });
+      mockQueryImages.mockRejectedValue(fakeError);
 
-    // Act and assert.
-    await expect(queryImages([{}])).rejects.toThrow(FakeAxiosError);
+      // Act and assert.
+      await expect(queryImages([{}])).rejects.toBe(fakeError);
+      expect(mockQueryImages).toHaveBeenCalledTimes(1);
+      expect(mockQueryImages.mock.calls[0][1]).toBeUndefined();
+      expect(mockQueryImages.mock.calls[0][2]).toBe("");
 
-    // It should have logged the error information.
-    expect(fakeError.toJSON).toBeCalledTimes(1);
-  });
+      // It should have logged the error information.
+      expect(fakeError.toJSON).toBeCalledTimes(1);
+    }
+  );
 
   it("can load an image", async () => {
     // Arrange.

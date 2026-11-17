@@ -394,7 +394,10 @@ export class ThumbnailGrid extends InfiniteScrollingElement {
       this.resetVisibilityTracking();
     }
 
-    if (_changedProperties.get("loadingState") == RequestState.LOADING) {
+    if (
+      _changedProperties.get("loadingState") == RequestState.LOADING &&
+      this.loadingState !== RequestState.FAILED
+    ) {
       const numThumbnailsDisplayed = this.numThumbnailsDisplayed();
       if (numThumbnailsDisplayed <= this.lastNumThumbnailsDisplayed) {
         // The number of displayed thumbnails didn't change. This could mean
@@ -458,9 +461,12 @@ export class ConnectedThumbnailGrid extends connectRedux(store, ThumbnailGrid) {
   public isQueryRunning: boolean = false;
 
   /**
-   * Keeps track of which page of artifacts we just loaded.
+   * Inputs to restart after clearing the view without reusing an old cursor.
    */
-  public queryPageNum: number = 0;
+  public queryRequest: Parameters<typeof thunkStartNewQuery>[0] = {
+    query: ConnectedThumbnailGrid.DEFAULT_QUERY,
+    resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
+  };
 
   /**
    * @inheritDoc
@@ -491,10 +497,16 @@ export class ConnectedThumbnailGrid extends connectRedux(store, ThumbnailGrid) {
     // Determine the loading status.
     const contentState = state.imageView.currentQueryState;
     const metadataState = state.imageView.metadataLoadingState;
-    // If they're in different states, then the overall state will be loading,
-    // because it implies that the process isn't 100% finished.
+    // Mismatched unfinished states are busy, but failures must allow a deliberate retry.
     let overallState = RequestState.LOADING;
     if (
+      contentState === RequestState.FAILED ||
+      (contentState === RequestState.SUCCEEDED &&
+        metadataState === RequestState.FAILED)
+    ) {
+      // Scroll and resize can retry, without immediately looping on a failed request.
+      overallState = RequestState.FAILED;
+    } else if (
       contentState === RequestState.IDLE &&
       metadataState === RequestState.IDLE
     ) {
@@ -516,8 +528,21 @@ export class ConnectedThumbnailGrid extends connectRedux(store, ThumbnailGrid) {
     );
     this.hasMorePages = state.imageView.currentQueryHasMorePages;
 
-    this.queryPageNum = state.imageView.currentQueryOptions.pageNum ?? 1;
-    this.isQueryRunning = state.imageView.currentQuery.length > 0;
+    this.queryRequest = {
+      query:
+        state.imageView.currentQuery.length > 0
+          ? state.imageView.currentQuery
+          : ConnectedThumbnailGrid.DEFAULT_QUERY,
+      resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
+      ...state.imageView.currentQueryOptions,
+    };
+    // A failed initial request must restart, while a failed continuation retries its token.
+    this.isQueryRunning =
+      state.imageView.currentQueryState !== RequestState.IDLE &&
+      !(
+        state.imageView.currentQueryState === RequestState.FAILED &&
+        !state.imageView.nextCursor
+      );
 
     this.savedScrollHeight = state.imageView.lastScrollLocation;
   }
@@ -566,13 +591,10 @@ export class ConnectedThumbnailGrid extends connectRedux(store, ThumbnailGrid) {
     ) => {
       if (!this.isQueryRunning) {
         // Start a new query.
-        return thunkStartNewQuery({
-          query: ConnectedThumbnailGrid.DEFAULT_QUERY,
-          resultsPerPage: ConnectedThumbnailGrid.IMAGES_PER_PAGE,
-        }) as unknown as Action;
+        return thunkStartNewQuery(this.queryRequest) as unknown as Action;
       } else {
         // Continue the existing query.
-        return thunkContinueQuery(this.queryPageNum + 1) as unknown as Action;
+        return thunkContinueQuery() as unknown as Action;
       }
     };
     handlers[ArtifactThumbnail.SHIFT_SELECTED_EVENT_NAME] = (event: Event) => {

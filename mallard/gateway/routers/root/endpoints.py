@@ -24,13 +24,16 @@ from mallard.gateway.routers.root.schemas import QueryResponse
 router = APIRouter()
 
 
-@router.post("/query", response_model=QueryResponse)
+@router.post(
+    "/query", response_model=QueryResponse, response_model_exclude_unset=True
+)
 async def query_artifacts(
     queries: List[ImageQuery] = Body([ImageQuery()]),
     orderings: List[Ordering] = Body([]),
     results_per_page: Annotated[int, Query(gt=0)] = 50,
     page_num: Annotated[int, Query(gt=0)] = 1,
     metadata_store: MetadataStore = Depends(backends.artifact_metadata_store),
+    cursor: Annotated[str | None, Query(max_length=16_384)] = None,
 ) -> QueryResponse:
     """
     Performs a query for artifacts that meet certain criteria.
@@ -45,6 +48,9 @@ async def query_artifacts(
         page_num: If there are multiple pages of results, this can be used to
             specify a later page.
         metadata_store: The metadata store to use.
+        cursor: Omit for legacy pagination, supply an empty string to start
+            cursor pagination, or supply a previous next_cursor to continue.
+            Cursor requests require page_num=1 and unchanged query/orderings.
 
     Returns:
         The query response.
@@ -56,6 +62,31 @@ async def query_artifacts(
     )
     # First, we assume that this particular backend can query images.
     metadata = cast(ArtifactMetadataStore, metadata_store)
+
+    if cursor is not None:
+        if page_num != 1:
+            raise HTTPException(
+                status_code=422,
+                detail="Cursor pagination cannot be combined with page_num != 1.",
+            )
+        try:
+            page = await metadata.query_page(
+                queries,
+                orderings=orderings,
+                cursor=cursor or None,
+                max_num_results=results_per_page,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except NotImplementedError as error:
+            raise HTTPException(status_code=501, detail=str(error)) from error
+        # Only cursor responses set this field, preserving legacy JSON shapes.
+        return QueryResponse(
+            image_ids=page.image_ids,
+            page_num=None,
+            is_last_page=page.next_cursor is None,
+            next_cursor=page.next_cursor,
+        )
 
     skip_first = (page_num - 1) * results_per_page
     results = metadata.query(
@@ -74,6 +105,9 @@ async def query_artifacts(
 
     return QueryResponse(
         image_ids=image_ids, page_num=page_num, is_last_page=is_last_page
+    )
+    return QueryResponse(
+        image_ids=page.image_ids, next_cursor=page.next_cursor
     )
 
 

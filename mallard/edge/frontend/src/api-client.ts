@@ -6,13 +6,12 @@ import {
   ObjectRef,
   ObjectType,
   Ordering,
-  QueryResponse,
   TypedObjectRef,
   UavImageMetadata,
   UavVideoMetadata,
   VideosApi,
 } from "mallard-api";
-import { ImageQuery } from "./types";
+import { CursorQueryResponse, ImageQuery } from "./types";
 import { cloneDeep } from "lodash";
 import urlJoin from "url-join";
 import axios, { AxiosRequestConfig, AxiosProgressEvent } from "axios";
@@ -262,21 +261,23 @@ export function logout() {
  * @param {ImageQuery} query The query to perform.
  * @param {Ordering[]} orderings The orderings to use for the query results.
  * @param {number} resultsPerPage The number of results to include on each page.
- * @param {number} pageNum The page number to fetch.
- * @return {QueryResponse} The result of the query.
+ * @param {string | null} cursor The continuation token, or empty to start a query.
+ * @return {CursorQueryResponse} The cursor-only result of the query.
  */
 export async function queryImages(
   query: ImageQuery[],
   orderings: Ordering[] = DEFAULT_ORDERINGS,
   resultsPerPage?: number,
-  pageNum: number = 1
-): Promise<QueryResponse> {
+  cursor?: string | null
+): Promise<CursorQueryResponse> {
   const authHeaders = await getAuthHeaders();
 
   const response = await api
     .queryArtifactsQueryPost(
       resultsPerPage,
-      pageNum,
+      undefined,
+      // An explicit empty cursor selects cursor mode instead of legacy pagination.
+      cursor ?? "",
       undefined,
       {
         queries: query,
@@ -288,7 +289,10 @@ export async function queryImages(
       console.error(error.toJSON());
       throw error;
     });
-  return response.data;
+  return {
+    imageIds: response.data.imageIds,
+    nextCursor: response.data.nextCursor ?? null,
+  };
 }
 
 /**

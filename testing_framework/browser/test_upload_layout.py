@@ -113,9 +113,7 @@ def upload_page(
         """Return deterministic responses for the upload and gallery APIs."""
         path = urlparse(route.request.url).path
         if path == "/api/query":
-            route.fulfill(
-                json={"imageIds": [], "pageNum": 1, "isLastPage": True}
-            )
+            route.fulfill(json={"imageIds": [], "nextCursor": None})
         elif path == "/api/images/metadata/infer":
             route.fulfill(json=metadata)
         elif path == "/api/images/create_uav":

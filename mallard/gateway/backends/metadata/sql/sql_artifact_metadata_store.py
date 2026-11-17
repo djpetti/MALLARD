@@ -2,7 +2,10 @@
 A metadata store that interfaces with a SQL database.
 """
 
+import hashlib
+import json
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from functools import singledispatchmethod
 from typing import (
     Any,
@@ -16,7 +19,7 @@ from typing import (
 
 from confuse import ConfigView
 from loguru import logger
-from sqlalchemy import ColumnElement, or_, text, true
+from sqlalchemy import ColumnElement, and_, case, false, or_, text, true
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -28,6 +31,7 @@ from sqlalchemy.sql.expression import Select, select
 
 from ...objects.models import ObjectRef, ObjectType, TypedObjectRef
 from .. import ArtifactMetadataStore, MetadataTypeVar
+from ..pagination import QueryPage, _decode_cursor, _encode_cursor
 from ..schemas import (
     GeoPoint,
     ImageQuery,
@@ -552,6 +556,169 @@ class SqlArtifactMetadataStore(
         async with self.__write_session_begin(object_id) as session:
             artifact = await self.__get_by_id(object_id, session=session)
             await session.delete(artifact)
+
+    @staticmethod
+    def __cursor_value(
+        value: str | int | None, column: InstrumentedAttribute
+    ) -> str | int | date | datetime | None:
+        """Validates a cursor value's type and portable parameter-binding bounds.
+
+        Args:
+            value: Untrusted decoded ordering value.
+            column: Column whose type and nullability constrain the value.
+
+        Returns:
+            A value suitable for a bound SQL comparison.
+
+        Raises:
+            ValueError: If the value has the wrong type or exceeds binding bounds.
+        """
+        if value is None:
+            if not column.nullable:
+                raise ValueError("Cursor identity values cannot be null.")
+            return None
+        python_type = column.type.python_type
+        if python_type in (date, datetime):
+            if type(value) is not str:
+                raise ValueError("Invalid cursor date value.")
+            try:
+                # ISO round trips preserve datetime precision and UTC offsets.
+                parsed = python_type.fromisoformat(value)
+            except ValueError as error:
+                raise ValueError("Invalid cursor date value.") from error
+            if parsed.isoformat() != value:
+                raise ValueError("Cursor dates must use canonical ISO format.")
+            return parsed
+        if type(value) is not python_type:
+            raise ValueError("Invalid cursor ordering value type.")
+        # Token bounds limit strings; SQLite need not enforce declared widths.
+        if type(value) is int and not -(2**63) <= value < 2**63:
+            raise ValueError(
+                "Cursor integer exceeds the signed 64-bit binding range."
+            )
+        return value
+
+    async def query_page(
+        self,
+        queries: Iterable[ImageQuery],
+        orderings: Iterable[Ordering] = (),
+        *,
+        cursor: str | None = None,
+        max_num_results: int = 500,
+    ) -> QueryPage:
+        """Returns a SQL keyset page, with NULL values last in either direction.
+
+        Args:
+            queries: Disjunctive filters, with fields within each filter ANDed.
+            orderings: Ordered sort specifications, followed by bucket and key.
+            cursor: None for the first page, otherwise a prior continuation.
+            max_num_results: Positive maximum number of references to return.
+
+        Returns:
+            References and a continuation only when another result exists.
+
+        Raises:
+            ValueError: If the limit or cursor is invalid or mismatched.
+            NotImplementedError: If a filter or ordering is unsupported.
+        """
+        if type(max_num_results) is not int or not 0 < max_num_results < 2**31:
+            raise ValueError("Page size must be a positive SQL integer.")
+        queries = list(queries)
+        orderings = list(orderings)
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "queries": [q.model_dump(mode="json") for q in queries],
+                    "orderings": [
+                        o.model_dump(mode="json") for o in orderings
+                    ],
+                    "match": self.__enable_match,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        columns = []
+        directions = []
+        for order in orderings:
+            if order.field not in self.__order_to_column:
+                raise NotImplementedError("Unsupported cursor ordering.")
+            columns.append(self.__order_to_column[order.field])
+            directions.append(order.ascending)
+        # Identity columns make all ties deterministic across page boundaries.
+        columns.extend([Artifact.bucket, Artifact.key])
+        directions.extend([True, True])
+        values = None
+        if cursor is not None:
+            raw_values = _decode_cursor(cursor, fingerprint)
+            if len(raw_values) != len(columns):
+                raise ValueError("Cursor ordering value count does not match.")
+            values = [
+                self.__cursor_value(value, column)
+                for value, column in zip(raw_values, columns)
+            ]
+
+        expressions = [
+            self.__update_raster_query_expression(query) for query in queries
+        ]
+        selection = (
+            select(Artifact, *columns)
+            .join_from(
+                Artifact,
+                Raster,
+                onclause=(Artifact.bucket == Raster.bucket)
+                & (Artifact.key == Raster.key),
+            )
+            .where(or_(*expressions) if expressions else true())
+        )
+        after = false()
+        equal_prefix = true()
+        for index, (column, ascending) in enumerate(zip(columns, directions)):
+            # CASE is portable to dialects without native NULLS LAST syntax.
+            if column.nullable:
+                selection = selection.order_by(
+                    case((column.is_(None), 1), else_=0).asc()
+                )
+            # Keep nonnullable identity ordering eligible for ordinary indexes.
+            selection = selection.order_by(
+                column.asc() if ascending else column.desc()
+            )
+            if values is not None:
+                value = values[index]
+                if value is None:
+                    equal_prefix = and_(equal_prefix, column.is_(None))
+                else:
+                    comparison = (
+                        column > value if ascending else column < value
+                    )
+                    if column.nullable:
+                        comparison = or_(comparison, column.is_(None))
+                    after = or_(after, and_(equal_prefix, comparison))
+                    equal_prefix = and_(equal_prefix, column == value)
+        if values is not None:
+            selection = selection.where(after)
+        # The extra row distinguishes exact-size final pages without a count.
+        selection = selection.limit(max_num_results + 1)
+        async with self.__session_begin() as session:
+            rows = (await session.execute(selection)).all()
+            page_rows = rows[:max_num_results]
+            image_ids = [
+                TypedObjectRef(
+                    id=ObjectRef(bucket=row[0].bucket, name=row[0].key),
+                    type=self.__object_type(row[0]),
+                )
+                for row in page_rows
+            ]
+            next_cursor = None
+            if len(rows) > max_num_results:
+                # Capture selected values, never look up the anchor on resume.
+                last_values = [
+                    value.isoformat() if isinstance(value, date) else value
+                    for value in page_rows[-1][1:]
+                ]
+                next_cursor = _encode_cursor(fingerprint, last_values)
+        return QueryPage(image_ids=image_ids, next_cursor=next_cursor)
 
     async def query(
         self,

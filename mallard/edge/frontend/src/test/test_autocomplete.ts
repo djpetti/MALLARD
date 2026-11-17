@@ -188,8 +188,7 @@ describe("autocomplete", () => {
       const queryResults = [fakeTypedObjectRef()];
       mockQueryImages.mockResolvedValue({
         imageIds: queryResults,
-        pageNum: 1,
-        isLastPage: true,
+        nextCursor: null,
       });
 
       // Make it look like getting the metadata succeeded.
@@ -202,6 +201,7 @@ describe("autocomplete", () => {
       // Assert.
       // Since we only mocked a single result, we should get a single
       // suggestion.
+      expect(mockQueryImages).toHaveBeenCalledWith(expect.any(Array), [], 5);
       expect(suggestions).toHaveLength(1);
       expect(suggestions[0]).toEqual(suggestion);
     }

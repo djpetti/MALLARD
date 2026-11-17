@@ -8,6 +8,7 @@ import {
 } from "@reduxjs/toolkit";
 import {
   ArtifactEntity,
+  CursorQueryResponse,
   ImageQuery,
   ArtifactStatus,
   ImageViewState,
@@ -31,7 +32,6 @@ import {
   ObjectRef,
   ObjectType,
   Ordering,
-  QueryResponse,
   TypedObjectRef,
   UavImageMetadata,
   UavVideoMetadata,
@@ -69,15 +69,14 @@ type ThunkResult<R> = ThunkAction<R, RootState, any, AnyAction>;
 interface StartQueryReturn {
   query: ImageQuery[];
   options: QueryOptions;
-  result: QueryResponse;
+  result: CursorQueryResponse;
 }
 
 /**
  * Return type for the `thunkContinueQuery` creator.
  */
 interface ContinueQueryReturn {
-  pageNum: number;
-  result: QueryResponse;
+  result: CursorQueryResponse;
 }
 
 /**
@@ -155,6 +154,11 @@ const thumbnailGridAdapter = createEntityAdapter({
 const initialState: ImageViewState = thumbnailGridAdapter.getInitialState({
   currentQuery: [],
   currentQueryOptions: {},
+  nextCursor: null,
+  currentQueryRequestId: null,
+  queryGeneration: 0,
+  artifactRequests: {},
+  metadataRequests: {},
   currentQueryState: RequestState.IDLE,
   metadataLoadingState: RequestState.IDLE,
   imageDeletionState: RequestState.IDLE,
@@ -269,27 +273,26 @@ export const thunkStartNewQuery = createAsyncThunk(
       query,
       orderings = DEFAULT_ORDERINGS,
       resultsPerPage,
-      startPageNum,
     }: {
       query: ImageQuery[];
       orderings?: Ordering[];
       resultsPerPage?: number;
-      startPageNum?: number;
     },
-    { dispatch }
+    { dispatch, getState, requestId }
   ): Promise<StartQueryReturn> => {
-    if (startPageNum == undefined) {
-      // Default to the first page.
-      startPageNum = 1;
-    }
+    // The API wrapper sends an explicit empty cursor to start in cursor mode.
+    const queryResult = await queryImages(query, orderings, resultsPerPage);
 
-    // Perform the query.
-    const queryResult = await queryImages(
-      query,
-      orderings,
-      resultsPerPage,
-      startPageNum
-    );
+    // A newer search or ordering invalidates both artifacts and continuation tokens.
+    if (
+      (getState() as RootState).imageView.currentQueryRequestId !== requestId
+    ) {
+      return {
+        query,
+        options: { orderings, resultsPerPage },
+        result: queryResult,
+      };
+    }
 
     // Add the results to the state.
     dispatch(thunkAddArtifacts(queryResult.imageIds));
@@ -305,7 +308,6 @@ export const thunkStartNewQuery = createAsyncThunk(
       options: {
         orderings: orderings,
         resultsPerPage: resultsPerPage,
-        pageNum: startPageNum,
       },
       result: queryResult,
     };
@@ -318,8 +320,8 @@ export const thunkStartNewQuery = createAsyncThunk(
 export const thunkContinueQuery = createAsyncThunk(
   "thumbnailGrid/continueQuery",
   async (
-    pageNum: number,
-    { getState, dispatch }
+    _: void,
+    { getState, dispatch, requestId }
   ): Promise<ContinueQueryReturn> => {
     const state = (getState() as RootState).imageView;
     const options = state.currentQueryOptions;
@@ -329,8 +331,15 @@ export const thunkContinueQuery = createAsyncThunk(
       state.currentQuery,
       options.orderings,
       options.resultsPerPage,
-      pageNum
+      state.nextCursor
     );
+
+    // Do not append results from a superseded query.
+    if (
+      (getState() as RootState).imageView.currentQueryRequestId !== requestId
+    ) {
+      return { result: queryResult };
+    }
 
     // Add the results to the state.
     dispatch(thunkAddArtifacts(queryResult.imageIds));
@@ -342,21 +351,14 @@ export const thunkContinueQuery = createAsyncThunk(
     );
 
     return {
-      pageNum: pageNum,
       result: queryResult,
     };
   },
   {
-    condition: (pageNum: number, { getState }): boolean => {
+    condition: (_, { getState }): boolean => {
       const state = (getState() as RootState).imageView;
-      // If there is no current query, we can't continue it. Also, if we
-      // have already loaded this page, or if there are no more pages,
-      // it would be pointless to continue loading.
-      return (
-        state.currentQuery.length > 0 &&
-        state.currentQueryHasMorePages &&
-        pageNum > (state.currentQueryOptions.pageNum as number)
-      );
+      // Only one continuation may consume the current token at a time.
+      return Boolean(state.nextCursor) && state.currentQueryRequestId === null;
     },
   }
 );
@@ -916,15 +918,29 @@ export function thunkShowDetails(backendId: TypedObjectRef): ThunkResult<void> {
 /**
  * Common reducer logic for updating the state after a query completes.
  * @param {Draft<ImageViewState>} state The state to update.
- * @param {QueryResponse} queryResults The results from the query.
+ * @param {CursorQueryResponse} queryResults The results from the query.
  */
 function updateQueryState(
   state: Draft<ImageViewState>,
-  queryResults: QueryResponse
+  queryResults: CursorQueryResponse
 ) {
   // Save the current query.
   state.currentQueryState = RequestState.SUCCEEDED;
-  state.currentQueryHasMorePages = !queryResults.isLastPage;
+  state.nextCursor = queryResults.nextCursor;
+  state.currentQueryHasMorePages = Boolean(queryResults.nextCursor);
+  state.currentQueryRequestId = null;
+  state.currentQueryError = null;
+}
+
+/**
+ * Invalidates child requests when their owning view is cleared or replaced.
+ * @param {Draft<ImageViewState>} state The state to update.
+ */
+function invalidateQueryChildren(state: Draft<ImageViewState>): void {
+  state.queryGeneration += 1;
+  state.artifactRequests = {};
+  state.metadataRequests = {};
+  state.metadataLoadingState = RequestState.IDLE;
 }
 
 export const thumbnailGridSlice = createSlice({
@@ -964,17 +980,17 @@ export const thumbnailGridSlice = createSlice({
     // Completely resets the current image view, removing all loaded images.
     clearImageView(state, action) {
       thumbnailGridAdapter.removeAll(state);
+      invalidateQueryChildren(state);
 
-      if (action.payload.preserveQuery) {
-        // Keep the current query, but reset the page number since we're
-        // clearing all the loaded artifacts.
-        state.currentQueryOptions.pageNum = 0;
-      } else {
+      // Preserved query inputs can be restarted, but their old cursor is invalid.
+      if (!action.payload.preserveQuery) {
         // Reset the query state.
         state.currentQuery = [];
         state.currentQueryOptions = {};
       }
 
+      state.nextCursor = null;
+      state.currentQueryRequestId = null;
       state.currentQueryState = RequestState.IDLE;
       state.metadataLoadingState = RequestState.IDLE;
       state.currentQueryError = null;
@@ -1056,6 +1072,7 @@ export const thumbnailGridSlice = createSlice({
   extraReducers: (builder) => {
     // We are adding new artifacts to the state.
     builder.addCase(thunkAddArtifacts.pending, (state, action) => {
+      state.artifactRequests[action.meta.requestId] = state.queryGeneration;
       // Add the artifacts without dynamically-created parameters.
       thumbnailGridAdapter.upsertMany(
         state,
@@ -1070,6 +1087,12 @@ export const thumbnailGridSlice = createSlice({
     });
 
     builder.addCase(thunkAddArtifacts.fulfilled, (state, action) => {
+      // The same artifact ID may have been re-added by a newer search.
+      if (
+        state.artifactRequests[action.meta.requestId] !== state.queryGeneration
+      )
+        return;
+      delete state.artifactRequests[action.meta.requestId];
       thumbnailGridAdapter.updateMany(
         state,
         action.payload.map((artifact: AddArtifactsReturn) => ({
@@ -1080,6 +1103,10 @@ export const thumbnailGridSlice = createSlice({
           },
         }))
       );
+    });
+
+    builder.addCase(thunkAddArtifacts.rejected, (state, action) => {
+      delete state.artifactRequests[action.meta.requestId];
     });
 
     builder.addCase(thunkLoadVideoTimestamps.pending, (state, action) => {
@@ -1124,15 +1151,26 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We initiated a new query for home screen data.
-    builder.addCase(thunkStartNewQuery.pending, (state) => {
+    builder.addCase(thunkStartNewQuery.pending, (state, action) => {
       // Remove the current images, which will now be out-of-date.
       thumbnailGridAdapter.removeAll(state);
+      invalidateQueryChildren(state);
 
+      state.currentQuery = action.meta.arg.query;
+      state.currentQueryOptions = {
+        orderings: action.meta.arg.orderings ?? DEFAULT_ORDERINGS,
+        resultsPerPage: action.meta.arg.resultsPerPage,
+      };
+      state.nextCursor = null;
+      state.currentQueryHasMorePages = true;
+      state.currentQueryRequestId = action.meta.requestId;
+      state.currentQueryError = null;
       state.currentQueryState = RequestState.LOADING;
     });
 
     // Adds (possibly partial) results from a query.
     builder.addCase(thunkStartNewQuery.fulfilled, (state, action) => {
+      if (state.currentQueryRequestId !== action.meta.requestId) return;
       updateQueryState(state, action.payload.result);
 
       // Save the current query.
@@ -1141,16 +1179,30 @@ export const thumbnailGridSlice = createSlice({
     });
 
     // We continued a query for home screen data.
-    builder.addCase(thunkContinueQuery.pending, (state) => {
+    builder.addCase(thunkContinueQuery.pending, (state, action) => {
+      state.currentQueryRequestId = action.meta.requestId;
+      state.currentQueryError = null;
       state.currentQueryState = RequestState.LOADING;
     });
 
     // Adds additional results from a query.
     builder.addCase(thunkContinueQuery.fulfilled, (state, action) => {
+      if (state.currentQueryRequestId !== action.meta.requestId) return;
       updateQueryState(state, action.payload.result);
+    });
 
-      // Keep the current page number up-to-date.
-      state.currentQueryOptions.pageNum = action.payload.pageNum;
+    // Failed continuations retain their token so retrying requests the same results.
+    builder.addCase(thunkStartNewQuery.rejected, (state, action) => {
+      if (state.currentQueryRequestId !== action.meta.requestId) return;
+      state.currentQueryRequestId = null;
+      state.currentQueryState = RequestState.FAILED;
+      state.currentQueryError = action.error.message ?? "Query failed";
+    });
+    builder.addCase(thunkContinueQuery.rejected, (state, action) => {
+      if (state.currentQueryRequestId !== action.meta.requestId) return;
+      state.currentQueryRequestId = null;
+      state.currentQueryState = RequestState.FAILED;
+      state.currentQueryError = action.error.message ?? "Query failed";
     });
 
     // We initiated a bulk download.
@@ -1278,6 +1330,7 @@ export const thumbnailGridSlice = createSlice({
 
     // We initiated a new request for metadata.
     builder.addCase(thunkLoadMetadata.pending, (state, action) => {
+      state.metadataRequests[action.meta.requestId] = state.queryGeneration;
       state.metadataLoadingState = RequestState.LOADING;
 
       const updates = action.meta.arg.map((imageId: string) => ({
@@ -1289,7 +1342,16 @@ export const thumbnailGridSlice = createSlice({
 
     // Add results from metadata loading.
     builder.addCase(thunkLoadMetadata.fulfilled, (state, action) => {
-      state.metadataLoadingState = RequestState.SUCCEEDED;
+      // Guard global loading state as well as entities, even after the query fulfilled.
+      if (
+        state.metadataRequests[action.meta.requestId] !== state.queryGeneration
+      )
+        return;
+      delete state.metadataRequests[action.meta.requestId];
+      state.metadataLoadingState =
+        Object.keys(state.metadataRequests).length > 0
+          ? RequestState.LOADING
+          : RequestState.SUCCEEDED;
 
       // Save the image metadata.
       const updates = action.payload.imageIds.map(
@@ -1307,6 +1369,25 @@ export const thumbnailGridSlice = createSlice({
       );
 
       thumbnailGridAdapter.updateMany(state, updates);
+    });
+    builder.addCase(thunkLoadMetadata.rejected, (state, action) => {
+      if (
+        state.metadataRequests[action.meta.requestId] !== state.queryGeneration
+      )
+        return;
+      delete state.metadataRequests[action.meta.requestId];
+      state.metadataLoadingState =
+        Object.keys(state.metadataRequests).length > 0
+          ? RequestState.LOADING
+          : RequestState.FAILED;
+      // Failed metadata can be requested again rather than remaining permanently loading.
+      thumbnailGridAdapter.updateMany(
+        state,
+        action.meta.arg.map((id) => ({
+          id,
+          changes: { metadataStatus: ArtifactStatus.NOT_LOADED },
+        }))
+      );
     });
   },
 });

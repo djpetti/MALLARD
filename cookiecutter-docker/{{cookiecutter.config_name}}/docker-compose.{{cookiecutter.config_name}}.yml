@@ -133,6 +133,7 @@ services:
   metadata_store:
     image: mariadb:10.11
     hostname: metadata-store
+    command: ["--innodb-buffer-pool-size=4G"]
     volumes:
       - {{cookiecutter.metadata_location}}:/var/lib/mysql
     environment:

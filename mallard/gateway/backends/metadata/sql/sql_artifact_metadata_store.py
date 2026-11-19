@@ -4,6 +4,7 @@ A metadata store that interfaces with a SQL database.
 
 import hashlib
 import json
+import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from functools import singledispatchmethod
@@ -51,6 +52,21 @@ from ..schemas import (
     UavVideoMetadata,
 )
 from .models import Artifact, Base, Image, Raster, Video
+
+
+async def _logged_execute(session, query):
+    start = time.time()
+    try:
+        result = await session.execute(query)
+        elapsed = time.time() - start
+        logger.debug("Executed query: {} in {:.2f} seconds", query, elapsed)
+        return result
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(
+            "Query failed: {} after {:.2f} seconds: {}", query, elapsed, e
+        )
+        raise
 
 
 @asynccontextmanager
@@ -159,7 +175,7 @@ class SqlArtifactMetadataStore(
         async with self.__session_begin() as session:
             if session.get_bind().dialect.name == "sqlite":
                 # SQLite ignores FOR UPDATE, so reserve its writer before reads.
-                await session.execute(text("BEGIN IMMEDIATE"))
+                await _logged_execute(session, text("BEGIN IMMEDIATE"))
             # Lock the parent before any select-in loads establish a snapshot.
             query = (
                 select(Artifact.bucket)
@@ -169,7 +185,7 @@ class SqlArtifactMetadataStore(
                 )
                 .with_for_update()
             )
-            await session.execute(query)
+            await _logged_execute(session, query)
             yield session
 
     def __merge_orm_to_pydantic(self, *orm_models: Base) -> MetadataTypeVar:
@@ -275,7 +291,7 @@ class SqlArtifactMetadataStore(
             Artifact.bucket == object_id.bucket,
             Artifact.key == object_id.name,
         )
-        query_results = await session.execute(query)
+        query_results = await _logged_execute(session, query)
 
         try:
             return query_results.scalar_one()
@@ -646,7 +662,7 @@ class SqlArtifactMetadataStore(
                     )
                 )
             )
-            for row in (await session.execute(selection)).all():
+            for row in (await _logged_execute(session, selection)).all():
                 object_types[(row.bucket, row.key)] = (
                     ObjectType.IMAGE
                     if row.image_bucket is not None
@@ -783,7 +799,7 @@ class SqlArtifactMetadataStore(
         # The extra row distinguishes exact-size final pages without a count.
         selection = selection.limit(max_num_results + 1)
         async with self.__session_begin() as session:
-            rows = (await session.execute(selection)).all()
+            rows = (await _logged_execute(session, selection)).all()
             page_rows = rows[:max_num_results]
             # Determine subtype only for this bounded page, not the whole result set.
             object_types = await self.__query_page_types(
@@ -849,7 +865,7 @@ class SqlArtifactMetadataStore(
 
         # Execute the query.
         async with self.__session_begin() as session:
-            query_results = await session.execute(selection)
+            query_results = await _logged_execute(session, selection)
             # Detach plain references before yielding to a potentially slow caller.
             results = [
                 TypedObjectRef(

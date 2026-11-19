@@ -1,3 +1,9 @@
+## General Rules
+
+- Use the `codegraph` tool when possible instead of manually searching a bunch of files.
+- Implement tests for your changes when possible to ensure that they work.
+- Before starting a significant task, break it down into more manageable steps. Try to use subagents for individual steps when possible.
+
 ## Code style
 
 - Use American English, e.g. "meters" instead of "metres".
